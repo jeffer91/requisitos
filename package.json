@@ -1,0 +1,15 @@
+{
+  "name": "requisitos-desktop",
+  "version": "1.0.0",
+  "description": "Aplicacion local de Requisitos para abrir la maqueta principal con Electron.",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "npx --yes electron .",
+    "dev": "npx --yes electron .",
+    "start:local": "electron ."
+  },
+  "devDependencies": {
+    "electron": "latest"
+  }
+}
