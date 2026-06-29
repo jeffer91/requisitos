@@ -6,20 +6,8 @@ Función o funciones:
 - Leer completo solo cuando el usuario usa "Solo bajar Firebase" o cuando se fuerza.
 - Usar cola incremental BL2 para subir pendientes.
 - Usar pull incremental por updatedAt cuando exista una fecha previa.
-- Evitar que sync() compare toda Firebase en cada ejecución.
-- Mantener funcionando la Base Local aunque no haya internet.
-Con qué se conecta:
-- maq-baselocal-background-sync.js
-- services/bl-periodos.service.js
-- services/bl-estudiantes.service.js
-- services/bl-sync-diario.js
-- services/bl-firestore-patch.js
-- ../BaseLocal2/sync/bl2-sync-queue.js
-- ../BaseLocal2/sync/bl2-firebase-push.js
-- ../BaseLocal2/sync/bl2-firebase-pull.js
-- baselocal.app.js
-- excel-local.storage.js
-- firebase-config.js
+- Reconstruir períodos desde estudiantes si Firebase periodos está vacío.
+- Evitar que sync() compare toda Firebase en cada ejecución normal.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -28,7 +16,7 @@ Con qué se conecta:
   var SYNC_STATUS_KEY="REQ_BL_DAILY_SYNC_STATUS_V1";
   var BACKUP_KEY_PREFIX="REQ_EXCEL_LOCAL_V1:beforeFirebaseSync:";
   var SIGNAL_KEY="REQ_BL_SIGNAL_V1";
-  var VERSION="1.6.0-fast-sync";
+  var VERSION="1.7.0-safe-sync-infer-periods";
 
   function text(v){return String(v==null?"":v).trim();}
   function now(){return new Date().toISOString();}
@@ -43,23 +31,14 @@ Con qué se conecta:
   function getDailyService(){return window.BLSyncDiario||null;}
   function getPatchService(){return window.BLFirestorePatch||null;}
 
-  function emit(kind,payload){
-    var detail=Object.assign({kind:kind,at:now(),version:VERSION},payload||{});
-    try{window.dispatchEvent(new CustomEvent("baselocal:"+kind,{detail:clone(detail)}));window.dispatchEvent(new CustomEvent("requisitos:bl:"+kind,{detail:clone(detail)}));window.dispatchEvent(new CustomEvent("bl:"+kind,{detail:clone(detail)}));}catch(e){}
-    try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:"requisitos:bl:"+kind,payload:detail},"*");}catch(e){}
-    try{localStorage.setItem(SIGNAL_KEY,JSON.stringify({id:"signal-"+Date.now(),kind:kind,payload:detail,at:now()}));}catch(e){}
-  }
-
+  function emit(kind,payload){var detail=Object.assign({kind:kind,at:now(),version:VERSION},payload||{});try{window.dispatchEvent(new CustomEvent("baselocal:"+kind,{detail:clone(detail)}));window.dispatchEvent(new CustomEvent("requisitos:bl:"+kind,{detail:clone(detail)}));window.dispatchEvent(new CustomEvent("bl:"+kind,{detail:clone(detail)}));}catch(e){}try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:"requisitos:bl:"+kind,payload:detail},"*");}catch(e){}try{localStorage.setItem(SIGNAL_KEY,JSON.stringify({id:"signal-"+Date.now(),kind:kind,payload:detail,at:now()}));}catch(e){}}
   function saveStatus(p){var s=Object.assign({checkedAt:now(),version:VERSION},p||{});try{localStorage.setItem(STATUS_KEY,JSON.stringify(s));}catch(e){}return s;}
   function getLastStatus(){try{var raw=localStorage.getItem(STATUS_KEY);return raw?JSON.parse(raw):{ok:false,mode:"sin_estado"};}catch(e){return {ok:false,mode:"sin_estado"};}}
   function getSyncStatus(){try{var raw=localStorage.getItem(SYNC_STATUS_KEY);return raw?JSON.parse(raw):{ok:false,mode:"sin_estado",lastSyncDate:""};}catch(e){return {ok:false,mode:"sin_estado",lastSyncDate:""};}}
   function saveSyncStatus(p){var s=Object.assign({},getSyncStatus(),p||{},{updatedAt:now(),version:VERSION});try{localStorage.setItem(SYNC_STATUS_KEY,JSON.stringify(s));}catch(e){}return s;}
 
   function getFirebaseConfigIfAvailable(){try{if(typeof firebaseConfig!=="undefined"&&firebaseConfig)return firebaseConfig;}catch(e){}return null;}
-  function ensureFirebaseInitialized(){
-    if(!window.firebase||typeof window.firebase.firestore!=="function")throw new Error("Firebase no está cargado. Revisa internet o los scripts de Firebase.");
-    try{if(!window.firebase.apps.length){var cfg=getFirebaseConfigIfAvailable();if(!cfg)throw new Error("No existe configuración Firebase para inicializar.");window.firebase.initializeApp(cfg);}}catch(error){if(!window.firebase.apps||!window.firebase.apps.length)throw error;}
-  }
+  function ensureFirebaseInitialized(){if(!window.firebase||typeof window.firebase.firestore!=="function")throw new Error("Firebase no está cargado. Revisa internet o los scripts de Firebase.");try{if(!window.firebase.apps.length){var cfg=getFirebaseConfigIfAvailable();if(!cfg)throw new Error("No existe configuración Firebase para inicializar.");window.firebase.initializeApp(cfg);}}catch(error){if(!window.firebase.apps||!window.firebase.apps.length)throw error;}}
   function getDb(){ensureFirebaseInitialized();if(window.db&&typeof window.db.collection==="function")return window.db;try{if(typeof db!=="undefined"&&db&&typeof db.collection==="function")return db;}catch(e){}return window.firebase.firestore();}
 
   function rowUpdatedAt(r){r=r||{};return parseTime(r.updatedAt||r.forceUploadedAt||r.ultimaSincronizacion||r.actualizadoEn||r.createdAt||r.creadoEn||"");}
@@ -78,49 +57,26 @@ Con qué se conecta:
   function filterDeletedPeriods(snapshot,sourceSnapshot){var clean=snapshot||{},rows=activeDeleteRows(sourceSnapshot||{}).concat(activeDeleteRows(clean));if(!rows.length)return clean;clean.periods=(Array.isArray(clean.periods)?clean.periods:[]).filter(function(p){return !deletedByHistory(periodValue(p),rows);});clean.students=(Array.isArray(clean.students)?clean.students:[]).filter(function(s){return !deletedByHistory(studentPeriodValue(s),rows);});clean.meta=Object.assign({},clean.meta||{},{periodosBorradosProtegidos:rows.length});return clean;}
   function rebuildMirrors(){try{if(window.RequisitosBL&&typeof window.RequisitosBL.mirrorSnapshotToCollections==="function")window.RequisitosBL.mirrorSnapshotToCollections({silent:true, lazy:true});}catch(e){}}
 
+  function inferPeriodsFromStudents(students){try{if(getPeriodosService()&&typeof getPeriodosService().inferFromStudents==="function")return getPeriodosService().inferFromStudents(students||[]);}catch(e){}return [];}
   function normalizeSnapshot(snapshot){
     var base=snapshot&&typeof snapshot==="object"?snapshot:{};
     var periods=getPeriodosService().dedupe((base.periods||[]).map(function(p){return getPeriodosService().normalizePeriod(p);}));
     var students=getEstudiantesService().normalizeLocalList(base.students||[]);
+    if(!periods.length&&students.length){periods=inferPeriodsFromStudents(students);}
     var max=maxUpdatedIso(students.concat(periods),"");
     var meta=Object.assign({app:"Requisitos",module:"ExcelLocal",version:VERSION,updatedAt:max||now()},base.meta||{});
-    meta.totalStudents=students.length;meta.totalPeriods=periods.length;meta.updatedAt=meta.updatedAt||max||now();
+    meta.totalStudents=students.length;meta.totalPeriods=periods.length;meta.updatedAt=meta.updatedAt||max||now();meta.periodsInferred=!!(!((base.periods||[]).length)&&periods.length&&students.length);
     return {meta:meta,periods:periods,students:students,history:Array.isArray(base.history)?base.history:[],diagnostics:Array.isArray(base.diagnostics)?base.diagnostics:[]};
   }
 
   function readLocalSnapshot(){var raw=getStorage().readSnapshot();return filterDeletedPeriods(normalizeSnapshot(raw),raw);}
-  function writeLocalSnapshot(snapshot,action){
-    var current=null;try{current=getStorage().readSnapshot();}catch(e){}
-    var clean=normalizeSnapshot(snapshot);clean=mergeProtectedHistory(clean,current);clean=filterDeletedPeriods(clean,clean);clean.meta=Object.assign({},clean.meta||{},{updatedAt:now()});clean.history=Array.isArray(clean.history)?clean.history:[];
-    clean.history.unshift({id:"bl_"+(action||"sync")+"_"+Date.now(),action:action||"sync",periodoId:"TODOS",periodoLabel:"Todos los períodos",fileName:"Base Local",totalRows:Array.isArray(clean.students)?clean.students.length:0,totalPeriods:Array.isArray(clean.periods)?clean.periods.length:0,createdAt:now()});
-    getStorage().writeSnapshot(clean);rebuildMirrors();emit("local-updated",{action:action||"sync"});return clean;
-  }
-
+  function writeLocalSnapshot(snapshot,action){var current=null;try{current=getStorage().readSnapshot();}catch(e){}var clean=normalizeSnapshot(snapshot);clean=mergeProtectedHistory(clean,current);clean=filterDeletedPeriods(clean,clean);clean.meta=Object.assign({},clean.meta||{},{updatedAt:now()});clean.history=Array.isArray(clean.history)?clean.history:[];clean.history.unshift({id:"bl_"+(action||"sync")+"_"+Date.now(),action:action||"sync",periodoId:"TODOS",periodoLabel:"Todos los períodos",fileName:"Base Local",totalRows:Array.isArray(clean.students)?clean.students.length:0,totalPeriods:Array.isArray(clean.periods)?clean.periods.length:0,createdAt:now()});getStorage().writeSnapshot(clean);rebuildMirrors();emit("local-updated",{action:action||"sync"});return clean;}
   function purgeOldBackups(){try{for(var i=localStorage.length-1;i>=0;i--){var k=localStorage.key(i)||"";if(k.indexOf(BACKUP_KEY_PREFIX)===0)localStorage.removeItem(k);}}catch(e){}}
   function backupStudentSample(row){row=row||{};return {cedula:text(row.cedula||row.numeroIdentificacion||row.numeroidentificacion||row.docId||row._docId||row.id),nombres:text(row.nombres||row.Nombres||row.nombresCompletos),carrera:text(row.nombrecarrera||row.nombreCarrera||row.NombreCarrera||row.carrera),periodoId:text(row.periodoId||row.periodoLabel||row.periodo),estadoMatricula:text(row.estadoMatricula||"ACTIVO")};}
   function compactBackupSnapshot(cur){cur=cur||{};return {meta:Object.assign({},cur.meta||{}),periods:Array.isArray(cur.periods)?cur.periods.slice(0,20):[],history:Array.isArray(cur.history)?cur.history.slice(0,20):[],diagnostics:[],summary:{students:Array.isArray(cur.students)?cur.students.length:0,periods:Array.isArray(cur.periods)?cur.periods.length:0,history:Array.isArray(cur.history)?cur.history.length:0},sampleStudents:Array.isArray(cur.students)?cur.students.slice(0,5).map(backupStudentSample):[]};}
   function backupCurrentLocal(reason){try{var cur=readLocalSnapshot();if(!snapshotHasData(cur))return;purgeOldBackups();localStorage.setItem(BACKUP_KEY_PREFIX+Date.now(),JSON.stringify({reason:reason||"before_sync",createdAt:now(),compact:true,snapshot:compactBackupSnapshot(cur)}));}catch(e){}}
 
-  async function readRemoteSnapshot(db,options){
-    options=options||{};
-    var pulledAt=now(),localForDeleted=null;try{localForDeleted=getStorage().readSnapshot();}catch(e){}
-    var full=options.full===true || options.mode==="full";
-    var since=text(options.since||"");
-    var periods=[],students=[];
-
-    if(!full && since){
-      var inc=await pullIncremental(db,{since:since});
-      periods=getPeriodosService().dedupe(inc.periods||[]);
-      students=getEstudiantesService().normalizeLocalList(inc.students||[]);
-    }else{
-      periods=await getPeriodosService().read(db,{cache:options.cache!==false});
-      students=await getEstudiantesService().read(db,{cache:false, noFallbackFull:false});
-    }
-
-    var remoteUpdated=maxUpdatedIso(students.concat(periods),pulledAt);
-    var remote=normalizeSnapshot({meta:{app:"Requisitos",module:"ExcelLocal",version:VERSION,source:"firebase",pulledAt:pulledAt,updatedAt:remoteUpdated,partial:!full&&!!since},periods:periods,students:students,history:[{id:"firebase_pull_"+Date.now(),action:full?"pullFirebase":"pullFirebaseIncremental",periodoId:"TODOS",periodoLabel:"Todos los períodos",fileName:"Firebase",totalRows:students.length,totalPeriods:periods.length,createdAt:pulledAt}],diagnostics:[{ok:true,source:"firebase",pulledAt:pulledAt,updatedAt:remoteUpdated,totalStudents:students.length,totalPeriods:periods.length,partial:!full&&!!since,collections:[{collection:"periodos",rows:periods.length},{collection:"Estudiantes",rows:students.length}]}]});
-    remote=mergeProtectedHistory(remote,localForDeleted);return filterDeletedPeriods(remote,localForDeleted);
-  }
+  async function readRemoteSnapshot(db,options){options=options||{};var pulledAt=now(),localForDeleted=null;try{localForDeleted=getStorage().readSnapshot();}catch(e){}var full=options.full===true||options.mode==="full";var since=text(options.since||"");var periods=[],students=[];if(!full&&since){var inc=await pullIncremental(db,{since:since});periods=getPeriodosService().dedupe(inc&&inc.periods||[]);students=getEstudiantesService().normalizeLocalList(inc&&inc.students||[]);}else{periods=await getPeriodosService().read(db,{cache:options.cache!==false});students=await getEstudiantesService().read(db,{cache:false,noFallbackFull:false});}if(!periods.length&&students.length){periods=inferPeriodsFromStudents(students);}var remoteUpdated=maxUpdatedIso(students.concat(periods),pulledAt);var remote=normalizeSnapshot({meta:{app:"Requisitos",module:"ExcelLocal",version:VERSION,source:"firebase",pulledAt:pulledAt,updatedAt:remoteUpdated,partial:!full&&!!since,periodsInferred:!!(!periods.length&&students.length)},periods:periods,students:students,history:[{id:"firebase_pull_"+Date.now(),action:full?"pullFirebase":"pullFirebaseIncremental",periodoId:"TODOS",periodoLabel:"Todos los períodos",fileName:"Firebase",totalRows:students.length,totalPeriods:periods.length,createdAt:pulledAt}],diagnostics:[{ok:true,source:"firebase",pulledAt:pulledAt,updatedAt:remoteUpdated,totalStudents:students.length,totalPeriods:periods.length,partial:!full&&!!since,collections:[{collection:"periodos",rows:periods.length},{collection:"Estudiantes",rows:students.length}]}]});remote=mergeProtectedHistory(remote,localForDeleted);return filterDeletedPeriods(remote,localForDeleted);}
 
   function cleanForFirebase(row){var c=clone(row||{})||{};Object.keys(c).forEach(function(k){if(k.charAt(0)==="_")delete c[k];});c.updatedAt=c.updatedAt||now();c.ultimaSincronizacion=now();return c;}
   function cedulaFromAny(v){var raw=text(v),m=raw.match(/^(\d{7,13})(?:\D|$)/);return m?m[1]:(/^\d{7,13}$/.test(raw)?raw:"");}
@@ -135,64 +91,13 @@ Con qué se conecta:
   async function pushIncremental(db,local,opt){opt=opt||{};var ok=await ensureIncremental();if(!ok||!window.BL2FirebasePush||typeof window.BL2FirebasePush.pushQueue!=="function")return null;try{return await window.BL2FirebasePush.pushQueue(db,local,{source:opt.source||"baselocal.firebase",controlledStudentPatch:controlledStudentPatch,commitInChunks:commitInChunks,forceSeed:opt.forceSeed});}catch(error){console.warn("[BaseLocalFirebase] Incremental falló",error);return null;}}
   async function pullIncremental(db,opt){opt=opt||{};var ok=await ensureIncremental();if(!ok||!window.BL2FirebasePull||typeof window.BL2FirebasePull.pullChanges!=="function")return null;try{return await window.BL2FirebasePull.pullChanges(db,{since:opt.since||""});}catch(error){console.warn("[BaseLocalFirebase] Pull incremental no disponible",error);return null;}}
 
-  function mergePeriods(localPeriods, incomingPeriods){var map={},out=[];(localPeriods||[]).concat(incomingPeriods||[]).forEach(function(p){var id=text(p&& (p.id||p.periodoId||p.label||p.periodoLabel));if(!id)return;map[id]=Object.assign({},map[id]||{},p);});Object.keys(map).forEach(function(k){out.push(map[k]);});return getPeriodosService().dedupe(out);}
+  function mergePeriods(localPeriods,incomingPeriods){var map={},out=[];(localPeriods||[]).concat(incomingPeriods||[]).forEach(function(p){var id=text(p&&(p.id||p.periodoId||p.label||p.periodoLabel));if(!id)return;map[id]=Object.assign({},map[id]||{},p);});Object.keys(map).forEach(function(k){out.push(map[k]);});return getPeriodosService().dedupe(out);}
   function mergeStudents(localStudents,incomingStudents){var service=getEstudiantesService(),map={};(localStudents||[]).forEach(function(s){var id=studentDocId(s)||text(s.cedula||s.numeroIdentificacion);if(id)map[id]=s;});(incomingStudents||[]).forEach(function(s){var id=studentDocId(s)||text(s.cedula||s.numeroIdentificacion);if(id)map[id]=map[id]?service.mergeStudents(map[id],s):s;});return service.normalizeLocalList(Object.keys(map).map(function(id){return map[id];}));}
   function mergeRemoteChangesIntoLocal(local,remote){local=normalizeSnapshot(local);remote=normalizeSnapshot(remote);return normalizeSnapshot({meta:Object.assign({},local.meta||{},{updatedAt:now(),lastIncrementalPullAt:now()}),periods:mergePeriods(local.periods,remote.periods),students:mergeStudents(local.students,remote.students),history:(remote.history||[]).concat(local.history||[]).slice(0,120),diagnostics:(remote.diagnostics||[]).concat(local.diagnostics||[]).slice(0,40)});}
 
-  async function pull(options){
-    options=options||{};
-    try{
-      var db=getDb();
-      var full=options.full!==false;
-      var since=text(options.since||getSyncStatus().lastPullAt||"");
-      var remote=await readRemoteSnapshot(db,{full:full,since:full?"":since,cache:false});
-      if(!snapshotHasData(remote)&&!activeDeleteRows(remote).length)throw new Error("Firebase no devolvió estudiantes ni períodos para Base Local.");
-      backupCurrentLocal("before_pull");
-      var written=full?writeLocalSnapshot(remote,"pullFirebase"):writeLocalSnapshot(mergeRemoteChangesIntoLocal(readLocalSnapshot(),remote),"pullFirebaseIncremental");
-      var summary=saveStatus({ok:true,mode:full?"pull":"pull_incremental",source:"firebase",pulledAt:written.meta.pulledAt||now(),totalStudents:written.students.length,totalPeriods:written.periods.length,collections:[{collection:"periodos",rows:written.periods.length},{collection:"Estudiantes",rows:written.students.length}],message:full?"Datos bajados correctamente desde Firebase.":"Cambios incrementales bajados desde Firebase."});
-      saveSyncStatus({ok:true,mode:summary.mode,lastSyncDate:today(),lastSyncAt:now(),lastPullAt:now(),message:summary.message});
-      emit("firebase-pull-finished",summary);return summary;
-    }catch(error){var failed=saveStatus({ok:false,mode:"pull",source:"firebase",errorMessage:error&&error.message?error.message:String(error),message:error&&error.message?error.message:String(error)});saveSyncStatus({ok:false,mode:"pull_error",lastError:failed.message,message:failed.message});throw new Error(failed.message||"No se pudo bajar la información desde Firebase.");}
-  }
-
-  async function push(options){
-    options=options||{};
-    try{
-      var db=getDb(),local=readLocalSnapshot();if(!snapshotHasData(local))throw new Error("La Base Local no tiene datos para subir a Firebase.");
-      var inc=await pushIncremental(db,local,{source:options.mode||"manual_push",forceSeed:options.forceSeed===true});
-      var pushed=inc&&inc.ok?local:(options.full===true?await writeRemoteSnapshot(db,local):local);
-      rebuildMirrors();
-      var summary=saveStatus({ok:true,mode:inc&&inc.ok?"push_incremental":(options.full===true?"push_full":"push_skipped_full"),source:"local",pushedAt:now(),totalStudents:pushed.students?pushed.students.length:local.students.length,totalPeriods:pushed.periods?pushed.periods.length:local.periods.length,incremental:inc||null,collections:[{collection:"periodos",rows:pushed.periods?pushed.periods.length:local.periods.length},{collection:"Estudiantes",rows:pushed.students?pushed.students.length:local.students.length}],message:inc&&inc.ok?inc.message:(options.full===true?"Datos locales actualizados en Firebase con parche controlado.":"No se forzó subida completa; Base Local queda intacta.")});
-      saveSyncStatus({ok:true,mode:summary.mode,lastSyncDate:today(),lastSyncAt:now(),lastPushAt:now(),message:summary.message});
-      emit("firebase-push-finished",summary);return summary;
-    }catch(error){var failed=saveStatus({ok:false,mode:"push",source:"local",errorMessage:error&&error.message?error.message:String(error),message:error&&error.message?error.message:String(error)});saveSyncStatus({ok:false,mode:"push_error",lastError:failed.message,message:failed.message});throw new Error(failed.message||"No se pudo subir la Base Local a Firebase.");}
-  }
-
-  async function sync(options){
-    options=options||{};var mode=options.mode||"manual";
-    if(navigator.onLine===false){var off=saveSyncStatus({ok:false,mode:"offline",lastError:"Sin internet",message:"Sin internet. Base Local sigue funcionando y sincronizará después."});emit("sync-offline",off);return off;}
-    try{
-      var db=getDb();backupCurrentLocal("before_sync_"+mode);
-      var local=readLocalSnapshot();
-      var action="none",inc=null,pullResult=null,finalSnapshot=local;
-      if(options.full===true){
-        var remote=await readRemoteSnapshot(db,{full:true,cache:false});
-        if(snapshotHasData(local)&&snapshotHasData(remote)&&snapshotUpdatedAt(local)>snapshotUpdatedAt(remote)){inc=await pushIncremental(db,local,{source:mode,forceSeed:false});if(!inc||!inc.ok)finalSnapshot=await writeRemoteSnapshot(db,local);action=inc&&inc.ok?"local_newer_incremental":"local_newer_full_push";}
-        else if(snapshotHasData(remote)){finalSnapshot=writeLocalSnapshot(remote,"firebaseNewerToLocal");action="firebase_newer_to_local";}
-        else if(snapshotHasData(local)){inc=await pushIncremental(db,local,{source:mode,forceSeed:true});if(!inc||!inc.ok)finalSnapshot=await writeRemoteSnapshot(db,local);action=inc&&inc.ok?"local_to_firebase_incremental":"restore_firebase_from_local";}
-        else{action="empty_both";}
-      }else{
-        inc=await pushIncremental(db,local,{source:mode,forceSeed:false});
-        var since=text(getSyncStatus().lastPullAt||getSyncStatus().lastSyncAt||"");
-        if(since){var remoteChanges=await readRemoteSnapshot(db,{full:false,since:since,cache:false});if(snapshotHasData(remoteChanges)){finalSnapshot=writeLocalSnapshot(mergeRemoteChangesIntoLocal(local,remoteChanges),"firebaseIncrementalToLocal");pullResult={totalStudents:(remoteChanges.students||[]).length,totalPeriods:(remoteChanges.periods||[]).length};}}
-        action=inc&&inc.ok?"incremental_push_and_pull":"incremental_pull_only";
-      }
-      rebuildMirrors();
-      var summary=saveStatus({ok:true,mode:"sync",syncMode:mode,action:action,incremental:inc||null,pull:pullResult||null,source:"Estudiantes_periodos",syncedAt:now(),totalStudents:finalSnapshot&&finalSnapshot.students?finalSnapshot.students.length:0,totalPeriods:finalSnapshot&&finalSnapshot.periods?finalSnapshot.periods.length:0,message:"Sincronización rápida Base Local ↔ Firebase finalizada. Acción: "+action+"."});
-      saveSyncStatus({ok:true,mode:"sync",action:action,lastSyncDate:today(),lastSyncAt:now(),lastPullAt:now(),message:summary.message});emit("sync-complete",summary);return summary;
-    }catch(error){var failed=saveStatus({ok:false,mode:"sync",source:"Estudiantes_periodos",errorMessage:error&&error.message?error.message:String(error),message:error&&error.message?error.message:String(error)});saveSyncStatus({ok:false,mode:"sync_error",lastError:failed.message,message:failed.message});emit("sync-error",failed);throw new Error(failed.message||"No se pudo sincronizar Base Local con Firebase.");}
-  }
-
+  async function pull(options){options=options||{};try{var db=getDb();var full=options.full!==false;var since=text(options.since||getSyncStatus().lastPullAt||"");var remote=await readRemoteSnapshot(db,{full:full,since:full?"":since,cache:false});if(!snapshotHasData(remote)&&!activeDeleteRows(remote).length)throw new Error("Firebase no devolvió estudiantes ni períodos para Base Local.");backupCurrentLocal("before_pull");var written=full?writeLocalSnapshot(remote,"pullFirebase"):writeLocalSnapshot(mergeRemoteChangesIntoLocal(readLocalSnapshot(),remote),"pullFirebaseIncremental");var summary=saveStatus({ok:true,mode:full?"pull":"pull_incremental",source:"firebase",pulledAt:written.meta.pulledAt||now(),totalStudents:written.students.length,totalPeriods:written.periods.length,periodsInferred:!!written.meta.periodsInferred,collections:[{collection:"periodos",rows:written.periods.length},{collection:"Estudiantes",rows:written.students.length}],message:full?"Datos bajados correctamente desde Firebase.":"Cambios incrementales bajados desde Firebase."});saveSyncStatus({ok:true,mode:summary.mode,lastSyncDate:today(),lastSyncAt:now(),lastPullAt:now(),message:summary.message});emit("firebase-pull-finished",summary);return summary;}catch(error){var failed=saveStatus({ok:false,mode:"pull",source:"firebase",errorMessage:error&&error.message?error.message:String(error),message:error&&error.message?error.message:String(error)});saveSyncStatus({ok:false,mode:"pull_error",lastError:failed.message,message:failed.message});throw new Error(failed.message||"No se pudo bajar la información desde Firebase.");}}
+  async function push(options){options=options||{};try{var db=getDb(),local=readLocalSnapshot();if(!snapshotHasData(local))throw new Error("La Base Local no tiene datos para subir a Firebase.");var inc=await pushIncremental(db,local,{source:options.mode||"manual_push",forceSeed:options.forceSeed===true});var pushed=inc&&inc.ok?local:(options.full===true?await writeRemoteSnapshot(db,local):local);rebuildMirrors();var summary=saveStatus({ok:true,mode:inc&&inc.ok?"push_incremental":(options.full===true?"push_full":"push_skipped_full"),source:"local",pushedAt:now(),totalStudents:pushed.students?pushed.students.length:local.students.length,totalPeriods:pushed.periods?pushed.periods.length:local.periods.length,incremental:inc||null,collections:[{collection:"periodos",rows:pushed.periods?pushed.periods.length:local.periods.length},{collection:"Estudiantes",rows:pushed.students?pushed.students.length:local.students.length}],message:inc&&inc.ok?inc.message:(options.full===true?"Datos locales actualizados en Firebase con parche controlado.":"No se forzó subida completa; Base Local queda intacta.")});saveSyncStatus({ok:true,mode:summary.mode,lastSyncDate:today(),lastSyncAt:now(),lastPushAt:now(),message:summary.message});emit("firebase-push-finished",summary);return summary;}catch(error){var failed=saveStatus({ok:false,mode:"push",source:"local",errorMessage:error&&error.message?error.message:String(error),message:error&&error.message?error.message:String(error)});saveSyncStatus({ok:false,mode:"push_error",lastError:failed.message,message:failed.message});throw new Error(failed.message||"No se pudo subir la Base Local a Firebase.");}}
+  async function sync(options){options=options||{};var mode=options.mode||"manual";if(navigator.onLine===false){var off=saveSyncStatus({ok:false,mode:"offline",lastError:"Sin internet",message:"Sin internet. Base Local sigue funcionando y sincronizará después."});emit("sync-offline",off);return off;}try{var db=getDb();backupCurrentLocal("before_sync_"+mode);var local=readLocalSnapshot();var action="none",inc=null,pullResult=null,finalSnapshot=local;if(options.full===true){var remote=await readRemoteSnapshot(db,{full:true,cache:false});if(snapshotHasData(local)&&snapshotHasData(remote)&&snapshotUpdatedAt(local)>snapshotUpdatedAt(remote)){inc=await pushIncremental(db,local,{source:mode,forceSeed:false});if(!inc||!inc.ok)finalSnapshot=await writeRemoteSnapshot(db,local);action=inc&&inc.ok?"local_newer_incremental":"local_newer_full_push";}else if(snapshotHasData(remote)){finalSnapshot=writeLocalSnapshot(remote,"firebaseNewerToLocal");action="firebase_newer_to_local";}else if(snapshotHasData(local)){inc=await pushIncremental(db,local,{source:mode,forceSeed:true});if(!inc||!inc.ok)finalSnapshot=await writeRemoteSnapshot(db,local);action=inc&&inc.ok?"local_to_firebase_incremental":"restore_firebase_from_local";}else{action="empty_both";}}else{inc=await pushIncremental(db,local,{source:mode,forceSeed:false});var since=text(getSyncStatus().lastPullAt||getSyncStatus().lastSyncAt||"");if(since){var remoteChanges=await readRemoteSnapshot(db,{full:false,since:since,cache:false});if(snapshotHasData(remoteChanges)){finalSnapshot=writeLocalSnapshot(mergeRemoteChangesIntoLocal(local,remoteChanges),"firebaseIncrementalToLocal");pullResult={totalStudents:(remoteChanges.students||[]).length,totalPeriods:(remoteChanges.periods||[]).length};}}action=inc&&inc.ok?"incremental_push_and_pull":"incremental_pull_only";}rebuildMirrors();var summary=saveStatus({ok:true,mode:"sync",syncMode:mode,action:action,incremental:inc||null,pull:pullResult||null,source:"Estudiantes_periodos",syncedAt:now(),totalStudents:finalSnapshot&&finalSnapshot.students?finalSnapshot.students.length:0,totalPeriods:finalSnapshot&&finalSnapshot.periods?finalSnapshot.periods.length:0,message:"Sincronización rápida Base Local ↔ Firebase finalizada. Acción: "+action+"."});saveSyncStatus({ok:true,mode:"sync",action:action,lastSyncDate:today(),lastSyncAt:now(),lastPullAt:now(),message:summary.message});emit("sync-complete",summary);return summary;}catch(error){var failed=saveStatus({ok:false,mode:"sync",source:"Estudiantes_periodos",errorMessage:error&&error.message?error.message:String(error),message:error&&error.message?error.message:String(error)});saveSyncStatus({ok:false,mode:"sync_error",lastError:failed.message,message:failed.message});emit("sync-error",failed);throw new Error(failed.message||"No se pudo sincronizar Base Local con Firebase.");}}
   async function runDailyIfNeeded(forceRun,options){options=options||{};var daily=getDailyService(),mode=options.mode||"daily";if(daily&&!daily.shouldRun(forceRun))return daily.skipped();if(navigator.onLine===false){var off=saveSyncStatus({ok:false,mode:"offline",lastError:"Sin internet",message:"Sin internet. Base Local sigue funcionando y sincronizará después."});if(daily&&typeof daily.markPending==="function")daily.markPending(off.message);emit("sync-offline",off);return off;}if(daily)daily.markStarted(mode);try{var result=await sync({mode:mode,full:false});if(result&&result.ok===true){if(daily)daily.markSuccess(result);}else if(daily&&typeof daily.markPending==="function")daily.markPending((result&&result.message)||"Sincronización diaria pendiente.");return result;}catch(error){if(daily)daily.markError(error);throw error;}}
   function syncQueueStatus(){return window.BL2SyncQueue&&typeof window.BL2SyncQueue.status==="function"?window.BL2SyncQueue.status():{ok:false,mode:"sync_queue_not_loaded"};}
 
