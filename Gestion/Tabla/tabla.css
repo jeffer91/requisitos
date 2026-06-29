@@ -1,0 +1,84 @@
+/* =========================================================
+Nombre completo: tabla.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/tabla.css
+Función o funciones:
+- Dar diseño claro, rápido y legible a la tabla de Requisitos.
+- Mostrar acciones compactas por estudiante.
+- Dar estilo al modal individual de Telegram.
+- Dar estilo al modal masivo con selección manual.
+- Dar estilo al historial local de Telegram.
+Con qué se conecta:
+- tabla.html
+- tabla.app.js
+- tabla.telegram.js
+- tabla.mass.js
+- tabla.history.js
+========================================================= */
+:root{color-scheme:light;--bg:#f6f8fc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e5e7eb;--primary:#2563eb;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--soft:#f8fafc;--shadow:0 8px 22px rgba(15,23,42,.07)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+.tabla-app{max-width:1700px;margin:0 auto;padding:14px}
+.tabla-status{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#eff6ff;color:#1e40af;font-weight:850;margin-bottom:12px}
+.tabla-status.ok{background:#ecfdf5;color:#166534}
+.tabla-status.warn{background:#fff7ed;color:#9a3412}
+.tabla-kpis{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px;margin-bottom:12px}
+.tabla-kpis article{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.tabla-kpis span{display:block;color:var(--muted);font-size:12px;font-weight:900}
+.tabla-kpis strong{display:block;margin-top:6px;font-size:24px}
+.tabla-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px;box-shadow:var(--shadow)}
+label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:900;color:#334155}
+select,input,textarea{border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:#fff;color:var(--text);font:inherit}
+select,input{min-height:38px}
+textarea{resize:vertical;line-height:1.45}
+button{min-height:38px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#1d4ed8;padding:0 13px;font-weight:900;cursor:pointer;white-space:nowrap}
+button:hover,a.icon-btn:hover{background:#eff6ff}
+button:disabled{opacity:.45;cursor:not-allowed}
+.tabla-table-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:var(--shadow)}
+.tabla-table-info{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;font-weight:900;margin-bottom:10px}
+.tabla-table-wrap{overflow:auto;max-height:650px;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:12px;background:#fff}
+th,td{border-bottom:1px solid var(--line);padding:8px 9px;text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:#f8fafc;color:#334155;z-index:1}
+tr:hover td{background:#f8fafc}
+.pill{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-weight:900;font-size:11px}
+.pill-ok{background:#ecfdf5;color:#166534}
+.pill-warn{background:#fff7ed;color:#9a3412}
+.pill-bad{background:#fef2f2;color:#991b1b}
+.cell-actions{display:flex;gap:5px;flex-wrap:nowrap;align-items:center}
+.icon-btn{width:30px;min-width:30px;height:30px;min-height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:#fff;color:#1d4ed8;padding:0;font-size:14px;font-weight:900;line-height:1;text-decoration:none;cursor:pointer}
+.icon-btn.is-muted{opacity:.68}
+.action-whats{color:#15803d}
+.action-telegram{color:#2563eb}
+.empty{padding:24px;color:var(--muted);font-weight:800;text-align:center}
+.nowrap{white-space:nowrap}
+.tabla-modal[hidden]{display:none}
+.tabla-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.38)}
+.tabla-modal-card{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.22)}
+.tabla-modal-card-wide{width:min(1180px,100%)}
+.tabla-modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 16px 10px;border-bottom:1px solid var(--line)}
+.tabla-modal-header h2{margin:0;font-size:18px;line-height:1.2}
+.tabla-modal-meta{margin:6px 0 0;color:var(--muted);font-size:12px;font-weight:800}
+.tabla-modal-body{display:grid;gap:12px;padding:14px 16px}
+.tabla-tg-info{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:14px;background:#f8fafc;padding:10px 12px;font-weight:900;color:#334155}
+.tabla-tg-info small{font-weight:800;color:var(--muted)}
+.tabla-modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:12px 16px 16px;border-top:1px solid var(--line)}
+#tabla-tg-preview,#tabla-mass-preview{min-height:240px;background:#f8fafc}
+.tabla-mass-body{gap:14px}
+.tabla-mass-summary{display:flex;flex-wrap:wrap;gap:8px}
+.tabla-mass-summary span{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:999px;background:#f8fafc;padding:6px 10px;font-size:12px;font-weight:900;color:#334155}
+.tabla-mass-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:14px;align-items:start}
+.tabla-mass-config{display:grid;gap:12px;position:sticky;top:0;align-self:start}
+.tabla-mass-select-actions{display:flex;gap:8px;flex-wrap:wrap}
+.tabla-check-line{display:flex;flex-direction:row;align-items:center;gap:8px;border:1px solid var(--line);border-radius:14px;background:#fff7ed;color:#9a3412;padding:10px 12px}
+.tabla-check-line input{min-height:auto;width:16px;height:16px}
+.tabla-mass-list-wrap,.tabla-history-list{border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:560px;background:#fff}
+.tabla-mass-list .empty,.tabla-history-list .empty{border:0}
+.tabla-mini-table{font-size:12px}
+.tabla-mini-table th,.tabla-mini-table td{padding:8px;border-bottom:1px solid var(--line)}
+.tabla-mini-table th:first-child,.tabla-mini-table td:first-child{width:38px;text-align:center}
+.tabla-mini-table input[type="checkbox"]{width:16px;height:16px;min-height:auto}
+.tabla-mini-table small{color:var(--muted);font-weight:800}
+.tabla-mass-note{padding:10px 12px;color:var(--muted);font-weight:800;font-size:12px;background:#f8fafc;border-top:1px solid var(--line)}
+#tabla-history-clear{color:#b91c1c}
+@media(max-width:1200px){.tabla-kpis,.tabla-tools{grid-template-columns:1fr}.tabla-app{padding:10px}.tabla-table-info{flex-direction:column}.tabla-mass-grid{grid-template-columns:1fr}.tabla-mass-config{position:static}}
+@media(max-width:700px){.tabla-modal{align-items:flex-end;padding:10px}.tabla-modal-card{max-height:95vh;border-radius:18px 18px 12px 12px}.tabla-modal-actions{justify-content:stretch}.tabla-modal-actions button{flex:1}.cell-actions{gap:4px}.icon-btn{width:28px;min-width:28px;height:28px;min-height:28px}.tabla-mass-select-actions button{flex:1}.tabla-mass-summary span{width:100%;justify-content:space-between}}
