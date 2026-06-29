@@ -11,22 +11,35 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "1.6.0-fast-lazy";
+  var VERSION = "1.7.0-bl2-fast-rules";
   var DB_PREFIX = "REQ_BL_DB_V1::";
   var SIGNAL_KEY = "REQ_BL_SIGNAL_V1";
   var SNAPSHOT_KEY = "REQ_EXCEL_LOCAL_V1:snapshot";
   var STATUS_KEY = "REQ_BL_CONNECTOR_STATUS_V1";
   var MIRROR_SIGNATURE_KEY = "REQ_BL_MIRROR_SIGNATURE_V1";
   var MIRROR_STORAGE_VERSION_KEY = "REQ_BL_MIRROR_STORAGE_VERSION_V1";
-  var MIRROR_STORAGE_VERSION = "light-v5-lazy-no-students-copy";
+  var MIRROR_STORAGE_VERSION = "light-v6-bl2-fast";
 
   var COLLECTIONS = ["periodos","estudiantes","requisitos","observaciones","fichas","tabla","stats","coordi","reportes","defensas","archivos_referencias","metadata"];
   var MIRROR_COLLECTIONS = ["periodos","estudiantes","requisitos","fichas","tabla","stats","coordi","reportes","defensas"];
   var LIGHT_MIRROR_COLLECTIONS = ["requisitos","fichas","tabla","stats","coordi","reportes","defensas"];
   var MODULE_COLLECTIONS = {requisito:"requisitos",excel:"requisitos",carga:"requisitos",tabla:"tabla",ficha:"fichas",stats:"stats",coordi:"coordi",repor:"reportes",reportes:"reportes",repo:"reportes",defensas:"defensas",defart:"defensas"};
   var mirrorState = {running:false,lastSignature:"",lastAt:""};
+  var snapshotCache = {snapshot:null, signature:"", at:0};
+  var CACHE_MS = 2500;
 
-  var LIGHT_FIELDS = ["cedula","Cedula","CEDULA","numeroIdentificacion","numeroidentificacion","identificacion","docId","_docId","id","nombres","Nombres","nombre","Nombre","nombresCompletos","apellidos","nombrecarrera","nombreCarrera","NombreCarrera","carrera","Carrera","programa","CodigoCarrera","codigoCarrera","sede","Sede","modalidad","jornada","HorarioComplexivo","horarioComplexivo","periodoId","periodoLabel","periodo","Periodo","ultimoPeriodoId","estadoMatricula","retiradoEn","historialEstadoMatricula","division","divisiones","CorreoPersonal","correoPersonal","CorreoInstitucional","correoInstitucional","Celular","celular","Telefono","telefono","Notart","Nart","nart","Notdef","Ndef","ndef","Notafinal","NotaFinal","nfin","fechaDefensa","horaDefensa","tribunal","presidente","vocal","secretario","tutor","nota","notaFinal","complexivo","supletorio","Academico","Documentacion","Financiero","Titulacion","PrácticasVinculacion","PracticasVinculacion","Vinculacion","SeguimientoGraduados","Ingles","ActualizaciónDatos","ActualizacionDatos","AprobacionTitulacion","AprobacionComplexivoProyecto","academico","documentacion","financiero","titulacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","aprobaciontitulacion","aprobacioncomplexivoproyecto","_bl2Id","_bl2Nombre","_bl2Carrera","_bl2Periodo","_bl2PeriodoId","_bl2Division","_bl2EstadoMatricula","_bl2Search","updatedAt","createdAt","creadoEn","actualizadoEn"];
+  var LIGHT_FIELDS = [
+    "cedula","Cedula","Cédula","CEDULA","numeroIdentificacion","numeroidentificacion","identificacion","docId","_docId","id",
+    "nombres","Nombres","nombre","Nombre","nombresCompletos","apellidos",
+    "nombrecarrera","nombreCarrera","NombreCarrera","carrera","Carrera","programa","CodigoCarrera","codigoCarrera",
+    "sede","Sede","modalidad","jornada","Jornada","HorarioComplexivo","horarioComplexivo",
+    "periodoId","periodoLabel","periodo","Periodo","ultimoPeriodoId","estadoMatricula","retiradoEn","historialEstadoMatricula",
+    "division","divisiones","CorreoPersonal","correoPersonal","CorreoInstitucional","correoInstitucional","Celular","celular","Telefono","telefono",
+    "Notart","Nart","nart","Notdef","Ndef","ndef","Notafinal","NotaFinal","nfin","fechaDefensa","horaDefensa","tribunal","presidente","vocal","secretario","tutor","nota","notaFinal","complexivo","supletorio",
+    "Academico","Documentacion","Financiero","Titulacion","PrácticasVinculacion","PracticasVinculacion","Vinculacion","SeguimientoGraduados","Ingles","ActualizaciónDatos","ActualizacionDatos","AprobacionTitulacion","AprobacionComplexivoProyecto",
+    "academico","documentacion","financiero","titulacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","aprobaciontitulacion","aprobacioncomplexivoproyecto",
+    "_bl2Id","_bl2Nombre","_bl2Carrera","_bl2Periodo","_bl2PeriodoId","_bl2Division","_bl2EstadoMatricula","_bl2Search","searchText","updatedAt","createdAt","creadoEn","actualizadoEn"
+  ];
 
   function now(){return new Date().toISOString();}
   function today(){return now().slice(0,10);}
@@ -37,26 +50,31 @@ Función o funciones:
   function clone(value){try{return JSON.parse(JSON.stringify(value == null ? null : value));}catch(error){return value;}}
   function normalizer(){return window.BL2StudentNormalizer || null;}
   function engine(){return window.BL2DataEngine || null;}
+  function storage(){return window.BL2Storage || null;}
   function dbKey(collection){return DB_PREFIX + collection;}
   function collectionFor(moduleName){var key = text(moduleName).toLowerCase();return MODULE_COLLECTIONS[key] || key || "metadata";}
   function getStorage(){return window.ExcelLocalStorage && typeof window.ExcelLocalStorage.readSnapshot === "function" ? window.ExcelLocalStorage : null;}
   function getSession(){try{if(window.parent && window.parent !== window && window.parent.MAQ_BASELOCAL_SESSION){return window.parent.MAQ_BASELOCAL_SESSION;}}catch(error){}try{if(window.top && window.top !== window && window.top.MAQ_BASELOCAL_SESSION){return window.top.MAQ_BASELOCAL_SESSION;}}catch(error){}try{if(window.MAQ_BASELOCAL_SESSION){return window.MAQ_BASELOCAL_SESSION;}}catch(error){}return null;}
   function normalizeId(value, fallback){var raw = text(value || fallback || "");if(!raw){raw = "item-" + Date.now() + "-" + Math.random().toString(36).slice(2);}return raw.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.-]+/g,"_").replace(/_+/g,"_").replace(/^_+|_+$/g,"");}
   function isQuotaError(error){var msg = text(error && (error.message || error.name || error));return !!(error && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED" || error.code === 22 || error.code === 1014 || /quota|exceeded/i.test(msg)));}
+
   function getSavedMirrorSignature(){try{return sessionStorage.getItem(MIRROR_SIGNATURE_KEY) || "";}catch(error){return "";}}
   function saveMirrorSignature(signature){try{sessionStorage.setItem(MIRROR_SIGNATURE_KEY, signature || "");}catch(error){}}
   function getMirrorStorageVersion(){try{return localStorage.getItem(MIRROR_STORAGE_VERSION_KEY) || "";}catch(error){return "";}}
   function saveMirrorStorageVersion(){try{localStorage.setItem(MIRROR_STORAGE_VERSION_KEY, MIRROR_STORAGE_VERSION);}catch(error){}}
 
   function invalidateEngines(){
+    snapshotCache = {snapshot:null, signature:"", at:0};
     try{if(engine() && typeof engine().invalidate === "function"){engine().invalidate();}}catch(error){}
+    try{if(window.BL2EstudiantesRepo && typeof window.BL2EstudiantesRepo.invalidate === "function"){window.BL2EstudiantesRepo.invalidate();}}catch(error){}
+    try{if(window.BL2PeriodosRepo && typeof window.BL2PeriodosRepo.invalidate === "function"){window.BL2PeriodosRepo.invalidate();}}catch(error){}
     try{if(window.BL2CacheResumen && typeof window.BL2CacheResumen.invalidate === "function"){window.BL2CacheResumen.invalidate();}}catch(error){}
     try{if(window.BL2 && typeof window.BL2.invalidate === "function"){window.BL2.invalidate({emit:false, source:"RequisitosBL"});}}catch(error){}
   }
 
   function canonicalizeSnapshot(snapshot){
     var snap = snapshot || {};
-    if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.canonicalizeSnapshot === "function"){snap = window.BLPeriodosCanon.canonicalizeSnapshot(snap);}
+    try{if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.canonicalizeSnapshot === "function"){snap = window.BLPeriodosCanon.canonicalizeSnapshot(snap);}}catch(error){}
     snap.meta = snap.meta && typeof snap.meta === "object" ? snap.meta : {};
     snap.periods = Array.isArray(snap.periods) ? snap.periods : [];
     snap.students = Array.isArray(snap.students) ? snap.students : [];
@@ -65,16 +83,28 @@ Función o funciones:
     return snap;
   }
 
-  function readRawSnapshot(){
+  function snapshotSignature(snapshot){
+    snapshot = snapshot || {};
+    var meta = snapshot.meta || {};
+    var periods = Array.isArray(snapshot.periods) ? snapshot.periods : [];
+    var students = Array.isArray(snapshot.students) ? snapshot.students : [];
+    var first = students[0] && (students[0].cedula || students[0].numeroIdentificacion || students[0]._docId || students[0].docId || "");
+    var last = students[students.length - 1] && (students[students.length - 1].cedula || students[students.length - 1].numeroIdentificacion || students[students.length - 1]._docId || students[students.length - 1].docId || "");
+    return [meta.updatedAt || meta.pulledAt || meta.createdAt || "", periods.length, students.length, first, last, MIRROR_STORAGE_VERSION].join("|");
+  }
+
+  function readRawSnapshot(options){
+    options = options || {};
+    if(options.force !== true && snapshotCache.snapshot && Date.now() - snapshotCache.at < CACHE_MS){return snapshotCache.snapshot;}
     var session = getSession();
-    if(session && typeof session.getSnapshot === "function"){
-      try{var sessionSnap = session.getSnapshot({clone:false});if(sessionSnap && typeof sessionSnap === "object"){return canonicalizeSnapshot(sessionSnap);}}catch(error){}
-    }
-    try{if(engine() && typeof engine().snapshot === "function"){return canonicalizeSnapshot(engine().snapshot({clone:false}));}}catch(error){}
-    var storage = getStorage();
-    var fallback = {meta:{app:"Requisitos", module:"BaseLocal", source:"fallback", updatedAt:now()}, periods:[], students:[], history:[], diagnostics:[]};
-    var snap = storage ? storage.readSnapshot({session:false, clone:false}) : safeParse(localStorage.getItem(SNAPSHOT_KEY), fallback);
-    return canonicalizeSnapshot(snap);
+    var snap = null;
+    if(session && typeof session.getSnapshot === "function"){try{snap = session.getSnapshot({clone:false, force:options.force === true});}catch(error){snap = null;}}
+    if(!snap && engine() && typeof engine().snapshot === "function"){try{snap = engine().snapshot({clone:false, force:options.force === true});}catch(error){snap = null;}}
+    var storageApi = getStorage();
+    if(!snap){try{snap = storageApi ? storageApi.readSnapshot({session:false, clone:false}) : safeParse(localStorage.getItem(SNAPSHOT_KEY), null);}catch(error){snap = null;}}
+    snap = canonicalizeSnapshot(snap || {meta:{app:"Requisitos", module:"BaseLocal", source:"fallback", updatedAt:now()}, periods:[], students:[], history:[], diagnostics:[]});
+    snapshotCache = {snapshot:snap, signature:snapshotSignature(snap), at:Date.now()};
+    return snap;
   }
 
   function safeSetItem(k, raw, keepCollection){
@@ -86,10 +116,12 @@ Función o funciones:
   }
 
   function writeRawSnapshot(snapshot){
-    var storage = getStorage();
+    var storageApi = getStorage();
     var clean = canonicalizeSnapshot(snapshot || {});
-    if(storage && typeof storage.writeSnapshot === "function"){storage.writeSnapshot(clean);}else{safeSetItem(SNAPSHOT_KEY, JSON.stringify(clean));}
+    clean.meta = Object.assign({}, clean.meta || {}, {updatedAt:now(), totalPeriods:clean.periods.length, totalStudents:clean.students.length});
+    if(storageApi && typeof storageApi.writeSnapshot === "function"){storageApi.writeSnapshot(clean);}else{safeSetItem(SNAPSHOT_KEY, JSON.stringify(clean));}
     try{var session = getSession();if(session && typeof session.setSnapshot === "function"){session.setSnapshot(clean,{source:"RequisitosBL.writeSnapshot", alreadyStored:true, clone:false});}}catch(error){}
+    try{if(storage() && typeof storage().copySnapshot === "function"){setTimeout(function(){storage().copySnapshot(clean, {source:"RequisitosBL.writeSnapshot", chunkSize:500});}, 50);}}catch(error){}
     invalidateEngines();
     signal("snapshot-changed", {updatedAt:now(), source:"RequisitosBL.writeSnapshot"});
     return clean;
@@ -111,32 +143,28 @@ Función o funciones:
     return removed;
   }
 
-  function purgeMirrorCollections(){
-    MIRROR_COLLECTIONS.forEach(function(collection){try{localStorage.removeItem(dbKey(collection));}catch(error){}});
-    try{sessionStorage.removeItem(MIRROR_SIGNATURE_KEY);}catch(error){}
-  }
+  function purgeMirrorCollections(){MIRROR_COLLECTIONS.forEach(function(collection){try{localStorage.removeItem(dbKey(collection));}catch(error){}});try{sessionStorage.removeItem(MIRROR_SIGNATURE_KEY);}catch(error){}}
 
   function compactForStorage(row){
     var source = row && typeof row === "object" ? row : {}, out = {};
-    Object.keys(source).forEach(function(key){
-      var value = source[key], low = compact(key);
+    Object.keys(source).forEach(function(field){
+      var value = source[field], low = compact(field);
       if(low.indexOf("base64") >= 0 || low.indexOf("buffer") >= 0 || low.indexOf("blob") >= 0 || low === "raw" || low === "archivooriginal" || low === "exceloriginal"){return;}
-      if(typeof value === "string" && value.length > 5000){out[key] = value.slice(0,5000) + "…";return;}
-      out[key] = value;
+      if(typeof value === "string" && value.length > 3000){out[field] = value.slice(0,3000) + "…";return;}
+      out[field] = value;
     });
     return out;
   }
 
   function isLightCollection(collection){return LIGHT_MIRROR_COLLECTIONS.indexOf(collection) >= 0;}
+
   function lightRecord(record, collection){
     if(!record || typeof record !== "object"){return record;}
     if(collection === "periodos" || collection === "metadata"){return compactForStorage(record);}
     var source = normalizer() && typeof normalizer().normalize === "function" ? normalizer().normalize(record,{clone:false}) : record;
     var out = {};
     LIGHT_FIELDS.forEach(function(field){if(Object.prototype.hasOwnProperty.call(source, field) && source[field] != null && text(source[field]) !== ""){out[field] = source[field];}});
-    if(normalizer() && typeof normalizer().REQUIREMENT_ALIASES === "object"){
-      Object.keys(normalizer().REQUIREMENT_ALIASES).forEach(function(keyName){var value = normalizer().value(source, keyName);if(text(value) !== ""){out[keyName] = value;}});
-    }
+    try{if(window.BL2Schema && window.BL2Schema.helpers && window.BL2Schema.helpers.normalizeStudent){out = Object.assign(out, window.BL2Schema.helpers.normalizeStudent(source));}}catch(error){}
     out._mirrorRef = "estudiantes";
     out._mirrorCollection = collection || "mirror";
     out._mirrorLight = true;
@@ -154,19 +182,21 @@ Función o funciones:
     var snapshot = readRawSnapshot();
     if(collection === "periodos"){return (snapshot.periods || []).map(function(row){return normalizeRecord("periodos", row, "snapshot_direct");});}
     if(collection === "estudiantes"){
-      var rows = (snapshot.students || []);
+      var rows = snapshot.students || [];
       var offset = Math.max(0, Number(options.offset || 0) || 0);
       var limit = Math.max(0, Number(options.limit || 0) || 0);
       if(limit){rows = rows.slice(offset, offset + limit);}
       return rows.map(function(row){return normalizeRecord("estudiantes", row, "snapshot_direct");});
     }
     if(isLightCollection(collection)){
-      var sourceRows = (snapshot.students || []);
+      var sourceRows = snapshot.students || [];
       var max = Math.max(0, Number(options.limit || 0) || 0);
       if(max){sourceRows = sourceRows.slice(0, max);}
       return sourceRows.map(function(row){return normalizeRecord(collection, lightRecord(row, collection), "snapshot_direct_light");});
     }
-    if(collection === "metadata"){return [normalizeRecord("metadata", {id:"snapshot_status", totalPeriods:(snapshot.periods||[]).length, totalStudents:(snapshot.students||[]).length, updatedAt:(snapshot.meta||{}).updatedAt || now(), source:"snapshot_direct", lazyMirror:true, heavyMirrorsDisabled:true}, "snapshot_direct")];}
+    if(collection === "metadata"){
+      return [normalizeRecord("metadata", {id:"snapshot_status", totalPeriods:(snapshot.periods || []).length, totalStudents:(snapshot.students || []).length, updatedAt:(snapshot.meta || {}).updatedAt || now(), source:(snapshot.meta || {}).source || "snapshot_direct", lazyMirror:true, heavyMirrorsDisabled:true}, "snapshot_direct")];
+    }
     return [];
   }
 
@@ -215,22 +245,21 @@ Función o funciones:
   function buscarPorId(collection, id){var cleanId = normalizeId(id, collection);return listar(collection, {includeDeleted:true}).find(function(row){return row && row._blId === cleanId;}) || null;}
   function marcarEliminado(collection, id, source){var row = buscarPorId(collection,id);if(!row){return null;}row._blDeleted = true;row._blDeletedAt = now();row._blUpdatedAt = now();return guardar(collection,row,source || "module_delete");}
 
-  function requirementSignatureSample(students){var total = 0;var keys = ["academico","documentacion","financiero","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","aprobacioncomplexivoproyecto"];(students || []).slice(0,20).forEach(function(row){if(normalizer() && typeof normalizer().value === "function"){keys.forEach(function(k){if(text(normalizer().value(row,k))){total += 1;}});}});return total;}
-  function snapshotSignature(snapshot){snapshot = snapshot || {};var meta = snapshot.meta || {}, periods = Array.isArray(snapshot.periods) ? snapshot.periods : [], students = Array.isArray(snapshot.students) ? snapshot.students : [], first = students[0] && (students[0].cedula || students[0].numeroIdentificacion || students[0]._docId || students[0].docId || ""), last = students[students.length - 1] && (students[students.length - 1].cedula || students[students.length - 1].numeroIdentificacion || students[students.length - 1]._docId || students[students.length - 1].docId || "");return [meta.updatedAt || meta.pulledAt || meta.createdAt || "", periods.length, students.length, first, last, requirementSignatureSample(students), MIRROR_STORAGE_VERSION].join("|");}
-
   function mirrorSnapshotToCollections(options){
     options = options || {};
     if(mirrorState.running){return {periods:0, students:0, skipped:true, reason:"running"};}
-    var snapshot = readRawSnapshot();
+    var snapshot = readRawSnapshot({force:options.force === true});
     var periods = Array.isArray(snapshot.periods) ? snapshot.periods : [];
     var students = Array.isArray(snapshot.students) ? snapshot.students : [];
     var signature = snapshotSignature(snapshot);
     var savedSignature = getSavedMirrorSignature();
     var mustRebuildForStorage = getMirrorStorageVersion() !== MIRROR_STORAGE_VERSION;
+
     if(!mustRebuildForStorage && options.force !== true && options.rebuild !== true && signature && (signature === mirrorState.lastSignature || signature === savedSignature)){
       mirrorState.lastSignature = signature;
       return {periods:periods.length, students:students.length, defensas:students.length, skipped:true, reason:"same_snapshot_session"};
     }
+
     mirrorState.running = true;
     try{
       var replace = options.rebuild === true || options.replace === true || options.force === true || mustRebuildForStorage;
@@ -247,10 +276,26 @@ Función o funciones:
   }
 
   function rebuildSnapshotToCollections(options){return mirrorSnapshotToCollections(Object.assign({}, options || {}, {force:true, rebuild:true, replace:true, includeHeavyStudents:false, includeLightCollections:false}));}
-  function conteos(){var snapshot = readRawSnapshot();var result = {collections:COLLECTIONS.length, records:0, byCollection:{}};COLLECTIONS.forEach(function(collection){var total = collection === "estudiantes" ? (snapshot.students||[]).length : listar(collection).length;result.byCollection[collection] = total;result.records += total;});result.snapshot = {periods:(snapshot.periods||[]).length, students:(snapshot.students||[]).length};return result;}
-  function signal(kind, payload){var detail = Object.assign({kind:kind, at:now()}, payload || {});try{window.dispatchEvent(new CustomEvent("requisitos:bl:" + kind, {detail:detail}));window.dispatchEvent(new CustomEvent("bl:" + kind, {detail:detail}));}catch(error){}try{if(window.parent && window.parent !== window){window.parent.postMessage({type:"requisitos:bl:" + kind, payload:detail}, "*");}}catch(error){}try{localStorage.setItem(SIGNAL_KEY, JSON.stringify({id:"signal-" + Date.now() + "-" + Math.random().toString(36).slice(2), kind:kind, payload:detail, at:now()}));}catch(error){}if(kind === "snapshot-changed" || kind === "changed"){invalidateEngines();}}
+
+  function conteos(){
+    var snapshot = readRawSnapshot();
+    var result = {collections:COLLECTIONS.length, records:0, byCollection:{}};
+    COLLECTIONS.forEach(function(collection){var total = collection === "estudiantes" ? (snapshot.students || []).length : listar(collection).length;result.byCollection[collection] = total;result.records += total;});
+    result.snapshot = {periods:(snapshot.periods || []).length, students:(snapshot.students || []).length, updatedAt:(snapshot.meta || {}).updatedAt || ""};
+    return result;
+  }
+
+  function signal(kind, payload){
+    var detail = Object.assign({kind:kind, at:now()}, payload || {});
+    try{window.dispatchEvent(new CustomEvent("requisitos:bl:" + kind, {detail:detail}));window.dispatchEvent(new CustomEvent("bl:" + kind, {detail:detail}));}catch(error){}
+    try{if(window.parent && window.parent !== window){window.parent.postMessage({type:"requisitos:bl:" + kind, payload:detail}, "*");}}catch(error){}
+    try{localStorage.setItem(SIGNAL_KEY, JSON.stringify({id:"signal-" + Date.now() + "-" + Math.random().toString(36).slice(2), kind:kind, payload:detail, at:now()}));}catch(error){}
+    if(kind === "snapshot-changed" || kind === "changed"){invalidateEngines();}
+  }
+
   function capturarGlobales(collection, globals, source){var saved = [];(globals || []).forEach(function(name){var value = window[name];if(Array.isArray(value) && value.length){saved = saved.concat(guardarMuchos(collection,value,source || "auto_capture"));}else if(value && typeof value === "object"){var item = guardar(collection,value,source || "auto_capture");if(item){saved.push(item);}}});return saved;}
   function pascal(value){return text(value).replace(/[_-]+/g," ").replace(/\s+/g," ").split(" ").filter(Boolean).map(function(part){return part.charAt(0).toUpperCase()+part.slice(1).toLowerCase();}).join("");}
+
   function conectarModulo(moduleName, options){
     options = options || {};
     var collection = options.collection || collectionFor(moduleName), globalName = options.globalName || pascal(moduleName) + "BL", globals = options.globals || [];
@@ -260,11 +305,12 @@ Función o funciones:
     window.addEventListener("load", function(){setTimeout(function(){try{api.capturarAutomatico();}catch(error){}},300);});
     return api;
   }
+
   function getStatus(){return safeParse(localStorage.getItem(STATUS_KEY), {ok:true, mode:"local", updatedAt:now()});}
   function saveStatus(status){var next = Object.assign({}, getStatus(), status || {}, {updatedAt:now(), today:today(), version:VERSION});try{localStorage.setItem(STATUS_KEY, JSON.stringify(next));}catch(error){}return next;}
 
-  window.RequisitosBL = {version:VERSION, collections:COLLECTIONS.slice(), mirrorCollections:MIRROR_COLLECTIONS.slice(), today:today, collectionFor:collectionFor, readSnapshot:readRawSnapshot, writeSnapshot:writeRawSnapshot, mirrorSnapshotToCollections:mirrorSnapshotToCollections, rebuildSnapshotToCollections:rebuildSnapshotToCollections, replaceCollection:replaceCollection, guardar:guardar, guardarMuchos:guardarMuchos, listar:listar, buscarPorId:buscarPorId, marcarEliminado:marcarEliminado, conteos:conteos, capturarGlobales:capturarGlobales, conectarModulo:conectarModulo, notificar:signal, getStatus:getStatus, saveStatus:saveStatus, purgeGeneratedCopies:purgeGeneratedCopies};
+  window.RequisitosBL = {version:VERSION, collections:COLLECTIONS.slice(), mirrorCollections:MIRROR_COLLECTIONS.slice(), today:today, collectionFor:collectionFor, readSnapshot:readRawSnapshot, writeSnapshot:writeRawSnapshot, mirrorSnapshotToCollections:mirrorSnapshotToCollections, rebuildSnapshotToCollections:rebuildSnapshotToCollections, replaceCollection:replaceCollection, guardar:guardar, guardarMuchos:guardarMuchos, listar:listar, buscarPorId:buscarPorId, marcarEliminado:marcarEliminado, conteos:conteos, capturarGlobales:capturarGlobales, conectarModulo:conectarModulo, notificar:signal, getStatus:getStatus, saveStatus:saveStatus, purgeGeneratedCopies:purgeGeneratedCopies, invalidate:invalidateEngines};
   window.BaseLocalBridge = {version:VERSION, counts:conteos, getSnapshot:readRawSnapshot, writeSnapshot:writeRawSnapshot, mirrorSnapshotToCollections:mirrorSnapshotToCollections, rebuildSnapshotToCollections:rebuildSnapshotToCollections, list:listar, upsert:guardar, upsertMany:guardarMuchos, replace:replaceCollection, status:getStatus};
 
-  saveStatus({ok:true, mode:"connector_ready_lazy", optimized:true, sessionReady:!!getSession(), lazyMirror:true, autoMirrorOnBoot:false, rebuildReady:true, heavyStudentsMirror:false, requirementsPreserved:true, storageVersion:MIRROR_STORAGE_VERSION, message:"Conector listo sin duplicar estudiantes al entrar."});
+  saveStatus({ok:true, mode:"connector_ready_fast_rules", optimized:true, sessionReady:!!getSession(), lazyMirror:true, autoMirrorOnBoot:false, rebuildReady:true, heavyStudentsMirror:false, requirementsPreserved:true, storageVersion:MIRROR_STORAGE_VERSION, message:"Conector listo: Base Local manda, Firebase queda como sincronización."});
 })(window);
