@@ -4,21 +4,21 @@ Ruta o ubicación: /Requisitos/BaseLocal/baselocal.connector.js
 Función o funciones:
 - Conectar módulos de Requisitos con una misma Base Local.
 - Usar el snapshot principal como fuente rápida para evitar cuelgues al entrar.
-- Mantener colecciones espejo solo como compatibilidad y bajo demanda.
+- Mantener colecciones espejo solo bajo demanda y en modo liviano.
 - Evitar duplicación pesada de estudiantes en localStorage durante el arranque.
 - Exponer API compatible para pantallas antiguas sin reconstruir todo al cargar.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.5.0-fast-start";
+  var VERSION = "1.6.0-fast-lazy";
   var DB_PREFIX = "REQ_BL_DB_V1::";
   var SIGNAL_KEY = "REQ_BL_SIGNAL_V1";
   var SNAPSHOT_KEY = "REQ_EXCEL_LOCAL_V1:snapshot";
   var STATUS_KEY = "REQ_BL_CONNECTOR_STATUS_V1";
   var MIRROR_SIGNATURE_KEY = "REQ_BL_MIRROR_SIGNATURE_V1";
   var MIRROR_STORAGE_VERSION_KEY = "REQ_BL_MIRROR_STORAGE_VERSION_V1";
-  var MIRROR_STORAGE_VERSION = "light-v4-lazy";
+  var MIRROR_STORAGE_VERSION = "light-v5-lazy-no-students-copy";
 
   var COLLECTIONS = ["periodos","estudiantes","requisitos","observaciones","fichas","tabla","stats","coordi","reportes","defensas","archivos_referencias","metadata"];
   var MIRROR_COLLECTIONS = ["periodos","estudiantes","requisitos","fichas","tabla","stats","coordi","reportes","defensas"];
@@ -66,14 +66,14 @@ Función o funciones:
   }
 
   function readRawSnapshot(){
-    if(engine() && typeof engine().snapshot === "function"){try{return canonicalizeSnapshot(engine().snapshot({clone:true}));}catch(error){}}
     var session = getSession();
     if(session && typeof session.getSnapshot === "function"){
-      try{var sessionSnap = session.getSnapshot({clone:false});if(sessionSnap && typeof sessionSnap === "object"){return canonicalizeSnapshot(clone(sessionSnap));}}catch(error){}
+      try{var sessionSnap = session.getSnapshot({clone:false});if(sessionSnap && typeof sessionSnap === "object"){return canonicalizeSnapshot(sessionSnap);}}catch(error){}
     }
+    try{if(engine() && typeof engine().snapshot === "function"){return canonicalizeSnapshot(engine().snapshot({clone:false}));}}catch(error){}
     var storage = getStorage();
     var fallback = {meta:{app:"Requisitos", module:"BaseLocal", source:"fallback", updatedAt:now()}, periods:[], students:[], history:[], diagnostics:[]};
-    var snap = storage ? storage.readSnapshot({session:false}) : safeParse(localStorage.getItem(SNAPSHOT_KEY), fallback);
+    var snap = storage ? storage.readSnapshot({session:false, clone:false}) : safeParse(localStorage.getItem(SNAPSHOT_KEY), fallback);
     return canonicalizeSnapshot(snap);
   }
 
@@ -149,19 +149,31 @@ Función o funciones:
   function getRecordId(record, collection){if(!record || typeof record !== "object"){return normalizeId("", collection);}if(collection === "periodos"){return normalizeId(record.id || record.periodoId || record.label, collection);}return normalizeId(record.cedula || record.numeroIdentificacion || record.numeroidentificacion || record.identificacion || record.docId || record._docId || record.id || record.codigo || record.periodoId || record.periodId || record.reporteId || record.fichaId || record.key, collection);}
   function normalizeRecord(collection, record, source){var copy = Object.assign({}, record || {});var id = getRecordId(copy, collection);copy._blId = id;copy._blCollection = collection;copy._blSource = source || copy._blSource || "module";copy._blCreatedAt = copy._blCreatedAt || copy.creadoEn || copy.createdAt || now();copy._blUpdatedAt = now();copy._blDeleted = copy._blDeleted === true;return copy;}
 
-  function derivedCollection(collection){
+  function derivedCollection(collection, options){
+    options = options || {};
     var snapshot = readRawSnapshot();
     if(collection === "periodos"){return (snapshot.periods || []).map(function(row){return normalizeRecord("periodos", row, "snapshot_direct");});}
-    if(collection === "estudiantes"){return (snapshot.students || []).map(function(row){return normalizeRecord("estudiantes", row, "snapshot_direct");});}
-    if(isLightCollection(collection)){return (snapshot.students || []).map(function(row){return normalizeRecord(collection, lightRecord(row, collection), "snapshot_direct_light");});}
-    if(collection === "metadata"){return [normalizeRecord("metadata", {id:"snapshot_status", totalPeriods:(snapshot.periods||[]).length, totalStudents:(snapshot.students||[]).length, updatedAt:(snapshot.meta||{}).updatedAt || now(), source:"snapshot_direct", lazyMirror:true}, "snapshot_direct")];}
+    if(collection === "estudiantes"){
+      var rows = (snapshot.students || []);
+      var offset = Math.max(0, Number(options.offset || 0) || 0);
+      var limit = Math.max(0, Number(options.limit || 0) || 0);
+      if(limit){rows = rows.slice(offset, offset + limit);}
+      return rows.map(function(row){return normalizeRecord("estudiantes", row, "snapshot_direct");});
+    }
+    if(isLightCollection(collection)){
+      var sourceRows = (snapshot.students || []);
+      var max = Math.max(0, Number(options.limit || 0) || 0);
+      if(max){sourceRows = sourceRows.slice(0, max);}
+      return sourceRows.map(function(row){return normalizeRecord(collection, lightRecord(row, collection), "snapshot_direct_light");});
+    }
+    if(collection === "metadata"){return [normalizeRecord("metadata", {id:"snapshot_status", totalPeriods:(snapshot.periods||[]).length, totalStudents:(snapshot.students||[]).length, updatedAt:(snapshot.meta||{}).updatedAt || now(), source:"snapshot_direct", lazyMirror:true, heavyMirrorsDisabled:true}, "snapshot_direct")];}
     return [];
   }
 
   function listar(collection, options){
     options = options || {};
     var rows = readCollection(collection);
-    if(!rows.length){rows = derivedCollection(collection);}
+    if(!rows.length || options.fresh === true){rows = derivedCollection(collection, options);}
     if(options.includeDeleted !== true){rows = rows.filter(function(row){return row && row._blDeleted !== true;});}
     return rows;
   }
@@ -224,29 +236,27 @@ Función o funciones:
       var replace = options.rebuild === true || options.replace === true || options.force === true || mustRebuildForStorage;
       if(replace){purgeMirrorCollections();}
       guardarMuchos("periodos", periods, "snapshot_mirror", {silent:true, replace:replace});
-      guardarMuchos("estudiantes", students, "snapshot_mirror", {silent:true, replace:replace});
-      LIGHT_MIRROR_COLLECTIONS.forEach(function(collection){guardarMuchos(collection, students, "snapshot_mirror_light", {silent:true, replace:true});});
-      guardar("metadata", {id:"snapshot_mirror_status", totalPeriods:periods.length, totalStudents:students.length, totalDefensas:students.length, updatedAt:now(), signature:signature, rebuild:replace, storageVersion:MIRROR_STORAGE_VERSION, lightMirrors:true, lazyMirror:false}, "snapshot_mirror", {silent:true});
-      mirrorState.lastSignature = signature;
-      mirrorState.lastAt = now();
-      saveMirrorSignature(signature);
-      saveMirrorStorageVersion();
-      if(options.silent !== true){signal("mirror-complete", {periods:periods.length, students:students.length, defensas:students.length, updatedAt:mirrorState.lastAt, rebuild:replace, storageVersion:MIRROR_STORAGE_VERSION});}
-      return {periods:periods.length, students:students.length, defensas:students.length, skipped:false, rebuild:replace, storageVersion:MIRROR_STORAGE_VERSION};
+      if(options.includeHeavyStudents === true){guardarMuchos("estudiantes", students, "snapshot_mirror", {silent:true, replace:replace});}
+      else{try{localStorage.removeItem(dbKey("estudiantes"));}catch(error){}}
+      if(options.includeLightCollections === true){LIGHT_MIRROR_COLLECTIONS.forEach(function(collection){guardarMuchos(collection, students.slice(0, Number(options.lightLimit || 0) || 0), "snapshot_mirror_light", {silent:true, replace:true});});}
+      guardar("metadata", {id:"snapshot_mirror_status", totalPeriods:periods.length, totalStudents:students.length, totalDefensas:students.length, updatedAt:now(), signature:signature, rebuild:replace, storageVersion:MIRROR_STORAGE_VERSION, lightMirrors:options.includeLightCollections === true, heavyStudentsCopied:options.includeHeavyStudents === true, lazyMirror:true}, "snapshot_mirror", {silent:true});
+      mirrorState.lastSignature = signature;mirrorState.lastAt = now();saveMirrorSignature(signature);saveMirrorStorageVersion();
+      if(options.silent !== true){signal("mirror-complete", {periods:periods.length, students:students.length, defensas:students.length, updatedAt:mirrorState.lastAt, rebuild:replace, storageVersion:MIRROR_STORAGE_VERSION, heavyStudentsCopied:options.includeHeavyStudents === true});}
+      return {periods:periods.length, students:students.length, defensas:students.length, skipped:false, rebuild:replace, storageVersion:MIRROR_STORAGE_VERSION, heavyStudentsCopied:options.includeHeavyStudents === true};
     }finally{mirrorState.running = false;}
   }
 
-  function rebuildSnapshotToCollections(options){return mirrorSnapshotToCollections(Object.assign({}, options || {}, {force:true, rebuild:true, replace:true}));}
-  function conteos(){var snapshot = readRawSnapshot();var result = {collections:COLLECTIONS.length, records:0, byCollection:{}};COLLECTIONS.forEach(function(collection){var total = listar(collection).length;result.byCollection[collection] = total;result.records += total;});result.snapshot = {periods:(snapshot.periods||[]).length, students:(snapshot.students||[]).length};return result;}
+  function rebuildSnapshotToCollections(options){return mirrorSnapshotToCollections(Object.assign({}, options || {}, {force:true, rebuild:true, replace:true, includeHeavyStudents:false, includeLightCollections:false}));}
+  function conteos(){var snapshot = readRawSnapshot();var result = {collections:COLLECTIONS.length, records:0, byCollection:{}};COLLECTIONS.forEach(function(collection){var total = collection === "estudiantes" ? (snapshot.students||[]).length : listar(collection).length;result.byCollection[collection] = total;result.records += total;});result.snapshot = {periods:(snapshot.periods||[]).length, students:(snapshot.students||[]).length};return result;}
   function signal(kind, payload){var detail = Object.assign({kind:kind, at:now()}, payload || {});try{window.dispatchEvent(new CustomEvent("requisitos:bl:" + kind, {detail:detail}));window.dispatchEvent(new CustomEvent("bl:" + kind, {detail:detail}));}catch(error){}try{if(window.parent && window.parent !== window){window.parent.postMessage({type:"requisitos:bl:" + kind, payload:detail}, "*");}}catch(error){}try{localStorage.setItem(SIGNAL_KEY, JSON.stringify({id:"signal-" + Date.now() + "-" + Math.random().toString(36).slice(2), kind:kind, payload:detail, at:now()}));}catch(error){}if(kind === "snapshot-changed" || kind === "changed"){invalidateEngines();}}
   function capturarGlobales(collection, globals, source){var saved = [];(globals || []).forEach(function(name){var value = window[name];if(Array.isArray(value) && value.length){saved = saved.concat(guardarMuchos(collection,value,source || "auto_capture"));}else if(value && typeof value === "object"){var item = guardar(collection,value,source || "auto_capture");if(item){saved.push(item);}}});return saved;}
   function pascal(value){return text(value).replace(/[_-]+/g," ").replace(/\s+/g," ").split(" ").filter(Boolean).map(function(part){return part.charAt(0).toUpperCase()+part.slice(1).toLowerCase();}).join("");}
   function conectarModulo(moduleName, options){
     options = options || {};
     var collection = options.collection || collectionFor(moduleName), globalName = options.globalName || pascal(moduleName) + "BL", globals = options.globals || [];
-    var api = {module:moduleName, collection:collection, guardar:function(record){return guardar(collection,record,moduleName);}, guardarMuchos:function(records){return guardarMuchos(collection,records,moduleName+"_many");}, reemplazar:function(records){return replaceCollection(collection,records,moduleName+"_replace");}, listar:function(){return listar(collection);}, buscarPorId:function(id){return buscarPorId(collection,id);}, marcarEliminado:function(id){return marcarEliminado(collection,id,moduleName+"_delete");}, capturarAutomatico:function(){return capturarGlobales(collection,globals,"auto_capture_" + moduleName);}};
+    var api = {module:moduleName, collection:collection, guardar:function(record){return guardar(collection,record,moduleName);}, guardarMuchos:function(records){return guardarMuchos(collection,records,moduleName+"_many");}, reemplazar:function(records){return replaceCollection(collection,records,moduleName+"_replace");}, listar:function(opts){return listar(collection,opts||{});}, buscarPorId:function(id){return buscarPorId(collection,id);}, marcarEliminado:function(id){return marcarEliminado(collection,id,moduleName+"_delete");}, capturarAutomatico:function(){return capturarGlobales(collection,globals,"auto_capture_" + moduleName);}};
     window[globalName]=api;
-    setTimeout(function(){try{api.capturarAutomatico();}catch(error){}signal("module-ready", {module:moduleName, collection:collection, globalName:globalName, count:listar(collection).length, lazyMirror:true});},500);
+    setTimeout(function(){try{api.capturarAutomatico();}catch(error){}signal("module-ready", {module:moduleName, collection:collection, globalName:globalName, count:listar(collection,{limit:200}).length, lazyMirror:true});},500);
     window.addEventListener("load", function(){setTimeout(function(){try{api.capturarAutomatico();}catch(error){}},300);});
     return api;
   }
@@ -256,5 +266,5 @@ Función o funciones:
   window.RequisitosBL = {version:VERSION, collections:COLLECTIONS.slice(), mirrorCollections:MIRROR_COLLECTIONS.slice(), today:today, collectionFor:collectionFor, readSnapshot:readRawSnapshot, writeSnapshot:writeRawSnapshot, mirrorSnapshotToCollections:mirrorSnapshotToCollections, rebuildSnapshotToCollections:rebuildSnapshotToCollections, replaceCollection:replaceCollection, guardar:guardar, guardarMuchos:guardarMuchos, listar:listar, buscarPorId:buscarPorId, marcarEliminado:marcarEliminado, conteos:conteos, capturarGlobales:capturarGlobales, conectarModulo:conectarModulo, notificar:signal, getStatus:getStatus, saveStatus:saveStatus, purgeGeneratedCopies:purgeGeneratedCopies};
   window.BaseLocalBridge = {version:VERSION, counts:conteos, getSnapshot:readRawSnapshot, writeSnapshot:writeRawSnapshot, mirrorSnapshotToCollections:mirrorSnapshotToCollections, rebuildSnapshotToCollections:rebuildSnapshotToCollections, list:listar, upsert:guardar, upsertMany:guardarMuchos, replace:replaceCollection, status:getStatus};
 
-  saveStatus({ok:true, mode:"connector_ready_lazy", optimized:true, sessionReady:!!getSession(), lazyMirror:true, autoMirrorOnBoot:false, rebuildReady:true, lightMirrors:true, requirementsPreserved:true, storageVersion:MIRROR_STORAGE_VERSION, message:"Conector listo sin reconstruir espejos al entrar."});
+  saveStatus({ok:true, mode:"connector_ready_lazy", optimized:true, sessionReady:!!getSession(), lazyMirror:true, autoMirrorOnBoot:false, rebuildReady:true, heavyStudentsMirror:false, requirementsPreserved:true, storageVersion:MIRROR_STORAGE_VERSION, message:"Conector listo sin duplicar estudiantes al entrar."});
 })(window);
