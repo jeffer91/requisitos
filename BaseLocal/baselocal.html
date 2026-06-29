@@ -7,47 +7,14 @@ Función o funciones:
 - Ver períodos, estudiantes activos, retirados, historial y diagnóstico.
 - Crear, editar y borrar divisiones por período desde un modal de Base Local.
 - Filtrar estudiantes por división.
-- Organizar filtros y acciones en dos filas para evitar desbordes.
-- Rediseñar modal Divisiones en pasos: administrar división y mover carreras.
-- Borrar períodos con respaldo Excel obligatorio, alerta de vigencia y doble confirmación.
-- Conectar servicios base para períodos canónicos, divisiones, limpieza y borrado seguro.
-- Cargar BL2 para mostrar el panel como vista liviana.
-- Cargar cola incremental BL2 antes de Firebase para evitar sobrescribir variables globales.
+- Cargar BL2 completo antes de BaseLocal core/app para paginación real.
 - No mostrar título propio porque Maqueta controla el menú superior.
 Con qué se conecta:
-- baselocal.css
-- baselocal.bl-improvements.css
-- services/bl-campos.js
-- services/bl-periodos-canon.service.js
-- services/bl-divisiones.service.js
-- services/bl-normalizador.js
-- services/bl-filtros.js
-- services/bl-periodos.service.js
-- services/bl-estudiantes.service.js
-- services/bl-sync-diario.js
-- services/bl-matricula.service.js
-- services/bl-firestore-patch.js
-- services/bl-limpiar-base.service.js
-- services/bl-respaldo-periodo-excel.service.js
-- services/bl-borrar-periodo.service.js
-- services/bl-healthcheck.js
-- services/bl-selftest.js
-- ../BaseLocal2/bl2-config.js
-- ../BaseLocal2/repositories/bl2-periodos.repo.js
-- ../BaseLocal2/repositories/bl2-dashboard.repo.js
-- ../BaseLocal2/sync/bl2-sync-queue.js
-- ../BaseLocal2/sync/bl2-conflicts.js
-- ../BaseLocal2/sync/bl2-firebase-push.js
-- ../BaseLocal2/sync/bl2-firebase-pull.js
+- BaseLocal services
+- BaseLocal2 db/services/repositories
 - baselocal.connector.js
 - baselocal.core.js
-- baselocal.divisiones-api.patch.js
-- baselocal.firebase.js
-- baselocal.divisiones.js
-- baselocal.limpiar.js
-- baselocal.borrar-periodo.js
 - baselocal.app.js
-- baselocal.student-detail.js
 ========================================================= -->
 <html lang="es">
 <head>
@@ -129,9 +96,24 @@ Con qué se conecta:
     </nav>
 
     <main class="bl-main">
-      <section id="bl-tab-periodos" class="bl-panel is-active"><div id="bl-periodos-table" class="bl-table-wrap"></div></section>
-      <section id="bl-tab-estudiantes" class="bl-panel"><p class="bl-help">Vista paginada para mantener la pantalla rápida. Por defecto se muestran estudiantes activos.</p><div id="bl-estudiantes-table" class="bl-table-wrap"></div><div class="bl-pagination"><button id="bl-students-first" type="button">Primera</button><button id="bl-students-prev" type="button">Anterior</button><span id="bl-students-page-label">0 registros</span><button id="bl-students-next" type="button">Siguiente</button><button id="bl-students-last" type="button">Última</button></div></section>
-      <section id="bl-tab-historial" class="bl-panel"><p class="bl-help">Se muestran los últimos movimientos para no cargar todo el historial completo.</p><div id="bl-history-table" class="bl-table-wrap"></div></section>
+      <section id="bl-tab-periodos" class="bl-panel is-active">
+        <div id="bl-periodos-table" class="bl-table-wrap"></div>
+      </section>
+      <section id="bl-tab-estudiantes" class="bl-panel">
+        <p class="bl-help">Vista paginada para mantener la pantalla rápida. Por defecto se muestran estudiantes activos.</p>
+        <div id="bl-estudiantes-table" class="bl-table-wrap"></div>
+        <div class="bl-pagination">
+          <button id="bl-students-first" type="button">Primera</button>
+          <button id="bl-students-prev" type="button">Anterior</button>
+          <span id="bl-students-page-label">0 registros</span>
+          <button id="bl-students-next" type="button">Siguiente</button>
+          <button id="bl-students-last" type="button">Última</button>
+        </div>
+      </section>
+      <section id="bl-tab-historial" class="bl-panel">
+        <p class="bl-help">Se muestran los últimos movimientos para no cargar todo el historial completo.</p>
+        <div id="bl-history-table" class="bl-table-wrap"></div>
+      </section>
       <section id="bl-tab-diagnostico" class="bl-panel"><pre id="bl-diagnostics-box" class="bl-diagnostics"></pre></section>
       <section id="bl-tab-manual" class="bl-panel"><textarea id="bl-manual-text" readonly></textarea></section>
     </main>
@@ -150,24 +132,11 @@ Con qué se conecta:
 
       <div class="bl-modal-body bl-division-body">
         <section class="bl-division-step bl-step-one">
-          <div class="bl-step-title">
-            <span>1</span>
-            <div>
-              <strong>Administrar división</strong>
-              <small>Selecciona una división, cambia el nombre o crea una nueva.</small>
-            </div>
-          </div>
-
-          <div class="bl-division-period-row">
-            <span>Período seleccionado</span>
-            <strong id="bl-division-period-label" class="bl-readonly-pill">—</strong>
-          </div>
-
+          <div class="bl-step-title"><span>1</span><div><strong>Administrar división</strong><small>Selecciona una división, cambia el nombre o crea una nueva.</small></div></div>
+          <div class="bl-division-period-row"><span>Período seleccionado</span><strong id="bl-division-period-label" class="bl-readonly-pill">—</strong></div>
           <div class="bl-division-control-grid">
             <label>División
-              <select id="bl-division-existing">
-                <option value="">Nueva división</option>
-              </select>
+              <select id="bl-division-existing"><option value="">Nueva división</option></select>
             </label>
             <label>Nombre
               <input id="bl-division-name" type="text" placeholder="Ejemplo: Superior" />
@@ -181,13 +150,7 @@ Con qué se conecta:
         </section>
 
         <section class="bl-division-step bl-step-two">
-          <div class="bl-step-title">
-            <span>2</span>
-            <div>
-              <strong>Agregar o quitar carreras</strong>
-              <small id="bl-division-help">Arrastra una carrera entre columnas. También puedes hacer clic sobre una carrera para moverla.</small>
-            </div>
-          </div>
+          <div class="bl-step-title"><span>2</span><div><strong>Agregar o quitar carreras</strong><small id="bl-division-help">Arrastra una carrera entre columnas. También puedes hacer clic sobre una carrera para moverla.</small></div></div>
           <div id="bl-division-careers" class="bl-division-drop-grid"></div>
         </section>
       </div>
@@ -215,9 +178,7 @@ Con qué se conecta:
           <small>ID: <b id="bl-delete-period-id">—</b></small>
         </div>
 
-        <div id="bl-delete-period-risk" class="bl-delete-alert bl-delete-risk-warn">
-          Se revisará la fecha actual antes de permitir el borrado.
-        </div>
+        <div id="bl-delete-period-risk" class="bl-delete-alert bl-delete-risk-warn">Se revisará la fecha actual antes de permitir el borrado.</div>
 
         <div class="bl-delete-grid">
           <article><span>Estudiantes del período</span><strong id="bl-delete-period-count">0</strong></article>
@@ -267,8 +228,15 @@ Con qué se conecta:
   <script src="../BaseLocal2/bl2-config.js"></script>
   <script src="../BaseLocal2/bl2-detect-runtime.js"></script>
   <script src="../BaseLocal2/bl2-legacy-adapter.js"></script>
+  <script src="../BaseLocal2/db/bl2-schema.js"></script>
+  <script src="../BaseLocal2/db/bl2-migrations.js"></script>
+  <script src="../BaseLocal2/db/bl2-indexeddb-adapter.js"></script>
+  <script src="../BaseLocal2/db/bl2-storage.js"></script>
+  <script src="../BaseLocal2/services/bl2-search.service.js"></script>
+  <script src="../BaseLocal2/services/bl2-pagination.service.js"></script>
   <script src="../BaseLocal2/bl2-api.js"></script>
   <script src="../BaseLocal2/repositories/bl2-periodos.repo.js"></script>
+  <script src="../BaseLocal2/repositories/bl2-estudiantes.repo.js"></script>
   <script src="../BaseLocal2/repositories/bl2-dashboard.repo.js"></script>
   <script src="../BaseLocal2/sync/bl2-sync-queue.js"></script>
   <script src="../BaseLocal2/sync/bl2-conflicts.js"></script>
