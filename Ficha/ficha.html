@@ -3,19 +3,17 @@
 Nombre completo: ficha.html
 Ruta o ubicación: /Requisitos/Ficha/ficha.html
 Función o funciones:
-- Mostrar la ficha individual de un estudiante cargado desde Base Local.
+- Mostrar la ficha individual de un estudiante cargado desde BDLocal.
 - Buscar por cédula, nombre, carrera, división, correo o celular.
 - Filtrar por período, división y matrícula.
 - Mostrar activos por defecto y permitir ver retirados.
 - Cargar capa compacta visual sin tocar la lógica de datos.
-- Conectar lector inteligente de campos para Firestore/Base Local.
 - Mostrar acciones visuales de aprobación, copia y Telegram dentro de la ficha.
 - Mostrar encabezado por filas: cédula, carrera y período normalizado.
 - Evitar repetir en el cuerpo datos ya mostrados en encabezado.
 - Mostrar notas finales Nart, Ndef y Nfin.
-- Consultar primero por BL2 y mantener ExcelLocalRepo como respaldo.
-- Permitir modalidadTitulacion para Infor.
 Con qué se conecta:
+- ../BDLocal/adapters/bdl.screen-deps.js
 - ficha.css
 - ficha.compact.css
 - ficha.core.js
@@ -73,26 +71,7 @@ Con qué se conecta:
       </section>
     </section>
   </main>
-  <script src="../Gestion/Excel/excel-local/excel-local.config.js"></script>
-  <script src="../Gestion/Excel/excel-local/excel-local.storage.js"></script>
-  <script src="../Gestion/Excel/excel-local/excel-local.bridge.js"></script>
-  <script src="../Gestion/Excel/excel-local.repo.js"></script>
-  <script src="../BaseLocal/services/bl-campos.js"></script>
-  <script src="../BaseLocal/services/bl-periodos-canon.service.js"></script>
-  <script src="../BaseLocal/services/bl-divisiones.service.js"></script>
-  <script src="../BaseLocal/services/bl-notas-defensa.service.js"></script>
-  <script src="../BaseLocal2/bl2-config.js"></script>
-  <script src="../BaseLocal2/bl2-detect-runtime.js"></script>
-  <script src="../BaseLocal2/core/bl2-student-normalizer.js"></script>
-  <script src="../BaseLocal2/core/bl2-requirements-engine.js"></script>
-  <script src="../BaseLocal2/core/bl2-memory-index.js"></script>
-  <script src="../BaseLocal2/core/bl2-data-engine.js"></script>
-  <script src="../BaseLocal2/core/bl2-screen-adapter.js"></script>
-  <script src="../BaseLocal2/bl2-legacy-adapter.js"></script>
-  <script src="../BaseLocal2/bl2-api.js"></script>
-  <script src="../BaseLocal2/services/bl2-search.service.js"></script>
-  <script src="../BaseLocal2/repositories/bl2-estudiantes.repo.js"></script>
-  <script src="../BaseLocal2/repositories/bl2-requisitos.repo.js"></script>
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="ficha.core.js"></script>
   <script src="ficha.export.js"></script>
   <script src="ficha.modalidad.js"></script>
