@@ -6,7 +6,7 @@ Funcion o funciones:
 - Inicializar la pantalla Sacar N.
 - Conectar estado, renderizado, eventos y carga inicial de BDLocal.
 - Recuperar avance guardado al reabrir el modulo.
-- Mantener lista la pantalla para cargar estudiantes desde Requisitos.
+- Ejecutar verificacion final de dependencias de la pantalla.
 Con que se conecta:
 - sn-config.js
 - sn-models.js
@@ -15,6 +15,7 @@ Con que se conecta:
 - sn-queue.service.js
 - sn-estudiantes.service.js
 - sn-sisacad-extractor.service.js
+- sn-final-check.service.js
 - sn-ui-render.service.js
 - sn-ui-events.service.js
 - sn-sacar-n.html
@@ -34,6 +35,16 @@ Con que se conecta:
     }
   }
 
+  function verificacionFinal(){
+    var check = window.SNFinalCheck;
+    if(check && typeof check.run === "function"){
+      var resultado = check.run();
+      if(resultado && !resultado.ok && state.setModulo && window.SNConfig && window.SNConfig.estadosModulo){
+        state.setModulo(window.SNConfig.estadosModulo.listo, "Verificacion final con observaciones. Revise window.SN_FINAL_CHECK en consola.");
+      }
+    }
+  }
+
   function boot(){
     if(render.initStatic){ render.initStatic(); }
 
@@ -47,11 +58,12 @@ Con que se conecta:
 
     if(events.init){ events.init(); }
     recuperarAvanceGuardado();
+    verificacionFinal();
 
     try{
       window.dispatchEvent(new CustomEvent("sn:boot", {
         detail: {
-          bloque: 9,
+          bloque: 12,
           at: models.ahora ? models.ahora() : new Date().toISOString()
         }
       }));
