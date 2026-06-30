@@ -18,7 +18,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-coo-report.1";
+  var VERSION = "1.0.0-coo-report.2";
 
   function text(value){return String(value == null ? "" : value).trim();}
   function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();}
@@ -32,31 +32,33 @@ Con qué se conecta:
   function cfgHelper(name){return config().helpers && config().helpers[name];}
 
   function requirementLabel(key, fallback){
-    try{
-      if(window.BLCampos && typeof window.BLCampos.requirementLabel === "function"){
-        return window.BLCampos.requirementLabel(key, fallback || key);
-      }
-    }catch(error){}
+    try{if(window.BLCampos && typeof window.BLCampos.requirementLabel === "function"){return window.BLCampos.requirementLabel(key, fallback || key);}}catch(error){}
     return fallback || key;
   }
 
-  function getValue(row, key){
+  function rawKeyInfo(row, key){
     row = row || {};
-    if(!key){return "";}
-    try{
-      if(reqEngine() && typeof reqEngine().valueOf === "function"){
-        var val = reqEngine().valueOf(row, key);
-        if(text(val) !== ""){return val;}
-      }
-    }catch(error){}
-    if(row[key] != null){return row[key];}
-
+    if(!key){return {exists:false, value:""};}
+    if(Object.prototype.hasOwnProperty.call(row, key)){return {exists:true, value:row[key]};}
     var target = compact(key);
     var keys = Object.keys(row);
     for(var i=0;i<keys.length;i++){
-      if(compact(keys[i]) === target){return row[keys[i]];}
+      if(compact(keys[i]) === target){return {exists:true, value:row[keys[i]]};}
     }
-    return "";
+    return {exists:false, value:""};
+  }
+
+  function valueInfo(row, key, source){
+    var raw = rawKeyInfo(row, key);
+    try{
+      if(reqEngine() && typeof reqEngine().valueOf === "function"){
+        var engineValue = reqEngine().valueOf(row || {}, key);
+        if(text(engineValue) !== ""){return {exists:true, value:engineValue};}
+      }
+    }catch(error){}
+    if(raw.exists){return raw;}
+    if(source === "engine"){return {exists:true, value:""};}
+    return raw;
   }
 
   function cellStatus(value){
@@ -68,15 +70,9 @@ Con qué se conecta:
     }catch(error){}
     var v = norm(value);
     if(!v){return "sin_dato";}
-    if(v === "cumple" || v === "si cumple" || v === "aprobado" || v === "aprobada" || v === "ok" || v === "completo" || v === "completado"){
-      return "cumple";
-    }
-    if(v === "no aplica" || v === "n/a" || v === "na" || v === "no corresponde"){
-      return "no_aplica";
-    }
-    if(v.indexOf("no cumple") >= 0 || v.indexOf("pendiente") >= 0 || v.indexOf("falta") >= 0 || v.indexOf("debe") >= 0 || v.indexOf("incompleto") >= 0){
-      return "no_cumple";
-    }
+    if(v === "cumple" || v === "si cumple" || v === "aprobado" || v === "aprobada" || v === "ok" || v === "completo" || v === "completado"){return "cumple";}
+    if(v === "no aplica" || v === "n/a" || v === "na" || v === "no corresponde"){return "no_aplica";}
+    if(v.indexOf("no cumple") >= 0 || v.indexOf("pendiente") >= 0 || v.indexOf("falta") >= 0 || v.indexOf("debe") >= 0 || v.indexOf("incompleto") >= 0){return "no_cumple";}
     return "no_cumple";
   }
 
@@ -89,9 +85,9 @@ Con qué se conecta:
     try{
       if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){
         return arr(reqEngine().requirementsForStudent(row || {})).map(function(req){
-          if(typeof req === "string"){return {key:req, label:requirementLabel(req, req)};}
+          if(typeof req === "string"){return {key:req, label:requirementLabel(req, req), source:"engine"};}
           req = req || {};
-          return {key:text(req.key || req.id || req.campo || req.name), label:text(req.label || req.nombre || req.titulo || req.key)};
+          return {key:text(req.key || req.id || req.campo || req.name), label:text(req.label || req.nombre || req.titulo || req.key), source:"engine"};
         }).filter(function(req){return !!req.key;});
       }
     }catch(error){}
@@ -101,9 +97,7 @@ Con qué se conecta:
   function requirementsFromConfig(){
     var list = [];
     arr(config().areas).forEach(function(area){
-      arr(area.requisitoKeys).forEach(function(key){
-        list.push({key:key, label:requirementLabel(key, key), areaId:area.id});
-      });
+      arr(area.requisitoKeys).forEach(function(key){list.push({key:key, label:requirementLabel(key, key), areaId:area.id, source:"config"});});
     });
     return list;
   }
@@ -115,10 +109,10 @@ Con qué se conecta:
       req = req || {};
       var key = text(req.key);
       if(!key){return;}
-      var c = compact(key);
+      var c = compact([req.source || "", key].join("|"));
       if(map[c]){return;}
       map[c] = true;
-      list.push({key:key, label:text(req.label || requirementLabel(key, key)), areaId:req.areaId || ""});
+      list.push({key:key, label:text(req.label || requirementLabel(key, key)), areaId:req.areaId || "", source:req.source || "config"});
     }
     requirementsFromEngine(row).forEach(add);
     requirementsFromConfig().forEach(add);
@@ -153,16 +147,11 @@ Con qué se conecta:
     allKnownRequirements(row).forEach(function(req){
       var areaId = inferAreaId(req);
       if(!areaId){return;}
-      var value = getValue(row, req.key);
-      var status = cellStatus(value);
+      var info = valueInfo(row, req.key, req.source);
+      if(req.source === "config" && !info.exists){return;}
+      var status = cellStatus(info.value);
       if(!isPendingStatus(status)){return;}
-      out.push({
-        areaId:areaId,
-        key:req.key,
-        label:req.label || requirementLabel(req.key, req.key),
-        value:text(value),
-        status:status
-      });
+      out.push({areaId:areaId,key:req.key,label:req.label || requirementLabel(req.key, req.key),value:text(info.value),status:status});
     });
     return mergePending(out);
   }
@@ -176,35 +165,15 @@ Con qué se conecta:
     return Object.keys(map).map(function(key){return map[key];});
   }
 
-  function studentKey(row){
-    return compact([row && (row._periodoId || row._periodo), row && (row._cedula || row._nombres)].join("|"));
-  }
+  function studentKey(row){return compact([row && (row._periodoId || row._periodo), row && (row._cedula || row._nombres)].join("|"));}
 
   function baseAreaReport(area){
-    return Object.assign({}, clone(area), {
-      totalEstudiantes:0,
-      totalPendientes:0,
-      carreras:[],
-      estudiantes:[],
-      requisitos:[],
-      porCarrera:[],
-      sinPendientes:true
-    });
+    return Object.assign({}, clone(area), {totalEstudiantes:0,totalPendientes:0,carreras:[],estudiantes:[],requisitos:[],porCarrera:[],sinPendientes:true});
   }
 
   function addStudentToArea(report, row, pendingItems){
     var requisitos = arr(pendingItems).map(function(item){return item.label;});
-    var detalle = {
-      cedula:row._cedula || "",
-      nombre:row._nombres || "",
-      carrera:row._carrera || "SIN CARRERA",
-      periodo:row._periodo || row._periodoId || "",
-      division:row._division || "",
-      requisitos:requisitos,
-      requisitosTexto:requisitos.join(", "),
-      totalPendientes:pendingItems.length,
-      rawId:row._cooId || ""
-    };
+    var detalle = {cedula:row._cedula || "",nombre:row._nombres || "",carrera:row._carrera || "SIN CARRERA",periodo:row._periodo || row._periodoId || "",division:row._division || "",requisitos:requisitos,requisitosTexto:requisitos.join(", "),totalPendientes:pendingItems.length,rawId:row._cooId || ""};
     report.estudiantes.push(detalle);
     report.totalEstudiantes = report.estudiantes.length;
     report.totalPendientes += pendingItems.length;
@@ -220,10 +189,7 @@ Con qué se conecta:
       if(!carrerasMap[carrera]){carrerasMap[carrera] = {carrera:carrera, estudiantes:0, pendientes:0};}
       carrerasMap[carrera].estudiantes += 1;
       carrerasMap[carrera].pendientes += student.totalPendientes || 0;
-      arr(student.requisitos).forEach(function(label){
-        if(!reqMap[label]){reqMap[label] = {requisito:label, total:0};}
-        reqMap[label].total += 1;
-      });
+      arr(student.requisitos).forEach(function(label){if(!reqMap[label]){reqMap[label] = {requisito:label, total:0};}reqMap[label].total += 1;});
     });
     report.carreras = Object.keys(carrerasMap).sort(function(a,b){return a.localeCompare(b,"es");});
     report.porCarrera = Object.keys(carrerasMap).map(function(k){return carrerasMap[k];}).sort(function(a,b){return b.estudiantes-a.estudiantes || a.carrera.localeCompare(b.carrera,"es");});
@@ -253,10 +219,7 @@ Con qué se conecta:
         if(!byArea[item.areaId]){byArea[item.areaId] = [];}
         byArea[item.areaId].push(item);
       });
-      Object.keys(byArea).forEach(function(areaId){
-        addStudentToArea(areaMap[areaId], row, byArea[areaId]);
-        totalPendientes += byArea[areaId].length;
-      });
+      Object.keys(byArea).forEach(function(areaId){addStudentToArea(areaMap[areaId], row, byArea[areaId]);totalPendientes += byArea[areaId].length;});
     });
 
     areas = areas.map(summarizeArea);
@@ -266,27 +229,13 @@ Con qué se conecta:
       totalEstudiantesPendientes:Object.keys(uniquePendingStudents).filter(Boolean).length,
       totalAreasConPendientes:areasConPendientes.length,
       totalPendientes:totalPendientes,
-      areas:areasConPendientes.map(function(area){
-        return {
-          id:area.id,
-          area:area.area,
-          responsable:area.responsable,
-          correo:area.correo,
-          whatsapp:area.whatsapp,
-          totalEstudiantes:area.totalEstudiantes,
-          totalPendientes:area.totalPendientes,
-          carreras:area.carreras.length
-        };
-      })
+      areas:areasConPendientes.map(function(area){return {id:area.id,area:area.area,responsable:area.responsable,correo:area.correo,whatsapp:area.whatsapp,totalEstudiantes:area.totalEstudiantes,totalPendientes:area.totalPendientes,carreras:area.carreras.length};})
     });
 
     return {
       version:VERSION,
       source:dataResult.source || "desconocido",
-      filters:{
-        periodId:options.periodId || options.periodoId || options.periodo || "",
-        division:options.division || ""
-      },
+      filters:{periodId:options.periodId || options.periodoId || options.periodo || "",division:options.division || ""},
       generatedAt:new Date().toISOString(),
       periodList:dataResult.periodList || [],
       divisionList:dataResult.divisionList || [],
@@ -295,23 +244,13 @@ Con qué se conecta:
       areas:areas,
       areasConPendientes:areasConPendientes,
       reportesListos:buildReadyReports(global, areas),
-      diagnostics:{
-        source:dataResult.source || "desconocido",
-        totalStudentsRead:rows.length,
-        totalStudentsWithPending:global.totalEstudiantesPendientes,
-        totalAreas:areas.length,
-        totalAreasWithPending:areasConPendientes.length,
-        totalPendingItems:totalPendientes,
-        dataDiagnostics:dataResult.diagnostics || {}
-      }
+      diagnostics:{source:dataResult.source || "desconocido",totalStudentsRead:rows.length,totalStudentsWithPending:global.totalEstudiantesPendientes,totalAreas:areas.length,totalAreasWithPending:areasConPendientes.length,totalPendingItems:totalPendientes,dataDiagnostics:dataResult.diagnostics || {}}
     };
   }
 
   function buildReadyReports(global, areas){
     var list = [];
-    if(global && global.totalEstudiantesPendientes > 0){
-      list.push({id:"global", destinatario:global.responsable, correo:global.correo, tipo:"Global", estado:"Listo", area:"Reporte global", totalEstudiantes:global.totalEstudiantesPendientes});
-    }
+    if(global && global.totalEstudiantesPendientes > 0){list.push({id:"global", destinatario:global.responsable, correo:global.correo, tipo:"Global", estado:"Listo", area:"Reporte global", totalEstudiantes:global.totalEstudiantesPendientes});}
     arr(areas).forEach(function(area){
       if(area.totalEstudiantes <= 0){return;}
       list.push({id:area.id + "-resumen", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Resumen", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
@@ -322,14 +261,10 @@ Con qué se conecta:
 
   function build(options){
     options = options || {};
-    return data().read(options).then(function(dataResult){
-      return buildFromRows(dataResult, options);
-    });
+    return data().read(options).then(function(dataResult){return buildFromRows(dataResult, options);});
   }
 
-  function emptyReport(options){
-    return buildFromRows({rows:[], periodList:[], divisionList:[], source:"sin datos", diagnostics:{}}, options || {});
-  }
+  function emptyReport(options){return buildFromRows({rows:[], periodList:[], divisionList:[], source:"sin datos", diagnostics:{}}, options || {});}
 
   window.COOReport = {
     version:VERSION,
@@ -339,6 +274,6 @@ Con qué se conecta:
     cellStatus:cellStatus,
     isPendingStatus:isPendingStatus,
     emptyReport:emptyReport,
-    helpers:{text:text,norm:norm,compact:compact,requirementLabel:requirementLabel,inferAreaId:inferAreaId}
+    helpers:{text:text,norm:norm,compact:compact,requirementLabel:requirementLabel,inferAreaId:inferAreaId,valueInfo:valueInfo}
   };
 })(window);
