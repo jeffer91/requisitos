@@ -3,7 +3,6 @@
 
   var cfg = window.CargaConfig;
   var state = window.CargaState;
-
   if(!cfg || !state){ throw new Error("CargaConfig y CargaState deben cargarse antes de CargaApp."); }
 
   function processRows(rows, options){
@@ -11,7 +10,6 @@
     state.setStatus(cfg.estados.mapping, "Normalizando datos");
     var normalized = window.CargaNormalizer.normalizeRows(rows, options);
     state.patch({ rows: rows, normalized: normalized });
-
     state.setStatus(cfg.estados.validating, "Validando datos");
     var validation = window.CargaValidator.validate(normalized);
     var preview = window.CargaPreview.build(normalized, validation);
@@ -20,21 +18,25 @@
     return { normalized: normalized, validation: validation, preview: preview };
   }
 
-  function readFile(file){
+  function readFile(file, options){
+    options = options || {};
     state.reset();
     state.setStatus(cfg.estados.reading, "Leyendo archivo");
     return window.CargaReaderFile.read(file).then(function(result){
+      var meta = Object.assign({}, result, options || {});
       state.patch({ origen: result.origen, fileName: result.fileName, rows: result.rows });
-      return processRows(result.rows, result);
+      return processRows(result.rows, meta);
     });
   }
 
-  function readClipboard(text){
+  function readClipboard(text, options){
+    options = options || {};
     state.reset();
     state.setStatus(cfg.estados.reading, "Leyendo datos pegados");
     return window.CargaReaderClipboard.read(text).then(function(result){
+      var meta = Object.assign({}, result, options || {});
       state.patch({ origen: result.origen, fileName: result.fileName, rows: result.rows });
-      return processRows(result.rows, result);
+      return processRows(result.rows, meta);
     });
   }
 
