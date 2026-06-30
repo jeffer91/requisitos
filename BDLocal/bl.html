@@ -78,7 +78,7 @@
       <header>
         <div>
           <h2>Depuración segura</h2>
-          <p>Primero analiza, luego aprueba manualmente, y recién ahí se corrige.</p>
+          <p>Analiza, selecciona todo o solo lo necesario, aplica y descarga respaldo Excel.</p>
         </div>
         <button id="blPurgeClose" class="bl-btn light">Cerrar</button>
       </header>
@@ -96,11 +96,14 @@
         </div>
         <div class="bl-purge-actions">
           <button id="blPurgeAnalyze" class="bl-btn primary">Analizar incongruencias</button>
+          <button id="blPurgeSelectAll" class="bl-btn success" disabled>Seleccionar todo</button>
+          <button id="blPurgeClearAll" class="bl-btn light" disabled>Quitar selección</button>
           <button id="blPurgeApply" class="bl-btn danger" disabled>Aplicar aprobados</button>
+          <button id="blPurgeDownloadExcel" class="bl-btn warning" disabled>Descargar respaldo Excel</button>
           <button id="blPurgeCopy" class="bl-btn light">Copiar reporte</button>
         </div>
         <div class="bl-purge-warning">
-          En Firebase no se borra nada automáticamente: se crea respaldo y se marca lo conflictivo para revisión.
+          Regla de seguridad: para cédulas duplicadas se conserva el registro más reciente. En teléfonos duplicados no se fusiona ni se borra; se marca conflicto.
         </div>
         <div id="blPurgeResults" class="bl-purge-results"><div class="bl-empty">Aún no se ha analizado.</div></div>
       </div>
