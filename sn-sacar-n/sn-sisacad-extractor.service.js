@@ -25,9 +25,7 @@ Con que se conecta:
   var errors = window.SNErrors || {};
   var parser = window.SNSisacadParser || {};
 
-  function api(){
-    return window.electronAPI && window.electronAPI.sacarN ? window.electronAPI.sacarN : null;
-  }
+  function api(){ return window.electronAPI && window.electronAPI.sacarN ? window.electronAPI.sacarN : null; }
 
   function setMensaje(mensaje, estado){
     if(state.setModulo && cfg.estadosModulo){
@@ -36,9 +34,7 @@ Con que se conecta:
   }
 
   function seleccionarPrueba(){
-    if(queue.primerosPendientes){
-      return queue.primerosPendientes(cfg.pruebaVisibleCantidad || 3);
-    }
+    if(queue.primerosPendientes){ return queue.primerosPendientes(cfg.pruebaVisibleCantidad || 3); }
     var snapshot = state.get ? state.get() : {};
     return (snapshot.estudiantes || []).slice(0, cfg.pruebaVisibleCantidad || 3);
   }
@@ -54,10 +50,7 @@ Con que se conecta:
     var estadoProcesando = (cfg.estadosEstudiante && cfg.estadosEstudiante.procesando) || "Procesando";
     estudiantes.forEach(function(estudiante){
       if(state.actualizarEstudiante){
-        state.actualizarEstudiante(estudiante.id || estudiante.cedula, {
-          estado: estadoProcesando,
-          observacion: observacion || "Procesando en SISACAD."
-        });
+        state.actualizarEstudiante(estudiante.id || estudiante.cedula, { estado: estadoProcesando, observacion: observacion || "Procesando en SISACAD." });
       }
     });
   }
@@ -66,7 +59,6 @@ Con que se conecta:
     var normalizado = parser.normalizarResultado ? parser.normalizarResultado(resultado) : resultado;
     var cambios = parser.cambiosParaEstudiante ? parser.cambiosParaEstudiante(normalizado) : normalizado;
     var id = normalizado.id || normalizado.cedula;
-
     if(state.actualizarEstudiante){ state.actualizarEstudiante(id, cambios); }
     if(state.agregarResultado && normalizado.estado === "Procesado"){ state.agregarResultado(normalizado); }
     if(errors.desdeResultado){ errors.desdeResultado(normalizado); }
@@ -85,21 +77,16 @@ Con que se conecta:
       setMensaje("La prueba visible solo esta disponible en Electron. Abra Requisitos con npm start.", cfg.estadosModulo ? cfg.estadosModulo.errorCritico : "error_critico");
       return Promise.resolve({ ok:false, error:"Electron no disponible" });
     }
-
     var estudiantes = seleccionarPrueba();
     if(!estudiantes.length){
       setMensaje("No hay estudiantes pendientes para ejecutar la prueba visible.", cfg.estadosModulo ? cfg.estadosModulo.listo : "listo");
       return Promise.resolve({ ok:false, error:"Sin estudiantes" });
     }
-
     marcarProcesando(estudiantes, "Incluido en prueba visible.");
     setMensaje("Ejecutando prueba visible con " + estudiantes.length + " estudiantes. Observe la ventana de SISACAD.", cfg.estadosModulo ? cfg.estadosModulo.pruebaVisible : "prueba_visible");
-
     return a.runPruebaVisible(estudiantes).then(function(respuesta){
       aplicarResultados(respuesta);
-      if(state.setModulo && cfg.estadosModulo){
-        state.setModulo(cfg.estadosModulo.listo, (respuesta && respuesta.mensaje) || "Prueba visible finalizada.");
-      }
+      if(state.setModulo && cfg.estadosModulo){ state.setModulo(cfg.estadosModulo.listo, (respuesta && respuesta.mensaje) || "Prueba visible finalizada."); }
       return respuesta;
     }).catch(function(error){
       setMensaje("Error en prueba visible: " + error.message, cfg.estadosModulo ? cfg.estadosModulo.errorCritico : "error_critico");
@@ -113,16 +100,12 @@ Con que se conecta:
       setMensaje("La extraccion automatica solo esta disponible en Electron. Abra Requisitos con npm start.", cfg.estadosModulo ? cfg.estadosModulo.errorCritico : "error_critico");
       return Promise.resolve({ ok:false, error:"Electron no disponible" });
     }
-
     var estudiantes = seleccionarPendientes();
     if(!estudiantes.length){
       setMensaje("No hay estudiantes pendientes para extraccion automatica.", cfg.estadosModulo ? cfg.estadosModulo.listo : "listo");
       return Promise.resolve({ ok:false, error:"Sin estudiantes pendientes" });
     }
-
-    marcarProcesando(estudiantes, "Incluido en extraccion automatica.");
     setMensaje("Ejecutando extraccion automatica con " + estudiantes.length + " estudiantes. No cierre SISACAD.", cfg.estadosModulo ? cfg.estadosModulo.extrayendo : "extrayendo");
-
     return a.runExtraccionAutomatica(estudiantes).then(function(respuesta){
       aplicarResultados(respuesta);
       if(respuesta && respuesta.pausado){
@@ -137,10 +120,5 @@ Con que se conecta:
     });
   }
 
-  window.SNSisacadExtractor = {
-    pruebaVisible: pruebaVisible,
-    extraccionAutomatica: extraccionAutomatica,
-    seleccionarPrueba: seleccionarPrueba,
-    seleccionarPendientes: seleccionarPendientes
-  };
+  window.SNSisacadExtractor = { pruebaVisible: pruebaVisible, extraccionAutomatica: extraccionAutomatica, seleccionarPrueba: seleccionarPrueba, seleccionarPendientes: seleccionarPendientes };
 })(window);
