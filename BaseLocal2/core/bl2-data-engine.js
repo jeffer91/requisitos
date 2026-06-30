@@ -1,1 +1,0 @@
-window.BL2DataEngine = window.BL2DataEngine || { invalidate:function(){}, listPeriods:function(){ return window.ExcelLocalRepo ? window.ExcelLocalRepo.listPeriods() : []; }, listStudents:function(opts){ var rows = window.ExcelLocalRepo ? window.ExcelLocalRepo.filterStudents(opts || {}) : []; return { rows:rows, total:rows.length }; } };

@@ -1,1 +1,0 @@
-window.BL2EstudiantesRepo = window.BL2EstudiantesRepo || { buscar:function(options){ var repo=window.ExcelLocalRepo; var rows=repo&&repo.filterStudents?repo.filterStudents(options||{}):[]; return {rows:rows,total:rows.length}; } };
