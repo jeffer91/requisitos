@@ -3,12 +3,13 @@
 Nombre completo: stats.html
 Ruta o ubicación: /Requisitos/Stats/stats.html
 Función o funciones:
-- Mostrar estadísticas del módulo Requisitos usando Base Local / BL2.
+- Mostrar estadísticas del módulo Requisitos usando BDLocal.
 - Resumir estudiantes por matrícula, período, división, carrera, estado, requisito y notas.
 - Preparar navegación compacta por resumen, gráficos, notas, requisitos, carreras, períodos, aprobación final y estudiantes.
 - Conectar reglas PVC/Regular, notas de defensa, analítica avanzada de notas y aprobación final.
 - Cargar solo dependencias ligeras para evitar que Stats se quede colgado.
 Con qué se conecta:
+- ../BDLocal/adapters/bdl.screen-deps.js
 - stats.css
 - stats.notes.analytics.css
 - stats.notes.priorities.css
@@ -24,10 +25,6 @@ Con qué se conecta:
 - stats.notes.enhancer.js
 - stats.notes.priorities.js
 - stats.app.js
-- ../Gestion/Excel/excel-local/excel-local.storage.js
-- ../Gestion/Excel/excel-local.repo.js
-- ../BaseLocal2/core/bl2-student-normalizer.js
-- ../BaseLocal2/core/bl2-requirements-engine.js
 ========================================================= -->
 <html lang="es">
 <head>
@@ -84,76 +81,20 @@ Con qué se conecta:
       </section>
 
       <section id="stats-graficos-section" class="stats-section stats-grid-main">
-        <article class="stats-card">
-          <div class="stats-card-head"><h2>Gráfico general</h2><span>Cumple / No cumple</span></div>
-          <div id="stats-chart-general" class="stats-chart-placeholder">Los gráficos se activarán en el bloque de gráficos.</div>
-        </article>
-        <article class="stats-card">
-          <div class="stats-card-head"><h2>Requisito seleccionado</h2><span id="stats-selected-requisito-meta">Todos</span></div>
-          <div id="stats-chart-selected" class="stats-chart-placeholder">Selecciona un requisito para ver su resumen.</div>
-        </article>
+        <article class="stats-card"><div class="stats-card-head"><h2>Gráfico general</h2><span>Cumple / No cumple</span></div><div id="stats-chart-general" class="stats-chart-placeholder">Los gráficos se activarán en el bloque de gráficos.</div></article>
+        <article class="stats-card"><div class="stats-card-head"><h2>Requisito seleccionado</h2><span id="stats-selected-requisito-meta">Todos</span></div><div id="stats-chart-selected" class="stats-chart-placeholder">Selecciona un requisito para ver su resumen.</div></article>
       </section>
 
-      <section id="stats-notas-section" class="stats-section stats-card">
-        <div class="stats-card-head"><h2>Notas</h2><span>Artículo, defensa, nota final, tendencias y riesgo por carrera</span></div>
-        <div id="stats-notes" class="stats-notes-wrap"><div class="empty">Cargando resumen de notas...</div></div>
-      </section>
-
-      <section id="stats-requisitos-section" class="stats-section stats-grid-main">
-        <article class="stats-card">
-          <div class="stats-card-head"><h2>Estados generales</h2><span id="stats-estados-meta">0 estudiantes</span></div>
-          <div id="stats-estados" class="stats-bars"></div>
-        </article>
-        <article class="stats-card">
-          <div class="stats-card-head"><h2>Requisitos</h2><span>Cumplimiento por requisito</span></div>
-          <div id="stats-requisitos" class="stats-bars"></div>
-        </article>
-      </section>
-
-      <section id="stats-carreras-section" class="stats-section stats-grid-main">
-        <article class="stats-card">
-          <div class="stats-card-head"><h2>Carreras</h2><span id="stats-carreras-meta">0 carreras</span></div>
-          <div id="stats-carreras" class="stats-table-wrap"></div>
-        </article>
-        <article id="stats-periodos-section" class="stats-card">
-          <div class="stats-card-head"><h2>Períodos</h2><span id="stats-periodos-meta">0 períodos</span></div>
-          <div id="stats-periodos" class="stats-table-wrap"></div>
-        </article>
-      </section>
-
-      <section id="stats-final-section" class="stats-section stats-card">
-        <div class="stats-card-head"><h2>Aprobación final</h2><span>Titulación y complexivo/proyecto</span></div>
-        <div id="stats-finales" class="stats-table-wrap"><div class="empty">Se activará en el bloque de renderizado.</div></div>
-      </section>
-
-      <section id="stats-estudiantes-section" class="stats-section stats-card">
-        <div class="stats-card-head"><h2>Estudiantes</h2><span id="stats-estudiantes-meta">0 estudiantes</span></div>
-        <div class="stats-student-search"><label>Buscar estudiante<input id="stats-student-search" type="search" placeholder="Nombre o cédula" autocomplete="off" /></label></div>
-        <div id="stats-estudiantes" class="stats-table-wrap"><div class="empty">La tabla de estudiantes se activará en su bloque.</div></div>
-      </section>
-
-      <section class="stats-compat" aria-hidden="true">
-        <strong id="stats-pend">0</strong>
-        <button id="stats-export-json" type="button" tabindex="-1">Exportar JSON</button>
-        <button id="stats-export-csv" type="button" tabindex="-1">Exportar CSV</button>
-        <pre id="stats-diagnostics"></pre>
-      </section>
+      <section id="stats-notas-section" class="stats-section stats-card"><div class="stats-card-head"><h2>Notas</h2><span>Artículo, defensa, nota final, tendencias y riesgo por carrera</span></div><div id="stats-notes" class="stats-notes-wrap"><div class="empty">Cargando resumen de notas...</div></div></section>
+      <section id="stats-requisitos-section" class="stats-section stats-grid-main"><article class="stats-card"><div class="stats-card-head"><h2>Estados generales</h2><span id="stats-estados-meta">0 estudiantes</span></div><div id="stats-estados" class="stats-bars"></div></article><article class="stats-card"><div class="stats-card-head"><h2>Requisitos</h2><span>Cumplimiento por requisito</span></div><div id="stats-requisitos" class="stats-bars"></div></article></section>
+      <section id="stats-carreras-section" class="stats-section stats-grid-main"><article class="stats-card"><div class="stats-card-head"><h2>Carreras</h2><span id="stats-carreras-meta">0 carreras</span></div><div id="stats-carreras" class="stats-table-wrap"></div></article><article id="stats-periodos-section" class="stats-card"><div class="stats-card-head"><h2>Períodos</h2><span id="stats-periodos-meta">0 períodos</span></div><div id="stats-periodos" class="stats-table-wrap"></div></article></section>
+      <section id="stats-final-section" class="stats-section stats-card"><div class="stats-card-head"><h2>Aprobación final</h2><span>Titulación y complexivo/proyecto</span></div><div id="stats-finales" class="stats-table-wrap"><div class="empty">Se activará en el bloque de renderizado.</div></div></section>
+      <section id="stats-estudiantes-section" class="stats-section stats-card"><div class="stats-card-head"><h2>Estudiantes</h2><span id="stats-estudiantes-meta">0 estudiantes</span></div><div class="stats-student-search"><label>Buscar estudiante<input id="stats-student-search" type="search" placeholder="Nombre o cédula" autocomplete="off" /></label></div><div id="stats-estudiantes" class="stats-table-wrap"><div class="empty">La tabla de estudiantes se activará en su bloque.</div></div></section>
+      <section class="stats-compat" aria-hidden="true"><strong id="stats-pend">0</strong><button id="stats-export-json" type="button" tabindex="-1">Exportar JSON</button><button id="stats-export-csv" type="button" tabindex="-1">Exportar CSV</button><pre id="stats-diagnostics"></pre></section>
     </section>
   </main>
 
-  <script src="../Gestion/Excel/excel-local/excel-local.config.js"></script>
-  <script src="../Gestion/Excel/excel-local/excel-local.storage.js"></script>
-  <script src="../Gestion/Excel/excel-local/excel-local.bridge.js"></script>
-  <script src="../Gestion/Excel/excel-local.repo.js"></script>
-
-  <script src="../BaseLocal/services/bl-campos.js"></script>
-  <script src="../BaseLocal/services/bl-periodos-canon.service.js"></script>
-  <script src="../BaseLocal/services/bl-divisiones.service.js"></script>
-  <script src="../BaseLocal/services/bl-notas-defensa.service.js"></script>
-
-  <script src="../BaseLocal2/core/bl2-student-normalizer.js"></script>
-  <script src="../BaseLocal2/core/bl2-requirements-engine.js"></script>
-
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="stats.rules.js"></script>
   <script src="stats.core.js"></script>
   <script src="stats.charts.js"></script>
