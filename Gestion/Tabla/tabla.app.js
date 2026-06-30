@@ -10,6 +10,7 @@ Función o funciones:
 - Mostrar acciones compactas por fila: copiar, WhatsApp y Telegram individual.
 - Abrir Telegram masivo con los estudiantes filtrados actualmente.
 - Evitar construcción pesada duplicada al abrir la pantalla.
+- Refrescarse automáticamente cuando BDLocal actualiza el snapshot.
 Con qué se conecta:
 - tabla.core.js
 - tabla.message.js
@@ -20,7 +21,7 @@ Con qué se conecta:
 ========================================================= */
 (function(window,document){
   "use strict";
-  var state={periodId:"",division:"",matricula:"ACTIVO",career:"",status:"",search:"",rows:[],allRows:[],page:1,pageSize:100,pagination:null,renderTimer:null,selectKey:"",divisionOptions:[],careerOptions:[],actionsBound:false};
+  var state={periodId:"",division:"",matricula:"ACTIVO",career:"",status:"",search:"",rows:[],allRows:[],page:1,pageSize:100,pagination:null,renderTimer:null,refreshTimer:null,selectKey:"",divisionOptions:[],careerOptions:[],actionsBound:false,bdlocalBound:false};
   function el(id){return document.getElementById(id);}function text(v){return String(v==null?"":v).trim();}
   function esc(v){return text(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
   function status(msg,cls){var s=el("tabla-status");if(s){s.textContent=msg;s.className="tabla-status "+(cls||"");}}
@@ -78,6 +79,7 @@ Con qué se conecta:
   }
   function render(){
     try{
+      if(!window.TablaCore||typeof window.TablaCore.page!=="function"){throw new Error("TablaCore no disponible.");}
       fillSelects();
       var result=window.TablaCore.page({periodId:state.periodId,division:state.division,matricula:state.matricula,career:state.career,status:state.status,search:state.search,page:state.page,pageSize:state.pageSize});
       state.rows=result.rows||[];state.allRows=result.allRows||[];
@@ -88,6 +90,7 @@ Con qué se conecta:
     }catch(e){console.error("[Tabla]",e);status(e.message||String(e),"warn");}
   }
   function resetOptions(){state.division="";state.career="";state.page=1;state.selectKey="";}
+  function refreshFromBDLocal(){if(state.refreshTimer){clearTimeout(state.refreshTimer);}state.refreshTimer=setTimeout(function(){state.refreshTimer=null;state.selectKey="";render();},220);}
   function massFilters(){return {periodId:state.periodId,division:state.division,matricula:state.matricula,career:state.career,status:state.status,search:state.search,total:state.allRows.length};}
   function openMass(){
     var rows=state.allRows.length?state.allRows:state.rows;
@@ -96,6 +99,14 @@ Con qué se conecta:
     else status("Módulo de Telegram masivo no disponible.","warn");
   }
   function safeBind(id,event,handler){var node=el(id);if(node)node.addEventListener(event,handler);}
+  function bindBDLocalEvents(){
+    if(state.bdlocalBound){return;}
+    window.addEventListener("bdlocal:legacy-ready",refreshFromBDLocal);
+    window.addEventListener("bdlocal:legacy-snapshot",refreshFromBDLocal);
+    window.addEventListener("requisitos:bl:snapshot-changed",refreshFromBDLocal);
+    window.addEventListener("storage",function(event){if(event&&(event.key==="REQ_BDLOCAL_LEGACY_SNAPSHOT_V1"||event.key==="REQ_EXCEL_LOCAL_V1:snapshot"||event.key==="REQ_BL_SIGNAL_V1")){refreshFromBDLocal();}});
+    state.bdlocalBound=true;
+  }
   function bind(){
     safeBind("tabla-periodo","change",function(e){state.periodId=e.target.value;resetOptions();render();});
     safeBind("tabla-division","change",function(e){state.division=e.target.value;state.career="";state.page=1;render();});
@@ -112,8 +123,9 @@ Con qué se conecta:
     safeBind("tabla-telegram-masivo","click",openMass);
     safeBind("tabla-export-csv","click",function(){window.TablaExport.exportCsv(state.allRows.length?state.allRows:state.rows);});
     safeBind("tabla-export-json","click",function(){window.TablaExport.exportJson(state.allRows.length?state.allRows:state.rows);});
+    bindBDLocalEvents();
   }
   function boot(){if(window.BL2&&typeof window.BL2.status==="function"){window.BL2.status({deep:false});}bind();render();}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
-  window.TablaApp={render:render,openMass:openMass,getState:function(){return Object.assign({},state);}};
+  window.TablaApp={render:render,openMass:openMass,refreshFromBDLocal:refreshFromBDLocal,getState:function(){return Object.assign({},state);}};
 })(window,document);
