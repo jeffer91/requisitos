@@ -94,6 +94,7 @@
     "continuity/cont.index.js",
     "connections/shared/conn.audit.js",
     "connections/shared/conn.audit.screens.js",
+    "connections/shared/conn.flow.js",
     "adapters/bdl.screen-compat.js",
     "adapters/bdl.screen-autorefresh.js"
   ];
