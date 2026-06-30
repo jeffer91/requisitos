@@ -5,9 +5,11 @@ Funcion o funciones:
 - Exponer una API minima de Electron al navegador.
 - Permitir que las pantallas detecten que corren en Electron sin activar nodeIntegration.
 - Abrir enlaces externos mediante el proceso principal.
+- Exponer funciones seguras para abrir SISACAD desde el modulo Sacar N.
 Con que se conecta:
 - electron/main.js
 - Maqueta/maq-index.html
+- sn-sacar-n/sn-sisacad-browser.service.js
 ========================================================= */
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -20,7 +22,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     node: process.versions.node
   },
   getAppInfo: () => ipcRenderer.invoke('requisitos:get-app-info'),
-  openExternal: (url) => ipcRenderer.invoke('requisitos:open-external', String(url || ''))
+  openExternal: (url) => ipcRenderer.invoke('requisitos:open-external', String(url || '')),
+  sacarN: {
+    openSisacad: () => ipcRenderer.invoke('sn:sisacad-open'),
+    getSisacadStatus: () => ipcRenderer.invoke('sn:sisacad-status'),
+    focusSisacad: () => ipcRenderer.invoke('sn:sisacad-focus'),
+    closeSisacad: () => ipcRenderer.invoke('sn:sisacad-close')
+  }
 });
 
 window.addEventListener('DOMContentLoaded', () => {
