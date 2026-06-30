@@ -12,6 +12,7 @@ Con qué se conecta:
 - coo.config.js
 - coo.data.js
 - coo.report.js
+- coo.render.js
 - coordi.core.js
 - coordi.export.js
 - coordi.app.js
@@ -41,7 +42,7 @@ Con qué se conecta:
 
     <section class="coordi-panel coordi-filters" aria-label="Filtros de reporte">
       <label>Período
-        <select id="coordi-periodo"><option value="">Todos</option></select>
+        <select id="coordi-periodo"><option value="">Seleccione período</option></select>
       </label>
       <label>División
         <select id="coordi-division"><option value="">Todas</option></select>
@@ -66,26 +67,26 @@ Con qué se conecta:
 
     <section class="coordi-kpis" aria-label="Indicadores del corte">
       <article><span>Total estudiantes revisados</span><strong id="coordi-total">0</strong></article>
-      <article><span>Prioridad alta</span><strong id="coordi-alta">0</strong></article>
-      <article><span>Prioridad media</span><strong id="coordi-media">0</strong></article>
-      <article><span>Prioridad baja</span><strong id="coordi-baja">0</strong></article>
-      <article><span>Carreras involucradas</span><strong id="coordi-carreras-total">0</strong></article>
+      <article><span>Estudiantes con pendientes</span><strong id="coordi-alta">0</strong></article>
+      <article><span>Áreas con pendientes</span><strong id="coordi-media">0</strong></article>
+      <article><span>Requisitos pendientes</span><strong id="coordi-baja">0</strong></article>
+      <article><span>Carreras afectadas</span><strong id="coordi-carreras-total">0</strong></article>
     </section>
 
     <section class="coordi-global-card">
       <div class="global-main">
         <p class="coordi-eyebrow">Reporte global</p>
-        <h2>Dr. Alex León</h2>
-        <p>Resumen ejecutivo de pendientes por área para el período y división seleccionados.</p>
+        <h2 id="coordi-global-name">Dr. Alex León</h2>
+        <p id="coordi-global-desc">Resumen ejecutivo de pendientes por área para el período y división seleccionados.</p>
         <div class="global-contact">
-          <span>aleon@itsqmet.edu.ec</span>
-          <span>593984059654</span>
+          <span id="coordi-global-email">aleon@itsqmet.edu.ec</span>
+          <span id="coordi-global-phone">593984059654</span>
         </div>
       </div>
       <div class="global-actions">
-        <button type="button" class="btn-primary" disabled>Outlook global</button>
-        <button type="button" class="btn-secondary" disabled>WhatsApp global</button>
-        <button type="button" class="btn-secondary" disabled>Vista previa</button>
+        <button id="coo-global-mail" type="button" class="btn-primary" disabled>Outlook global</button>
+        <button id="coo-global-whatsapp" type="button" class="btn-secondary" disabled>WhatsApp global</button>
+        <button id="coo-global-preview" type="button" class="btn-secondary" data-action="preview-global" disabled>Vista previa</button>
       </div>
     </section>
 
@@ -107,8 +108,8 @@ Con qué se conecta:
             <span>Acciones preparadas para Outlook y WhatsApp</span>
           </div>
         </div>
-        <div class="report-ready-list">
-          <div class="report-ready-item muted"><strong>Bloque 1 listo</strong><span>En los siguientes bloques se conectarán responsables, correo HTML y WhatsApp.</span></div>
+        <div id="coordi-reportes-listos" class="report-ready-list">
+          <div class="report-ready-item muted"><strong>Esperando datos</strong><span>Genera reportes para ver las acciones disponibles.</span></div>
         </div>
       </article>
     </section>
@@ -138,7 +139,7 @@ Con qué se conecta:
         <div class="coordi-card-head">
           <div>
             <h2>Vista previa del mensaje</h2>
-            <span>Plantilla temporal</span>
+            <span>Resumen actual del corte</span>
           </div>
         </div>
         <label class="coordi-message-label">Tipo de mensaje
@@ -181,6 +182,7 @@ Con qué se conecta:
   <script src="coo.config.js"></script>
   <script src="coo.data.js"></script>
   <script src="coo.report.js"></script>
+  <script src="coo.render.js"></script>
   <script src="coordi.core.js"></script>
   <script src="coordi.export.js"></script>
   <script src="coordi.app.js"></script>
