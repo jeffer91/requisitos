@@ -5,6 +5,7 @@ Función:
 - Leer configuración local de Google Sheets.
 - Preparar envío opcional mediante Apps Script Web App.
 - No guarda secretos privados.
+- Diferenciar referencia visible de envío real incremental.
 ========================================================= */
 (function(window){
   "use strict";
@@ -24,9 +25,9 @@ Función:
     return !!(cfg && cfg.enabled === true);
   }
 
-  function isConfigured(){
+  function sheetId(){
     var cfg = read();
-    return !!(cfg && cfg.enabled === true && (cfg.webAppUrl || cfg.sheetId));
+    return cfg && cfg.sheetId ? String(cfg.sheetId).trim() : "";
   }
 
   function webAppUrl(){
@@ -34,11 +35,26 @@ Función:
     return cfg && cfg.webAppUrl ? String(cfg.webAppUrl).trim() : "";
   }
 
+  function hasReference(){
+    return !!sheetId();
+  }
+
+  function canSend(){
+    return !!(isEnabled() && sheetId() && webAppUrl());
+  }
+
+  function isConfigured(){
+    return canSend();
+  }
+
   window.BDLGoogleSheetsConfig = {
     storageKey: STORAGE_KEY,
     read: read,
     isEnabled: isEnabled,
     isConfigured: isConfigured,
+    hasReference: hasReference,
+    canSend: canSend,
+    sheetId: sheetId,
     webAppUrl: webAppUrl,
     role: "reporte_visible"
   };
