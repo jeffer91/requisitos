@@ -22,12 +22,28 @@ Función:
     if(window.BLPanelDiagnostics){ window.BLPanelDiagnostics.render(); }
   }
 
+  function ensureSupabaseManualBox(){
+    var panel = document.getElementById("blPanelSupabase");
+    if(!panel || document.getElementById("blBtnSupabaseManualSync")){ return; }
+    var box = document.createElement("div");
+    box.className = "bl-continuity-actions";
+    box.innerHTML = '<button id="blBtnSupabaseManualSync" class="bl-btn primary">Sincronizar Supabase ahora</button>';
+    var note = document.createElement("div");
+    note.className = "bl-panel-note";
+    note.textContent = "Usa este botón cuando Firebase esté fallando y necesites forzar la ruta Supabase.";
+    var output = document.createElement("pre");
+    output.id = "blSupabaseOutput";
+    output.className = "bl-output";
+    output.textContent = "Sin sincronización manual.";
+    panel.appendChild(box);
+    panel.appendChild(note);
+    panel.appendChild(output);
+  }
+
   function syncSupabaseNow(){
     print("blSupabaseOutput", "Sincronizando con Supabase...");
     if(window.BDLConnSettings && typeof window.BDLConnSettings.setEnabled === "function"){
       window.BDLConnSettings.setEnabled("supabase", true);
-    }
-    if(window.BDLConnFirebase && window.BDLConnSettings && typeof window.BDLConnSettings.setEnabled === "function"){
       window.BDLConnSettings.setEnabled("firebase", false);
     }
     if(window.BDLSyncEngine && typeof window.BDLSyncEngine.syncNow === "function"){
@@ -55,6 +71,7 @@ Función:
     if(window.BLTabs){ window.BLTabs.boot(); }
     if(window.BLPanelCloseDay){ window.BLPanelCloseDay.bind(); }
     if(window.BLPanelSheets){ window.BLPanelSheets.bind(); }
+    ensureSupabaseManualBox();
     renderAll();
     bind("blBtnCheckContinuity", function(){
       if(window.BLPanelStatus){ window.BLPanelStatus.check().then(function(){ if(window.BLPanelDiagnostics){ window.BLPanelDiagnostics.render(); } }); }
