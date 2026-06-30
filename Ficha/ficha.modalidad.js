@@ -6,10 +6,12 @@ Función o funciones:
 - Para períodos regulares permitir Examen Complexivo o Trabajo de Titulación.
 - Para PVC fijar Artículo Académico.
 - Guardar modalidadTitulacion en BaseLocal cuando sea posible.
+- Registrar evento manual de continuidad al cambiar modalidad.
 Con qué se conecta:
 - ficha.core.js
 - ficha.app.js
 - ../Gestion/Excel/excel-local.repo.js
+- ../BDLocal/continuity/events/cont.event.manual.js
 ========================================================= */
 (function(window){
   "use strict";
@@ -91,6 +93,7 @@ Con qué se conecta:
     row = row || {};
     var id = studentId(row);
     var info = current(row);
+    var oldValue = info.value || "";
     var finalValue = normalize(value, info.periodType);
     if(info.periodType.id === "PVC"){finalValue = VALUES.articulo;}
     if(!id){throw new Error("No se puede guardar modalidad: estudiante sin identificador.");}
@@ -98,6 +101,9 @@ Con qué se conecta:
 
     if(window.ExcelLocalRepo && typeof window.ExcelLocalRepo.patchStudentById === "function"){
       window.ExcelLocalRepo.patchStudentById(id, {modalidadTitulacion:finalValue, modalidadTitulacionActualizadaEn:new Date().toISOString()});
+      if(window.BDLManualEvents && oldValue !== finalValue){
+        window.BDLManualEvents.recordModalidad(row, oldValue, finalValue, { source:"FichaModalidad.save" });
+      }
       if(window.FichaCore && typeof window.FichaCore.invalidate === "function"){window.FichaCore.invalidate();}
       return {ok:true, value:finalValue, label:label(finalValue), source:"ExcelLocalRepo"};
     }
