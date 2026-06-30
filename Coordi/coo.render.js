@@ -4,17 +4,18 @@ Ruta o ubicación: /Requisitos/Coordi/coo.render.js
 Función o funciones:
 - Pintar reportes reales de Coordi en pantalla.
 - Mostrar global, resumen por áreas, reportes listos, tarjetas por responsable y detalle.
-- Preparar vista previa visual y acciones de correo Outlook.
+- Preparar vista previa visual y acciones de correo Outlook/WhatsApp.
 Con qué se conecta:
 - coo.report.js
 - coo.config.js
 - coo.mail.js
+- coo.whatsapp.js
 - coordi.app.js
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "1.0.0-coo-render.2";
+  var VERSION = "1.0.0-coo-render.3";
 
   function el(id){return document.getElementById(id);}
   function text(value){return String(value == null ? "" : value).trim();}
@@ -90,7 +91,7 @@ Con qué se conecta:
     setText("coordi-global-email", global.correo || "aleon@itsqmet.edu.ec");
     setText("coordi-global-phone", global.whatsapp || "593984059654");
     setText("coordi-global-desc", "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes) + " · Áreas con pendientes: " + fmt(global.totalAreasConPendientes) + " · Pendientes acumulados: " + fmt(global.totalPendientes));
-    ["coo-global-preview","coo-global-mail"].forEach(function(id){var b=el(id);if(b){b.disabled = !hasData;}});
+    ["coo-global-preview","coo-global-mail","coo-global-whatsapp"].forEach(function(id){var b=el(id);if(b){b.disabled = !hasData;}});
   }
 
   function renderAreaSummary(report){
@@ -135,7 +136,7 @@ Con qué se conecta:
       + '<button type="button" class="btn-secondary" data-action="show-detail" data-area-id="'+esc(area.id)+'" '+disabled+'>Ver detalle</button>'
       + '<button type="button" class="btn-secondary" data-action="mail-area-summary" data-area-id="'+esc(area.id)+'" '+disabled+'>Correo resumen</button>'
       + '<button type="button" class="btn-primary" data-action="mail-area-detail" data-area-id="'+esc(area.id)+'" '+disabled+'>Correo detallado</button>'
-      + '<button type="button" class="btn-secondary" disabled>WhatsApp</button>'
+      + '<button type="button" class="btn-secondary" data-action="whatsapp-area" data-area-id="'+esc(area.id)+'" '+disabled+'>WhatsApp</button>'
       + '</div>'
       + '</article>';
   }
