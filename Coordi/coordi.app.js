@@ -5,12 +5,13 @@ Función o funciones:
 - Controlar la pantalla Coordi con el nuevo motor de reportes.
 - Manejar filtros por período y división.
 - Renderizar reportes reales por responsable.
-- Preparar vista previa y copiado mientras se implementan Outlook y WhatsApp.
+- Abrir Outlook/correo con respaldo HTML copiado al portapapeles.
 Con qué se conecta:
 - coo.config.js
 - coo.data.js
 - coo.report.js
 - coo.render.js
+- coo.mail.js
 - coordi.export.js
 ========================================================= */
 (function(window,document){
@@ -22,6 +23,7 @@ Con qué se conecta:
     selectedAreaId:"",
     messageType:"general",
     report:null,
+    previewMail:null,
     loading:false
   };
 
@@ -30,28 +32,18 @@ Con qué se conecta:
 
   function status(message, cls){
     var node = el("coordi-status");
-    if(node){
-      node.textContent = message;
-      node.className = "coordi-status " + (cls || "");
-    }
+    if(node){node.textContent = message;node.className = "coordi-status " + (cls || "");}
   }
 
   function copyText(value){
     value = text(value);
-    if(window.CoordiExport && typeof window.CoordiExport.copyText === "function"){
-      return window.CoordiExport.copyText(value);
-    }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      return navigator.clipboard.writeText(value);
-    }
+    if(window.CoordiExport && typeof window.CoordiExport.copyText === "function"){return window.CoordiExport.copyText(value);}
+    if(navigator.clipboard && navigator.clipboard.writeText){return navigator.clipboard.writeText(value);}
     return Promise.reject(new Error("No se pudo copiar al portapapeles."));
   }
 
   function exportJson(data){
-    if(window.CoordiExport && typeof window.CoordiExport.exportJson === "function"){
-      window.CoordiExport.exportJson(data);
-      return;
-    }
+    if(window.CoordiExport && typeof window.CoordiExport.exportJson === "function"){window.CoordiExport.exportJson(data);return;}
     var blob = new Blob([JSON.stringify(data || {}, null, 2)], {type:"application/json"});
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -67,17 +59,19 @@ Con qué se conecta:
     return false;
   }
 
+  function ensureMail(){
+    if(window.COOMail){return true;}
+    status("No se cargó el módulo de correos. Revisa coo.mail.js.", "warn");
+    return false;
+  }
+
   function render(options){
     options = options || {};
     if(state.loading){return;}
     if(!ensureModern()){return;}
     state.loading = true;
     status("Generando reportes por responsables...", "");
-    window.COOReport.build({
-      periodId:state.periodId,
-      division:state.division,
-      refresh:!!options.refresh
-    }).then(function(report){
+    window.COOReport.build({periodId:state.periodId, division:state.division, refresh:!!options.refresh}).then(function(report){
       state.report = report;
       if(!state.selectedAreaId || !window.COORender.areaById(report, state.selectedAreaId)){
         state.selectedAreaId = window.COORender.firstPendingArea(report) || "";
@@ -87,9 +81,29 @@ Con qué se conecta:
     }).catch(function(error){
       console.error("[Coordi]", error);
       status(error && error.message ? error.message : String(error), "warn");
-    }).finally(function(){
-      state.loading = false;
+    }).finally(function(){state.loading = false;});
+  }
+
+  function buildMail(kind, areaId){
+    if(!state.report){throw new Error("Primero genera el reporte.");}
+    if(!ensureMail()){throw new Error("No se cargó el módulo de correos.");}
+    return window.COOMail.build(state.report, {kind:kind, areaId:areaId || ""});
+  }
+
+  function openMail(mail){
+    if(!mail){status("No hay correo preparado.", "warn");return;}
+    status("Copiando tabla HTML y abriendo Outlook...", "");
+    window.COOMail.open(mail).then(function(){
+      status("Outlook abierto. La tabla HTML fue copiada; si no aparece en el cuerpo, pega con Ctrl+V.", "ok");
+    }).catch(function(error){
+      console.error("[Coordi Mail]", error);
+      status(error && error.message ? error.message : String(error), "warn");
     });
+  }
+
+  function previewMail(mail, title){
+    state.previewMail = mail;
+    window.COORender.openPreview(title || mail.subject || "Correo", mail.html || "");
   }
 
   function bindStatic(){
@@ -100,6 +114,8 @@ Con qué se conecta:
     var exportBtn = el("coordi-export-json");
     var copyMessage = el("coordi-copy-message");
     var closePreview = el("coordi-preview-close");
+    var openPreviewMail = el("coordi-preview-open-mail");
+    var copyPreviewHtml = el("coordi-preview-copy-html");
 
     if(periodo){periodo.addEventListener("change", function(e){state.periodId = e.target.value;state.division = "";state.selectedAreaId = "";render();});}
     if(division){division.addEventListener("change", function(e){state.division = e.target.value;state.selectedAreaId = "";render();});}
@@ -113,6 +129,11 @@ Con qué se conecta:
       copyText(el("coordi-message") ? el("coordi-message").value : "").then(function(){status("Mensaje copiado.", "ok");}).catch(function(error){status(error.message || String(error), "warn");});
     });}
     if(closePreview){closePreview.addEventListener("click", function(){window.COORender.closePreview();});}
+    if(openPreviewMail){openPreviewMail.addEventListener("click", function(){openMail(state.previewMail);});}
+    if(copyPreviewHtml){copyPreviewHtml.addEventListener("click", function(){
+      if(!state.previewMail){status("No hay correo en vista previa.", "warn");return;}
+      window.COOMail.copyHtml(state.previewMail).then(function(){status("HTML copiado. Pégalo en Outlook con Ctrl+V.", "ok");}).catch(function(error){status(error.message || String(error), "warn");});
+    });}
   }
 
   function bindDynamic(){
@@ -122,19 +143,41 @@ Con qué se conecta:
       var action = btn.getAttribute("data-action");
       var areaId = btn.getAttribute("data-area-id") || "";
       if(!state.report){status("Primero genera el reporte.", "warn");return;}
-      if(action === "show-detail"){
-        state.selectedAreaId = areaId;
-        window.COORender.renderAll(state.report, state);
-        status("Detalle cargado para el área seleccionada.", "ok");
-      }
-      if(action === "preview-global"){
-        window.COORender.openPreview("Reporte global", window.COORender.previewGlobal(state.report));
-      }
-      if(action === "preview-area"){
-        state.selectedAreaId = areaId;
-        window.COORender.renderAll(state.report, state);
-        var area = window.COORender.areaById(state.report, areaId);
-        window.COORender.openPreview(area ? area.area : "Área", window.COORender.previewArea(state.report, areaId));
+      try{
+        if(action === "show-detail"){
+          state.selectedAreaId = areaId;
+          window.COORender.renderAll(state.report, state);
+          status("Detalle cargado para el área seleccionada.", "ok");
+        }
+        if(action === "preview-global"){
+          previewMail(buildMail("global"), "Reporte global");
+        }
+        if(action === "mail-global"){
+          openMail(buildMail("global"));
+        }
+        if(action === "preview-area-summary"){
+          state.selectedAreaId = areaId;
+          window.COORender.renderAll(state.report, state);
+          previewMail(buildMail("area-summary", areaId), "Correo resumen");
+        }
+        if(action === "preview-area-detail"){
+          state.selectedAreaId = areaId;
+          window.COORender.renderAll(state.report, state);
+          previewMail(buildMail("area-detail", areaId), "Correo detallado");
+        }
+        if(action === "mail-area-summary"){
+          state.selectedAreaId = areaId;
+          window.COORender.renderAll(state.report, state);
+          openMail(buildMail("area-summary", areaId));
+        }
+        if(action === "mail-area-detail"){
+          state.selectedAreaId = areaId;
+          window.COORender.renderAll(state.report, state);
+          openMail(buildMail("area-detail", areaId));
+        }
+      }catch(error){
+        console.error("[Coordi action]", error);
+        status(error && error.message ? error.message : String(error), "warn");
       }
     });
   }
@@ -146,9 +189,5 @@ Con qué se conecta:
     render();
   }
 
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", boot);
-  }else{
-    boot();
-  }
+  if(document.readyState === "loading"){document.addEventListener("DOMContentLoaded", boot);}else{boot();}
 })(window,document);
