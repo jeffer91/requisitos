@@ -22,15 +22,21 @@ Función:
   };
 
   function read(){
+    if(window.BDLConnSettings){ return window.BDLConnSettings.get("supabase"); }
     try{
       var raw = window.localStorage.getItem(STORAGE_KEY) || "";
       return raw ? JSON.parse(raw) : null;
     }catch(error){ return null; }
   }
 
+  function isEnabled(){
+    var cfg = read();
+    return !!(cfg && cfg.enabled === true);
+  }
+
   function isConfigured(){
     var cfg = read();
-    return !!(cfg && cfg.url && cfg.anonKey);
+    return !!(cfg && cfg.enabled === true && cfg.url && cfg.anonKey);
   }
 
   function normalizeUrl(url){
@@ -48,6 +54,7 @@ Función:
     storageKey: STORAGE_KEY,
     tables: TABLES,
     read: read,
+    isEnabled: isEnabled,
     isConfigured: isConfigured,
     restUrl: restUrl
   };
