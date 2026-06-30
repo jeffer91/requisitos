@@ -2,10 +2,14 @@
   "use strict";
 
   window.BDLSyncConfig = {
-    version: "1.0.0",
+    version: "1.1.0",
     collections: {
       estudiantes: "Estudiantes",
       periodos: "periodos"
+    },
+    collectionCandidates: {
+      estudiantes: ["Estudiantes", "estudiantes", "EstudiantesRequisitos", "requisitos_estudiantes"],
+      periodos: ["periodos", "Periodos"]
     },
     estados: {
       idle: "idle",
@@ -24,7 +28,7 @@
     },
     limites: {
       loteSubida: 100,
-      loteBajada: 500
+      loteBajada: 2000
     },
     now: function(){ return new Date().toISOString(); }
   };
