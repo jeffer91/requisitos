@@ -4,20 +4,29 @@
   var H = window.BDLUIH;
   if(!H){ throw new Error("BDLUIH debe cargarse antes de BDLUIApp."); }
 
+  function periodoActual(){
+    return H.val('#bdlPeriodoSelect') || (window.BDLState && window.BDLState.getPeriodoActivo ? window.BDLState.getPeriodoActivo() : '');
+  }
+
+  function refrescarResumen(){
+    var periodoId = periodoActual();
+    var tasks = [];
+    if(window.BDLUIPeriodos){ tasks.push(window.BDLUIPeriodos.load()); }
+    if(periodoId && window.BDLUIDashboard){ tasks.push(window.BDLUIDashboard.loadDashboard(periodoId)); }
+    return Promise.all(tasks).then(function(){ H.notify(periodoId ? 'Resumen actualizado.' : 'Seleccione o cree un período.'); });
+  }
+
   function bind(){
     H.on('#bdlPeriodoSelect', 'change', function(){
       var periodoId = H.val('#bdlPeriodoSelect');
       if(window.BDLRepoConfig){ window.BDLRepoConfig.guardarPeriodoActivo(periodoId); }
       if(window.BDLUICarga){ window.BDLUICarga.reiniciar(); }
       if(window.BDLUIDashboard){ window.BDLUIDashboard.loadDashboard(periodoId); }
-      if(window.BDLUIEstudiantes){ window.BDLUIEstudiantes.load({ periodoId:periodoId, page:1 }); }
+      H.notify(periodoId ? 'Período seleccionado. Puede analizar un archivo.' : 'Seleccione o cree un período.');
     });
     H.on('#bdlPeriodoGuardar', 'click', function(){ if(window.BDLUIPeriodos){ window.BDLUIPeriodos.save(); } });
     H.on('#bdlPeriodoNuevo', 'click', function(){ if(window.BDLUIPeriodos){ window.BDLUIPeriodos.reset(); } });
-    H.on('#bdlBtnRefresh', 'click', function(){ if(window.BDLUIEstudiantes){ window.BDLUIEstudiantes.refresh(); } });
-    H.on('#bdlBtnPrev', 'click', function(){ if(window.BDLUIEstudiantes){ window.BDLUIEstudiantes.prev(); } });
-    H.on('#bdlBtnNext', 'click', function(){ if(window.BDLUIEstudiantes){ window.BDLUIEstudiantes.next(); } });
-    H.on('#bdlSearch', 'input', function(){ if(window.BDLUIEstudiantes){ window.BDLUIEstudiantes.search(); } });
+    H.on('#bdlBtnRefresh', 'click', refrescarResumen);
     H.on('#bdlClosePanel', 'click', function(){ if(window.BDLUIDetalle){ window.BDLUIDetalle.close(); } });
     H.on('#bdlBtnSync', 'click', function(){ if(window.BDLUIFirebase){ window.BDLUIFirebase.run(); } });
     H.on('#bdlCargaFile', 'change', function(){ if(window.BDLUICarga){ window.BDLUICarga.reiniciar(); } });
@@ -29,19 +38,20 @@
     H.on('#bdlDivSaveName', 'click', function(){ if(window.BDLUIDivisiones){ window.BDLUIDivisiones.createOrSelect(); } });
     H.on('#bdlDivDeleteName', 'click', function(){ if(window.BDLUIDivisiones){ window.BDLUIDivisiones.removeSelected(); } });
     H.on('#bdlDivSaveAll', 'click', function(){ if(window.BDLUIDivisiones){ window.BDLUIDivisiones.save(); } });
+    H.on('#bdlCargaSummaryClose', 'click', function(){ if(window.BDLUICarga){ window.BDLUICarga.cerrarResumen(); } });
+    H.on('#bdlCargaSummaryOk', 'click', function(){ if(window.BDLUICarga){ window.BDLUICarga.cerrarResumen(); } });
   }
 
   function loadInitialData(){
-    var periodoId = H.val('#bdlPeriodoSelect') || (window.BDLState && window.BDLState.getPeriodoActivo ? window.BDLState.getPeriodoActivo() : '');
+    var periodoId = periodoActual();
     if(!periodoId){
       if(window.BDLUIDashboard){ window.BDLUIDashboard.renderStats({}); }
       H.notify('Seleccione o cree un período.');
       return Promise.resolve();
     }
-    var tasks = [];
-    if(window.BDLUIDashboard){ tasks.push(window.BDLUIDashboard.loadDashboard(periodoId)); }
-    if(window.BDLUIEstudiantes){ tasks.push(window.BDLUIEstudiantes.load({ periodoId:periodoId, page:1 })); }
-    return Promise.all(tasks).then(function(){ H.notify('Listo.'); });
+    if(window.BDLUIDashboard){ return window.BDLUIDashboard.loadDashboard(periodoId).then(function(){ H.notify('Listo.'); }); }
+    H.notify('Listo.');
+    return Promise.resolve();
   }
 
   function boot(){
@@ -55,5 +65,5 @@
   }
 
   if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }else{ boot(); }
-  window.BDLUIApp = { boot:boot };
+  window.BDLUIApp = { boot:boot, refrescarResumen:refrescarResumen };
 })(window, document);
