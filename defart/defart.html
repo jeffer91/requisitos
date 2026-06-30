@@ -3,24 +3,17 @@
 Nombre completo: defart.html
 Ruta o ubicación: /Requisitos/defart/defart.html
 Función o funciones:
-- Pantalla Defensas para cargar N-ART y N-DEF desde BaseLocal.
+- Pantalla Defensas para cargar N-ART y N-DEF desde BDLocal.
 - Calcular N-FIN con 70% artículo y 30% defensa.
 - Filtrar por período, división, carrera, estado, sede y búsqueda.
-- Guardar notas en BaseLocal; BL sincroniza Firebase.
+- Guardar notas en BDLocal.
 - Descargar Excel visible de notas.
 Con qué se conecta:
+- ../BDLocal/adapters/bdl.screen-deps.js
 - defart.css
-- ../BaseLocal/services/bl-notas-defensa.service.js
 - defart.core.js
 - defart.export.js
 - defart.app.js
-- ../BaseLocal/baselocal.connector.js
-- ../BaseLocal/services/bl-periodos-canon.service.js
-- ../BaseLocal/services/bl-divisiones.service.js
-- ../Gestion/Excel/excel-local/excel-local.config.js
-- ../Gestion/Excel/excel-local/excel-local.storage.js
-- ../Gestion/Excel/excel-local/excel-local.bridge.js
-- ../Gestion/Excel/excel-local.repo.js
 ========================================================= -->
 <html lang="es">
 <head>
@@ -48,14 +41,7 @@ Con qué se conecta:
     <section class="def-diagnostics-card"><details><summary>Diagnóstico</summary><pre id="def-diagnostics">{}</pre></details></section>
   </main>
   <button id="def-btn-save" class="def-floating-save" type="button">Guardar todo</button>
-  <script src="../Gestion/Excel/excel-local/excel-local.config.js"></script>
-  <script src="../Gestion/Excel/excel-local/excel-local.storage.js"></script>
-  <script src="../Gestion/Excel/excel-local/excel-local.bridge.js"></script>
-  <script src="../Gestion/Excel/excel-local.repo.js"></script>
-  <script src="../BaseLocal/services/bl-periodos-canon.service.js"></script>
-  <script src="../BaseLocal/services/bl-divisiones.service.js"></script>
-  <script src="../BaseLocal/baselocal.connector.js"></script>
-  <script src="../BaseLocal/services/bl-notas-defensa.service.js"></script>
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="defart.core.js"></script>
   <script src="defart.export.js"></script>
   <script src="defart.app.js"></script>
