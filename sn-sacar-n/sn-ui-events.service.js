@@ -9,7 +9,7 @@ Funcion o funciones:
 - Navegar hasta Registro Notas Proyecto.
 - Ejecutar prueba visible con pocos estudiantes.
 - Ejecutar, pausar y continuar extraccion automatica completa.
-- Dejar respuesta temporal clara para exportacion.
+- Exportar Excel con hojas Notas Proyecto y Errores.
 Con que se conecta:
 - sn-config.js
 - sn-state.service.js
@@ -17,6 +17,7 @@ Con que se conecta:
 - sn-sisacad-browser.service.js
 - sn-sisacad-navigation.service.js
 - sn-sisacad-extractor.service.js
+- sn-export-excel.service.js
 - sn-ui-render.service.js
 - sn-sacar-n.js
 ========================================================= */
@@ -155,7 +156,17 @@ Con que se conecta:
     });
 
     bindClick("snBtnExportar", function(){
-      setMensaje("Bloque 11 pendiente: aqui se exportara el Excel final con hojas Notas Proyecto y Errores.");
+      var exportador = window.SNExportExcel;
+      if(exportador && typeof exportador.exportar === "function"){
+        try{
+          exportador.exportar();
+        }catch(error){
+          console.error("[SN_UI_EVENTS] Error al exportar Excel", error);
+          setMensaje("No se pudo exportar Excel: " + error.message);
+        }
+      }else{
+        setMensaje("No se encontro el servicio para exportar Excel. Revise sn-export-excel.service.js.");
+      }
     });
 
     bindClick("snBtnVerNovedades", function(){ toggleNovedades(); });
