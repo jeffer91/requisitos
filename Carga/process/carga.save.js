@@ -16,12 +16,15 @@
 
     var rows = normalized.rowsMapeadas || [];
     return window.BDLRepoEstudiantes.guardarMuchos(rows, null).then(function(result){
-      if(window.BDLRepoCarreras){ window.BDLRepoCarreras.guardarDesdeEstudiantes(rows); }
-      if(window.BDLRepoRequisitos){ window.BDLRepoRequisitos.guardarCatalogo(); }
+      var tasks = [];
+      if(window.BDLRepoCarreras){ tasks.push(window.BDLRepoCarreras.guardarDesdeEstudiantes(rows)); }
+      if(window.BDLRepoRequisitos){ tasks.push(window.BDLRepoRequisitos.guardarCatalogo()); }
       if(window.BDLRepoDashboard && normalized.periodoDetectado && normalized.periodoDetectado.periodoId){
-        window.BDLRepoDashboard.recalcularBasico(normalized.periodoDetectado.periodoId);
+        tasks.push(window.BDLRepoDashboard.recalcularBasico(normalized.periodoDetectado.periodoId));
       }
-      return Object.assign({ ok:true }, result);
+      return Promise.all(tasks).then(function(){
+        return Object.assign({ ok:true }, result);
+      });
     });
   }
 
