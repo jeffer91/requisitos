@@ -4,6 +4,7 @@ Ruta: /BDLocal/connections/supabase/sb.client.js
 Función:
 - Cliente REST mínimo para Supabase usando URL y anon key.
 - Respeta activado/pausado desde Ajustes.
+- Permite guardar y leer registros flexibles de fallback.
 ========================================================= */
 (function(window){
   "use strict";
@@ -49,9 +50,22 @@ Función:
     });
   }
 
-  function upsert(table, rows){
+  function joinQuery(parts){
+    parts = (parts || []).filter(Boolean);
+    return parts.length ? ("?" + parts.join("&")) : "";
+  }
+
+  function filter(op, field, value){
+    return encodeURIComponent(field) + "=" + op + "." + encodeURIComponent(String(value == null ? "" : value));
+  }
+
+  function order(field, desc){ return "order=" + encodeURIComponent(field) + (desc ? ".desc" : ".asc"); }
+  function limit(n){ return "limit=" + encodeURIComponent(String(Number(n || 0))); }
+  function select(cols){ return "select=" + encodeURIComponent(cols || "*"); }
+
+  function upsert(table, rows, conflict){
     if(!Array.isArray(rows)){ rows = [rows]; }
-    var url = window.BDLSupabaseConfig.restUrl(table);
+    var url = window.BDLSupabaseConfig.restUrl(table) + joinQuery(conflict ? ["on_conflict=" + encodeURIComponent(conflict)] : []);
     return request(url, { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(rows) });
   }
 
@@ -60,5 +74,26 @@ Función:
     return request(url, { method: "GET" });
   }
 
-  window.BDLSupabaseClient = { config: config, request: request, upsert: upsert, list: list };
+  function selectRows(table, filters){
+    filters = filters || [];
+    var query = joinQuery([select("*")].concat(filters));
+    return list(table, query);
+  }
+
+  window.BDLSupabaseClient = {
+    config: config,
+    request: request,
+    upsert: upsert,
+    list: list,
+    selectRows: selectRows,
+    query: {
+      join: joinQuery,
+      eq: function(field, value){ return filter("eq", field, value); },
+      gt: function(field, value){ return filter("gt", field, value); },
+      gte: function(field, value){ return filter("gte", field, value); },
+      order: order,
+      limit: limit,
+      select: select
+    }
+  };
 })(window);
