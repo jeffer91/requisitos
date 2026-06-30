@@ -6,12 +6,14 @@ Función o funciones:
 - Manejar filtros por período y división.
 - Renderizar reportes reales por responsable.
 - Abrir Outlook/correo con respaldo HTML copiado al portapapeles.
+- Abrir WhatsApp con mensaje corto por responsable.
 Con qué se conecta:
 - coo.config.js
 - coo.data.js
 - coo.report.js
 - coo.render.js
 - coo.mail.js
+- coo.whatsapp.js
 - coordi.export.js
 ========================================================= */
 (function(window,document){
@@ -65,6 +67,12 @@ Con qué se conecta:
     return false;
   }
 
+  function ensureWhatsApp(){
+    if(window.COOWhatsApp){return true;}
+    status("No se cargó el módulo de WhatsApp. Revisa coo.whatsapp.js.", "warn");
+    return false;
+  }
+
   function render(options){
     options = options || {};
     if(state.loading){return;}
@@ -97,6 +105,23 @@ Con qué se conecta:
       status("Outlook abierto. La tabla HTML fue copiada; si no aparece en el cuerpo, pega con Ctrl+V.", "ok");
     }).catch(function(error){
       console.error("[Coordi Mail]", error);
+      status(error && error.message ? error.message : String(error), "warn");
+    });
+  }
+
+  function buildWhatsApp(kind, areaId){
+    if(!state.report){throw new Error("Primero genera el reporte.");}
+    if(!ensureWhatsApp()){throw new Error("No se cargó el módulo de WhatsApp.");}
+    return window.COOWhatsApp.build(state.report, {kind:kind, areaId:areaId || ""});
+  }
+
+  function openWhatsApp(message){
+    if(!message){status("No hay mensaje de WhatsApp preparado.", "warn");return;}
+    status("Abriendo WhatsApp...", "");
+    window.COOWhatsApp.open(message).then(function(){
+      status("WhatsApp abierto con el mensaje listo para revisar y enviar.", "ok");
+    }).catch(function(error){
+      console.error("[Coordi WhatsApp]", error);
       status(error && error.message ? error.message : String(error), "warn");
     });
   }
@@ -155,6 +180,9 @@ Con qué se conecta:
         if(action === "mail-global"){
           openMail(buildMail("global"));
         }
+        if(action === "whatsapp-global"){
+          openWhatsApp(buildWhatsApp("global"));
+        }
         if(action === "preview-area-summary"){
           state.selectedAreaId = areaId;
           window.COORender.renderAll(state.report, state);
@@ -174,6 +202,11 @@ Con qué se conecta:
           state.selectedAreaId = areaId;
           window.COORender.renderAll(state.report, state);
           openMail(buildMail("area-detail", areaId));
+        }
+        if(action === "whatsapp-area"){
+          state.selectedAreaId = areaId;
+          window.COORender.renderAll(state.report, state);
+          openWhatsApp(buildWhatsApp("area", areaId));
         }
       }catch(error){
         console.error("[Coordi action]", error);
