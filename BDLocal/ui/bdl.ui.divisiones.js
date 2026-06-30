@@ -18,6 +18,19 @@
     return map;
   }
 
+  function ajustarModalVisual(){
+    var modal = H.one('#bdlDivModal');
+    var card = H.one('#bdlDivModal .bdl-modal-card');
+    var body = H.one('#bdlDivModal .bdl-modal-body');
+    var layout = H.one('#bdlDivModal .bdl-div-layout');
+    var lists = [H.one('#bdlDivList'), H.one('#bdlDivAvailable'), H.one('#bdlDivAssigned')];
+    if(modal){ modal.style.overflow = 'hidden'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center'; }
+    if(card){ card.style.width = 'min(980px, calc(100vw - 28px))'; card.style.maxHeight = 'calc(100vh - 28px)'; card.style.display = 'flex'; card.style.flexDirection = 'column'; }
+    if(body){ body.style.overflow = 'auto'; body.style.maxHeight = 'calc(100vh - 155px)'; body.style.minHeight = '0'; }
+    if(layout){ layout.style.gridTemplateColumns = window.innerWidth < 980 ? '1fr' : '220px minmax(220px, 1fr) minmax(220px, 1fr)'; layout.style.gap = '10px'; }
+    lists.forEach(function(el){ if(el){ el.style.maxHeight = window.innerWidth < 980 ? '230px' : '46vh'; el.style.overflow = 'auto'; el.style.minHeight = '150px'; } });
+  }
+
   function renderDivisiones(){
     var box = H.one('#bdlDivList');
     if(!box){ return; }
@@ -47,6 +60,7 @@
     }
     bindCards();
     renderDivisiones();
+    ajustarModalVisual();
   }
 
   function card(c){
@@ -119,6 +133,7 @@
       state.config.divisiones = state.config.divisiones || [];
       state.carreras = parts[1] || [];
       if(modal){ modal.classList.add('open'); }
+      ajustarModalVisual();
       renderCarreras();
     }).catch(function(error){ H.notify(error && error.message ? error.message : String(error), 'error'); });
   }
@@ -133,6 +148,7 @@
     });
   }
 
+  window.addEventListener('resize', ajustarModalVisual);
   window.addEventListener('DOMContentLoaded', setupDrop);
   window.BDLUIDivisiones = { open:open, close:close, save:save, createOrSelect:createOrSelect, removeSelected:removeSelected, toggleCareer:toggleCareer };
 })(window);
