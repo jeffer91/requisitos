@@ -3,10 +3,9 @@
 Nombre completo: coordi.html
 Ruta o ubicación: /Requisitos/Coordi/coordi.html
 Función o funciones:
-- Mostrar panel de coordinación basado en BDLocal.
-- Priorizar carreras y estudiantes con requisitos pendientes.
-- Filtrar por período, división, carrera y prioridad.
-- Generar mensajes rápidos para seguimiento académico.
+- Base visual del panel Coordi para reportes por responsables.
+- Preparar filtros por período y división.
+- Preparar espacios para reporte global, resumen por áreas, reportes listos, tarjetas y vista previa.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - coordi.css
@@ -15,7 +14,169 @@ Con qué se conecta:
 - coordi.app.js
 ========================================================= -->
 <html lang="es">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title></title><link rel="stylesheet" href="coordi.css" /></head>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coordi · Reportes por responsables</title>
+  <link rel="stylesheet" href="coordi.css" />
+</head>
 <body>
-<main class="coordi-app"><section id="coordi-status" class="coordi-status">Cargando coordinación...</section><section class="coordi-tools"><label>Período<select id="coordi-periodo"><option value="">Todos</option></select></label><label>División<select id="coordi-division"><option value="">Todas</option></select></label><label>Carrera<select id="coordi-carrera"><option value="">Todas</option></select></label><label>Prioridad<select id="coordi-prioridad"><option value="">Todas</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></label><button id="coordi-refresh" type="button">Actualizar</button><button id="coordi-copy-summary" type="button">Copiar resumen</button><button id="coordi-export-json" type="button">Exportar JSON</button></section><section class="coordi-kpis"><article><span>Total estudiantes</span><strong id="coordi-total">0</strong></article><article><span>Prioridad alta</span><strong id="coordi-alta">0</strong></article><article><span>Prioridad media</span><strong id="coordi-media">0</strong></article><article><span>Prioridad baja</span><strong id="coordi-baja">0</strong></article><article><span>Carreras</span><strong id="coordi-carreras-total">0</strong></article></section><section class="coordi-grid"><article class="coordi-card"><div class="coordi-card-head"><h2>Carreras para seguimiento</h2><span id="coordi-carreras-meta">0 carreras</span></div><div id="coordi-carreras" class="coordi-table-wrap"></div></article><article class="coordi-card"><div class="coordi-card-head"><h2>Requisitos críticos</h2><span>Mayor acumulación de pendientes</span></div><div id="coordi-requisitos" class="coordi-table-wrap"></div></article></section><section class="coordi-grid"><article class="coordi-card"><div class="coordi-card-head"><h2>Estudiantes priorizados</h2><span id="coordi-estudiantes-meta">0 estudiantes</span></div><div id="coordi-estudiantes" class="coordi-table-wrap tall"></div></article><article class="coordi-card"><div class="coordi-card-head"><h2>Mensaje de seguimiento</h2><span>Plantilla rápida</span></div><label class="coordi-message-label">Tipo de mensaje<select id="coordi-message-type"><option value="general">General</option><option value="carrera">Por carrera</option><option value="pendientes">Pendientes críticos</option></select></label><textarea id="coordi-message" readonly></textarea><div class="coordi-actions"><button id="coordi-copy-message" type="button">Copiar mensaje</button></div></article></section><section class="coordi-card"><div class="coordi-card-head"><h2>Diagnóstico de coordinación</h2><span>BDLocal</span></div><pre id="coordi-diagnostics"></pre></section></main>
-<script src="../BDLocal/adapters/bdl.screen-deps.js"></script><script src="coordi.core.js"></script><script src="coordi.export.js"></script><script src="coordi.app.js"></script></body></html>
+  <main class="coordi-app">
+    <header class="coordi-hero">
+      <div>
+        <p class="coordi-eyebrow">Centro de comunicación</p>
+        <h1>Coordi · Reportes por responsables</h1>
+        <p class="coordi-lead">Genera reportes por período y división para enviar pendientes a cada responsable de área.</p>
+      </div>
+      <div class="coordi-hero-actions">
+        <button id="coordi-copy-summary" type="button" class="btn-secondary">Copiar resumen</button>
+        <button id="coordi-export-json" type="button" class="btn-secondary">Exportar JSON</button>
+      </div>
+    </header>
+
+    <section id="coordi-status" class="coordi-status">Cargando coordinación...</section>
+
+    <section class="coordi-panel coordi-filters" aria-label="Filtros de reporte">
+      <label>Período
+        <select id="coordi-periodo"><option value="">Todos</option></select>
+      </label>
+      <label>División
+        <select id="coordi-division"><option value="">Todas</option></select>
+      </label>
+      <div class="coordi-legacy-controls" aria-hidden="true">
+        <label>Carrera
+          <select id="coordi-carrera"><option value="">Todas</option></select>
+        </label>
+        <label>Prioridad
+          <select id="coordi-prioridad"><option value="">Todas</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
+        </label>
+      </div>
+      <button id="coordi-refresh" type="button" class="btn-primary">Generar reportes</button>
+    </section>
+
+    <section class="coordi-section-title">
+      <div>
+        <h2>Corte actual</h2>
+        <p>Resumen inicial del período y división seleccionados.</p>
+      </div>
+    </section>
+
+    <section class="coordi-kpis" aria-label="Indicadores del corte">
+      <article><span>Total estudiantes revisados</span><strong id="coordi-total">0</strong></article>
+      <article><span>Prioridad alta</span><strong id="coordi-alta">0</strong></article>
+      <article><span>Prioridad media</span><strong id="coordi-media">0</strong></article>
+      <article><span>Prioridad baja</span><strong id="coordi-baja">0</strong></article>
+      <article><span>Carreras involucradas</span><strong id="coordi-carreras-total">0</strong></article>
+    </section>
+
+    <section class="coordi-global-card">
+      <div class="global-main">
+        <p class="coordi-eyebrow">Reporte global</p>
+        <h2>Dr. Alex León</h2>
+        <p>Resumen ejecutivo de pendientes por área para el período y división seleccionados.</p>
+        <div class="global-contact">
+          <span>aleon@itsqmet.edu.ec</span>
+          <span>593984059654</span>
+        </div>
+      </div>
+      <div class="global-actions">
+        <button type="button" class="btn-primary" disabled>Outlook global</button>
+        <button type="button" class="btn-secondary" disabled>WhatsApp global</button>
+        <button type="button" class="btn-secondary" disabled>Vista previa</button>
+      </div>
+    </section>
+
+    <section class="coordi-grid main-grid">
+      <article class="coordi-card">
+        <div class="coordi-card-head">
+          <div>
+            <h2>Resumen por áreas</h2>
+            <span>Base para los reportes por responsable</span>
+          </div>
+        </div>
+        <div id="coordi-requisitos" class="coordi-table-wrap"></div>
+      </article>
+
+      <article class="coordi-card">
+        <div class="coordi-card-head">
+          <div>
+            <h2>Reportes listos</h2>
+            <span>Acciones preparadas para Outlook y WhatsApp</span>
+          </div>
+        </div>
+        <div class="report-ready-list">
+          <div class="report-ready-item muted"><strong>Bloque 1 listo</strong><span>En los siguientes bloques se conectarán responsables, correo HTML y WhatsApp.</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="coordi-card">
+      <div class="coordi-card-head">
+        <div>
+          <h2>Tarjetas por responsable</h2>
+          <span id="coordi-carreras-meta">0 responsables</span>
+        </div>
+      </div>
+      <div id="coordi-carreras" class="coordi-responsables-grid"></div>
+    </section>
+
+    <section class="coordi-grid detail-grid">
+      <article class="coordi-card">
+        <div class="coordi-card-head">
+          <div>
+            <h2>Detalle operativo</h2>
+            <span id="coordi-estudiantes-meta">0 estudiantes</span>
+          </div>
+        </div>
+        <div id="coordi-estudiantes" class="coordi-table-wrap tall"></div>
+      </article>
+
+      <article class="coordi-card">
+        <div class="coordi-card-head">
+          <div>
+            <h2>Vista previa del mensaje</h2>
+            <span>Plantilla temporal</span>
+          </div>
+        </div>
+        <label class="coordi-message-label">Tipo de mensaje
+          <select id="coordi-message-type"><option value="general">General</option><option value="carrera">Por carrera</option><option value="pendientes">Pendientes críticos</option></select>
+        </label>
+        <textarea id="coordi-message" readonly></textarea>
+        <div class="coordi-actions"><button id="coordi-copy-message" type="button" class="btn-secondary">Copiar mensaje</button></div>
+      </article>
+    </section>
+
+    <section class="coordi-card coordi-diagnostic-card">
+      <div class="coordi-card-head">
+        <div>
+          <h2>Diagnóstico técnico</h2>
+          <span>Se mantendrá pequeño y secundario</span>
+        </div>
+      </div>
+      <pre id="coordi-diagnostics"></pre>
+    </section>
+
+    <section id="coordi-preview-modal" class="coordi-modal" hidden>
+      <div class="coordi-modal-card">
+        <header>
+          <div>
+            <p class="coordi-eyebrow">Vista previa</p>
+            <h2 id="coordi-preview-title">Correo</h2>
+          </div>
+          <button id="coordi-preview-close" type="button" class="btn-secondary">Cerrar</button>
+        </header>
+        <div id="coordi-preview-body" class="coordi-preview-body"></div>
+        <footer>
+          <button type="button" class="btn-primary" disabled>Abrir en Outlook</button>
+          <button type="button" class="btn-secondary" disabled>Copiar HTML</button>
+        </footer>
+      </div>
+    </section>
+  </main>
+
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="coordi.core.js"></script>
+  <script src="coordi.export.js"></script>
+  <script src="coordi.app.js"></script>
+</body>
+</html>
