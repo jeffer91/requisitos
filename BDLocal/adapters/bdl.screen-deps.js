@@ -40,6 +40,7 @@
     "connections/shared/conn.interface.js",
     "connections/shared/conn.registry.js",
     "connections/shared/conn.response.js",
+    "connections/shared/conn.settings.js",
     "connections/bdlocal/bdl.adapter.js",
     "connections/firebase/fb.config.js",
     "connections/firebase/fb.client.js",
