@@ -5,13 +5,17 @@ Ruta o ubicacion: /Requisitos/sn-sacar-n/sn-sacar-n.html
 Modulo: Sacar N
 Funcion o funciones:
 - Mostrar la pantalla visual completa del modulo Sacar N.
+- Cargar catalogos y estudiantes desde BDLocal.
 - Preparar filtros, botones, resumen, tabla, novedades y ayuda operativa.
-- Mantener la pantalla lista para cargar estudiantes en el siguiente bloque.
 Con que se conecta:
+- BDLocal/adapters/bdl.screen-deps.js
 - sn-sacar-n.css
 - sn-config.js
 - sn-models.js
 - sn-state.service.js
+- sn-store.service.js
+- sn-queue.service.js
+- sn-estudiantes.service.js
 - sn-ui-render.service.js
 - sn-ui-events.service.js
 - sn-sacar-n.js
@@ -40,7 +44,7 @@ Con que se conecta:
       <div class="sn-card-head">
         <div>
           <h2>1. Selección de estudiantes</h2>
-          <p>En el siguiente bloque estos filtros se llenarán desde BDLocal.</p>
+          <p>Los filtros se cargan desde BDLocal. Seleccione un período y luego presione Cargar estudiantes.</p>
         </div>
         <span class="sn-pill">Fuente: Requisitos + SISACAD</span>
       </div>
@@ -48,12 +52,12 @@ Con que se conecta:
       <div class="sn-filters">
         <label class="sn-field">Período académico
           <select id="snPeriodo" class="sn-select" disabled>
-            <option value="">Pendiente conectar a BDLocal</option>
+            <option value="">Cargando BDLocal...</option>
           </select>
         </label>
         <label class="sn-field">Carrera
           <select id="snCarrera" class="sn-select" disabled>
-            <option value="">Pendiente conectar a BDLocal</option>
+            <option value="">Todas</option>
           </select>
         </label>
         <label class="sn-field">Modalidad / grupo
@@ -117,7 +121,7 @@ Con que se conecta:
         </div>
       </div>
       <div class="sn-progress"><div id="snProgressBar" class="sn-progress-bar"></div></div>
-      <div id="snMensaje" class="sn-alert" style="margin-top:12px">Pantalla visual lista. Pendiente cargar estudiantes desde BDLocal.</div>
+      <div id="snMensaje" class="sn-alert" style="margin-top:12px">Cargando conexión con BDLocal...</div>
     </section>
 
     <section class="sn-layout">
@@ -145,7 +149,7 @@ Con que se conecta:
               </tr>
             </thead>
             <tbody id="snTablaBody">
-              <tr><td class="sn-empty" colspan="10">Cargando pantalla visual...</td></tr>
+              <tr><td class="sn-empty" colspan="10">Esperando carga desde BDLocal...</td></tr>
             </tbody>
           </table>
         </div>
@@ -179,13 +183,17 @@ Con que se conecta:
     </aside>
 
     <footer class="sn-footer">
-      Bloque 3: pantalla visual completa del módulo Sacar N.
+      Bloque 4: carga de estudiantes desde BDLocal.
     </footer>
   </div>
 
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="sn-config.js"></script>
   <script src="sn-models.js"></script>
   <script src="sn-state.service.js"></script>
+  <script src="sn-store.service.js"></script>
+  <script src="sn-queue.service.js"></script>
+  <script src="sn-estudiantes.service.js"></script>
   <script src="sn-ui-render.service.js"></script>
   <script src="sn-ui-events.service.js"></script>
   <script src="sn-sacar-n.js"></script>
