@@ -6,7 +6,431 @@ Función o funciones:
 - Mostrar filtros inteligentes, KPIs, tabla, colores por estado y barra de progreso.
 - Ajustar filtro por división.
 - Mostrar Guardar todo como botón flotante.
+- Compactar pantalla Defensas para aprovechar mejor el alto visible.
+- Evitar scroll vertical propio dentro de la tabla de Control de notas.
 Con qué se conecta:
 - defart.html
 ========================================================= */
-:root{color-scheme:light;--bg:#f4f7fb;--card:#ffffff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--line-strong:#cbd5e1;--primary:#2563eb;--primary-soft:#eff6ff;--ok:#15803d;--ok-soft:#ecfdf5;--warn:#b45309;--warn-soft:#fff7ed;--bad:#b91c1c;--bad-soft:#fef2f2;--shadow:0 10px 28px rgba(15,23,42,.08)}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding-bottom:86px}.def-app{max-width:1800px;margin:0 auto;padding:14px}.def-status{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--primary-soft);color:#1e40af;font-weight:850;margin-bottom:12px}.def-status.ok{background:var(--ok-soft);color:#166534}.def-status.warn{background:var(--warn-soft);color:#9a3412}.def-toolbar{position:sticky;top:0;z-index:80;display:grid;grid-template-columns:1fr 1fr 1.25fr 1fr .9fr 1.5fr auto;gap:10px;align-items:end;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:var(--shadow);margin-bottom:10px}.def-toolbar label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:950;color:#334155}.def-toolbar-actions{display:flex;align-items:end;gap:8px;flex-wrap:wrap;justify-content:flex-end}select,input{min-height:38px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:#fff;color:var(--text);font:inherit;outline:none}select:focus,input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}button{min-height:38px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#1d4ed8;padding:0 13px;font-weight:950;cursor:pointer;white-space:nowrap}button:hover{background:var(--primary-soft)}button:disabled{opacity:.55;cursor:not-allowed}.def-progress-wrap{background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px 12px;margin-bottom:10px;box-shadow:var(--shadow)}.def-progress-info{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;font-weight:900;margin-bottom:8px}.def-progress-track{height:8px;background:#eaf0f7;border-radius:999px;overflow:hidden}.def-progress-bar{height:100%;width:0;background:var(--primary);transition:width .18s ease}.def-kpis{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:10px;margin-bottom:10px}.def-kpis article,.def-table-card,.def-diagnostics-card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}.def-kpis article{padding:12px}.def-kpis span{display:block;color:var(--muted);font-size:11px;font-weight:950}.def-kpis strong{display:block;margin-top:5px;font-size:22px}.def-table-card{padding:12px}.def-table-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.def-table-head h2{margin:0;font-size:18px}.def-table-head p{margin:4px 0 0;color:var(--muted);font-size:12px}.def-table-head span{background:#f8fafc;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:950;color:#334155}.def-table-wrap{overflow:auto;max-height:calc(100vh - 330px);border:1px solid var(--line);border-radius:14px}.def-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff}.def-table th,.def-table td{border-bottom:1px solid var(--line);padding:8px 9px;text-align:left;vertical-align:middle}.def-table th{position:sticky;top:0;background:#f8fafc;color:#334155;z-index:4;cursor:pointer}.def-table tr:hover td{background:#f8fafc}.col-cedula{white-space:nowrap}.col-nombre{min-width:210px}.col-carrera{min-width:160px}.col-nota{width:92px}.col-estado{white-space:nowrap}.def-note-input{width:82px;min-height:32px;border-radius:10px;padding:5px 8px}.def-note-input.is-invalid{border-color:var(--bad);background:var(--bad-soft)}.def-pill{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:950}.estado-completo .def-pill,.def-pill.estado-completo{background:var(--ok-soft);color:#166534}.estado-sin-requisitos .def-pill{background:var(--bad-soft);color:#991b1b}.estado-supletorio .def-pill{background:#fff1f2;color:#be123c}.estado-pendiente .def-pill{background:var(--warn-soft);color:#9a3412}.def-table tr.is-pending td{background:#fffbeb}.def-empty{padding:28px;text-align:center;color:var(--muted);font-weight:900}.def-diagnostics-card{padding:12px;margin-top:10px}.def-diagnostics-card summary{cursor:pointer;font-weight:950;color:#334155}pre{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px;white-space:pre-wrap;font-size:12px;overflow:auto}.def-floating-save{position:fixed;right:18px;bottom:18px;z-index:100;background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 18px 36px rgba(37,99,235,.25);padding:0 22px}.def-floating-save:hover{background:#1d4ed8}.nowrap{white-space:nowrap}@media(max-width:1400px){.def-toolbar{grid-template-columns:1fr 1fr 1fr}.def-toolbar-actions{justify-content:flex-start}.def-kpis{grid-template-columns:repeat(4,1fr)}}@media(max-width:900px){.def-toolbar,.def-kpis{grid-template-columns:1fr}.def-app{padding:10px}.def-table-wrap{max-height:calc(100vh - 380px)}.def-progress-info,.def-table-head{flex-direction:column}.def-floating-save{left:12px;right:12px;width:calc(100% - 24px)}}
+
+:root {
+  color-scheme: light;
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --primary: #2563eb;
+  --primary-soft: #eff6ff;
+  --ok: #15803d;
+  --ok-soft: #ecfdf5;
+  --warn: #b45309;
+  --warn-soft: #fff7ed;
+  --bad: #b91c1c;
+  --bad-soft: #fef2f2;
+  --shadow: 0 5px 14px rgba(15, 23, 42, .055);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  padding-bottom: 64px;
+}
+
+.def-app {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 10px 14px;
+}
+
+.def-status {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: var(--primary-soft);
+  color: #1e40af;
+  font-weight: 850;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.def-status.ok {
+  background: var(--ok-soft);
+  color: #166534;
+}
+
+.def-status.warn {
+  background: var(--warn-soft);
+  color: #9a3412;
+}
+
+.def-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr 1fr .9fr 1.4fr auto;
+  gap: 7px 9px;
+  align-items: end;
+  background: rgba(255, 255, 255, .98);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 8px 10px;
+  box-shadow: var(--shadow);
+  margin-bottom: 8px;
+}
+
+.def-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 950;
+  color: #334155;
+}
+
+.def-toolbar-actions {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+select,
+input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 5px 9px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  outline: none;
+}
+
+select:focus,
+input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: #1d4ed8;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:hover {
+  background: var(--primary-soft);
+}
+
+button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.def-progress-wrap {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+}
+
+.def-progress-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 900;
+  margin-bottom: 5px;
+}
+
+.def-progress-track {
+  height: 6px;
+  background: #eaf0f7;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.def-progress-bar {
+  height: 100%;
+  width: 0;
+  background: var(--primary);
+  transition: width .18s ease;
+}
+
+.def-kpis {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(95px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.def-kpis article,
+.def-table-card,
+.def-diagnostics-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  box-shadow: var(--shadow);
+}
+
+.def-kpis article {
+  min-height: 58px;
+  padding: 8px 10px;
+}
+
+.def-kpis span {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.1;
+  font-weight: 950;
+}
+
+.def-kpis strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.def-table-card {
+  padding: 9px 10px 10px;
+}
+
+.def-table-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.def-table-head h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.def-table-head p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.def-table-head span {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 950;
+  color: #334155;
+}
+
+.def-table-wrap {
+  max-height: none;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.def-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  line-height: 1.2;
+  background: #fff;
+}
+
+.def-table th,
+.def-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 5px 7px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.def-table th {
+  background: #f8fafc;
+  color: #334155;
+  z-index: 4;
+  cursor: pointer;
+}
+
+.def-table tr:hover td {
+  background: #f8fafc;
+}
+
+.col-cedula {
+  white-space: nowrap;
+}
+
+.col-nombre {
+  min-width: 180px;
+}
+
+.col-carrera {
+  min-width: 140px;
+}
+
+.col-nota {
+  width: 76px;
+}
+
+.col-estado {
+  white-space: nowrap;
+}
+
+.def-note-input {
+  width: 70px;
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 4px 7px;
+  font-size: 11.5px;
+}
+
+.def-note-input.is-invalid {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.def-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  line-height: 1.25;
+  font-weight: 950;
+}
+
+.estado-completo .def-pill,
+.def-pill.estado-completo {
+  background: var(--ok-soft);
+  color: #166534;
+}
+
+.estado-sin-requisitos .def-pill {
+  background: var(--bad-soft);
+  color: #991b1b;
+}
+
+.estado-supletorio .def-pill {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.estado-pendiente .def-pill {
+  background: var(--warn-soft);
+  color: #9a3412;
+}
+
+.def-table tr.is-pending td {
+  background: #fffbeb;
+}
+
+.def-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.def-diagnostics-card {
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.def-diagnostics-card summary {
+  cursor: pointer;
+  font-weight: 950;
+  color: #334155;
+}
+
+pre {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  white-space: pre-wrap;
+  font-size: 11px;
+  overflow: auto;
+}
+
+.def-floating-save {
+  position: fixed;
+  right: 18px;
+  bottom: 14px;
+  z-index: 100;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, .22);
+  padding: 0 20px;
+  min-height: 38px;
+}
+
+.def-floating-save:hover {
+  background: #1d4ed8;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+@media (max-width: 1400px) {
+  .def-toolbar {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .def-toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .def-kpis {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .def-app {
+    padding: 8px;
+  }
+
+  .def-toolbar,
+  .def-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .def-progress-info,
+  .def-table-head {
+    flex-direction: column;
+  }
+
+  .def-floating-save {
+    left: 12px;
+    right: 12px;
+    width: calc(100% - 24px);
+  }
+}
