@@ -9,12 +9,14 @@ Función o funciones:
 - Pintar aprobaciones especiales y abrir Telegram con mensaje copiado.
 - Renderizar notas finales Nart, Ndef y Nfin.
 - Mostrar encabezado en filas: cédula, carrera y período normalizado.
+- Normalizar etiquetas del selector de período.
 - Renderizar y guardar modalidadTitulacion para Infor.
 - Evitar construcción pesada duplicada al abrir la pantalla.
 - Refrescarse automáticamente cuando BDLocal actualiza el snapshot.
 - Pintar correo personal, correo institucional y celular.
 Con qué se conecta:
 - ficha.core.js
+- ficha.periodo.js
 - ficha.export.js
 - ficha.modalidad.js
 ========================================================= */
@@ -38,13 +40,19 @@ Con qué se conecta:
 
   function periodDisplay(row){
     row = row || {};
+    try{if(window.FichaPeriodo && typeof window.FichaPeriodo.displayFromRow === "function"){return window.FichaPeriodo.displayFromRow(row);}}catch(error){}
     var raw = text(row._periodoNormalizado || row._periodo || row.periodoLabel || row.periodoId || row.ultimoPeriodoId || row.periodo || row.Periodo);
     if(!raw){return "Sin período";}
     try{if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.normalizePeriod === "function"){var normalized = window.BLPeriodosCanon.normalizePeriod({id:raw, periodoId:raw, label:raw, periodoLabel:raw});return text(normalized.label || normalized.periodoLabel || raw) || raw;}}catch(error){}
     return raw;
   }
 
-  function fillPeriodAndMatricula(){var sel = el("ficha-periodo"), mat = el("ficha-matricula");if(sel){var list = window.FichaCore.periods();sel.innerHTML = option("", "Todos", !state.periodId) + list.map(function(p){return option(p.id, p.label || p.periodoLabel || p.id, state.periodId === p.id);}).join("");}if(mat){mat.value = state.matricula;}}
+  function periodOptionData(period){
+    try{if(window.FichaPeriodo && typeof window.FichaPeriodo.normalizePeriodObject === "function"){return window.FichaPeriodo.normalizePeriodObject(period);}}catch(error){}
+    return period || {};
+  }
+
+  function fillPeriodAndMatricula(){var sel = el("ficha-periodo"), mat = el("ficha-matricula");if(sel){var list = window.FichaCore.periods().map(periodOptionData);sel.innerHTML = option("", "Todos", !state.periodId) + list.map(function(p){return option(p.id, p.label || p.periodoLabel || p.id, state.periodId === p.id);}).join("");}if(mat){mat.value = state.matricula;}}
   function getDivisionOptions(){var key = [state.periodId, state.matricula, sourceLabel()].join("|");if(state.divisionKey === key && Array.isArray(state.divisionOptions)){return state.divisionOptions;}state.divisionOptions = window.FichaCore.divisions(null, {periodId:state.periodId, matricula:state.matricula});state.divisionKey = key;return state.divisionOptions;}
   function fillDivisionFilter(){var div = el("ficha-division");if(!div){return;}var divisions = getDivisionOptions();div.innerHTML = option("", "Todas", !state.division) + divisions.map(function(x){return option(x, x, state.division === x);}).join("");if(state.division && !divisions.some(function(x){return x === state.division;})){state.division = "";div.value = "";}else{div.value = state.division;}}
   function fillFilters(){fillPeriodAndMatricula();fillDivisionFilter();}
