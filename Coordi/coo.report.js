@@ -6,6 +6,7 @@ Función o funciones:
 - Detectar requisitos pendientes por estudiante.
 - Agrupar pendientes por área y responsable.
 - Crear resumen global para Dr. Alex León.
+- Interpretar correctamente valores booleanos, numéricos y textos de cumplimiento.
 Con qué se conecta:
 - coo.config.js
 - coo.data.js
@@ -18,7 +19,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-coo-report.2";
+  var VERSION = "1.0.0-coo-report.3";
 
   function text(value){return String(value == null ? "" : value).trim();}
   function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();}
@@ -68,11 +69,25 @@ Con qué se conecta:
         if(text(status)){return norm(status).replace(/\s+/g,"_");}
       }
     }catch(error){}
+
+    if(value === true){return "cumple";}
+    if(value === false){return "no_cumple";}
+    if(typeof value === "number"){
+      if(value === 1){return "cumple";}
+      if(value === 0){return "no_cumple";}
+    }
+
     var v = norm(value);
     if(!v){return "sin_dato";}
-    if(v === "cumple" || v === "si cumple" || v === "aprobado" || v === "aprobada" || v === "ok" || v === "completo" || v === "completado"){return "cumple";}
-    if(v === "no aplica" || v === "n/a" || v === "na" || v === "no corresponde"){return "no_aplica";}
-    if(v.indexOf("no cumple") >= 0 || v.indexOf("pendiente") >= 0 || v.indexOf("falta") >= 0 || v.indexOf("debe") >= 0 || v.indexOf("incompleto") >= 0){return "no_cumple";}
+    if(v === "true" || v === "1" || v === "cumple" || v === "si cumple" || v === "sí cumple" || v === "si" || v === "sí" || v === "aprobado" || v === "aprobada" || v === "ok" || v === "completo" || v === "completado" || v === "entregado" || v === "validado"){
+      return "cumple";
+    }
+    if(v === "no aplica" || v === "n/a" || v === "na" || v === "no corresponde"){
+      return "no_aplica";
+    }
+    if(v === "false" || v === "0" || v.indexOf("no cumple") >= 0 || v.indexOf("pendiente") >= 0 || v.indexOf("falta") >= 0 || v.indexOf("debe") >= 0 || v.indexOf("incompleto") >= 0 || v.indexOf("sin ") === 0 || v.indexOf("no aprobado") >= 0 || v.indexOf("reprob") >= 0){
+      return "no_cumple";
+    }
     return "no_cumple";
   }
 
@@ -167,9 +182,7 @@ Con qué se conecta:
 
   function studentKey(row){return compact([row && (row._periodoId || row._periodo), row && (row._cedula || row._nombres)].join("|"));}
 
-  function baseAreaReport(area){
-    return Object.assign({}, clone(area), {totalEstudiantes:0,totalPendientes:0,carreras:[],estudiantes:[],requisitos:[],porCarrera:[],sinPendientes:true});
-  }
+  function baseAreaReport(area){return Object.assign({}, clone(area), {totalEstudiantes:0,totalPendientes:0,carreras:[],estudiantes:[],requisitos:[],porCarrera:[],sinPendientes:true});}
 
   function addStudentToArea(report, row, pendingItems){
     var requisitos = arr(pendingItems).map(function(item){return item.label;});
@@ -198,13 +211,23 @@ Con qué se conecta:
     return report;
   }
 
+  function buildReadyReports(global, areas){
+    var list = [];
+    if(global && global.totalEstudiantesPendientes > 0){list.push({id:"global", destinatario:global.responsable, correo:global.correo, tipo:"Global", estado:"Listo", area:"Reporte global", totalEstudiantes:global.totalEstudiantesPendientes});}
+    arr(areas).forEach(function(area){
+      if(area.totalEstudiantes <= 0){return;}
+      list.push({id:area.id + "-resumen", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Resumen", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
+      list.push({id:area.id + "-detalle", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Detallado", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
+    });
+    return list;
+  }
+
   function buildFromRows(dataResult, options){
     options = options || {};
     dataResult = dataResult || {};
     var areas = arr(config().areas).map(baseAreaReport);
     var areaMap = Object.create(null);
     areas.forEach(function(area){areaMap[area.id] = area;});
-
     var uniquePendingStudents = Object.create(null);
     var totalPendientes = 0;
     var rows = arr(dataResult.rows);
@@ -246,17 +269,6 @@ Con qué se conecta:
       reportesListos:buildReadyReports(global, areas),
       diagnostics:{source:dataResult.source || "desconocido",totalStudentsRead:rows.length,totalStudentsWithPending:global.totalEstudiantesPendientes,totalAreas:areas.length,totalAreasWithPending:areasConPendientes.length,totalPendingItems:totalPendientes,dataDiagnostics:dataResult.diagnostics || {}}
     };
-  }
-
-  function buildReadyReports(global, areas){
-    var list = [];
-    if(global && global.totalEstudiantesPendientes > 0){list.push({id:"global", destinatario:global.responsable, correo:global.correo, tipo:"Global", estado:"Listo", area:"Reporte global", totalEstudiantes:global.totalEstudiantesPendientes});}
-    arr(areas).forEach(function(area){
-      if(area.totalEstudiantes <= 0){return;}
-      list.push({id:area.id + "-resumen", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Resumen", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
-      list.push({id:area.id + "-detalle", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Detallado", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
-    });
-    return list;
   }
 
   function build(options){
