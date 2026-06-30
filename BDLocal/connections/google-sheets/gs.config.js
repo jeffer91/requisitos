@@ -12,15 +12,21 @@ Función:
   var STORAGE_KEY = "REQ_GOOGLE_SHEETS_CONFIG_V1";
 
   function read(){
+    if(window.BDLConnSettings){ return window.BDLConnSettings.get("googleSheets"); }
     try{
       var raw = window.localStorage.getItem(STORAGE_KEY) || "";
       return raw ? JSON.parse(raw) : null;
     }catch(error){ return null; }
   }
 
+  function isEnabled(){
+    var cfg = read();
+    return !!(cfg && cfg.enabled === true);
+  }
+
   function isConfigured(){
     var cfg = read();
-    return !!(cfg && (cfg.webAppUrl || cfg.sheetId));
+    return !!(cfg && cfg.enabled === true && (cfg.webAppUrl || cfg.sheetId));
   }
 
   function webAppUrl(){
@@ -31,6 +37,7 @@ Función:
   window.BDLGoogleSheetsConfig = {
     storageKey: STORAGE_KEY,
     read: read,
+    isEnabled: isEnabled,
     isConfigured: isConfigured,
     webAppUrl: webAppUrl,
     role: "reporte_visible"
