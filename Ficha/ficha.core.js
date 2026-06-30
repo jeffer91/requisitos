@@ -10,20 +10,15 @@ Función o funciones:
 - Buscar y listar estudiantes sin cargar toda la base innecesariamente.
 - Generar mensajes para WhatsApp y Telegram con saludo automático.
 - Leer y evaluar notas Nart, Ndef y Nfin.
+- Mostrar correo personal, correo institucional y celular desde BDLocal.
 Con qué se conecta:
-- ../BaseLocal2/core/bl2-student-normalizer.js
-- ../BaseLocal2/core/bl2-requirements-engine.js
-- ../BaseLocal2/core/bl2-data-engine.js
-- ../BaseLocal2/core/bl2-screen-adapter.js
-- ../BaseLocal2/repositories/bl2-estudiantes.repo.js
-- ../BaseLocal2/repositories/bl2-requisitos.repo.js
-- ../BaseLocal/services/bl-notas-defensa.service.js
+- ../BDLocal/adapters/bdl.screen-deps.js
 - ficha.app.js
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-ficha-core.1";
+  var VERSION = "2.0.0-ficha-core.2";
   var cache = {periods:null, divisions:{}};
 
   function text(v){return String(v == null ? "" : v).trim();}
@@ -44,6 +39,10 @@ Con qué se conecta:
     {key:"nfin", label:"Nfin", aliases:["Notafinal","notafinal","NotaFinal","notaFinal","Nfin","nfin","N_FIN","N-FIN","Nota final","nota final"]}
   ];
 
+  var CORREO_PERSONAL_ALIASES = ["_correoPersonal","_bl2CorreoPersonal","correoPersonal","CorreoPersonal","correopersonal","correo","Correo","email","Email","mail","Mail"];
+  var CORREO_INSTITUCIONAL_ALIASES = ["_correoInstitucional","_bl2CorreoInstitucional","correoInstitucional","CorreoInstitucional","correoinstitucional","correoInst","CorreoInst","emailInstitucional","EmailInstitucional","mailInstitucional"];
+  var CELULAR_ALIASES = ["_celular","_bl2Celular","celular","Celular","telefono","Telefono","Teléfono","telf","Telf","whatsapp","WhatsApp","numeroCelular","NumeroCelular"];
+
   function normalizer(){return window.BL2StudentNormalizer || null;}
   function reqEngine(){return window.BL2RequirementsEngine || window.StatsRules || null;}
   function dataEngine(){return window.BL2DataEngine || null;}
@@ -55,6 +54,10 @@ Con qué se conecta:
 
   function normalizeStudent(row){
     var r = normalizer() && typeof normalizer().normalize === "function" ? normalizer().normalize(row || {}, {clone:false}) : Object.assign({}, row || {});
+    var correoPersonal = text(r._bl2CorreoPersonal || fieldValue(r, "correoPersonal", pick(r, CORREO_PERSONAL_ALIASES, "")));
+    var correoInstitucional = text(r._bl2CorreoInstitucional || fieldValue(r, "correoInstitucional", pick(r, CORREO_INSTITUCIONAL_ALIASES, "")));
+    var correoPrincipal = text(r._bl2Correo || r._correo || r.correo || r.Correo || correoPersonal || correoInstitucional);
+    var celular = text(r._bl2Celular || fieldValue(r, "celular", pick(r, CELULAR_ALIASES, "")));
     r._id = text(r._bl2Id || r.cedula || r.numeroIdentificacion || r.numeroidentificacion || r._docId || r.docId || r.id);
     r._cedula = text(r._bl2Id || r.cedula || r.numeroIdentificacion || r.numeroidentificacion || r.Cedula || r.NumeroIdentificacion);
     r._nombres = text(r._bl2Nombre || r.nombres || r.Nombres || r.nombre || r.Nombre || r.estudiante || r.Estudiante || r.apellidosNombres || r.ApellidosNombres);
@@ -62,8 +65,10 @@ Con qué se conecta:
     r._division = divisionOf(r);
     r._sede = text(r._bl2Sede || fieldValue(r, "sede", r.Sede || ""));
     r._horario = text(r._bl2Jornada || pick(r, ["horariocomplexivo","HorarioComplexivo","horarioComplexivo","horario","jornada","Jornada"], ""));
-    r._celular = text(r._bl2Celular || fieldValue(r, "celular", r.telefono || r.whatsapp || ""));
-    r._correo = text(r._bl2CorreoPersonal || fieldValue(r, "correoPersonal", fieldValue(r, "correoInstitucional", r.CorreoPersonal || r.CorreoInstitucional || "")));
+    r._correoPersonal = correoPersonal || correoPrincipal;
+    r._correoInstitucional = correoInstitucional;
+    r._correo = correoPrincipal || correoPersonal || correoInstitucional;
+    r._celular = celular;
     r._periodo = text(r._bl2Periodo || r.periodoLabel || r.periodo || r.Periodo || r.periodoId || r._bl2PeriodoId);
     r._periodoId = text(r._bl2PeriodoId || r.periodoId || r.ultimoPeriodoId || r.periodId || r._bl2Periodo || r._periodo);
     r._estadoMatricula = estadoMatricula(r._bl2EstadoMatricula || fieldValue(r, "estadoMatricula", r.estadoMatricula));
@@ -100,11 +105,7 @@ Con qué se conecta:
   function divisionOf(row){if(row && row._bl2Division){return row._bl2Division;}try{if(window.BLDivisionesService && typeof window.BLDivisionesService.studentDivision === "function"){return window.BLDivisionesService.studentDivision(row);}}catch(error){}var list = Array.isArray(row && row.divisiones) ? row.divisiones : [];return list[0] || (row && (row.division || row.Division || row.División)) || "Sin división";}
   function hasDivision(row, division){if(!text(division)){return true;}try{if(window.BLDivisionesService && typeof window.BLDivisionesService.hasDivision === "function"){return window.BLDivisionesService.hasDivision(row, division);}}catch(error){}return norm(divisionOf(row)) === norm(division);}
 
-  function requirementsForStudent(row){
-    try{if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){return cloneList(reqEngine().requirementsForStudent(row || {}));}}catch(error){}
-    var periodInfo = classifyStudent(row);
-    return periodInfo.id === "REGULAR" ? cloneList(FALLBACK_BASE.concat(FALLBACK_EXTRA)) : cloneList(FALLBACK_BASE);
-  }
+  function requirementsForStudent(row){try{if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){return cloneList(reqEngine().requirementsForStudent(row || {}));}}catch(error){}var periodInfo = classifyStudent(row);return periodInfo.id === "REGULAR" ? cloneList(FALLBACK_BASE.concat(FALLBACK_EXTRA)) : cloneList(FALLBACK_BASE);}
   function finalRequirements(){try{if(reqEngine() && Array.isArray(reqEngine().FINAL_REQUIREMENTS)){return cloneList(reqEngine().FINAL_REQUIREMENTS);}}catch(error){}return cloneList(FALLBACK_FINAL);}
   function classifyStudent(row){try{if(reqEngine() && typeof reqEngine().classifyStudent === "function"){return reqEngine().classifyStudent(row || {});}}catch(error){}return {id:"PVC", label:"PVC", isPVC:true, isRegular:false, pattern:"PVC", raw:text(row && (row._periodo || row.periodoLabel || row.periodoId))};}
   function requirementStatus(row, req){try{if(reqEngine() && typeof reqEngine().requirementStatus === "function"){return reqEngine().requirementStatus(row || {}, req.key);}}catch(error){}var estado=estadoCelda(reqValue(row,req));return {key:req.key,label:req.label,status:estado,labelStatus:estado === "cumple" ? "Cumple" : "No cumple",cumple:estado === "cumple",applies:true};}
@@ -134,7 +135,7 @@ Con qué se conecta:
     var rows=[];
     try{if(typeof excelRepo().filterStudents === "function"){rows=excelRepo().filterStudents({periodoId:options.periodId||"",estadoMatricula:options.matricula||"",division:options.division||""});}else if(typeof excelRepo().listStudentsByStatus === "function"){rows=excelRepo().listStudentsByStatus(options.matricula||"",options.periodId||"");}else if(typeof excelRepo().listAllStudents === "function"){rows=excelRepo().listAllStudents();}}catch(error){rows=[];}
     var q=norm(options.search||""), limit=Math.max(1, Number(options.limit||400)||400);
-    return (rows||[]).map(normalizeStudent).filter(function(s){if(options.matricula&&s._estadoMatricula!==options.matricula){return false;}if(options.periodId&&!samePeriod(s._periodoId||s._periodo,options.periodId)){return false;}if(options.division&&!hasDivision(s,options.division)){return false;}if(q){var hay=norm([s._cedula,s._nombres,s._carrera,s._division,s._correo,s._celular,s._periodo,s._estadoMatricula,s._telegramUser,s._telegramChatId].join(" "));if(hay.indexOf(q)<0){return false;}}return true;}).slice(0,limit);
+    return (rows||[]).map(normalizeStudent).filter(function(s){if(options.matricula&&s._estadoMatricula!==options.matricula){return false;}if(options.periodId&&!samePeriod(s._periodoId||s._periodo,options.periodId)){return false;}if(options.division&&!hasDivision(s,options.division)){return false;}if(q){var hay=norm([s._cedula,s._nombres,s._carrera,s._division,s._correo,s._correoPersonal,s._correoInstitucional,s._celular,s._periodo,s._estadoMatricula,s._telegramUser,s._telegramChatId].join(" "));if(hay.indexOf(q)<0){return false;}}return true;}).slice(0,limit);
   }
 
   function students(matricula){return queryRows({matricula:matricula == null ? "ACTIVO" : matricula, limit:400});}
@@ -159,9 +160,9 @@ Con qué se conecta:
   function saludo(){var h=new Date().getHours();if(h<12){return "Buen día";}if(h<19){return "Buena tarde";}return "Buena noche";}
   function studentMessage(row){row=normalizeStudent(row||{});var faltantes=pendientes(row,true);var lines=[saludo()+", "+(row._nombres||"estudiante")+".","","Le escribimos desde el área de Titulación.","Carrera: "+(row._carrera||"—"),"Período: "+(row._periodo||"—"),""];if(faltantes.length){lines.push("Requisitos pendientes:");faltantes.forEach(function(req){lines.push("- "+req.label);});}else{lines.push("No registra requisitos pendientes.");}lines.push("","Por favor revisar y regularizar la información pendiente.");return lines.join("\n");}
   function whatsappUrl(row){row=normalizeStudent(row||{});var phone=text(row&&row._celular).replace(/[^0-9]/g,"");if(!phone){return "";}if(phone.length===10&&phone.charAt(0)==="0"){phone="593"+phone.slice(1);}return "https://wa.me/"+phone+"?text="+encodeURIComponent(studentMessage(row));}
-  function toText(row){if(!row){return "";}row=normalizeStudent(row);var faltantes=pendientes(row,true), tg=telegramInfo(row), ns=notas(row), approval=studentApproval(row);var lines=["FICHA DEL ESTUDIANTE","Nombre: "+row._nombres,"Cédula: "+row._cedula,"Carrera: "+row._carrera,"Período: "+row._periodo,"Matrícula: "+row._estadoMatricula,"Tipo de período: "+(approval.periodType&&approval.periodType.label||"—"),"Estado: "+(row._estado&&row._estado.label),"Correo: "+row._correo,"Celular: "+row._celular,"Telegram: "+(tg.user||tg.chatId||"—"),"","REQUISITOS PENDIENTES"];if(faltantes.length){faltantes.forEach(function(req){lines.push("- "+req.label);});}else{lines.push("Sin requisitos pendientes.");}lines.push("","NOTAS");ns.forEach(function(n){lines.push(n.label+": "+n.value);});return lines.join("\n");}
+  function toText(row){if(!row){return "";}row=normalizeStudent(row);var faltantes=pendientes(row,true), tg=telegramInfo(row), ns=notas(row), approval=studentApproval(row);var lines=["FICHA DEL ESTUDIANTE","Nombre: "+row._nombres,"Cédula: "+row._cedula,"Carrera: "+row._carrera,"Período: "+row._periodo,"Matrícula: "+row._estadoMatricula,"Tipo de período: "+(approval.periodType&&approval.periodType.label||"—"),"Estado: "+(row._estado&&row._estado.label),"Correo personal: "+(row._correoPersonal||"—"),"Correo institucional: "+(row._correoInstitucional||"—"),"Celular: "+(row._celular||"—"),"Telegram: "+(tg.user||tg.chatId||"—"),"","REQUISITOS PENDIENTES"];if(faltantes.length){faltantes.forEach(function(req){lines.push("- "+req.label);});}else{lines.push("Sin requisitos pendientes.");}lines.push("","NOTAS");ns.forEach(function(n){lines.push(n.label+": "+n.value);});return lines.join("\n");}
   function invalidate(){cache.periods=null;cache.divisions={};try{if(dataEngine()&&typeof dataEngine().invalidate==="function"){dataEngine().invalidate();}}catch(error){}try{if(window.BL2CacheResumen&&typeof window.BL2CacheResumen.invalidate==="function"){window.BL2CacheResumen.invalidate();}}catch(error){} }
   function source(){if(dataEngine()){return "BL2DataEngine";}if(bl2Students()){return "BL2";}return "ExcelLocalRepo";}
 
-  window.FichaCore={version:VERSION,REQS:FALLBACK_BASE,SPECIAL_REQS:FALLBACK_FINAL,ALL_REQS:FALLBACK_BASE.concat(FALLBACK_EXTRA).concat(FALLBACK_FINAL),NOTE_FIELDS:NOTE_FIELDS,periods:periods,students:students,divisions:divisions,filter:filter,getById:getById,requisitos:requisitos,especiales:especiales,pendientes:pendientes,notas:notas,whatsappUrl:whatsappUrl,telegramUrl:telegramUrl,telegramInfo:telegramInfo,studentMessage:studentMessage,toText:toText,estadoCelda:estadoCelda,estadoNota:estadoNota,estadoMatricula:estadoMatricula,divisionOf:divisionOf,fieldValue:fieldValue,reqValue:reqValue,studentApproval:studentApproval,finalApproval:finalApproval,requirementsForStudent:requirementsForStudent,invalidate:invalidate,source:source,calcularNfin:calcularNfin};
+  window.FichaCore={version:VERSION,REQS:FALLBACK_BASE,SPECIAL_REQS:FALLBACK_FINAL,ALL_REQS:FALLBACK_BASE.concat(FALLBACK_EXTRA).concat(FALLBACK_FINAL),NOTE_FIELDS:NOTE_FIELDS,periods:periods,students:students,divisions:divisions,filter:filter,getById:getById,requisitos:requisitos,especiales:especiales,pendientes:pendientes,notas:notas,whatsappUrl:whatsappUrl,telegramUrl:telegramUrl,telegramInfo:telegramInfo,studentMessage:studentMessage,toText:toText,estadoCelda:estadoCelda,estadoNota:estadoNota,estadoMatricula:estadoMatricula,divisionOf:divisionOf,fieldValue:fieldValue,reqValue:reqValue,studentApproval:studentApproval,finalApproval:finalApproval,requirementsForStudent:requirementsForStudent,invalidate:invalidate,source:source,calcularNfin:calcularNfin,normalizeStudent:normalizeStudent};
 })(window);
