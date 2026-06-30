@@ -8,6 +8,11 @@
   function cfgKey(periodoId){ return "divisiones_periodo__" + String(periodoId || ""); }
   function carreraKey(row){ return T.key(row.nombreCarrera || row.NombreCarrera || row.carrera || row.Carrera || "SIN_CARRERA"); }
   function carreraLabel(row){ return T.cleanSpaces(row.nombreCarrera || row.NombreCarrera || row.carrera || row.Carrera || "Sin carrera"); }
+  function recordDivision(action, periodoId, nombre, payload){
+    if(window.BDLManualEvents && typeof window.BDLManualEvents.recordDivision === "function"){
+      window.BDLManualEvents.recordDivision(action, periodoId, nombre, payload || {});
+    }
+  }
 
   function guardarMuchos(rows){ return B.putAll(B.stores.estudianteDivisiones, rows); }
   function porEstudiante(idEstudiantePeriodo){ return B.byIndex(B.stores.estudianteDivisiones, "by_idEstudiantePeriodo", idEstudiantePeriodo, { limit: 0 }); }
@@ -90,6 +95,7 @@
     carreras = Array.isArray(carreras) ? carreras : [];
     if(!nombre){ return Promise.reject(new Error("Ingrese el nombre de la división.")); }
     return getConfig(periodoId).then(function(config){
+      var before = JSON.parse(JSON.stringify(config || {}));
       var divisiones = config.divisiones || [];
       divisiones.forEach(function(div){ div.carreras = (div.carreras || []).filter(function(key){ return carreras.indexOf(key) < 0; }); });
       var current = divisiones.filter(function(div){ return div.nombre === oldNombre; })[0];
@@ -97,15 +103,26 @@
       current.nombre = nombre;
       current.carreras = carreras;
       config.divisiones = divisiones.filter(function(div){ return div.nombre && ((div.carreras || []).length || div.nombre === nombre); });
-      return saveConfig(periodoId, config).then(function(saved){ return aplicarConfiguracion(periodoId, saved).then(function(){ return saved; }); });
+      return saveConfig(periodoId, config).then(function(saved){
+        return aplicarConfiguracion(periodoId, saved).then(function(){
+          recordDivision("guardar_division", periodoId, nombre, { oldNombre:oldNombre, carreras:carreras, before:before, after:saved });
+          return saved;
+        });
+      });
     });
   }
 
   function borrarDivision(periodoId, nombre){
     nombre = T.cleanSpaces(nombre || "");
     return getConfig(periodoId).then(function(config){
+      var before = JSON.parse(JSON.stringify(config || {}));
       config.divisiones = (config.divisiones || []).filter(function(div){ return div.nombre !== nombre; });
-      return saveConfig(periodoId, config).then(function(saved){ return aplicarConfiguracion(periodoId, saved).then(function(){ return saved; }); });
+      return saveConfig(periodoId, config).then(function(saved){
+        return aplicarConfiguracion(periodoId, saved).then(function(){
+          recordDivision("borrar_division", periodoId, nombre, { oldNombre:nombre, before:before, after:saved });
+          return saved;
+        });
+      });
     });
   }
 
