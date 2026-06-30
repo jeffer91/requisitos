@@ -8,12 +8,14 @@ Funcion o funciones:
 - Bloquear navegacion externa dentro de la ventana principal y abrir enlaces externos seguros fuera de la app.
 - Permitir enlaces http/https y mailto para abrir navegador, Outlook o cliente de correo predeterminado.
 - Abrir SISACAD en una ventana visible independiente para el modulo Sacar N.
+- Navegar de forma controlada hasta Registro Notas Proyecto sin modificar informacion academica.
 - Exponer funciones controladas mediante preload.js.
 Con que se conecta:
 - package.json
 - electron/preload.js
 - Maqueta/maq-index.html
 - sn-sacar-n/sn-sisacad-browser.service.js
+- sn-sacar-n/sn-sisacad-navigation.service.js
 - Coordi/coo.mail.js
 ========================================================= */
 const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
@@ -80,6 +82,10 @@ function findEntryFile() {
   }
 
   throw new Error('No se encontro Maqueta/maq-index.html ni index.html para iniciar Requisitos.');
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getSisacadWindowStatus() {
@@ -168,6 +174,181 @@ function closeSisacadWindow() {
   return getSisacadWindowStatus();
 }
 
+function ensureSisacadOpen() {
+  if (snSisacadWindow && !snSisacadWindow.isDestroyed()) {
+    focusSisacadWindow();
+    return Promise.resolve(getSisacadWindowStatus());
+  }
+  return openSisacadWindow();
+}
+
+function pageStatusScript() {
+  return `(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\\s+/g, ' ')
+      .trim();
+    const bodyText = normalize(document.body ? document.body.innerText : '');
+    const title = document.title || '';
+    const url = location.href;
+    const hasAny = (terms) => terms.some((term) => bodyText.includes(normalize(term)));
+    const hasUser = hasAny(['usuario', 'user', 'correo']);
+    const hasPassword = hasAny(['contraseña', 'contrasena', 'password', 'clave']);
+    const necesitaLogin = (hasUser && hasPassword) || hasAny(['iniciar sesion', 'iniciar sesión', 'login']);
+    const enRegistro = hasAny([
+      'registro notas proyecto',
+      'registro de notas proyecto',
+      'notas proyecto',
+      'promedio trabajo escrito',
+      'promedio defensa oral del proyecto de titulacion',
+      'promedio defensa oral del proyecto de titulación',
+      'calificacion final del proyecto de titulacion',
+      'calificación final del proyecto de titulación'
+    ]);
+    return {
+      ok: true,
+      url,
+      title,
+      necesitaLogin,
+      enRegistro,
+      textoMuestra: bodyText.slice(0, 1200)
+    };
+  })()`;
+}
+
+function clickTextScript(texts) {
+  return `(() => {
+    const wanted = ${JSON.stringify(texts || [])};
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\\s+/g, ' ')
+      .trim();
+    const terms = wanted.map(normalize).filter(Boolean);
+    const selectors = 'a,button,input[type="button"],input[type="submit"],[role="button"],[onclick],li,span,div';
+    const nodes = Array.from(document.querySelectorAll(selectors));
+    const candidates = [];
+    for (const node of nodes) {
+      const raw = node.innerText || node.textContent || node.value || node.title || node.getAttribute('aria-label') || '';
+      const label = normalize(raw);
+      if (!label || label.length > 180) continue;
+      for (const term of terms) {
+        if (label === term || label.includes(term)) {
+          candidates.push({ node, label, term, exact: label === term });
+          break;
+        }
+      }
+    }
+    candidates.sort((a, b) => Number(b.exact) - Number(a.exact) || a.label.length - b.label.length);
+    const found = candidates[0];
+    if (!found) return { ok:false, clicked:false, reason:'texto_no_encontrado', buscado:wanted };
+    const target = found.node.closest('a,button,[role="button"],[onclick],li') || found.node;
+    try { target.scrollIntoView({ block:'center', inline:'center' }); } catch (error) {}
+    try { target.dispatchEvent(new MouseEvent('mouseover', { bubbles:true, cancelable:true, view:window })); } catch (error) {}
+    try { target.dispatchEvent(new MouseEvent('mousedown', { bubbles:true, cancelable:true, view:window })); } catch (error) {}
+    try { target.dispatchEvent(new MouseEvent('mouseup', { bubbles:true, cancelable:true, view:window })); } catch (error) {}
+    try { target.click(); } catch (error) {
+      return { ok:false, clicked:false, reason:'click_error', error:error.message, label:found.label };
+    }
+    return { ok:true, clicked:true, label:found.label, buscado:wanted };
+  })()`;
+}
+
+async function executeInSisacad(script) {
+  if (!snSisacadWindow || snSisacadWindow.isDestroyed()) {
+    return { ok: false, error: 'SISACAD no esta abierto.' };
+  }
+  try {
+    return await snSisacadWindow.webContents.executeJavaScript(script, true);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
+async function checkRegistroNotasProyecto() {
+  await ensureSisacadOpen();
+  const page = await executeInSisacad(pageStatusScript());
+  return Object.assign({}, getSisacadWindowStatus(), page || {});
+}
+
+async function navigateRegistroNotasProyecto() {
+  await ensureSisacadOpen();
+  await wait(800);
+
+  let page = await executeInSisacad(pageStatusScript());
+  if (page && page.necesitaLogin) {
+    return Object.assign({}, getSisacadWindowStatus(), page, {
+      ok: false,
+      necesitaLogin: true,
+      mensaje: 'SISACAD necesita inicio de sesion manual. Ingrese en la ventana visible y vuelva a intentar.'
+    });
+  }
+  if (page && page.enRegistro) {
+    return Object.assign({}, getSisacadWindowStatus(), page, {
+      ok: true,
+      enRegistro: true,
+      mensaje: 'SISACAD ya esta en Registro Notas Proyecto.'
+    });
+  }
+
+  const ingreso = await executeInSisacad(clickTextScript(['Ingreso', 'INGRESO']));
+  await wait(1200);
+
+  page = await executeInSisacad(pageStatusScript());
+  if (page && page.necesitaLogin) {
+    return Object.assign({}, getSisacadWindowStatus(), page, {
+      ok: false,
+      necesitaLogin: true,
+      paso: 'Ingreso',
+      mensaje: 'SISACAD necesita inicio de sesion manual. Ingrese en la ventana visible y vuelva a intentar.'
+    });
+  }
+
+  let registro = await executeInSisacad(clickTextScript([
+    'Registro Notas Proyecto',
+    'Registro de Notas Proyecto',
+    'Registro Notas Proyecto de Titulacion',
+    'Registro Notas Proyecto de Titulación',
+    'Notas Proyecto',
+    'Notas Proyecto de Titulacion',
+    'Notas Proyecto de Titulación'
+  ]));
+  await wait(1500);
+
+  page = await executeInSisacad(pageStatusScript());
+  if (page && page.enRegistro) {
+    return Object.assign({}, getSisacadWindowStatus(), page, {
+      ok: true,
+      enRegistro: true,
+      paso: 'Registro Notas Proyecto',
+      clickIngreso: ingreso,
+      clickRegistro: registro,
+      mensaje: 'SISACAD esta en Registro Notas Proyecto.'
+    });
+  }
+
+  registro = await executeInSisacad(clickTextScript([
+    'Registro Notas Proyecto',
+    'Registro de Notas Proyecto',
+    'Notas Proyecto'
+  ]));
+  await wait(1500);
+  page = await executeInSisacad(pageStatusScript());
+
+  return Object.assign({}, getSisacadWindowStatus(), page || {}, {
+    ok: !!(page && page.enRegistro),
+    enRegistro: !!(page && page.enRegistro),
+    clickIngreso: ingreso,
+    clickRegistro: registro,
+    mensaje: page && page.enRegistro
+      ? 'SISACAD esta en Registro Notas Proyecto.'
+      : 'No se pudo llegar automaticamente a Registro Notas Proyecto. Puede navegar manualmente en la ventana visible y luego continuar.'
+  });
+}
+
 function createMainWindow() {
   const entryFile = findEntryFile();
 
@@ -244,6 +425,8 @@ ipcMain.handle('sn:sisacad-open', async () => openSisacadWindow());
 ipcMain.handle('sn:sisacad-status', () => getSisacadWindowStatus());
 ipcMain.handle('sn:sisacad-focus', () => focusSisacadWindow());
 ipcMain.handle('sn:sisacad-close', () => closeSisacadWindow());
+ipcMain.handle('sn:sisacad-check-registro', async () => checkRegistroNotasProyecto());
+ipcMain.handle('sn:sisacad-navigate-registro', async () => navigateRegistroNotasProyecto());
 
 app.whenReady().then(createMainWindow).catch((error) => {
   console.error('[Requisitos Electron] No se pudo iniciar:', error);
