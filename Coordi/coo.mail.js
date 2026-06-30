@@ -6,6 +6,7 @@ Función o funciones:
 - Crear asunto, cuerpo en texto y cuerpo HTML con tablas reales.
 - Copiar HTML al portapapeles y abrir Outlook/correo mediante mailto.
 - Mantener respaldo si Outlook no inserta automáticamente la tabla.
+- En correo detallado usar la tabla solicitada: Cédula, Nombre y Carrera.
 Con qué se conecta:
 - coo.report.js
 - coo.render.js
@@ -16,13 +17,12 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-coo-mail.1";
+  var VERSION = "1.0.0-coo-mail.2";
 
   function text(value){return String(value == null ? "" : value).trim();}
   function arr(value){return Array.isArray(value) ? value : [];} 
   function esc(value){return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
   function fmt(value){value = Number(value || 0);return value.toLocaleString("es-EC");}
-  function br(lines){return arr(lines).map(esc).join("<br>");}
 
   function areaById(report, areaId){
     var found = null;
@@ -39,9 +39,7 @@ Con qué se conecta:
     return parts.length ? parts.join(" · ") : "Todos los períodos y divisiones disponibles";
   }
 
-  function baseStyle(){
-    return "font-family:Arial,sans-serif;color:#0f172a;font-size:13px;line-height:1.45;";
-  }
+  function baseStyle(){return "font-family:Arial,sans-serif;color:#0f172a;font-size:13px;line-height:1.45;";}
 
   function tableHtml(headers, rows){
     rows = arr(rows);
@@ -171,18 +169,18 @@ Con qué se conecta:
     var area = areaById(report, areaId);
     if(!area){throw new Error("No se encontró el área seleccionada.");}
     var subject = "Detalle de estudiantes pendientes · " + area.area;
+    var headers = [
+      {label:"Cédula", value:function(r){return r.cedula;}},
+      {label:"Nombre", value:function(r){return r.nombre;}},
+      {label:"Carrera", value:function(r){return r.carrera;}}
+    ];
     var html = wrapHtml(subject,
       '<p>Buen día, <strong>'+esc(area.saludo || area.responsable)+'</strong>.</p>'
       + '<p>Se remite el detalle de estudiantes con pendientes correspondientes al área <strong>'+esc(area.area)+'</strong>.</p>'
       + '<p><strong>Corte:</strong> '+esc(filterText(report))+'</p>'
       + '<p><strong>Estudiantes pendientes:</strong> '+fmt(area.totalEstudiantes)+'<br>'
       + '<strong>Requisitos pendientes acumulados:</strong> '+fmt(area.totalPendientes)+'</p>'
-      + tableHtml([
-        {label:"Cédula", value:function(r){return r.cedula;}},
-        {label:"Nombre", value:function(r){return r.nombre;}},
-        {label:"Carrera", value:function(r){return r.carrera;}},
-        {label:"Requisito pendiente", value:function(r){return r.requisitosTexto;}}
-      ], area.estudiantes)
+      + tableHtml(headers, area.estudiantes)
     );
     var plain = [
       "Buen día, " + (area.saludo || area.responsable) + ".",
@@ -192,12 +190,7 @@ Con qué se conecta:
       "Estudiantes pendientes: " + fmt(area.totalEstudiantes),
       "Requisitos pendientes acumulados: " + fmt(area.totalPendientes),
       "",
-      textTable([
-        {label:"Cédula", value:function(r){return r.cedula;}},
-        {label:"Nombre", value:function(r){return r.nombre;}},
-        {label:"Carrera", value:function(r){return r.carrera;}},
-        {label:"Requisito pendiente", value:function(r){return r.requisitosTexto;}}
-      ], area.estudiantes),
+      textTable(headers, area.estudiantes),
       "",
       "Atentamente,",
       "Coordinación de Titulación"
@@ -229,16 +222,12 @@ Con qué se conecta:
       });
       return navigator.clipboard.write([item]);
     }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      return navigator.clipboard.writeText(plain);
-    }
+    if(navigator.clipboard && navigator.clipboard.writeText){return navigator.clipboard.writeText(plain);}
     return Promise.reject(new Error("No se pudo copiar el correo al portapapeles."));
   }
 
   function openExternal(url){
-    if(window.electronAPI && typeof window.electronAPI.openExternal === "function"){
-      return window.electronAPI.openExternal(url);
-    }
+    if(window.electronAPI && typeof window.electronAPI.openExternal === "function"){return window.electronAPI.openExternal(url);}
     window.location.href = url;
     return Promise.resolve(true);
   }
@@ -247,9 +236,7 @@ Con qué se conecta:
     return copyHtml(mail).catch(function(error){
       console.warn("[COOMail] No se pudo copiar HTML; se abrirá mailto con texto plano.", error);
       return false;
-    }).then(function(){
-      return openExternal(mailto(mail));
-    });
+    }).then(function(){return openExternal(mailto(mail));});
   }
 
   window.COOMail = {
