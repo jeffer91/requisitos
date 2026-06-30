@@ -8,6 +8,12 @@
     return H.val('#bdlPeriodoSelect') || (window.BDLState && window.BDLState.getPeriodoActivo ? window.BDLState.getPeriodoActivo() : '');
   }
 
+  function ocultarTablaEstudiantes(){
+    var body = H.one('#bdlStudentsBody');
+    var card = body && body.closest ? body.closest('.bdl-card') : null;
+    if(card){ card.style.display = 'none'; }
+  }
+
   function refrescarResumen(){
     var periodoId = periodoActual();
     var tasks = [];
@@ -56,6 +62,7 @@
 
   function boot(){
     H.notify('Cargando...');
+    ocultarTablaEstudiantes();
     var start = window.BDLocal && window.BDLocal.boot ? window.BDLocal.boot() : Promise.resolve();
     start.then(function(){
       bind();
@@ -65,5 +72,5 @@
   }
 
   if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }else{ boot(); }
-  window.BDLUIApp = { boot:boot, refrescarResumen:refrescarResumen };
+  window.BDLUIApp = { boot:boot, refrescarResumen:refrescarResumen, ocultarTablaEstudiantes:ocultarTablaEstudiantes };
 })(window, document);
