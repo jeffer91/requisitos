@@ -74,10 +74,10 @@ Función:
   function save(id){
     if(!api()){ output(id,{ ok:false, error:"BDLConnSettings no está disponible" }); return; }
     var saved = api().save(id, collect(id));
+    render();
     output(id,{ ok:true, guardado:api().publicView(id) });
     if(window.BLToast){ window.BLToast.show("Ajustes", LABELS[id] + " guardado."); }
     if(window.BLPanelStatus){ window.BLPanelStatus.check(); }
-    render();
     return saved;
   }
 
@@ -85,10 +85,10 @@ Función:
     if(id === "bdlocal"){ return; }
     if(!api()){ output(id,{ ok:false, error:"BDLConnSettings no está disponible" }); return; }
     api().setEnabled(id, false);
+    render();
     output(id,{ ok:true, estado:"pausado" });
     if(window.BLToast){ window.BLToast.show("Ajustes", LABELS[id] + " pausado."); }
     if(window.BLPanelStatus){ window.BLPanelStatus.check(); }
-    render();
   }
 
   function test(id){
