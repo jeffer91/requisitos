@@ -7,6 +7,7 @@ Función o funciones:
 - Evitar render reentrante y bloqueos por caché.
 - Manejar filtros por período, división, matrícula, carrera, estado, requisito y búsqueda.
 - Mostrar aprobación por período solo cuando exista período seleccionado.
+- Refrescarse automáticamente cuando BDLocal actualiza el snapshot.
 Con qué se conecta:
 - stats.rules.js
 - stats.core.js
@@ -18,7 +19,7 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var state={periodId:"",division:"",matricula:"ACTIVO",career:"",status:"",requirementKey:"",studentSearch:"",data:null,rendering:false,pendingRender:null,internalInvalidating:false,searchTimer:null};
+  var state={periodId:"",division:"",matricula:"ACTIVO",career:"",status:"",requirementKey:"",studentSearch:"",data:null,rendering:false,pendingRender:null,internalInvalidating:false,searchTimer:null,refreshTimer:null,bdlocalBound:false};
 
   function el(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
@@ -170,6 +171,23 @@ Con qué se conecta:
 
   function delayedSearchRender(){if(state.searchTimer){clearTimeout(state.searchTimer);}state.searchTimer=setTimeout(function(){state.searchTimer=null;render();},160);}
 
+  function refreshFromBDLocal(reason){
+    if(state.refreshTimer){clearTimeout(state.refreshTimer);}
+    state.refreshTimer=setTimeout(function(){
+      state.refreshTimer=null;
+      render({force:true,reason:reason||"bdlocal-refresh"});
+    },220);
+  }
+
+  function bindBDLocalEvents(){
+    if(state.bdlocalBound){return;}
+    window.addEventListener("bdlocal:legacy-ready",function(){refreshFromBDLocal("bdlocal:legacy-ready");});
+    window.addEventListener("bdlocal:legacy-snapshot",function(){refreshFromBDLocal("bdlocal:legacy-snapshot");});
+    window.addEventListener("requisitos:bl:snapshot-changed",function(){refreshFromBDLocal("snapshot-changed");});
+    window.addEventListener("storage",function(event){if(event&&(event.key==="REQ_BDLOCAL_LEGACY_SNAPSHOT_V1"||event.key==="REQ_EXCEL_LOCAL_V1:snapshot"||event.key==="REQ_BL_SIGNAL_V1")){refreshFromBDLocal("storage:"+event.key);}});
+    state.bdlocalBound=true;
+  }
+
   function bind(){
     on("stats-periodo","change",function(e){state.periodId=e.target.value;state.division="";state.career="";state.status="";state.requirementKey="";render({force:true,reason:"period-change"});});
     on("stats-division","change",function(e){state.division=e.target.value;state.career="";render();});
@@ -179,10 +197,11 @@ Con qué se conecta:
     on("stats-requisito","change",function(e){state.requirementKey=e.target.value;render();});
     on("stats-student-search","input",function(e){state.studentSearch=e.target.value;delayedSearchRender();});
     on("stats-refresh","click",function(){render({force:true,reason:"refresh-button"});});
-    window.addEventListener("requisitos:bl:snapshot-changed",function(){render({force:true,reason:"snapshot-changed"});});
     window.addEventListener("bl2:invalidated",function(){if(!state.internalInvalidating&&state.periodId){render({reason:"bl2-invalidated"});}});
+    bindBDLocalEvents();
   }
 
   function boot(){bind();render({force:false,reason:"boot"});}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+  window.StatsApp={render:render,refreshFromBDLocal:refreshFromBDLocal,getState:function(){return Object.assign({},state);}};
 })(window,document);
