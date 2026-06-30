@@ -10,23 +10,31 @@
 
   function currentPeriodo(){ return H.val("#bdlPeriodoSelect"); }
   function currentSearch(){ return String(H.val("#bdlSearch") || "").toLowerCase().trim(); }
+  function division(row){ return row.divisionPrincipal || row.division || row.Division || (Array.isArray(row.divisiones) ? row.divisiones[0] : "") || "—"; }
 
   function filterRows(rows){
     var q = currentSearch();
     if(!q){ return rows; }
-    return rows.filter(function(row){ return String(row.searchKey || "").indexOf(q) >= 0 || String(row.nombres || "").toLowerCase().indexOf(q) >= 0 || String(row.numeroIdentificacion || "").indexOf(q) >= 0; });
+    return rows.filter(function(row){
+      return String(row.searchKey || "").toLowerCase().indexOf(q) >= 0 ||
+        String(row.nombres || "").toLowerCase().indexOf(q) >= 0 ||
+        String(row.numeroIdentificacion || "").indexOf(q) >= 0 ||
+        String(row.nombreCarrera || "").toLowerCase().indexOf(q) >= 0 ||
+        String(division(row)).toLowerCase().indexOf(q) >= 0;
+    });
   }
 
   function render(rows){
     rows = filterRows(rows || []);
     var body = H.one("#bdlStudentsBody");
     if(!body){ return; }
-    if(!rows.length){ body.innerHTML = '<tr><td colspan="9" class="bdl-muted">No hay estudiantes para mostrar.</td></tr>'; return; }
+    if(!rows.length){ body.innerHTML = '<tr><td colspan="10" class="bdl-muted">No hay estudiantes para mostrar.</td></tr>'; return; }
     body.innerHTML = rows.map(function(row){
       return '<tr>'+
         '<td>'+H.esc(row.numeroIdentificacion)+'</td>'+
         '<td>'+H.esc(row.nombres)+'</td>'+
         '<td>'+H.esc(row.nombreCarrera)+'</td>'+
+        '<td>'+H.esc(division(row))+'</td>'+
         '<td>'+H.esc(row.sede)+'</td>'+
         '<td>'+H.badge(row.estadoMatricula)+'</td>'+
         '<td>'+H.badge(row.academico)+'</td>'+
