@@ -5,6 +5,7 @@ Modulo: Sacar N
 Funcion o funciones:
 - Inicializar la pantalla Sacar N.
 - Conectar estado, renderizado, eventos y carga inicial de BDLocal.
+- Recuperar avance guardado al reabrir el modulo.
 - Mantener lista la pantalla para cargar estudiantes desde Requisitos.
 Con que se conecta:
 - sn-config.js
@@ -13,6 +14,7 @@ Con que se conecta:
 - sn-store.service.js
 - sn-queue.service.js
 - sn-estudiantes.service.js
+- sn-sisacad-extractor.service.js
 - sn-ui-render.service.js
 - sn-ui-events.service.js
 - sn-sacar-n.html
@@ -20,11 +22,17 @@ Con que se conecta:
 (function(window, document){
   "use strict";
 
-  var cfg = window.SNConfig || {};
   var state = window.SNState || {};
   var render = window.SNUIRender || {};
   var events = window.SNUIEvents || {};
   var models = window.SNModels || {};
+
+  function recuperarAvanceGuardado(){
+    var extractor = window.SNSisacadExtractor;
+    if(extractor && typeof extractor.recuperarAvance === "function"){
+      extractor.recuperarAvance();
+    }
+  }
 
   function boot(){
     if(render.initStatic){ render.initStatic(); }
@@ -38,11 +46,12 @@ Con que se conecta:
     }
 
     if(events.init){ events.init(); }
+    recuperarAvanceGuardado();
 
     try{
       window.dispatchEvent(new CustomEvent("sn:boot", {
         detail: {
-          bloque: 4,
+          bloque: 9,
           at: models.ahora ? models.ahora() : new Date().toISOString()
         }
       }));
