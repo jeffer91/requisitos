@@ -3,7 +3,7 @@ Nombre completo: sb.config.js
 Ruta: /BDLocal/connections/supabase/sb.config.js
 Función:
 - Leer configuración local de Supabase.
-- Definir tablas críticas recomendadas.
+- Definir tablas de respaldo crítico y tablas flexibles de fallback.
 - No guardar claves de servicio.
 ========================================================= */
 (function(window){
@@ -12,6 +12,10 @@ Función:
   var STORAGE_KEY = "REQ_SUPABASE_CONFIG_V1";
 
   var TABLES = {
+    records: "app_records",
+    schemas: "app_schemas",
+    cloudLog: "sync_log_cloud",
+    settings: "system_settings",
     divisiones: "manual_divisiones",
     notas: "manual_notas",
     telegram: "manual_telegram",
