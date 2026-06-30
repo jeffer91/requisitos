@@ -17,15 +17,36 @@
   function read(file){
     if(!file){ return Promise.reject(new Error("No se recibió archivo.")); }
     var ext = extension(file.name);
-    if(ext === "xlsx" || ext === "xls"){
+
+    if(ext === "xlsx"){
       if(!window.CargaReaderXLSX){ return Promise.reject(new Error("Lector XLSX no cargado.")); }
       return window.CargaReaderXLSX.read(file);
     }
+
+    if(ext === "xls"){
+      return readText(file).then(function(text){
+        if(window.CargaReaderHTML && window.CargaReaderHTML.looksHtml(text)){
+          return { rows: window.CargaReaderHTML.parse(text), fileName: file.name, origen: "html_excel_viejo", detectedType: "html" };
+        }
+        if(window.CargaReaderXLSX){
+          return window.CargaReaderXLSX.read(file).catch(function(){
+            var rows = window.CargaReaderCSV ? window.CargaReaderCSV.parse(text) : window.CargaReaderTXT.parse(text);
+            return { rows: rows, fileName: file.name, origen: "archivo_xls_texto", detectedType: "texto" };
+          });
+        }
+        var rows = window.CargaReaderCSV ? window.CargaReaderCSV.parse(text) : window.CargaReaderTXT.parse(text);
+        return { rows: rows, fileName: file.name, origen: "archivo_xls_texto", detectedType: "texto" };
+      });
+    }
+
     return readText(file).then(function(text){
+      if(window.CargaReaderHTML && window.CargaReaderHTML.looksHtml(text)){
+        return { rows: window.CargaReaderHTML.parse(text), fileName: file.name, origen: "html_excel_viejo", detectedType: "html" };
+      }
       var rows = ext === "csv" && window.CargaReaderCSV ? window.CargaReaderCSV.parse(text) : window.CargaReaderTXT.parse(text);
-      return { rows: rows, fileName: file.name, origen: "archivo" };
+      return { rows: rows, fileName: file.name, origen: "archivo", detectedType: ext || "texto" };
     });
   }
 
-  window.CargaReaderFile = { read: read, extension: extension };
+  window.CargaReaderFile = { read: read, extension: extension, readText: readText };
 })(window);
