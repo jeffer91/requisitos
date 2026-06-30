@@ -128,7 +128,13 @@
       <article class="bl-panel-card">
         <h2>Excel</h2>
         <p>Respaldo portable y cierre del día.</p>
-        <div class="bl-panel-note">Aquí se agregará el botón “Cerrar día / Proteger trabajo” y la descarga de respaldo.</div>
+        <div class="bl-continuity-actions">
+          <button id="blBtnCloseDay" class="bl-btn primary">Cerrar día / Proteger trabajo</button>
+          <button id="blBtnBackupJson" class="bl-btn light">Descargar respaldo completo JSON</button>
+          <button id="blBtnBackupCriticalCsv" class="bl-btn warning">Descargar críticos CSV</button>
+        </div>
+        <div class="bl-panel-note">El cierre del día genera un respaldo completo y un archivo CSV compatible con Excel para eventos manuales/críticos.</div>
+        <pre id="blCloseDayOutput" class="bl-output">Sin cierre generado.</pre>
       </article>
     </section>
 
@@ -213,6 +219,7 @@
   <script src="ui/panels/panel.status.js"></script>
   <script src="ui/panels/panel.settings.js"></script>
   <script src="ui/panels/panel.diagnostics.js"></script>
+  <script src="ui/panels/panel.close-day.js"></script>
   <script src="ui/bl.app.js"></script>
   <script src="ui/bl.ui.js"></script>
 </body>
