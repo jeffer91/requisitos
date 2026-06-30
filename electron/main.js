@@ -9,7 +9,7 @@ Funcion o funciones:
 - Permitir enlaces http/https y mailto para abrir navegador, Outlook o cliente de correo predeterminado.
 - Abrir SISACAD en una ventana visible independiente para el modulo Sacar N.
 - Navegar de forma controlada hasta Registro Notas Proyecto sin modificar informacion academica.
-- Ejecutar prueba visible de lectura con pocos estudiantes.
+- Ejecutar prueba visible y extraccion automatica controlada.
 - Exponer funciones controladas mediante preload.js.
 Con que se conecta:
 - package.json
@@ -315,12 +315,20 @@ async function navigateRegistroNotasProyecto() {
   });
 }
 
-async function runPruebaVisible(estudiantes) {
-  return snSisacadAutomation.runPruebaVisible(estudiantes, {
+function automationContext() {
+  return {
     getWindow: () => snSisacadWindow,
     ensureOpen: ensureSisacadOpen,
     status: getSisacadWindowStatus
-  });
+  };
+}
+
+async function runPruebaVisible(estudiantes) {
+  return snSisacadAutomation.runPruebaVisible(estudiantes, automationContext());
+}
+
+async function runExtraccionAutomatica(estudiantes) {
+  return snSisacadAutomation.runExtraccionAutomatica(estudiantes, automationContext());
 }
 
 function createMainWindow() {
@@ -393,6 +401,7 @@ ipcMain.handle('sn:sisacad-close', () => closeSisacadWindow());
 ipcMain.handle('sn:sisacad-check-registro', async () => checkRegistroNotasProyecto());
 ipcMain.handle('sn:sisacad-navigate-registro', async () => navigateRegistroNotasProyecto());
 ipcMain.handle('sn:sisacad-prueba-visible', async (_event, estudiantes) => runPruebaVisible(estudiantes));
+ipcMain.handle('sn:sisacad-extraccion-automatica', async (_event, estudiantes) => runExtraccionAutomatica(estudiantes));
 
 app.whenReady().then(createMainWindow).catch((error) => {
   console.error('[Requisitos Electron] No se pudo iniciar:', error);
