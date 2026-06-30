@@ -5,6 +5,7 @@ Función o funciones:
 - Definir rutas internas reales del menú de Requisitos.
 - Enviar Carga a la pantalla funcional BDLocal/bdlocal.html.
 - Enviar BL a la pantalla de control BDLocal/bl.html.
+- Registrar Sacar N como módulo activo para extracción controlada de notas.
 - Marcar como pendientes las pantallas que aún no existen en este repositorio para evitar iframe roto.
 Con qué se conecta:
 - maq-config-service.js
@@ -22,6 +23,7 @@ Con qué se conecta:
     coordi:{id:"coordi",nombre:"Coordi",ruta:base+"/Coordi/coordi.html",estado:"activo"},
     modulo_reporte:{id:"modulo_reporte",nombre:"Reportes",ruta:base+"/Reportes/repo.html",estado:"activo"},
     defart:{id:"defart",nombre:"Defensas",ruta:base+"/defart/defart.html",estado:"activo"},
+    sacar_n:{id:"sacar_n",nombre:"Sacar N",ruta:base+"/sn-sacar-n/sn-sacar-n.html",estado:"activo"},
     titulos_estudiante:{id:"titulos_estudiante",nombre:"Títulos - Estudiante",ruta:base+"/Titulos/public/ta-titulo-articulo-estudiante.html",estado:"pendiente"},
     titulos_admin:{id:"titulos_admin",nombre:"Títulos - Administrador",ruta:base+"/Titulos/electron/admin/ta-titulo-articulo-administrador.html",estado:"pendiente"},
     titulos_coordinador:{id:"titulos_coordinador",nombre:"Títulos - Coordinador",ruta:base+"/Titulos/public/ta-titulo-articulo-coordinador.html",estado:"pendiente"},
