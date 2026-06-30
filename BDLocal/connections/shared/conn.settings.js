@@ -22,7 +22,7 @@ Función:
     firebase:{ id:"firebase", enabled:true, name:"Firebase", projectId:"", apiKey:"", authDomain:"", storageBucket:"", appId:"", notes:"Nube principal" },
     supabase:{ id:"supabase", enabled:false, name:"Supabase", url:"", anonKey:"", notes:"Nube secundaria para datos críticos" },
     excel:{ id:"excel", enabled:false, name:"Excel", mode:"download", folderName:"", notes:"Respaldo portable / cierre del día" },
-    googleSheets:{ id:"googleSheets", enabled:false, name:"Google Sheets", sheetId:"", webAppUrl:"", notes:"Reporte visible" }
+    googleSheets:{ id:"googleSheets", enabled:false, name:"Google Sheets", sheetId:"", webAppUrl:"", notes:"Reporte visible incremental" }
   };
 
   function clone(value){ return JSON.parse(JSON.stringify(value || {})); }
@@ -85,7 +85,7 @@ Función:
     }
     if(id === "supabase"){ return s.enabled && !!s.url && !!s.anonKey; }
     if(id === "excel"){ return s.enabled === true; }
-    if(id === "googleSheets"){ return s.enabled && (!!s.webAppUrl || !!s.sheetId); }
+    if(id === "googleSheets"){ return s.enabled && !!s.sheetId && !!s.webAppUrl; }
     return s.enabled === true;
   }
 
