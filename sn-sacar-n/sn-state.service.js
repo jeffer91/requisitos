@@ -5,7 +5,7 @@ Modulo: Sacar N
 Funcion o funciones:
 - Mantener el estado general del modulo Sacar N.
 - Guardar estudiantes, resultados, novedades y avance.
-- Preparar pausa, continuacion y recuperacion para bloques posteriores.
+- Preparar pausa, continuacion, recuperacion y resumen final.
 Con que se conecta:
 - sn-config.js
 - sn-models.js
@@ -25,6 +25,12 @@ Con que se conecta:
       carreraSeleccionada: "",
       modalidadSeleccionada: "",
       busqueda: "",
+      catalogos: {
+        periodos: [],
+        carreras: [],
+        modalidades: []
+      },
+      estudiantesBase: [],
       estudiantes: [],
       resultados: [],
       novedades: [],
@@ -43,7 +49,7 @@ Con que se conecta:
         total: 0,
         porcentaje: 0
       },
-      mensaje: "Modulo base creado. Pendiente conectar al menu y a BDLocal.",
+      mensaje: "Modulo Sacar N listo para cargar datos desde BDLocal.",
       actualizadoEn: models.ahora ? models.ahora() : new Date().toISOString()
     };
   }
@@ -84,7 +90,18 @@ Con que se conecta:
     });
   }
 
+  function asegurarEstructura(){
+    state.catalogos = state.catalogos || { periodos: [], carreras: [], modalidades: [] };
+    state.estudiantesBase = Array.isArray(state.estudiantesBase) ? state.estudiantesBase : [];
+    state.estudiantes = Array.isArray(state.estudiantes) ? state.estudiantes : [];
+    state.resultados = Array.isArray(state.resultados) ? state.resultados : [];
+    state.novedades = Array.isArray(state.novedades) ? state.novedades : [];
+    state.resumen = state.resumen || {};
+    state.avance = state.avance || { indiceActual: 0, procesados: 0, total: 0, porcentaje: 0 };
+  }
+
   function recalcularResumen(){
+    asegurarEstructura();
     var estados = cfg.estadosEstudiante || {};
     var estudiantes = Array.isArray(state.estudiantes) ? state.estudiantes : [];
     var resumen = {
@@ -103,6 +120,7 @@ Con que se conecta:
       if(estado === (estados.sinNotas || "Sin notas")){ resumen.sinNotas += 1; return; }
       if(estado === (estados.noEncontrado || "No encontrado")){ resumen.noEncontrados += 1; return; }
       if(estado === (estados.errorCarga || "Error de carga")){ resumen.errores += 1; return; }
+      if(estado === (estados.sesionExpirada || "Sesion expirada")){ resumen.errores += 1; return; }
       if(estado === (estados.revisarManualmente || "Revisar manualmente")){ resumen.revisar += 1; return; }
       resumen.pendientes += 1;
     });
@@ -114,6 +132,7 @@ Con que se conecta:
   }
 
   function get(){
+    asegurarEstructura();
     return clonar(state);
   }
 
@@ -174,6 +193,8 @@ Con que se conecta:
       listeners = listeners.filter(function(item){ return item !== fn; });
     };
   }
+
+  recalcularResumen();
 
   window.SNState = {
     get: get,
