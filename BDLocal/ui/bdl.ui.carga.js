@@ -40,11 +40,22 @@
     }).catch(function(error){ H.notify(error && error.message ? error.message : String(error), 'error'); });
   }
 
+  function reloadAfterSave(){
+    var reload = window.BDLUIDashboard ? window.BDLUIDashboard.loadPeriodos() : Promise.resolve([]);
+    return reload.then(function(){
+      var periodoId = H.val('#bdlPeriodoSelect') || (window.BDLState && window.BDLState.getPeriodoActivo ? window.BDLState.getPeriodoActivo() : "");
+      var tasks = [];
+      if(periodoId && window.BDLUIDashboard){ tasks.push(window.BDLUIDashboard.loadDashboard(periodoId)); }
+      if(window.BDLUIEstudiantes){ tasks.push(window.BDLUIEstudiantes.load({ periodoId:periodoId, page:1 })); }
+      return Promise.all(tasks);
+    });
+  }
+
   function save(){
     if(!window.CargaApp){ H.notify('CargaApp no disponible.', 'error'); return; }
     window.CargaApp.save({ allowErrors:false }).then(function(report){
       H.notify(report.ok ? 'Carga guardada en BDLocal.' : 'La carga no se guardó.', report.ok ? '' : 'error');
-      if(window.BDLUIDashboard){ window.BDLUIDashboard.loadPeriodos(); }
+      return reloadAfterSave().then(function(){ return report; });
     }).catch(function(error){ H.notify(error && error.message ? error.message : String(error), 'error'); });
   }
 
