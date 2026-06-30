@@ -75,6 +75,7 @@
     "continuity/events/cont.event.classify.js",
     "continuity/events/cont.event.repo.js",
     "continuity/events/cont.event.create.js",
+    "continuity/events/cont.event.manual.js",
     "continuity/health/cont.health.repo.js",
     "continuity/health/cont.health.checker.js",
     "continuity/guardian/cont.guardian.state.js",
