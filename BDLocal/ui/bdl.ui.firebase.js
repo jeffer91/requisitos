@@ -18,9 +18,20 @@
   function run(){
     if(!window.BDLSync || !window.BDLSync.syncNow){ H.notify("BDLSync no disponible", "error"); return Promise.resolve(null); }
     H.notify("Sincronizando con Firebase...");
-    return window.BDLSync.syncNow({ manual:true }).then(function(result){
-      H.notify(result && result.ok ? "Sincronización completada" : "Sincronización con errores", result && result.ok ? "" : "error");
+    return window.BDLSync.syncNow({ manual:true, full:true }).then(function(result){
+      if(result && result.ok){
+        var down = result.result && result.result.down ? result.result.down : [];
+        var periodos = down[0] && down[0].rows ? down[0].rows : 0;
+        var estudiantes = down[1] && down[1].rows ? down[1].rows : 0;
+        H.notify("Sincronización completada. Periodos: " + periodos + " | Estudiantes: " + estudiantes);
+      }else{
+        var msg = result && result.error && result.error.message ? result.error.message : "Sincronización con errores";
+        H.notify(msg, "error");
+      }
       return reloadAfterSync(result);
+    }).catch(function(error){
+      H.notify(error && error.message ? error.message : String(error), "error");
+      return { ok:false, error:error };
     });
   }
 
