@@ -4,7 +4,7 @@ Ruta o ubicación: /Requisitos/Maqueta/maq-config-service.js
 Función o funciones:
 - Construir el menú superior de Requisitos en el orden definido.
 - Mantener Carga como pantalla inicial.
-- No mostrar Base Local como pestaña separada porque su funcionalidad está dentro de Carga.
+- Mantener BL como pantalla de control de BDLocal y Firebase.
 Con qué se conecta:
 - maq-menu.js
 - maq-modulos-registry.js
@@ -13,6 +13,7 @@ Con qué se conecta:
   "use strict";
   var ORDER=[
     {tipo:"modulo",moduloId:"carga_excel",etiqueta:"Carga"},
+    {tipo:"modulo",moduloId:"baselocal",etiqueta:"BL"},
     {tipo:"modulo",moduloId:"tabla_principal",etiqueta:"tabla"},
     {tipo:"modulo",moduloId:"ficha_estudiante",etiqueta:"Ficha"},
     {tipo:"modulo",moduloId:"stat_main",etiqueta:"Stats"},
