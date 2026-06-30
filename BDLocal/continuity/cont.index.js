@@ -3,13 +3,13 @@ Nombre completo: cont.index.js
 Ruta: /BDLocal/continuity/cont.index.js
 Función:
 - Punto de entrada del motor automático de continuidad.
-- Expone estado, creación de eventos y verificación manual.
-- No reemplaza todavía la sincronización actual.
+- Expone estado, creación de eventos, verificación y protección secundaria.
+- No reemplaza todavía la sincronización principal actual.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.2.0-guardian";
+  var VERSION = "0.3.0-supabase";
 
   function status(){
     var guardian = window.BDLContGuardian && typeof window.BDLContGuardian.status === "function" ? window.BDLContGuardian.status() : { mode:"preparado", activeTarget:"firebase" };
@@ -38,10 +38,19 @@ Función:
     return window.BDLContGuardian.checkNow();
   }
 
+  function protectEvent(event){
+    if(!event || !event.id){ event = createEvent(event || {}); }
+    if(!window.BDLContRouteFallback || typeof window.BDLContRouteFallback.protect !== "function"){
+      return Promise.resolve({ ok:false, message:"Router de continuidad no disponible.", event:event });
+    }
+    return window.BDLContRouteFallback.protect(event);
+  }
+
   window.BDLContinuity = {
     version: VERSION,
     status: status,
     createEvent: createEvent,
-    checkNow: checkNow
+    checkNow: checkNow,
+    protectEvent: protectEvent
   };
 })(window);
