@@ -4,11 +4,12 @@ Ruta o ubicacion: /Requisitos/sn-sacar-n/sn-ui-events.service.js
 Modulo: Sacar N
 Funcion o funciones:
 - Conectar eventos de botones, filtros y paneles de la pantalla Sacar N.
-- Mantener separados los eventos de la logica principal.
-- Dejar respuestas temporales claras mientras faltan BDLocal, SISACAD y Playwright.
+- Ejecutar la carga de estudiantes desde BDLocal.
+- Dejar respuestas temporales claras para SISACAD y Playwright, que vienen en bloques posteriores.
 Con que se conecta:
 - sn-config.js
 - sn-state.service.js
+- sn-estudiantes.service.js
 - sn-ui-render.service.js
 - sn-sacar-n.js
 ========================================================= */
@@ -33,24 +34,59 @@ Con que se conecta:
     }
   }
 
+  function patchFiltro(nombre, valor){
+    var data = {};
+    data[nombre] = valor || "";
+    if(state.patch){ state.patch(data); }
+  }
+
   function toggleNovedades(){
     var panel = $("snNovedadesPanel");
     if(!panel){ return; }
     panel.classList.toggle("sn-panel-open");
   }
 
-  function bindFilters(){
-    var buscar = $("snBuscar");
-    if(buscar && state.patch){
-      buscar.addEventListener("input", function(){
-        state.patch({ busqueda: buscar.value || "" });
+  function cargarCatalogosIniciales(){
+    var svc = window.SNEstudiantes;
+    if(svc && typeof svc.cargarCatalogos === "function"){
+      svc.cargarCatalogos().catch(function(error){
+        console.error("[SN_UI_EVENTS] Error al cargar catalogos", error);
       });
+    }else{
+      setMensaje("No se encontro el servicio de estudiantes. Revise sn-estudiantes.service.js.");
+    }
+  }
+
+  function bindFilters(){
+    var periodo = $("snPeriodo");
+    var carrera = $("snCarrera");
+    var modalidad = $("snModalidad");
+    var buscar = $("snBuscar");
+
+    if(periodo){
+      periodo.addEventListener("change", function(){ patchFiltro("periodoSeleccionado", periodo.value); });
+    }
+    if(carrera){
+      carrera.addEventListener("change", function(){ patchFiltro("carreraSeleccionada", carrera.value); });
+    }
+    if(modalidad){
+      modalidad.addEventListener("change", function(){ patchFiltro("modalidadSeleccionada", modalidad.value); });
+    }
+    if(buscar){
+      buscar.addEventListener("input", function(){ patchFiltro("busqueda", buscar.value); });
     }
   }
 
   function bindButtons(){
     bindClick("snBtnCargarEstudiantes", function(){
-      setMensaje("Bloque 4 pendiente: aqui se cargaran estudiantes desde BDLocal.");
+      var svc = window.SNEstudiantes;
+      if(svc && typeof svc.cargarEstudiantes === "function"){
+        svc.cargarEstudiantes().catch(function(error){
+          console.error("[SN_UI_EVENTS] Error al cargar estudiantes", error);
+        });
+      }else{
+        setMensaje("No se encontro el servicio para cargar estudiantes desde BDLocal.");
+      }
     });
 
     bindClick("snBtnAbrirSisacad", function(){
@@ -81,26 +117,16 @@ Con que se conecta:
       setMensaje("Bloque 11 pendiente: aqui se exportara el Excel final con hojas Notas Proyecto y Errores.");
     });
 
-    bindClick("snBtnVerNovedades", function(){
-      toggleNovedades();
-    });
-
-    bindClick("snBtnCerrarNovedades", function(){
-      toggleNovedades();
-    });
-
-    bindClick("snBtnResetBase", function(){
-      if(state.reset){ state.reset(); }
-    });
+    bindClick("snBtnVerNovedades", function(){ toggleNovedades(); });
+    bindClick("snBtnCerrarNovedades", function(){ toggleNovedades(); });
+    bindClick("snBtnResetBase", function(){ if(state.reset){ state.reset(); cargarCatalogosIniciales(); } });
   }
 
   function init(){
     bindFilters();
     bindButtons();
+    cargarCatalogosIniciales();
   }
 
-  window.SNUIEvents = {
-    init: init,
-    toggleNovedades: toggleNovedades
-  };
+  window.SNUIEvents = { init: init, toggleNovedades: toggleNovedades };
 })(window, document);
