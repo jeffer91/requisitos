@@ -16,10 +16,18 @@ Función:
   function modeClass(mode){ if(mode === "normal"){ return ""; } if(mode === "respaldo_local" || mode === "sin_conexion"){ return "bad"; } return "warn"; }
   function modeLabel(mode){ return window.BDLContModes ? window.BDLContModes.label(mode) : (mode || "Preparado"); }
 
+  function headline(row){
+    row = row || {};
+    if(row.status === "pausado"){ return "Pausado"; }
+    if(row.status === "no_configurado"){ return "Configurar"; }
+    if(row.status === "no_disponible"){ return "No disponible"; }
+    return row.ok ? "Disponible" : "Pendiente";
+  }
+
   function card(row, id){
     row = row || { id:id, ok:false, status:"sin_estado", message:"Sin revisar" };
     var status = row.status || (row.ok ? "ok" : "error");
-    return '<article class="bl-health-card"><small>'+esc(NAMES[id]||id)+'</small><strong>'+esc(row.ok ? "Disponible" : "Pendiente")+'</strong><i class="bl-health-status '+esc(status)+'">'+esc(status)+'</i><span title="'+esc(row.message||"")+'">'+esc(row.message||"Sin mensaje")+'</span></article>';
+    return '<article class="bl-health-card"><small>'+esc(NAMES[id]||id)+'</small><strong>'+esc(headline(row))+'</strong><i class="bl-health-status '+esc(status)+'">'+esc(status)+'</i><span title="'+esc(row.message||"")+'">'+esc(row.message||"Sin mensaje")+'</span></article>';
   }
 
   function render(){
