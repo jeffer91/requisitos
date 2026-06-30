@@ -12,6 +12,16 @@ Función:
   function txt(value){ return String(value == null ? "" : value).trim(); }
   function emit(name, detail){ try{ window.dispatchEvent(new CustomEvent(name, { detail:detail || {} })); }catch(error){} }
 
+  function studentId(row){
+    row = row || {};
+    return txt(row.idEstudiantePeriodo || row._idEstudiantePeriodo || row._bl2Id || row._defId || row._id || row._docId || row.docId || row.numeroIdentificacion || row.NumeroIdentificacion || row.identificacion || row.Identificacion || row.cedula || row.Cedula || row.CEDULA || row._cedula || row.id || "");
+  }
+
+  function periodId(row){
+    row = row || {};
+    return txt(row.periodoId || row._periodoId || row.ultimoPeriodoId || row.periodId || row.PeriodoId || row.periodo || row.Periodo || row._periodo || row._periodoNormalizado || "");
+  }
+
   function protectAsync(event){
     if(!window.BDLContinuity || typeof window.BDLContinuity.protectEvent !== "function"){ return; }
     Promise.resolve().then(function(){ return window.BDLContinuity.protectEvent(event); }).then(function(result){
@@ -43,8 +53,8 @@ Función:
     return record({
       tipoDato: "nota",
       prioridad: "critico",
-      estudianteId: txt(row.idEstudiantePeriodo || row.numeroIdentificacion || row.cedula || row.id || ""),
-      periodoId: txt(row.periodoId || ""),
+      estudianteId: studentId(row),
+      periodoId: periodId(row),
       campo: txt(field || "nota"),
       valorAnterior: oldValue == null ? "" : oldValue,
       valorNuevo: newValue == null ? "" : newValue,
@@ -52,12 +62,12 @@ Función:
     });
   }
 
-  function recordDivision(action, periodoId, nombre, payload){
+  function recordDivision(action, periodoIdValue, nombre, payload){
     return record({
       tipoDato: "division",
       prioridad: "manual",
       estudianteId: "",
-      periodoId: txt(periodoId),
+      periodoId: txt(periodoIdValue),
       campo: txt(action || "division"),
       valorAnterior: payload && payload.oldNombre ? payload.oldNombre : "",
       valorNuevo: txt(nombre),
@@ -70,8 +80,8 @@ Función:
     return record({
       tipoDato: "telegram",
       prioridad: "manual",
-      estudianteId: txt(row.idEstudiantePeriodo || row.numeroIdentificacion || row.cedula || row.id || ""),
-      periodoId: txt(row.periodoId || ""),
+      estudianteId: studentId(row),
+      periodoId: periodId(row),
       campo: txt(field || "telegram"),
       valorAnterior: oldValue == null ? "" : oldValue,
       valorNuevo: newValue == null ? "" : newValue,
@@ -84,9 +94,23 @@ Función:
     return record({
       tipoDato: "titulo",
       prioridad: "critico",
-      estudianteId: txt(row.idEstudiantePeriodo || row.numeroIdentificacion || row.cedula || row.id || ""),
-      periodoId: txt(row.periodoId || ""),
+      estudianteId: studentId(row),
+      periodoId: periodId(row),
       campo: txt(field || "titulo"),
+      valorAnterior: oldValue == null ? "" : oldValue,
+      valorNuevo: newValue == null ? "" : newValue,
+      meta: Object.assign({ row:row }, meta || {})
+    });
+  }
+
+  function recordModalidad(row, oldValue, newValue, meta){
+    row = row || {};
+    return record({
+      tipoDato: "modalidad",
+      prioridad: "manual",
+      estudianteId: studentId(row),
+      periodoId: periodId(row),
+      campo: "modalidadTitulacion",
       valorAnterior: oldValue == null ? "" : oldValue,
       valorNuevo: newValue == null ? "" : newValue,
       meta: Object.assign({ row:row }, meta || {})
@@ -98,6 +122,9 @@ Función:
     recordNota: recordNota,
     recordDivision: recordDivision,
     recordTelegram: recordTelegram,
-    recordTitulo: recordTitulo
+    recordTitulo: recordTitulo,
+    recordModalidad: recordModalidad,
+    studentId: studentId,
+    periodId: periodId
   };
 })(window);
