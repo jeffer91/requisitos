@@ -1,1 +1,113 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>BL | Requisitos</title><link rel="stylesheet" href="ui/bl.ui.css"></head><body><main class="bl-shell"><header class="bl-head"><div><h1>BL</h1><p>Centro de control de BDLocal y Firebase.</p></div><div class="bl-actions"><button id="blBtnSync" class="bl-btn primary">Sincronizar</button><button id="blBtnUpload" class="bl-btn success">Subir a Firebase</button><button id="blBtnDownload" class="bl-btn warning">Bajar de Firebase</button><button id="blBtnPurge" class="bl-btn danger">Purgar formatos</button><button id="blBtnDiff" class="bl-btn light">Ver diferencias</button><button id="blBtnDiag" class="bl-btn light">Diagnóstico</button></div></header><section class="bl-grid"><article class="bl-card"><span>Local</span><strong id="blCountLocal">0</strong></article><article class="bl-card"><span>Firebase</span><strong id="blCountFirebase">0</strong></article><article class="bl-card"><span>Diferencias</span><strong id="blCountDiff">0</strong></article><article class="bl-card"><span>Pendientes</span><strong id="blCountQueue">0</strong></article></section><section class="bl-card big"><div class="bl-title-row"><div><h2>Tablas</h2><p>Ver exactamente los registros guardados localmente o en Firebase.</p></div><div class="bl-filters"><select id="blSource"><option value="local">BDLocal</option><option value="firebase">Firebase</option></select><select id="blTable"></select><select id="blPeriod"><option value="">Todos los períodos</option></select><button id="blBtnLoadTable" class="bl-btn light">Ver tabla</button></div></div><div id="blTableWrap" class="bl-table-wrap"><div class="bl-empty">Seleccione una tabla.</div></div></section><section class="bl-card big"><div class="bl-title-row"><div><h2>Buscador inteligente</h2><p>Busque por cédula, nombre, carrera, correo, celular o cualquier dato.</p></div><div class="bl-search"><input id="blSearch" placeholder="Buscar estudiante o dato específico..."><button id="blBtnSearch" class="bl-btn primary">Buscar</button></div></div><div id="blSearchResults" class="bl-results"><div class="bl-empty">Sin búsqueda.</div></div></section><section class="bl-card big"><h2>Resultado / diferencias / diagnóstico</h2><pre id="blOutput" class="bl-output">Listo.</pre></section></main><section id="blModal" class="bl-modal" hidden><div class="bl-modal-card"><header><h2 id="blModalTitle">Datos</h2><button id="blModalClose" class="bl-btn light">Cerrar</button></header><pre id="blModalBody"></pre></div></section><script src="adapters/bdl.screen-deps.js"></script><script src="ui/bl.ui.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BL | Requisitos</title>
+  <link rel="stylesheet" href="ui/bl.ui.css">
+</head>
+<body>
+  <main class="bl-shell">
+    <header class="bl-head">
+      <div>
+        <h1>BL</h1>
+        <p>Centro de control de BDLocal y Firebase.</p>
+      </div>
+      <div class="bl-actions">
+        <button id="blBtnSync" class="bl-btn primary">Sincronizar</button>
+        <button id="blBtnUpload" class="bl-btn success">Subir a Firebase</button>
+        <button id="blBtnDownload" class="bl-btn warning">Bajar de Firebase</button>
+        <button id="blBtnPurge" class="bl-btn danger">Purgar</button>
+        <button id="blBtnDiff" class="bl-btn light">Ver diferencias</button>
+        <button id="blBtnDiag" class="bl-btn light">Diagnóstico</button>
+      </div>
+    </header>
+
+    <section class="bl-grid">
+      <article class="bl-card"><span>Local</span><strong id="blCountLocal">0</strong></article>
+      <article class="bl-card"><span>Firebase</span><strong id="blCountFirebase">0</strong></article>
+      <article class="bl-card"><span>Diferencias</span><strong id="blCountDiff">0</strong></article>
+      <article class="bl-card"><span>Pendientes</span><strong id="blCountQueue">0</strong></article>
+    </section>
+
+    <section class="bl-card big">
+      <div class="bl-title-row">
+        <div>
+          <h2>Tablas</h2>
+          <p>Ver exactamente los registros guardados localmente o en Firebase.</p>
+        </div>
+        <div class="bl-filters">
+          <select id="blSource"><option value="local">BDLocal</option><option value="firebase">Firebase</option></select>
+          <select id="blTable"></select>
+          <select id="blPeriod"><option value="">Todos los períodos</option></select>
+          <button id="blBtnLoadTable" class="bl-btn light">Ver tabla</button>
+        </div>
+      </div>
+      <div id="blTableWrap" class="bl-table-wrap"><div class="bl-empty">Seleccione una tabla.</div></div>
+    </section>
+
+    <section class="bl-card big">
+      <div class="bl-title-row">
+        <div>
+          <h2>Buscador inteligente</h2>
+          <p>Busque por cédula, nombre, carrera, correo, celular o cualquier dato.</p>
+        </div>
+        <div class="bl-search">
+          <input id="blSearch" placeholder="Buscar estudiante o dato específico...">
+          <button id="blBtnSearch" class="bl-btn primary">Buscar</button>
+        </div>
+      </div>
+      <div id="blSearchResults" class="bl-results"><div class="bl-empty">Sin búsqueda.</div></div>
+    </section>
+
+    <section class="bl-card big">
+      <h2>Resultado / diferencias / diagnóstico</h2>
+      <pre id="blOutput" class="bl-output">Listo.</pre>
+    </section>
+  </main>
+
+  <section id="blModal" class="bl-modal" hidden>
+    <div class="bl-modal-card">
+      <header><h2 id="blModalTitle">Datos</h2><button id="blModalClose" class="bl-btn light">Cerrar</button></header>
+      <pre id="blModalBody"></pre>
+    </div>
+  </section>
+
+  <section id="blPurgeModal" class="bl-modal" hidden>
+    <div class="bl-modal-card bl-modal-wide">
+      <header>
+        <div>
+          <h2>Depuración segura</h2>
+          <p>Primero analiza, luego aprueba manualmente, y recién ahí se corrige.</p>
+        </div>
+        <button id="blPurgeClose" class="bl-btn light">Cerrar</button>
+      </header>
+      <div class="bl-purge-body">
+        <div class="bl-purge-tabs">
+          <button id="blPurgeSourceLocal" class="bl-tab active" data-source="local">Purgar BDLocal</button>
+          <button id="blPurgeSourceFirebase" class="bl-tab" data-source="firebase">Purgar Firebase</button>
+        </div>
+        <div class="bl-purge-options">
+          <label><input type="checkbox" class="bl-purge-check" value="periodos" checked> Purgar períodos</label>
+          <label><input type="checkbox" class="bl-purge-check" value="cedulas" checked> Cédulas duplicadas</label>
+          <label><input type="checkbox" class="bl-purge-check" value="telefonos" checked> Teléfonos duplicados</label>
+          <label><input type="checkbox" class="bl-purge-check" value="sinPeriodo" checked> Estudiantes sin período</label>
+          <label><input type="checkbox" class="bl-purge-check" value="formatos" checked> Formatos de documentos</label>
+        </div>
+        <div class="bl-purge-actions">
+          <button id="blPurgeAnalyze" class="bl-btn primary">Analizar incongruencias</button>
+          <button id="blPurgeApply" class="bl-btn danger" disabled>Aplicar aprobados</button>
+          <button id="blPurgeCopy" class="bl-btn light">Copiar reporte</button>
+        </div>
+        <div class="bl-purge-warning">
+          En Firebase no se borra nada automáticamente: se crea respaldo y se marca lo conflictivo para revisión.
+        </div>
+        <div id="blPurgeResults" class="bl-purge-results"><div class="bl-empty">Aún no se ha analizado.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <script src="adapters/bdl.screen-deps.js"></script>
+  <script src="ui/bl.ui.js"></script>
+</body>
+</html>
