@@ -18,6 +18,7 @@ Función:
 
   function boot(){
     if(window.BLTabs){ window.BLTabs.boot(); }
+    if(window.BLPanelCloseDay){ window.BLPanelCloseDay.bind(); }
     renderAll();
     bind("blBtnCheckContinuity", function(){
       if(window.BLPanelStatus){ window.BLPanelStatus.check().then(function(){ if(window.BLPanelDiagnostics){ window.BLPanelDiagnostics.render(); } }); }
