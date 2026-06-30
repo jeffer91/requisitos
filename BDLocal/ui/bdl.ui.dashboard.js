@@ -18,9 +18,13 @@
     if(!window.BDLRepoPeriodos){ return Promise.resolve([]); }
     return window.BDLRepoPeriodos.listar().then(function(rows){
       var select = H.one("#bdlPeriodoSelect");
+      var active = window.BDLState && window.BDLState.getPeriodoActivo ? window.BDLState.getPeriodoActivo() : "";
+      if(!active && rows[0]){ active = rows[0].periodoId || ""; }
       if(select){
         select.innerHTML = '<option value="">Seleccione período</option>' + rows.map(function(p){ return '<option value="'+H.esc(p.periodoId)+'">'+H.esc(p.periodoLabel || p.periodoId)+'</option>'; }).join("");
+        select.value = active || "";
       }
+      if(active && window.BDLState && window.BDLState.setPeriodoActivo){ window.BDLState.setPeriodoActivo(active); }
       return rows;
     });
   }
