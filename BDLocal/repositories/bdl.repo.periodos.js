@@ -5,10 +5,21 @@
   var P = window.BDLNormPeriodo;
   if(!B || !P){ throw new Error("BDLRepoPeriodos requiere BDLRepoBase y BDLNormPeriodo."); }
 
-  function guardar(periodo){
+  function clean(periodo){
     var row = Object.assign({}, periodo || {});
-    if(!row.periodoId){ row = P.normalize(row); }
+    if(!row.periodoId){
+      row = P.normalize(row, row._docId || row.id || row.value || row.label || row.periodoLabel || "");
+    }
+    row.periodoId = row.periodoId || row.id || row.value || "SIN_PERIODO";
+    row.periodoLabel = row.periodoLabel || row.label || row.nombre || row.periodoId;
+    row.estado = row.estado || "ACTIVO";
+    row.activo = row.activo !== false;
     row.updatedAt = B.now();
+    return row;
+  }
+
+  function guardar(periodo){
+    var row = clean(periodo);
     return B.put(B.stores.periodos, row).then(function(){
       B.cacheClear();
       return row;
@@ -20,10 +31,7 @@
   }
 
   function guardarMuchos(periodos){
-    return B.putAll(B.stores.periodos, B.asArray(periodos).map(function(p){
-      p.updatedAt = B.now();
-      return p;
-    })).then(function(result){
+    return B.putAll(B.stores.periodos, B.asArray(periodos).map(clean)).then(function(result){
       B.cacheClear();
       return result;
     });
