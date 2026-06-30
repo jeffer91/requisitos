@@ -15,11 +15,72 @@
   function pageOptions(options){
     options = options || {};
     var page = Math.max(1, Number(options.page || 1));
-    var limit = Math.max(1, Number(options.limit || 100));
+    var limit = options.limit === 0 ? 0 : Math.max(1, Number(options.limit || 100));
     return Object.assign({}, options, {
       page: page,
       limit: limit,
-      offset: options.offset == null ? (page - 1) * limit : Number(options.offset || 0)
+      offset: options.offset == null ? (page - 1) * (limit || 0) : Number(options.offset || 0)
+    });
+  }
+
+  function withAliases(row){
+    row = Object.assign({}, row || {});
+    row.cedula = row.cedula || row.numeroIdentificacion || "";
+    row.Cedula = row.Cedula || row.numeroIdentificacion || "";
+    row.Nombres = row.Nombres || row.nombres || "";
+    row.NombreCarrera = row.NombreCarrera || row.nombreCarrera || "";
+    row.Carrera = row.Carrera || row.nombreCarrera || "";
+    row.CodigoCarrera = row.CodigoCarrera || row.codigoCarrera || "";
+    row.Sede = row.Sede || row.sede || "";
+    row.Periodo = row.Periodo || row.periodoLabel || row.periodoId || "";
+    row.periodo = row.periodo || row.periodoLabel || row.periodoId || "";
+    row.periodoLabel = row.periodoLabel || row.periodoId || "";
+    row.division = row.division || row.divisionPrincipal || "";
+    row.Division = row.Division || row.divisionPrincipal || "";
+    row.divisiones = Array.isArray(row.divisiones) ? row.divisiones : (row.divisionPrincipal ? [row.divisionPrincipal] : []);
+    row.Academico = row.Academico || row.academico || "";
+    row.Financiero = row.Financiero || row.financiero || "";
+    row.Documentacion = row.Documentacion || row.documentacion || "";
+    row.Titulacion = row.Titulacion || row.titulacion || "";
+    row.Ingles = row.Ingles || row.ingles || "";
+    row.ActualizacionDatos = row.ActualizacionDatos || row.actualizacionDatos || "";
+    row.AprobacionTitulacion = row.AprobacionTitulacion || row.aprobacionTitulacion || "";
+    row.AprobacionComplexivoProyecto = row.AprobacionComplexivoProyecto || row.aprobacionComplexivoProyecto || "";
+    row.estado = row.estado || row.estadoGeneral || "";
+    return row;
+  }
+
+  function mirrorSnapshot(){
+    return Promise.all([
+      B.list(B.stores.periodos, { limit: 0 }),
+      B.list(B.stores.estudiantesResumen, { limit: 0 })
+    ]).then(function(parts){
+      var periods = (parts[0] || []).map(function(p){
+        return Object.assign({}, p, {
+          id: p.periodoId,
+          value: p.periodoId,
+          label: p.periodoLabel || p.periodoId
+        });
+      });
+      var students = (parts[1] || []).map(withAliases);
+      var snapshot = {
+        meta: {
+          app: "Requisitos",
+          module: "BDLocal",
+          source: "BDLRepoEstudiantes",
+          updatedAt: B.now(),
+          totalPeriods: periods.length,
+          totalStudents: students.length
+        },
+        periods: periods,
+        students: students,
+        history: [],
+        diagnostics: []
+      };
+      try{ window.localStorage.setItem("REQ_BDLOCAL_LEGACY_SNAPSHOT_V1", JSON.stringify(snapshot)); }catch(error){}
+      try{ window.localStorage.setItem("REQ_EXCEL_LOCAL_V1:snapshot", JSON.stringify(snapshot)); }catch(error){}
+      try{ window.dispatchEvent(new CustomEvent("bdlocal:legacy-snapshot", { detail: { totalStudents: students.length, totalPeriods: periods.length, at: B.now() } })); }catch(error){}
+      return snapshot;
     });
   }
 
@@ -61,7 +122,12 @@
         });
       });
     });
-    return chain;
+    return chain.then(function(finalResult){
+      return mirrorSnapshot().catch(function(error){
+        console.warn("[BDLRepoEstudiantes] No se pudo crear snapshot legacy", error);
+        return null;
+      }).then(function(){ return finalResult; });
+    });
   }
 
   function listarResumen(periodoId, options){
@@ -107,6 +173,7 @@
     listarResumen: listarResumen,
     contarPorPeriodo: contarPorPeriodo,
     obtenerResumen: obtenerResumen,
-    obtenerDetalle: obtenerDetalle
+    obtenerDetalle: obtenerDetalle,
+    mirrorSnapshot: mirrorSnapshot
   };
 })(window);
