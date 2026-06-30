@@ -6,12 +6,14 @@ Funcion o funciones:
 - Conectar eventos de botones, filtros y paneles de la pantalla Sacar N.
 - Ejecutar la carga de estudiantes desde BDLocal.
 - Abrir SISACAD visible desde Electron.
+- Navegar hasta Registro Notas Proyecto.
 - Dejar respuestas temporales claras para prueba visible, extraccion y exportacion.
 Con que se conecta:
 - sn-config.js
 - sn-state.service.js
 - sn-estudiantes.service.js
 - sn-sisacad-browser.service.js
+- sn-sisacad-navigation.service.js
 - sn-ui-render.service.js
 - sn-sacar-n.js
 ========================================================= */
@@ -91,6 +93,17 @@ Con que se conecta:
         });
       }else{
         setMensaje("No se encontro el servicio para abrir SISACAD. Revise sn-sisacad-browser.service.js.");
+      }
+    });
+
+    bindClick("snBtnIrRegistro", function(){
+      var nav = window.SNSisacadNavigation;
+      if(nav && typeof nav.irARegistroNotasProyecto === "function"){
+        nav.irARegistroNotasProyecto().catch(function(error){
+          console.error("[SN_UI_EVENTS] Error al navegar a Registro Notas Proyecto", error);
+        });
+      }else{
+        setMensaje("No se encontro el servicio para navegar a Registro Notas Proyecto. Revise sn-sisacad-navigation.service.js.");
       }
     });
 
