@@ -4,6 +4,7 @@ Ruta o ubicacion: /Requisitos/electron/sn-sisacad-automation.js
 Modulo: Sacar N
 Funcion o funciones:
 - Ejecutar la prueba visible de lectura en SISACAD.
+- Ejecutar la extraccion automatica completa de estudiantes pendientes.
 - Buscar estudiantes por cedula, seleccionar el registro y leer las tres notas objetivo.
 - Trabajar solo en modo lectura: no guardar, no grabar, no modificar y no eliminar informacion.
 Con que se conecta:
@@ -26,13 +27,14 @@ function limpiarCedula(valor) {
 function estudianteSeguro(raw, index) {
   raw = raw || {};
   return {
-    id: texto(raw.id || raw.cedula || `sn-prueba-${index + 1}`),
+    id: texto(raw.id || raw.cedula || `sn-estudiante-${index + 1}`),
     orden: Number(raw.orden || index + 1),
     cedula: limpiarCedula(raw.cedula),
     nombres: texto(raw.nombres),
     carrera: texto(raw.carrera),
     periodo: texto(raw.periodo),
-    modalidad: texto(raw.modalidad)
+    modalidad: texto(raw.modalidad),
+    estado: texto(raw.estado)
   };
 }
 
@@ -101,9 +103,9 @@ function searchStudentScript(cedula) {
     const scored = inputs.map((el) => {
       const meta = normalize([el.id, el.name, el.placeholder, el.title, el.getAttribute('aria-label'), labelFor(el)].join(' '));
       let score = 1;
-      if (meta.includes('cedula')) score += 20;
-      if (meta.includes('identificacion')) score += 16;
-      if (meta.includes('documento')) score += 10;
+      if (meta.includes('cedula')) score += 30;
+      if (meta.includes('identificacion')) score += 24;
+      if (meta.includes('documento')) score += 16;
       if (meta.includes('estudiante')) score += 8;
       if (meta.includes('buscar')) score += 4;
       return { el, meta, score };
@@ -179,6 +181,49 @@ function selectStudentScript() {
   })()`;
 }
 
+function returnToSearchScript() {
+  return `(() => {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\\s+/g, ' ')
+      .trim();
+    const visible = (el) => {
+      if (!el) return false;
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const hasCedulaInput = Array.from(document.querySelectorAll('input, textarea')).some((el) => {
+      if (!visible(el)) return false;
+      const meta = normalize([el.id, el.name, el.placeholder, el.title, el.getAttribute('aria-label')].join(' '));
+      return meta.includes('cedula') || meta.includes('identificacion') || meta.includes('documento');
+    });
+    if (hasCedulaInput) return { ok:true, accion:'ya_en_busqueda' };
+    const forbidden = /(guardar|grabar|actualizar|eliminar|borrar|modificar|editar|calificar|registrar|aprobar|anular)/i;
+    const nodes = Array.from(document.querySelectorAll('button,input[type="button"],input[type="submit"],a,[role="button"],[onclick]')).filter(visible);
+    const scored = nodes.map((el) => {
+      const label = normalize(el.innerText || el.textContent || el.value || el.title || el.getAttribute('aria-label') || '');
+      let score = 0;
+      if (forbidden.test(label)) score -= 100;
+      if (label.includes('regresar')) score += 30;
+      if (label.includes('volver')) score += 28;
+      if (label.includes('retornar')) score += 26;
+      if (label.includes('nueva busqueda')) score += 22;
+      if (label.includes('buscar otro')) score += 20;
+      return { el, label, score };
+    }).filter((item) => item.score > 0).sort((a,b) => b.score - a.score);
+    if (scored[0]) {
+      try { scored[0].el.scrollIntoView({ block:'center', inline:'center' }); } catch (error) {}
+      scored[0].el.click();
+      return { ok:true, accion:'click', label:scored[0].label };
+    }
+    try { history.back(); return { ok:true, accion:'history_back' }; } catch (error) {}
+    return { ok:false, accion:'sin_retorno' };
+  })()`;
+}
+
 function readNotesScript() {
   return `(() => {
     const normalize = (value) => String(value || '')
@@ -241,7 +286,7 @@ function readNotesScript() {
 async function procesarEstudiante(estudiante, context) {
   const sisacadWindow = context.getWindow();
   if (!estudiante.cedula) {
-    return { ok:false, id:estudiante.id, cedula:estudiante.cedula, nombres:estudiante.nombres, estado:'Revisar manualmente', notas:{}, observacion:'Cedula vacia. No se puede buscar en SISACAD.', paso:'validacion' };
+    return { ok:false, id:estudiante.id, cedula:estudiante.cedula, nombres:estudiante.nombres, carrera:estudiante.carrera, periodo:estudiante.periodo, estado:'Revisar manualmente', notas:{}, observacion:'Cedula vacia. No se puede buscar en SISACAD.', paso:'validacion' };
   }
 
   const buscar = await executeInWindow(sisacadWindow, searchStudentScript(estudiante.cedula));
@@ -263,7 +308,7 @@ async function procesarEstudiante(estudiante, context) {
     ok = true;
   } else if (lectura && lectura.tieneNotas) {
     estado = 'Procesado';
-    observacion = 'Notas leidas en prueba visible.';
+    observacion = 'Notas leidas desde SISACAD.';
     ok = true;
   } else if (lectura && lectura.ok) {
     estado = 'Sin notas';
@@ -271,54 +316,102 @@ async function procesarEstudiante(estudiante, context) {
     ok = true;
   }
 
-  return { ok, id:estudiante.id, cedula:estudiante.cedula, nombres:estudiante.nombres, carrera:estudiante.carrera, periodo:estudiante.periodo, estado, notas:(lectura && lectura.notas) || {}, observacion, paso:'prueba_visible', buscar, seleccionar, lectura };
+  return { ok, id:estudiante.id, cedula:estudiante.cedula, nombres:estudiante.nombres, carrera:estudiante.carrera, periodo:estudiante.periodo, estado, notas:(lectura && lectura.notas) || {}, observacion, paso:'extraccion', buscar, seleccionar, lectura };
+}
+
+async function validarInicio(context) {
+  await context.ensureOpen();
+  await wait(700);
+  const sisacadWindow = context.getWindow();
+  const status = await executeInWindow(sisacadWindow, pageStatusScript());
+  if (status && status.necesitaLogin) {
+    return { ok:false, necesitaLogin:true, mensaje:'SISACAD necesita inicio de sesion manual. Ingrese y vuelva a ejecutar.' };
+  }
+  if (!status || !status.enRegistro) {
+    return { ok:false, mensaje:'Antes de iniciar, vaya a Registro Notas Proyecto.' };
+  }
+  return { ok:true, status };
+}
+
+function resumenDe(resultados) {
+  return resultados.reduce((acc, item) => {
+    acc.total += 1;
+    if (item.estado === 'Procesado') acc.procesados += 1;
+    else if (item.estado === 'Sin notas') acc.sinNotas += 1;
+    else if (item.estado === 'No encontrado') acc.noEncontrados += 1;
+    else if (item.estado === 'Sesion expirada') acc.sesionExpirada += 1;
+    else acc.revisar += 1;
+    return acc;
+  }, { total:0, procesados:0, sinNotas:0, noEncontrados:0, sesionExpirada:0, revisar:0 });
 }
 
 async function runPruebaVisible(estudiantes, context) {
   const lista = (Array.isArray(estudiantes) ? estudiantes : []).slice(0, 3).map(estudianteSeguro);
   if (!lista.length) return { ok:false, mensaje:'No hay estudiantes para prueba visible.', resultados:[] };
 
-  await context.ensureOpen();
-  await wait(700);
+  const inicio = await validarInicio(context);
+  if (!inicio.ok) {
+    return {
+      ok:false,
+      necesitaLogin: !!inicio.necesitaLogin,
+      mensaje: inicio.mensaje,
+      resultados: lista.map((e) => ({ ok:false, id:e.id, cedula:e.cedula, nombres:e.nombres, carrera:e.carrera, periodo:e.periodo, estado: inicio.necesitaLogin ? 'Sesion expirada' : 'Revisar manualmente', notas:{}, observacion:inicio.mensaje, paso: inicio.necesitaLogin ? 'sesion' : 'pantalla' }))
+    };
+  }
 
   const sisacadWindow = context.getWindow();
-  const status = await executeInWindow(sisacadWindow, pageStatusScript());
-
-  if (status && status.necesitaLogin) {
-    return {
-      ok:false,
-      necesitaLogin:true,
-      mensaje:'SISACAD necesita inicio de sesion manual. Ingrese y vuelva a ejecutar la prueba visible.',
-      resultados: lista.map((e) => ({ ok:false, id:e.id, cedula:e.cedula, nombres:e.nombres, estado:'Sesion expirada', notas:{}, observacion:'SISACAD requiere inicio de sesion manual.', paso:'sesion' }))
-    };
-  }
-
-  if (!status || !status.enRegistro) {
-    return {
-      ok:false,
-      mensaje:'Antes de la prueba visible, vaya a Registro Notas Proyecto.',
-      resultados: lista.map((e) => ({ ok:false, id:e.id, cedula:e.cedula, nombres:e.nombres, estado:'Revisar manualmente', notas:{}, observacion:'La ventana de SISACAD no esta en Registro Notas Proyecto.', paso:'pantalla' }))
-    };
-  }
-
   const resultados = [];
   for (const estudiante of lista) {
     if (sisacadWindow && !sisacadWindow.isDestroyed()) sisacadWindow.focus();
     const resultado = await procesarEstudiante(estudiante, context);
     resultados.push(resultado);
+    await executeInWindow(sisacadWindow, returnToSearchScript());
     await wait(1200);
   }
 
-  const resumen = resultados.reduce((acc, item) => {
-    acc.total += 1;
-    if (item.estado === 'Procesado') acc.procesados += 1;
-    else if (item.estado === 'Sin notas') acc.sinNotas += 1;
-    else if (item.estado === 'No encontrado') acc.noEncontrados += 1;
-    else acc.revisar += 1;
-    return acc;
-  }, { total:0, procesados:0, sinNotas:0, noEncontrados:0, revisar:0 });
-
-  return { ok:true, modo:'prueba_visible', mensaje:'Prueba visible finalizada.', resultados, resumen };
+  return { ok:true, modo:'prueba_visible', mensaje:'Prueba visible finalizada.', resultados, resumen:resumenDe(resultados) };
 }
 
-module.exports = { runPruebaVisible };
+async function runExtraccionAutomatica(estudiantes, context) {
+  const lista = (Array.isArray(estudiantes) ? estudiantes : []).map(estudianteSeguro).filter((e) => e.cedula);
+  if (!lista.length) return { ok:false, mensaje:'No hay estudiantes pendientes para extraccion automatica.', resultados:[] };
+
+  const inicio = await validarInicio(context);
+  if (!inicio.ok) {
+    return {
+      ok:false,
+      necesitaLogin: !!inicio.necesitaLogin,
+      pausado: true,
+      mensaje: inicio.mensaje,
+      resultados: []
+    };
+  }
+
+  const sisacadWindow = context.getWindow();
+  const resultados = [];
+
+  for (let i = 0; i < lista.length; i++) {
+    const estudiante = lista[i];
+    if (sisacadWindow && !sisacadWindow.isDestroyed()) sisacadWindow.focus();
+
+    const status = await executeInWindow(sisacadWindow, pageStatusScript());
+    if (status && status.necesitaLogin) {
+      resultados.push({ ok:false, id:estudiante.id, cedula:estudiante.cedula, nombres:estudiante.nombres, carrera:estudiante.carrera, periodo:estudiante.periodo, estado:'Sesion expirada', notas:{}, observacion:'SISACAD requiere inicio de sesion manual. Extraccion pausada.', paso:'sesion' });
+      return { ok:false, pausado:true, necesitaLogin:true, mensaje:'SISACAD cerro sesion. La extraccion se pauso.', resultados, resumen:resumenDe(resultados) };
+    }
+
+    const resultado = await procesarEstudiante(estudiante, context);
+    resultados.push(resultado);
+
+    if (resultado.estado === 'Sesion expirada') {
+      return { ok:false, pausado:true, necesitaLogin:true, mensaje:'SISACAD cerro sesion. La extraccion se pauso.', resultados, resumen:resumenDe(resultados) };
+    }
+
+    await executeInWindow(sisacadWindow, returnToSearchScript());
+    await wait(1200);
+  }
+
+  return { ok:true, modo:'extraccion_automatica', mensaje:'Extraccion automatica finalizada.', resultados, resumen:resumenDe(resultados) };
+}
+
+module.exports = { runPruebaVisible, runExtraccionAutomatica };
