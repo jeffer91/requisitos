@@ -5,13 +5,14 @@ Ruta o ubicación: /Requisitos/defart/defart.html
 Función o funciones:
 - Pantalla Defensas para cargar N-ART y N-DEF desde BDLocal.
 - Calcular N-FIN con 70% artículo y 30% defensa.
-- Filtrar por período, división, carrera, estado y búsqueda.
+- Filtrar por período, división, carrera, estado, notas pendientes y búsqueda.
 - Guardar notas en BDLocal.
 - Descargar Excel visible de notas.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - defart.css
 - defart.core.js
+- defart.filters.js
 - defart.continuity.js
 - defart.export.js
 - defart.app.js
@@ -41,7 +42,7 @@ Con qué se conecta:
       <label>Período<select id="def-filter-periodo"><option value="">Todos</option></select></label>
       <label>División<select id="def-filter-division"><option value="">Todas</option></select></label>
       <label>Carrera<select id="def-filter-carrera"><option value="">Todas</option></select></label>
-      <label>Estado<select id="def-filter-estado"><option value="">Todos</option><option value="Falta requisitos">Falta requisitos</option><option value="Supletorio Art">Supletorio Art</option><option value="Supletorio Def">Supletorio Def</option><option value="Aprobado">Aprobado</option></select></label>
+      <label>Estado<select id="def-filter-estado"><option value="">Todos</option><option value="Falta requisitos">Falta requisitos</option><option value="Supletorio Art">Supletorio Art</option><option value="Supletorio Def">Supletorio Def</option><option value="Aprobado">Aprobado</option><option value="Sin nota Art">Sin nota Art</option><option value="Sin nota Def">Sin nota Def</option></select></label>
       <label class="def-search-label">Buscar<input id="def-filter-search" type="search" placeholder="Cédula, nombre, carrera o división..." /></label>
       <div class="def-toolbar-actions"><button id="def-btn-clear" type="button">Limpiar filtros</button><button id="def-btn-refresh" type="button">Actualizar</button><button id="def-btn-export" type="button">Descargar Excel</button></div>
     </section>
@@ -64,6 +65,7 @@ Con qué se conecta:
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="defart.core.js"></script>
+  <script src="defart.filters.js"></script>
   <script src="defart.continuity.js"></script>
   <script src="defart.export.js"></script>
   <script src="defart.app.js"></script>
