@@ -33,17 +33,29 @@
     return chain;
   }
   function readStoredConfig(){
+    if(window.BDLConnSettings){
+      var cfg = window.BDLConnSettings.get("firebase");
+      if(cfg && cfg.enabled === false){ return { paused:true }; }
+      if(cfg && (cfg.apiKey || cfg.projectId)){ return cfg; }
+    }
     try{ var raw = window.localStorage.getItem("REQ_FIREBASE_CONFIG_V1") || window.localStorage.getItem("FIREBASE_CONFIG") || ""; return raw ? JSON.parse(raw) : null; }catch(error){ return null; }
   }
-  function getConfig(){ return window.firebaseConfig || window.FIREBASE_CONFIG || readStoredConfig() || DEFAULT_CONFIG; }
+  function getConfig(){
+    var stored = readStoredConfig();
+    if(stored && stored.paused){ return stored; }
+    return window.firebaseConfig || window.FIREBASE_CONFIG || stored || DEFAULT_CONFIG;
+  }
   function initFromConfig(){
     if(!window.firebase){ return false; }
     if(window.firebase.apps && window.firebase.apps.length){ return true; }
     var cfg = getConfig();
+    if(cfg && cfg.paused){ throw new Error("Firebase está pausado en Ajustes."); }
     if(cfg && cfg.apiKey && cfg.projectId){ window.firebase.initializeApp(cfg); return true; }
     return false;
   }
   function safeFirestore(){
+    var cfg = getConfig();
+    if(cfg && cfg.paused){ throw new Error("Firebase está pausado en Ajustes."); }
     if(window.db && typeof window.db.collection === "function"){ return window.db; }
     if(!window.firebase || typeof window.firebase.firestore !== "function"){ throw new Error("Firebase Firestore no está disponible."); }
     if(!initFromConfig()){ throw new Error("Firebase no está inicializado. Revise firebase-config.js."); }
@@ -51,6 +63,8 @@
     return window.db;
   }
   function ensureFirebase(){
+    var cfg = getConfig();
+    if(cfg && cfg.paused){ return Promise.reject(new Error("Firebase está pausado en Ajustes.")); }
     try{ return Promise.resolve(safeFirestore()); }catch(firstError){}
     if(loading){ return loading; }
     loading = loadScript("https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js")
