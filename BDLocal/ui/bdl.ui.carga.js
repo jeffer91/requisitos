@@ -13,11 +13,7 @@
   }
 
   function periodo(){ return H.val('#bdlPeriodoSelect'); }
-  function periodoLabel(){
-    var s = H.one('#bdlPeriodoSelect');
-    return s && s.selectedOptions && s.selectedOptions[0] ? s.selectedOptions[0].textContent : periodo();
-  }
-
+  function periodoLabel(){ var s = H.one('#bdlPeriodoSelect'); return s && s.selectedOptions && s.selectedOptions[0] ? s.selectedOptions[0].textContent : periodo(); }
   function asList(value){ return Array.isArray(value) ? value : []; }
   function asText(value){ return String(value == null ? '' : value); }
   function safeNumber(value){ value = Number(value || 0); return isFinite(value) ? value : 0; }
@@ -82,36 +78,20 @@
     return shown;
   }
 
-  function stat(label, value, extraClass){
-    return '<article class="bdl-summary-stat '+H.esc(extraClass || '')+'"><strong>'+H.esc(value)+'</strong><span>'+H.esc(label)+'</span></article>';
-  }
-
-  function detailLine(label, value){
-    return '<div class="bdl-summary-line"><span>'+H.esc(label)+'</span><strong>'+H.esc(value || '—')+'</strong></div>';
-  }
+  function stat(label, value, extraClass){ return '<article class="bdl-summary-stat '+H.esc(extraClass || '')+'"><strong>'+H.esc(value)+'</strong><span>'+H.esc(label)+'</span></article>'; }
+  function detailLine(label, value){ return '<div class="bdl-summary-line"><span>'+H.esc(label)+'</span><strong>'+H.esc(value || '—')+'</strong></div>'; }
 
   function listIssues(title, rows){
     rows = asList(rows).slice(0, 6);
     if(!rows.length){ return ''; }
-    return '<section class="bdl-summary-issues"><h4>'+H.esc(title)+'</h4><ul>'+rows.map(function(item){
-      return '<li>Fila '+H.esc(item.row || '—')+': '+H.esc(item.mensaje || item.tipo || 'Revisar dato')+'</li>';
-    }).join('')+'</ul></section>';
+    return '<section class="bdl-summary-issues"><h4>'+H.esc(title)+'</h4><ul>'+rows.map(function(item){ return '<li>Fila '+H.esc(item.row || '—')+': '+H.esc(item.mensaje || item.tipo || 'Revisar dato')+'</li>'; }).join('')+'</ul></section>';
   }
 
-  function mostrarResumen(report, appState){
-    var modal = H.one('#bdlCargaSummaryModal');
-    var body = H.one('#bdlCargaSummaryBody');
-    if(!modal || !body){ return; }
-
-    var s = summaryFrom(report, appState);
+  function buildSummaryHtml(s){
     var estado = s.ok ? 'Carga guardada correctamente' : 'Carga revisada, pero no se guardó completa';
     var estadoClass = s.ok ? 'ok' : 'warn';
-
-    var html = ''+
-      '<div class="bdl-summary-status '+estadoClass+'">'+
-        '<strong>'+H.esc(estado)+'</strong>'+
-        '<span>'+H.esc(new Date().toLocaleString())+'</span>'+ 
-      '</div>'+ 
+    return ''+
+      '<div class="bdl-summary-status '+estadoClass+'"><strong>'+H.esc(estado)+'</strong><span>'+H.esc(new Date().toLocaleString())+'</span></div>'+ 
       '<div class="bdl-summary-stats">'+
         stat('Estudiantes detectados', s.total, '')+
         stat('Guardados en BDLocal', s.guardados, 'ok')+
@@ -121,23 +101,43 @@
         stat('Advertencias', s.advertencias, s.advertencias ? 'warn' : '')+
         stat('Errores', s.errores, s.errores ? 'bad' : '')+
       '</div>'+
-      '<div class="bdl-summary-details">'+
-        detailLine('Archivo', s.archivo)+
-        detailLine('Período', s.periodo)+
-      '</div>'+
+      '<div class="bdl-summary-details">'+detailLine('Archivo', s.archivo)+detailLine('Período', s.periodo)+'</div>'+
       '<section class="bdl-summary-block"><h4>Campos cargados</h4><div class="bdl-summary-pills">'+pillList(s.campos, 'No se detectaron campos', 22)+'</div></section>'+
       '<section class="bdl-summary-block"><h4>Carreras detectadas</h4><div class="bdl-summary-pills">'+pillList(s.carreras, 'No se detectaron carreras', 14)+'</div></section>'+
       '<section class="bdl-summary-block"><h4>Requisitos detectados</h4><div class="bdl-summary-pills">'+pillList(s.requisitos, 'No se detectaron requisitos específicos', 14)+'</div></section>'+
-      listIssues('Errores principales', s.errorsList)+
-      listIssues('Advertencias principales', s.warningsList);
+      listIssues('Errores principales', s.errorsList)+listIssues('Advertencias principales', s.warningsList);
+  }
 
-    H.html(body, html);
-    modal.classList.add('open');
+  function mostrarResumen(report, appState){
+    var s = summaryFrom(report, appState);
+    var html = buildSummaryHtml(s);
+    var modal = H.one('#bdlCargaSummaryModal');
+    var body = H.one('#bdlCargaSummaryBody');
+
+    if(modal && body){
+      H.html(body, html);
+      modal.classList.add('open');
+      return;
+    }
+
+    var panel = H.one('#bdlDetailPanel');
+    var panelTitle = H.one('#bdlDetailPanel .bdl-panel-head strong');
+    var panelBody = H.one('#bdlPanelBody');
+    if(panel && panelBody){
+      if(panelTitle){ panelTitle.textContent = 'Resumen de carga'; }
+      H.html(panelBody, html);
+      panel.classList.add('open');
+      return;
+    }
+
+    H.notify('Resumen: '+s.guardados+' guardados, '+s.campos.length+' campos, '+s.carreras.length+' carreras.', s.ok ? '' : 'error');
   }
 
   function cerrarResumen(){
     var modal = H.one('#bdlCargaSummaryModal');
     if(modal){ modal.classList.remove('open'); }
+    var panel = H.one('#bdlDetailPanel');
+    if(panel){ panel.classList.remove('open'); }
   }
 
   function renderPreview(result){
@@ -190,24 +190,11 @@
       H.notify(report.ok ? 'Carga guardada en BDLocal.' : 'La carga necesita revisión.', report.ok ? '' : 'error');
       listo = false;
       botones('inicio');
-      return recargar().then(function(){
-        mostrarResumen(report, appState);
-        return report;
-      });
+      return recargar().then(function(){ mostrarResumen(report, appState); return report; });
     }).catch(function(error){ H.notify(error && error.message ? error.message : String(error), 'error'); });
   }
 
   function reiniciar(){ listo = false; botones('inicio'); cerrarResumen(); }
 
-  window.BDLUICarga = {
-    analizar:analizar,
-    analyze:analizar,
-    guardar:guardar,
-    save:guardar,
-    reiniciar:reiniciar,
-    renderPreview:renderPreview,
-    botones:botones,
-    mostrarResumen:mostrarResumen,
-    cerrarResumen:cerrarResumen
-  };
+  window.BDLUICarga = { analizar:analizar, analyze:analizar, guardar:guardar, save:guardar, reiniciar:reiniciar, renderPreview:renderPreview, botones:botones, mostrarResumen:mostrarResumen, cerrarResumen:cerrarResumen };
 })(window);
