@@ -7,13 +7,15 @@ Funcion o funciones:
 - Ejecutar la carga de estudiantes desde BDLocal.
 - Abrir SISACAD visible desde Electron.
 - Navegar hasta Registro Notas Proyecto.
-- Dejar respuestas temporales claras para prueba visible, extraccion y exportacion.
+- Ejecutar prueba visible con pocos estudiantes.
+- Dejar respuestas temporales claras para extraccion automatica y exportacion.
 Con que se conecta:
 - sn-config.js
 - sn-state.service.js
 - sn-estudiantes.service.js
 - sn-sisacad-browser.service.js
 - sn-sisacad-navigation.service.js
+- sn-sisacad-extractor.service.js
 - sn-ui-render.service.js
 - sn-sacar-n.js
 ========================================================= */
@@ -108,7 +110,14 @@ Con que se conecta:
     });
 
     bindClick("snBtnPruebaVisible", function(){
-      setMensaje("Bloque 7 pendiente: aqui se ejecutara la prueba visible con pocos estudiantes.");
+      var extractor = window.SNSisacadExtractor;
+      if(extractor && typeof extractor.pruebaVisible === "function"){
+        extractor.pruebaVisible().catch(function(error){
+          console.error("[SN_UI_EVENTS] Error en prueba visible", error);
+        });
+      }else{
+        setMensaje("No se encontro el servicio de prueba visible. Revise sn-sisacad-extractor.service.js.");
+      }
     });
 
     bindClick("snBtnContinuarAutomatico", function(){

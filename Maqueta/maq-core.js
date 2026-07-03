@@ -20,7 +20,7 @@ Con qué se conecta:
   var PRELOAD_DELAY_MS=2500;
   var PRELOAD_STEP_MS=1200;
   var PRELOAD_FLAG_KEY="REQ_MAQ_PRELOAD_ENABLED_V1";
-  var BL_MODULES={baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,modulo_reporte:true,defart:true};
+  var BL_MODULES={baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true};
   var FALLBACK_MODULES={
     carga_excel:{id:"carga_excel",nombre:"Carga",ruta:"../BDLocal/bdlocal.html",estado:"activo"},
     baselocal:{id:"baselocal",nombre:"BL",ruta:"../BDLocal/bl.html",estado:"activo"},
@@ -28,6 +28,7 @@ Con qué se conecta:
     ficha_estudiante:{id:"ficha_estudiante",nombre:"Ficha",ruta:"../Ficha/ficha.html",estado:"activo"},
     stat_main:{id:"stat_main",nombre:"Estadísticas",ruta:"../Stats/stats.html",estado:"activo"},
     coordi:{id:"coordi",nombre:"Coordi",ruta:"../Coordi/coordi.html",estado:"activo"},
+    global:{id:"global",nombre:"Global",ruta:"../Coordi/coordi.html",estado:"activo"},
     modulo_reporte:{id:"modulo_reporte",nombre:"Reportes",ruta:"../Reportes/repo.html",estado:"activo"},
     defart:{id:"defart",nombre:"Defensas",ruta:"../defart/defart.html",estado:"activo"},
     titulos_estudiante:{id:"titulos_estudiante",nombre:"Títulos - Estudiante",ruta:"../Titulos/public/ta-titulo-articulo-estudiante.html",estado:"activo"},
@@ -35,7 +36,7 @@ Con qué se conecta:
     titulos_coordinador:{id:"titulos_coordinador",nombre:"Títulos - Coordinador",ruta:"../Titulos/public/ta-titulo-articulo-coordinador.html",estado:"activo"},
     titulacion:{id:"titulacion",nombre:"Infor",ruta:"../Infor/frontend/titulacion.html",estado:"activo"}
   };
-  var MODULE_ALIASES={"requisito":"carga_excel","requisitos":"carga_excel","carga":"carga_excel","carga excel":"carga_excel","excel":"carga_excel","base local":"baselocal","base-local":"baselocal","bl":"baselocal","tabla":"tabla_principal","tabla principal":"tabla_principal","ficha":"ficha_estudiante","ficha estudiante":"ficha_estudiante","stats":"stat_main","estadisticas":"stat_main","estadísticas":"stat_main","stat main":"stat_main","coordinador":"coordi","coordi":"coordi","reporte":"modulo_reporte","reportes":"modulo_reporte","repor":"modulo_reporte","defensas":"defart","defensa":"defart","defart":"defart","titulos estudiante":"titulos_estudiante","títulos estudiante":"titulos_estudiante","titulos administrador":"titulos_admin","títulos administrador":"titulos_admin","titulos admin":"titulos_admin","títulos admin":"titulos_admin","titulos coordinador":"titulos_coordinador","títulos coordinador":"titulos_coordinador","infor":"titulacion","titulacion":"titulacion","titulación":"titulacion"};
+  var MODULE_ALIASES={"requisito":"carga_excel","requisitos":"carga_excel","carga":"carga_excel","carga excel":"carga_excel","excel":"carga_excel","base local":"baselocal","base-local":"baselocal","bl":"baselocal","tabla":"tabla_principal","tabla principal":"tabla_principal","ficha":"ficha_estudiante","ficha estudiante":"ficha_estudiante","stats":"stat_main","estadisticas":"stat_main","estadísticas":"stat_main","stat main":"stat_main","coordinador":"coordi","coordi":"coordi","global":"global","globals":"global","reporte":"modulo_reporte","reportes":"modulo_reporte","repor":"modulo_reporte","defensas":"defart","defensa":"defart","defart":"defart","titulos estudiante":"titulos_estudiante","títulos estudiante":"titulos_estudiante","titulos administrador":"titulos_admin","títulos administrador":"titulos_admin","titulos admin":"titulos_admin","títulos admin":"titulos_admin","titulos coordinador":"titulos_coordinador","títulos coordinador":"titulos_coordinador","infor":"titulacion","titulacion":"titulacion","titulación":"titulacion"};
   function clean(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
   function norm(value){return clean(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
   function cloneModule(modulo){return modulo?{id:modulo.id,nombre:modulo.nombre,ruta:modulo.ruta,estado:modulo.estado}:null;}

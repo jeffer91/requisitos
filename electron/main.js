@@ -9,19 +9,23 @@ Funcion o funciones:
 - Permitir enlaces http/https y mailto para abrir navegador, Outlook o cliente de correo predeterminado.
 - Abrir SISACAD en una ventana visible independiente para el modulo Sacar N.
 - Navegar de forma controlada hasta Registro Notas Proyecto sin modificar informacion academica.
+- Ejecutar prueba visible de lectura con pocos estudiantes.
 - Exponer funciones controladas mediante preload.js.
 Con que se conecta:
 - package.json
 - electron/preload.js
+- electron/sn-sisacad-automation.js
 - Maqueta/maq-index.html
 - sn-sacar-n/sn-sisacad-browser.service.js
 - sn-sacar-n/sn-sisacad-navigation.service.js
+- sn-sacar-n/sn-sisacad-extractor.service.js
 - Coordi/coo.mail.js
 ========================================================= */
 const { app, BrowserWindow, Menu, shell, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
+const snSisacadAutomation = require('./sn-sisacad-automation');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const SN_SISACAD_URL = 'https://sisacad.itsqmet.edu.ec/';
@@ -41,25 +45,15 @@ function normalizeFilePath(fileUrl) {
 function isInsideApp(url) {
   if (!url || url === 'about:blank') return true;
   if (!url.startsWith('file://')) return false;
-
   const currentPath = normalizeFilePath(url);
   if (!currentPath) return false;
-
   const resolved = path.resolve(currentPath);
   return resolved.startsWith(APP_ROOT) || resolved.startsWith(path.resolve(APP_ROOT, '..'));
 }
 
-function isExternalHttp(url) {
-  return /^https?:\/\//i.test(String(url || ''));
-}
-
-function isExternalMailto(url) {
-  return /^mailto:/i.test(String(url || ''));
-}
-
-function isOpenableExternal(url) {
-  return isExternalHttp(url) || isExternalMailto(url);
-}
+function isExternalHttp(url) { return /^https?:\/\//i.test(String(url || '')); }
+function isExternalMailto(url) { return /^mailto:/i.test(String(url || '')); }
+function isOpenableExternal(url) { return isExternalHttp(url) || isExternalMailto(url); }
 
 function isSisacadUrl(url) {
   try {
@@ -72,21 +66,12 @@ function isSisacadUrl(url) {
 }
 
 function findEntryFile() {
-  const candidates = [
-    path.join(APP_ROOT, 'Maqueta', 'maq-index.html'),
-    path.join(APP_ROOT, 'index.html')
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
+  const candidates = [path.join(APP_ROOT, 'Maqueta', 'maq-index.html'), path.join(APP_ROOT, 'index.html')];
+  for (const candidate of candidates) if (fs.existsSync(candidate)) return candidate;
   throw new Error('No se encontro Maqueta/maq-index.html ni index.html para iniciar Requisitos.');
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 function getSisacadWindowStatus() {
   const abierta = !!(snSisacadWindow && !snSisacadWindow.isDestroyed());
@@ -131,9 +116,7 @@ async function openSisacadWindow() {
     if (snSisacadWindow && !snSisacadWindow.isDestroyed()) snSisacadWindow.show();
   });
 
-  snSisacadWindow.on('closed', () => {
-    snSisacadWindow = null;
-  });
+  snSisacadWindow.on('closed', () => { snSisacadWindow = null; });
 
   snSisacadWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isSisacadUrl(url)) return { action: 'allow' };
@@ -168,9 +151,7 @@ function focusSisacadWindow() {
 }
 
 function closeSisacadWindow() {
-  if (snSisacadWindow && !snSisacadWindow.isDestroyed()) {
-    snSisacadWindow.close();
-  }
+  if (snSisacadWindow && !snSisacadWindow.isDestroyed()) snSisacadWindow.close();
   return getSisacadWindowStatus();
 }
 
@@ -207,14 +188,7 @@ function pageStatusScript() {
       'calificacion final del proyecto de titulacion',
       'calificación final del proyecto de titulación'
     ]);
-    return {
-      ok: true,
-      url,
-      title,
-      necesitaLogin,
-      enRegistro,
-      textoMuestra: bodyText.slice(0, 1200)
-    };
+    return { ok:true, url, title, necesitaLogin, enRegistro, textoMuestra: bodyText.slice(0, 1200) };
   })()`;
 }
 
@@ -258,14 +232,9 @@ function clickTextScript(texts) {
 }
 
 async function executeInSisacad(script) {
-  if (!snSisacadWindow || snSisacadWindow.isDestroyed()) {
-    return { ok: false, error: 'SISACAD no esta abierto.' };
-  }
-  try {
-    return await snSisacadWindow.webContents.executeJavaScript(script, true);
-  } catch (error) {
-    return { ok: false, error: error.message };
-  }
+  if (!snSisacadWindow || snSisacadWindow.isDestroyed()) return { ok: false, error: 'SISACAD no esta abierto.' };
+  try { return await snSisacadWindow.webContents.executeJavaScript(script, true); }
+  catch (error) { return { ok: false, error: error.message }; }
 }
 
 async function checkRegistroNotasProyecto() {
@@ -277,8 +246,8 @@ async function checkRegistroNotasProyecto() {
 async function navigateRegistroNotasProyecto() {
   await ensureSisacadOpen();
   await wait(800);
-
   let page = await executeInSisacad(pageStatusScript());
+
   if (page && page.necesitaLogin) {
     return Object.assign({}, getSisacadWindowStatus(), page, {
       ok: false,
@@ -286,6 +255,7 @@ async function navigateRegistroNotasProyecto() {
       mensaje: 'SISACAD necesita inicio de sesion manual. Ingrese en la ventana visible y vuelva a intentar.'
     });
   }
+
   if (page && page.enRegistro) {
     return Object.assign({}, getSisacadWindowStatus(), page, {
       ok: true,
@@ -296,8 +266,8 @@ async function navigateRegistroNotasProyecto() {
 
   const ingreso = await executeInSisacad(clickTextScript(['Ingreso', 'INGRESO']));
   await wait(1200);
-
   page = await executeInSisacad(pageStatusScript());
+
   if (page && page.necesitaLogin) {
     return Object.assign({}, getSisacadWindowStatus(), page, {
       ok: false,
@@ -317,8 +287,8 @@ async function navigateRegistroNotasProyecto() {
     'Notas Proyecto de Titulación'
   ]));
   await wait(1500);
-
   page = await executeInSisacad(pageStatusScript());
+
   if (page && page.enRegistro) {
     return Object.assign({}, getSisacadWindowStatus(), page, {
       ok: true,
@@ -330,11 +300,7 @@ async function navigateRegistroNotasProyecto() {
     });
   }
 
-  registro = await executeInSisacad(clickTextScript([
-    'Registro Notas Proyecto',
-    'Registro de Notas Proyecto',
-    'Notas Proyecto'
-  ]));
+  registro = await executeInSisacad(clickTextScript(['Registro Notas Proyecto', 'Registro de Notas Proyecto', 'Notas Proyecto']));
   await wait(1500);
   page = await executeInSisacad(pageStatusScript());
 
@@ -349,9 +315,16 @@ async function navigateRegistroNotasProyecto() {
   });
 }
 
+async function runPruebaVisible(estudiantes) {
+  return snSisacadAutomation.runPruebaVisible(estudiantes, {
+    getWindow: () => snSisacadWindow,
+    ensureOpen: ensureSisacadOpen,
+    status: getSisacadWindowStatus
+  });
+}
+
 function createMainWindow() {
   const entryFile = findEntryFile();
-
   mainWindow = new BrowserWindow({
     width: 1380,
     height: 860,
@@ -370,19 +343,14 @@ function createMainWindow() {
   });
 
   Menu.setApplicationMenu(null);
-
-  mainWindow.once('ready-to-show', () => {
-    if (mainWindow) mainWindow.show();
-  });
+  mainWindow.once('ready-to-show', () => { if (mainWindow) mainWindow.show(); });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isOpenableExternal(url)) {
       shell.openExternal(url);
       return { action: 'deny' };
     }
-
     if (isInsideApp(url)) return { action: 'allow' };
-
     return { action: 'deny' };
   });
 
@@ -392,10 +360,7 @@ function createMainWindow() {
       shell.openExternal(url);
       return;
     }
-
-    if (!isInsideApp(url)) {
-      event.preventDefault();
-    }
+    if (!isInsideApp(url)) event.preventDefault();
   });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
@@ -427,16 +392,12 @@ ipcMain.handle('sn:sisacad-focus', () => focusSisacadWindow());
 ipcMain.handle('sn:sisacad-close', () => closeSisacadWindow());
 ipcMain.handle('sn:sisacad-check-registro', async () => checkRegistroNotasProyecto());
 ipcMain.handle('sn:sisacad-navigate-registro', async () => navigateRegistroNotasProyecto());
+ipcMain.handle('sn:sisacad-prueba-visible', async (_event, estudiantes) => runPruebaVisible(estudiantes));
 
 app.whenReady().then(createMainWindow).catch((error) => {
   console.error('[Requisitos Electron] No se pudo iniciar:', error);
   app.quit();
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
-});
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createMainWindow(); });

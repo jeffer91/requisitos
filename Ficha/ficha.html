@@ -6,48 +6,89 @@ Función o funciones:
 - Mostrar la ficha individual de un estudiante cargado desde BDLocal.
 - Buscar por cédula, nombre, carrera, división, correo o celular.
 - Filtrar por período, división y matrícula.
-- Mostrar activos por defecto y permitir ver retirados.
-- Cargar capa compacta visual sin tocar la lógica de datos.
-- Mostrar acciones visuales de aprobación, copia y Telegram dentro de la ficha.
+- Mostrar ACTIVO por defecto y permitir ver retirados.
+- Cargar primero una lista liviana para mejorar velocidad.
+- Calcular requisitos, notas y modalidad solo del estudiante seleccionado.
+- Cargar exportación y modalidad bajo demanda.
+- Mostrar acciones visuales de aprobación, copia, WhatsApp y Telegram.
 - Mostrar encabezado por filas: cédula, carrera y período normalizado.
-- Evitar repetir en el cuerpo datos ya mostrados en encabezado.
-- Mostrar notas finales Nart, Ndef y Nfin.
 - Mostrar correo personal, correo institucional y celular.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - ficha.css
 - ficha.compact.css
 - ficha.core.js
-- ficha.modalidad.js
+- ficha.export.js bajo demanda
+- ficha.modalidad.js bajo demanda
 - ficha.app.js
 ========================================================= -->
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title></title>
+  <title>Ficha</title>
   <link rel="stylesheet" href="ficha.css" />
   <link rel="stylesheet" href="ficha.compact.css" />
 </head>
 <body>
   <main class="ficha-app">
     <section id="ficha-status" class="ficha-status">Cargando ficha...</section>
+
     <section class="ficha-toolbar">
-      <label class="ficha-filter-periodo">Período<select id="ficha-periodo"><option value="">Todos</option></select></label>
-      <label class="ficha-filter-division">División<select id="ficha-division"><option value="">Todas</option></select></label>
-      <label class="ficha-filter-matricula">Matrícula<select id="ficha-matricula"><option value="ACTIVO">Activos</option><option value="RETIRADO">Retirados</option><option value="">Todos</option></select></label>
-      <label class="ficha-filter-search">Buscar estudiante<input id="ficha-search" type="search" placeholder="Cédula, nombre, carrera, división, correo o celular..." /></label>
+      <label class="ficha-filter-periodo">
+        Período
+        <select id="ficha-periodo">
+          <option value="">Todos</option>
+        </select>
+      </label>
+
+      <label class="ficha-filter-division">
+        División
+        <select id="ficha-division">
+          <option value="">Todas</option>
+        </select>
+      </label>
+
+      <label class="ficha-filter-matricula">
+        Matrícula
+        <select id="ficha-matricula">
+          <option value="ACTIVO">Activos</option>
+          <option value="RETIRADO">Retirados</option>
+          <option value="">Todos</option>
+        </select>
+      </label>
+
+      <label class="ficha-filter-search">
+        Buscar estudiante
+        <input id="ficha-search" type="search" placeholder="Cédula, nombre, carrera, división, correo o celular..." />
+      </label>
+
       <button id="ficha-btn-refresh" type="button">Actualizar</button>
     </section>
+
     <section class="ficha-layout">
-      <aside class="ficha-list-card"><div class="ficha-list-head"><strong>Estudiantes</strong><span id="ficha-count">0</span></div><div id="ficha-list" class="ficha-list"></div></aside>
+      <aside class="ficha-list-card">
+        <div class="ficha-list-head">
+          <strong>Estudiantes</strong>
+          <span id="ficha-count">0</span>
+        </div>
+        <div id="ficha-list" class="ficha-list"></div>
+      </aside>
+
       <section class="ficha-detail-card">
         <div id="ficha-empty" class="ficha-empty">Selecciona un estudiante para ver la ficha.</div>
+
         <div id="ficha-detail" class="ficha-detail is-hidden">
           <div class="ficha-top">
-            <div class="ficha-main-head"><p class="ficha-label">Detalles del estudiante</p><h2 id="ficha-nombre">—</h2><div id="ficha-identidad" class="ficha-subtitle ficha-identity-lines">—</div></div>
+            <div class="ficha-main-head">
+              <p class="ficha-label">Detalles del estudiante</p>
+              <h2 id="ficha-nombre">—</h2>
+              <div id="ficha-identidad" class="ficha-subtitle ficha-identity-lines">—</div>
+            </div>
+
             <div class="ficha-top-side">
               <span id="ficha-estado" class="ficha-pill ficha-pill-warn">Pendiente</span>
+
               <div class="ficha-top-actions" aria-label="Acciones rápidas de ficha">
                 <span id="ficha-special-titulacion" class="ficha-mini-badge" title="Aprobación titulación" aria-label="Aprobación titulación">🎓</span>
                 <span id="ficha-special-complexivo" class="ficha-mini-badge" title="Aprobación complexivo/proyecto" aria-label="Aprobación complexivo/proyecto">🧩</span>
@@ -56,27 +97,78 @@ Con qué se conecta:
               </div>
             </div>
           </div>
+
           <section class="ficha-grid-info">
-            <article><span>División</span><strong id="ficha-division-label">—</strong></article>
-            <article><span>Matrícula</span><strong id="ficha-matricula-label">—</strong></article>
-            <article><span>Sede</span><strong id="ficha-sede">—</strong></article>
-            <article><span>Horario</span><strong id="ficha-horario">—</strong></article>
-            <article><span>Correo personal</span><strong id="ficha-correo-personal">—</strong></article>
-            <article><span>Correo institucional</span><strong id="ficha-correo-institucional">—</strong></article>
-            <article><span>Celular</span><strong id="ficha-celular">—</strong></article>
+            <article>
+              <span>División</span>
+              <strong id="ficha-division-label">—</strong>
+            </article>
+
+            <article>
+              <span>Matrícula</span>
+              <strong id="ficha-matricula-label">—</strong>
+            </article>
+
+            <article>
+              <span>Sede</span>
+              <strong id="ficha-sede">—</strong>
+            </article>
+
+            <article>
+              <span>Horario</span>
+              <strong id="ficha-horario">—</strong>
+            </article>
+
+            <article>
+              <span>Correo personal</span>
+              <strong id="ficha-correo-personal">—</strong>
+            </article>
+
+            <article>
+              <span>Correo institucional</span>
+              <strong id="ficha-correo-institucional">—</strong>
+            </article>
+
+            <article>
+              <span>Celular</span>
+              <strong id="ficha-celular">—</strong>
+            </article>
           </section>
-          <section class="ficha-actions"><a id="ficha-whatsapp" class="ficha-action" href="#" target="_blank" rel="noopener">WhatsApp</a><button id="ficha-copy-cedula" class="ficha-action" type="button">Copiar cédula</button><button id="ficha-copy-correo" class="ficha-action" type="button">Copiar correo</button></section>
-          <section class="ficha-modalidad-card"><div class="ficha-section-title">Modalidad de Titulación</div><div class="ficha-modalidad-row"><label>Modalidad<select id="ficha-modalidad-select"></select></label><button id="ficha-modalidad-save" type="button">Guardar modalidad</button><span id="ficha-modalidad-info" class="ficha-modalidad-info">—</span></div></section>
-          <section class="ficha-req-card"><div class="ficha-section-title">Carga</div><div id="ficha-requisitos" class="ficha-requisitos"></div></section>
-          <section class="ficha-notes-card"><div class="ficha-section-title">Notas</div><div id="ficha-notas" class="ficha-notas"></div></section>
+
+          <section class="ficha-actions">
+            <a id="ficha-whatsapp" class="ficha-action" href="#" target="_blank" rel="noopener">WhatsApp</a>
+            <button id="ficha-copy-cedula" class="ficha-action" type="button">Copiar cédula</button>
+            <button id="ficha-copy-correo" class="ficha-action" type="button">Copiar correo</button>
+          </section>
+
+          <section class="ficha-modalidad-card">
+            <div class="ficha-section-title">Modalidad de Titulación</div>
+            <div class="ficha-modalidad-row">
+              <label>
+                Modalidad
+                <select id="ficha-modalidad-select"></select>
+              </label>
+              <button id="ficha-modalidad-save" type="button">Guardar modalidad</button>
+              <span id="ficha-modalidad-info" class="ficha-modalidad-info">—</span>
+            </div>
+          </section>
+
+          <section class="ficha-req-card">
+            <div class="ficha-section-title">Carga</div>
+            <div id="ficha-requisitos" class="ficha-requisitos"></div>
+          </section>
+
+          <section class="ficha-notes-card">
+            <div class="ficha-section-title">Notas</div>
+            <div id="ficha-notas" class="ficha-notas"></div>
+          </section>
         </div>
       </section>
     </section>
   </main>
+
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="ficha.core.js"></script>
-  <script src="ficha.export.js"></script>
-  <script src="ficha.modalidad.js"></script>
   <script src="ficha.app.js"></script>
 </body>
 </html>

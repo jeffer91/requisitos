@@ -19,6 +19,7 @@ Con qué se conecta:
     {tipo:"modulo",moduloId:"ficha_estudiante",etiqueta:"Ficha"},
     {tipo:"modulo",moduloId:"stat_main",etiqueta:"Stats"},
     {tipo:"modulo",moduloId:"coordi",etiqueta:"Coordi"},
+    {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
     {tipo:"modulo",moduloId:"modulo_reporte",etiqueta:"Repor"},
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
     {tipo:"modulo",moduloId:"sacar_n",etiqueta:"Sacar N"},

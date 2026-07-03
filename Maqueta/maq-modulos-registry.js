@@ -21,6 +21,7 @@ Con qué se conecta:
     ficha_estudiante:{id:"ficha_estudiante",nombre:"Ficha",ruta:base+"/Ficha/ficha.html",estado:"activo"},
     stat_main:{id:"stat_main",nombre:"Estadísticas",ruta:base+"/Stats/stats.html",estado:"activo"},
     coordi:{id:"coordi",nombre:"Coordi",ruta:base+"/Coordi/coordi.html",estado:"activo"},
+    global:{id:"global",nombre:"Global",ruta:base+"/Coordi/coordi.html",estado:"activo"},
     modulo_reporte:{id:"modulo_reporte",nombre:"Reportes",ruta:base+"/Reportes/repo.html",estado:"activo"},
     defart:{id:"defart",nombre:"Defensas",ruta:base+"/defart/defart.html",estado:"activo"},
     sacar_n:{id:"sacar_n",nombre:"Sacar N",ruta:base+"/sn-sacar-n/sn-sacar-n.html",estado:"activo"},
