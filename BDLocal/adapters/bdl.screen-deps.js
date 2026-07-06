@@ -6,11 +6,12 @@ Funcion:
 - Exponer APIs sincronicas inmediatas para que Tabla/Ficha/Stats no arranquen sin repositorio.
 - Cargar el sistema completo de conexiones BDLocal en segundo plano.
 - Mantener compatibilidad con ExcelLocalRepo, BL2DataEngine, BL2EstudiantesRepo y BL2ReportesRepo.
+- Evitar que metodos asincronos de BL2 pisen los metodos sincronicos que las pantallas esperan.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.1.1";
   var currentScript = document.currentScript;
   var CACHE_KEY = "REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var OLD_SNAPSHOT_KEY = "REQ_EXCEL_LOCAL_V1:snapshot";
@@ -188,7 +189,6 @@ Funcion:
   }
 
   function listPeriodsSync(){ return readCache().periods; }
-
   function getStudentsSync(options){ return filterStudents(readCache().students, options || {}); }
 
   function listStudentsSync(options){
@@ -236,104 +236,112 @@ Funcion:
     })[0] || null;
   }
 
-  function ensureSyncAdapters(){
-    var excel = {
-      ready:function(){ return window.BDLScreenDepsReady || Promise.resolve(true); },
-      source:"BDLocalScreenDeps",
-      getSnapshot:function(){
-        var c = readCache();
-        return { meta:c.meta, periods:c.periods, students:c.students, history:[], diagnostics:c.diagnostics || [] };
+  function makeSyncAdapters(){
+    var readyFn = function(){ return window.BDLScreenDepsReady || Promise.resolve(true); };
+
+    return {
+      excel:{
+        ready:readyFn,
+        source:"BDLocalScreenDeps",
+        getSnapshot:function(){
+          var c = readCache();
+          return { meta:c.meta, periods:c.periods, students:c.students, history:[], diagnostics:c.diagnostics || [] };
+        },
+        listPeriods:listPeriodsSync,
+        getPeriods:listPeriodsSync,
+        periods:listPeriodsSync,
+        listStudents:listStudentsSync,
+        getStudents:getStudentsSync,
+        getRows:getStudentsSync,
+        rows:getStudentsSync,
+        all:getStudentsSync,
+        listar:getStudentsSync,
+        listAllStudents:function(){ return getStudentsSync({ matricula:"" }); },
+        filterStudents:getStudentsSync,
+        listStudentsByStatus:function(status, periodoId){ return getStudentsSync({ matricula:status || "", periodoId:periodoId || "" }); },
+        byCedula:getStudentByCedulaSync,
+        getStudentByCedula:getStudentByCedulaSync,
+        getStudentById:getStudentByIdSync,
+        search:function(query, options){ return listStudentsSync(Object.assign({}, options || {}, { search:query || "" })); },
+        getSummary:getSummarySync,
+        summary:getSummarySync,
+        getRequirements:getRequirementsSync
       },
-      listPeriods:listPeriodsSync,
-      getPeriods:listPeriodsSync,
-      periods:listPeriodsSync,
-      listStudents:listStudentsSync,
-      getStudents:getStudentsSync,
-      getRows:getStudentsSync,
-      rows:getStudentsSync,
-      all:getStudentsSync,
-      listar:getStudentsSync,
-      listAllStudents:function(){ return getStudentsSync({ matricula:"" }); },
-      filterStudents:getStudentsSync,
-      listStudentsByStatus:function(status, periodoId){ return getStudentsSync({ matricula:status || "", periodoId:periodoId || "" }); },
-      byCedula:getStudentByCedulaSync,
-      getStudentByCedula:getStudentByCedulaSync,
-      getStudentById:getStudentByIdSync,
-      search:function(query, options){ return listStudentsSync(Object.assign({}, options || {}, { search:query || "" })); },
-      getSummary:getSummarySync,
-      summary:getSummarySync,
-      getRequirements:getRequirementsSync
+      engine:{
+        ready:readyFn,
+        source:"BDLocalScreenDeps",
+        listPeriods:listPeriodsSync,
+        getPeriods:listPeriodsSync,
+        periods:listPeriodsSync,
+        listStudents:listStudentsSync,
+        getStudents:getStudentsSync,
+        getRows:getStudentsSync,
+        rows:getStudentsSync,
+        filterStudents:getStudentsSync,
+        listAllStudents:function(){ return getStudentsSync({ matricula:"" }); },
+        listStudentsByStatus:function(status, periodoId){ return getStudentsSync({ matricula:status || "", periodoId:periodoId || "" }); },
+        getStudentByCedula:getStudentByCedulaSync,
+        getStudentById:getStudentByIdSync,
+        search:function(options){ return listStudentsSync(options || {}); },
+        getRequirements:getRequirementsSync,
+        requirements:getRequirementsSync,
+        getSummary:getSummarySync,
+        summary:getSummarySync,
+        stats:function(periodoId){ return { periodoId:periodoId, estudiantes:getStudentsSync({ periodoId:periodoId, matricula:"" }), requisitos:getRequirementsSync({ periodoId:periodoId }), resumen:getSummarySync(periodoId), source:"BDLocalScreenDeps" }; },
+        getStatsData:function(periodoId){ return this.stats(periodoId); }
+      },
+      estudiantes:{
+        ready:readyFn,
+        source:"BDLocalScreenDeps",
+        buscar:listStudentsSync,
+        getStudents:getStudentsSync,
+        listStudents:listStudentsSync,
+        filterStudents:getStudentsSync,
+        listAllStudents:function(){ return getStudentsSync({ matricula:"" }); },
+        listStudentsByStatus:function(status, periodoId){ return getStudentsSync({ matricula:status || "", periodoId:periodoId || "" }); },
+        obtenerPorCedula:getStudentByCedulaSync,
+        getStudentByCedula:getStudentByCedulaSync,
+        getStudentById:getStudentByIdSync,
+        listPeriods:listPeriodsSync,
+        getPeriods:listPeriodsSync
+      },
+      reportes:{
+        ready:readyFn,
+        source:"BDLocalScreenDeps",
+        build:function(filters){ return this.buildReportData(filters || {}); },
+        report:function(filters){ return this.buildReportData(filters || {}); },
+        buildReportData:function(filters){
+          filters = filters || {};
+          var rows = getStudentsSync(filters);
+          return {
+            ok:true,
+            source:"BDLocalScreenDeps",
+            filters:clone(filters),
+            generatedAt:new Date().toISOString(),
+            estudiantes:rows,
+            rows:rows,
+            requisitos:getRequirementsSync(filters),
+            periodos:listPeriodsSync(),
+            resumen:{ totalEstudiantes:rows.length }
+          };
+        },
+        getStudents:getStudentsSync,
+        listStudents:listStudentsSync,
+        getRequirements:getRequirementsSync,
+        getSummary:getSummarySync,
+        getPeriods:listPeriodsSync,
+        listPeriods:listPeriodsSync
+      }
     };
+  }
 
-    window.ExcelLocalRepo = Object.assign({}, excel, window.ExcelLocalRepo || {});
+  function ensureSyncAdapters(){
+    var adapters = makeSyncAdapters();
 
-    window.BL2DataEngine = Object.assign({}, {
-      ready:excel.ready,
-      source:"BDLocalScreenDeps",
-      listPeriods:listPeriodsSync,
-      getPeriods:listPeriodsSync,
-      periods:listPeriodsSync,
-      listStudents:listStudentsSync,
-      getStudents:getStudentsSync,
-      getRows:getStudentsSync,
-      rows:getStudentsSync,
-      filterStudents:getStudentsSync,
-      listAllStudents:excel.listAllStudents,
-      listStudentsByStatus:excel.listStudentsByStatus,
-      getStudentByCedula:getStudentByCedulaSync,
-      getStudentById:getStudentByIdSync,
-      search:function(options){ return listStudentsSync(options || {}); },
-      getRequirements:getRequirementsSync,
-      requirements:getRequirementsSync,
-      getSummary:getSummarySync,
-      summary:getSummarySync,
-      stats:function(periodoId){ return { periodoId:periodoId, estudiantes:getStudentsSync({ periodoId:periodoId, matricula:"" }), requisitos:getRequirementsSync({ periodoId:periodoId }), resumen:getSummarySync(periodoId), source:"BDLocalScreenDeps" }; },
-      getStatsData:function(periodoId){ return this.stats(periodoId); }
-    }, window.BL2DataEngine || {});
-
-    window.BL2EstudiantesRepo = Object.assign({}, {
-      ready:excel.ready,
-      source:"BDLocalScreenDeps",
-      buscar:listStudentsSync,
-      getStudents:getStudentsSync,
-      listStudents:listStudentsSync,
-      filterStudents:getStudentsSync,
-      listAllStudents:excel.listAllStudents,
-      listStudentsByStatus:excel.listStudentsByStatus,
-      obtenerPorCedula:getStudentByCedulaSync,
-      getStudentByCedula:getStudentByCedulaSync,
-      getStudentById:getStudentByIdSync,
-      listPeriods:listPeriodsSync,
-      getPeriods:listPeriodsSync
-    }, window.BL2EstudiantesRepo || {});
-
-    window.BL2ReportesRepo = Object.assign({}, {
-      ready:excel.ready,
-      source:"BDLocalScreenDeps",
-      build:function(filters){ return this.buildReportData(filters || {}); },
-      report:function(filters){ return this.buildReportData(filters || {}); },
-      buildReportData:function(filters){
-        filters = filters || {};
-        var rows = getStudentsSync(filters);
-        return {
-          ok:true,
-          source:"BDLocalScreenDeps",
-          filters:clone(filters),
-          generatedAt:new Date().toISOString(),
-          estudiantes:rows,
-          rows:rows,
-          requisitos:getRequirementsSync(filters),
-          periodos:listPeriodsSync(),
-          resumen:{ totalEstudiantes:rows.length }
-        };
-      },
-      getStudents:getStudentsSync,
-      listStudents:listStudentsSync,
-      getRequirements:getRequirementsSync,
-      getSummary:getSummarySync,
-      getPeriods:listPeriodsSync,
-      listPeriods:listPeriodsSync
-    }, window.BL2ReportesRepo || {});
+    window.ExcelLocalRepo = Object.assign({}, window.ExcelLocalRepo || {}, adapters.excel);
+    window.BL2DataEngine = Object.assign({}, window.BL2DataEngine || {}, adapters.engine);
+    window.BL2EstudiantesRepo = Object.assign({}, window.BL2EstudiantesRepo || {}, adapters.estudiantes);
+    window.BL2ReportesRepo = Object.assign({}, window.BL2ReportesRepo || {}, adapters.reportes);
   }
 
   function resolve(relative){
@@ -382,8 +390,12 @@ Funcion:
       "../conexiones/con.utils.js",
       "../conexiones/con.index.js"
     ]).then(function(){
+      ensureSyncAdapters();
       if(window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"){
-        return window.BDLocalConexiones.ready();
+        return window.BDLocalConexiones.ready().then(function(result){
+          ensureSyncAdapters();
+          return result;
+        });
       }
       return { ok:false, message:"BDLocalConexiones no disponible." };
     });
@@ -413,7 +425,8 @@ Funcion:
     status:status,
     load:load,
     readCache:readCache,
-    filterStudents:getStudentsSync
+    filterStudents:getStudentsSync,
+    ensureSyncAdapters:ensureSyncAdapters
   };
 
   window.BDLScreenDepsReady = ready();
