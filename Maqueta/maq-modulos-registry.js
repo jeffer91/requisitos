@@ -3,8 +3,9 @@ Nombre completo: maq-modulos-registry.js
 Ruta o ubicación: /Requisitos/Maqueta/maq-modulos-registry.js
 Función o funciones:
 - Definir rutas internas reales del menú de Requisitos.
-- Enviar Carga a la pantalla funcional BDLocal/bdlocal.html si existe.
+- Enviar Carga a la pantalla funcional Carga/carga.html.
 - Enviar BL a la nueva pantalla BDLocal/bl2.html.
+- Registrar Global como módulo activo para análisis histórico multiperíodo.
 - Registrar Sacar N como módulo activo para extracción controlada de notas.
 - Marcar como pendientes las pantallas que aún no existen para evitar iframe roto.
 Con qué se conecta:
@@ -63,7 +64,7 @@ Con qué se conecta:
     global: {
       id: "global",
       nombre: "Global",
-      ruta: base + "/Coordi/coordi.html",
+      ruta: base + "/Global/global.html",
       estado: "activo"
     },
 
@@ -146,6 +147,10 @@ Con qué se conecta:
 
     global: "global",
     globals: "global",
+    historico: "global",
+    histórico: "global",
+    "analisis global": "global",
+    "análisis global": "global",
 
     reporte: "modulo_reporte",
     reportes: "modulo_reporte",
@@ -184,10 +189,7 @@ Con qué se conecta:
   }
 
   function cloneModule(modulo){
-    if(!modulo){
-      return null;
-    }
-
+    if(!modulo){ return null; }
     return {
       id: modulo.id,
       nombre: modulo.nombre,
@@ -198,17 +200,9 @@ Con qué se conecta:
 
   function canonicalModuleId(moduloId){
     var raw = text(moduloId);
-
-    if(!raw){
-      return "";
-    }
-
-    if(modules[raw]){
-      return raw;
-    }
-
+    if(!raw){ return ""; }
+    if(modules[raw]){ return raw; }
     var key = norm(raw).replace(/[_-]+/g, " ");
-
     return aliases[key] || raw;
   }
 
@@ -217,14 +211,10 @@ Con qué se conecta:
     return cloneModule(modules[id]);
   }
 
-  function existe(moduloId){
-    return !!buscarPorId(moduloId);
-  }
+  function existe(moduloId){ return !!buscarPorId(moduloId); }
 
   function listar(){
-    return Object.keys(modules).map(function(id){
-      return cloneModule(modules[id]);
-    });
+    return Object.keys(modules).map(function(id){ return cloneModule(modules[id]); });
   }
 
   function rutaDe(moduloId){
@@ -238,17 +228,13 @@ Con qué se conecta:
   }
 
   function registrar(modulo){
-    if(!modulo || !text(modulo.id)){
-      return false;
-    }
-
+    if(!modulo || !text(modulo.id)){ return false; }
     modules[text(modulo.id)] = {
       id: text(modulo.id),
       nombre: text(modulo.nombre || modulo.id),
       ruta: text(modulo.ruta || ""),
       estado: text(modulo.estado || "activo")
     };
-
     return true;
   }
 
