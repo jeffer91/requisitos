@@ -2,20 +2,17 @@
 Nombre completo: carga.save.js
 Ruta o ubicación: /Requisitos/Carga/process/carga.save.js
 Función o funciones:
-- Guardar la carga validada en Base Local.
-- Usar siempre el período seleccionado antes de cargar Excel.
-- Evitar guardar registros si hay errores graves.
-- Generar señal para sincronización inteligente después de guardar.
-- Recalcular carreras, requisitos y dashboard del período.
+- Guardar la carga validada en BDLocal/BL2.
+- Usar período canónico obligatorio.
+- Enviar datos a tablas inteligentes de BL2.
+- Mantener compatibilidad con repositorios viejos si BL2 no está disponible.
+- Crear eventos para respaldo y sincronización inteligente.
 Con qué se conecta:
+- carga.app.js
 - carga.validator.js
-- bdl.validator.estudiante.js
-- bdl.repo.estudiantes.js
-- bdl.repo.carreras.js
-- bdl.repo.requisitos.js
-- bdl.repo.dashboard.js
-- bdl.sync.queue.js
-- bdl.sync.engine.js
+- BDLocal/bl2.core.js
+- BDLocal/bl2.backup.js
+- BDLocal/bl2.sync.js
 ========================================================= */
 (function(window){
   "use strict";
@@ -24,84 +21,407 @@ Con qué se conecta:
     return String(value == null ? "" : value).trim();
   }
 
+  function clone(value){
+    if(value === undefined){ return undefined; }
+    try{ return JSON.parse(JSON.stringify(value)); }
+    catch(error){ return value; }
+  }
+
   function emit(name, detail){
     try{
       window.dispatchEvent(new CustomEvent(name, { detail: detail || {} }));
     }catch(error){}
   }
 
-  function selectedPeriod(normalized){
-    normalized = normalized || {};
-    var p = normalized.periodoDetectado || {};
-
-    if(window.BDLValidatorEstudiante && typeof window.BDLValidatorEstudiante.periodFromSelected === "function"){
-      return window.BDLValidatorEstudiante.periodFromSelected(p);
+  function windowValue(ctx, name){
+    try{
+      return ctx && ctx[name] ? ctx[name] : null;
+    }catch(error){
+      return null;
     }
+  }
 
-    if(window.BDLNormPeriodo && typeof window.BDLNormPeriodo.normalize === "function"){
-      return window.BDLNormPeriodo.normalize({}, {
-        periodoId: p.periodoId || p.id || p.value || "",
-        periodoLabel: p.periodoLabel || p.label || p.nombre || p.periodoId || ""
-      });
-    }
+  function parentValue(name){
+    try{
+      if(window.parent && window.parent !== window){
+        return windowValue(window.parent, name);
+      }
+    }catch(error){}
+    return null;
+  }
+
+  function topValue(name){
+    try{
+      if(window.top && window.top !== window){
+        return windowValue(window.top, name);
+      }
+    }catch(error){}
+    return null;
+  }
+
+  function openerValue(name){
+    try{
+      if(window.opener && window.opener !== window){
+        return windowValue(window.opener, name);
+      }
+    }catch(error){}
+    return null;
+  }
+
+  function makeBDLocalFromBL2(core){
+    if(!core || typeof core.saveStudents !== "function"){ return null; }
 
     return {
-      periodoId: text(p.periodoId || p.id || p.value || ""),
-      periodoLabel: text(p.periodoLabel || p.label || p.nombre || p.periodoId || ""),
-      valid: !!text(p.periodoId || p.id || p.value || "")
+      guardarEstudiantes: function(rows, periodoInfo, options){
+        options = options || {};
+        periodoInfo = periodoInfo || {};
+
+        return core.saveStudents(rows || [], Object.assign({}, options, periodoInfo, {
+          normalized: true,
+          source: options.source || "carga_excel"
+        }));
+      },
+
+      saveStudents: function(rows, options){
+        return core.saveStudents(rows || [], options || {});
+      }
+    };
+  }
+
+  function api(name){
+    var value = windowValue(window, name) || parentValue(name) || topValue(name) || openerValue(name);
+
+    if(value){ return value; }
+
+    if(name === "BDLocal"){
+      return makeBDLocalFromBL2(api("BL2Core"));
+    }
+
+    return null;
+  }
+
+  function normalizeUnderscorePeriod(value){
+    value = text(value);
+    var match = value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
+    if(match){
+      return match[1] + "-" + match[2] + "__" + match[3] + "-" + match[4];
+    }
+    return value.replace(/_+/g, "__");
+  }
+
+  function localPeriod(){
+    var id = "";
+    var label = "";
+
+    try{
+      id = text(localStorage.getItem("carga.periodoSeleccionado"));
+      label = text(localStorage.getItem("carga.periodoSeleccionadoLabel"));
+    }catch(error){}
+
+    id = normalizeUnderscorePeriod(id);
+
+    return {
+      periodoId: id,
+      periodoLabel: label || id,
+      periodoCanonicoId: id,
+      periodoCanonicoLabel: label || id,
+      valid: !!id
+    };
+  }
+
+  function selectedPeriod(normalized, options){
+    normalized = normalized || {};
+    options = options || {};
+
+    var detected = normalized.periodoDetectado || {};
+    var local = localPeriod();
+
+    var id = text(
+      options.periodoCanonicoId ||
+      options.periodoId ||
+      detected.periodoCanonicoId ||
+      detected.periodoId ||
+      detected.id ||
+      detected.value ||
+      local.periodoId
+    );
+
+    id = normalizeUnderscorePeriod(id);
+
+    var label = text(
+      options.periodoCanonicoLabel ||
+      options.periodoLabel ||
+      detected.periodoCanonicoLabel ||
+      detected.periodoLabel ||
+      detected.label ||
+      detected.nombre ||
+      local.periodoLabel ||
+      id
+    );
+
+    return {
+      periodoId: id,
+      periodoLabel: label || id,
+      periodoCanonicoId: id,
+      periodoCanonicoLabel: label || id,
+      id: id,
+      label: label || id,
+      valid: !!id && id !== "SIN_PERIODO"
     };
   }
 
   function periodValid(periodo){
-    if(window.BDLNormPeriodo && typeof window.BDLNormPeriodo.isValid === "function"){
-      return window.BDLNormPeriodo.isValid(periodo);
-    }
     return !!(periodo && periodo.periodoId && periodo.periodoId !== "SIN_PERIODO");
   }
 
-  function injectPeriod(row, periodo){
-    if(window.BDLValidatorEstudiante && typeof window.BDLValidatorEstudiante.injectPeriod === "function"){
-      return window.BDLValidatorEstudiante.injectPeriod(row, periodo);
+  function normalizeCedula(value){
+    var raw = text(value).replace(/[^0-9A-Za-z]/g, "");
+    if(/^\d{9}$/.test(raw)){ return "0" + raw; }
+    return raw;
+  }
+
+  function firstValue(row, names){
+    row = row || {};
+    names = Array.isArray(names) ? names : [];
+
+    var keys = Object.keys(row);
+    var wanted = names.map(function(name){
+      return text(name).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    });
+
+    for(var i = 0; i < keys.length; i += 1){
+      var key = text(keys[i]).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if(wanted.indexOf(key) >= 0){ return row[keys[i]]; }
     }
 
+    return "";
+  }
+
+  function injectPeriod(row, periodo){
     row = Object.assign({}, row || {});
+
+    var cedula = normalizeCedula(firstValue(row, [
+      "numeroIdentificacion",
+      "NumeroIdentificacion",
+      "cedula",
+      "Cédula",
+      "Cedula",
+      "identificacion",
+      "documento"
+    ]));
+
+    row.cedula = cedula;
+    row.numeroIdentificacion = row.numeroIdentificacion || cedula;
     row.periodoId = periodo.periodoId;
-    row.PeriodoId = periodo.periodoId;
-    row.periodId = periodo.periodoId;
-    row.periodo = periodo.periodoLabel;
-    row.Periodo = periodo.periodoLabel;
     row.periodoLabel = periodo.periodoLabel;
-    row.PeriodoLabel = periodo.periodoLabel;
-    row._periodoSeleccionado = periodo.periodoId;
-    row._periodoSeleccionadoLabel = periodo.periodoLabel;
+    row.periodoCanonicoId = periodo.periodoCanonicoId || periodo.periodoId;
+    row.periodoCanonicoLabel = periodo.periodoCanonicoLabel || periodo.periodoLabel;
+    row.ultimoPeriodoId = periodo.periodoId;
+    row.estadoMatricula = text(row.estadoMatricula || row.EstadoMatricula || "ACTIVO").toUpperCase() || "ACTIVO";
+
+    row.PeriodoId = row.periodoId;
+    row.periodId = row.periodoId;
+    row.Periodo = row.periodoLabel;
+    row.PeriodoLabel = row.periodoLabel;
+    row._periodoSeleccionado = row.periodoId;
+    row._periodoSeleccionadoLabel = row.periodoLabel;
+
     return row;
+  }
+
+  function rowsFromNormalized(normalized){
+    normalized = normalized || {};
+    if(Array.isArray(normalized.rowsMapeadas)){ return normalized.rowsMapeadas; }
+    if(Array.isArray(normalized.rows)){ return normalized.rows; }
+    if(Array.isArray(normalized.students)){ return normalized.students; }
+    return [];
+  }
+
+  function ensureBL2Ready(core){
+    if(!core){ return Promise.resolve(null); }
+
+    if(typeof core.getState === "function"){
+      try{
+        var st = core.getState() || {};
+        if(st.initialized){ return Promise.resolve(core); }
+      }catch(error){}
+    }
+
+    if(typeof core.init === "function"){
+      return core.init().catch(function(error){
+        console.warn("[CargaSave] BL2Core.init no pudo ejecutarse o ya estaba abierto", error);
+        return null;
+      }).then(function(){ return core; });
+    }
+
+    return Promise.resolve(core);
+  }
+
+  function normalizeResult(result, periodoInfo, preparedRows){
+    result = result || {};
+    preparedRows = Array.isArray(preparedRows) ? preparedRows : [];
+
+    var warnings = result.warnings || result.advertencias || [];
+    var errors = result.errors || result.errores || [];
+
+    if(typeof warnings === "number"){ warnings = new Array(warnings).fill("Advertencia"); }
+    if(typeof errors === "number"){ errors = new Array(errors).fill("Error"); }
+
+    return Object.assign({}, result, {
+      ok: result.ok !== false,
+      periodoId: result.periodoId || periodoInfo.periodoId,
+      periodoLabel: result.periodoLabel || periodoInfo.periodoLabel,
+      total: result.total || result.totalEntrada || preparedRows.length,
+      totalEntrada: result.totalEntrada || result.total || preparedRows.length,
+      saved: result.saved || result.guardados || result.nuevos || 0,
+      updated: result.updated || result.actualizados || 0,
+      merged: result.merged || result.duplicados || result.duplicadosCorregidos || 0,
+      guardados: result.guardados || result.saved || result.nuevos || 0,
+      actualizados: result.actualizados || result.updated || 0,
+      duplicados: result.duplicados || result.merged || 0,
+      warnings: warnings,
+      errors: errors,
+      advertencias: warnings,
+      errores: errors,
+      changes: result.changes || result.cambios || []
+    });
   }
 
   function enqueueSyncHint(result, periodoInfo){
     result = result || {};
-    var changes = Array.isArray(result.changes) ? result.changes : [];
+
+    var changes = result.changes || result.cambios || [];
+    var totalChanges = Array.isArray(changes) ? changes.length : Number(changes || 0);
 
     emit("bdlocal:changes-created", {
       source: "CargaSave",
       periodoId: periodoInfo.periodoId,
       periodoLabel: periodoInfo.periodoLabel,
-      total: changes.length,
-      changes: changes,
+      total: totalChanges,
+      changes: Array.isArray(changes) ? changes : [],
       at: new Date().toISOString()
     });
 
-    if(window.BDLSyncEngine && typeof window.BDLSyncEngine.syncBackground === "function"){
-      try{
-        window.BDLSyncEngine.syncBackground();
-      }catch(error){}
-    }else{
-      emit("bdlocal:sync-requested", {
-        source: "CargaSave",
-        reason: "carga_guardada",
-        pending: changes.length,
-        at: new Date().toISOString()
+    emit("bdlocal:sync-requested", {
+      source: "CargaSave",
+      reason: "carga_guardada",
+      pending: totalChanges,
+      lowCost: true,
+      idleOnly: true,
+      batchSize: 50,
+      at: new Date().toISOString()
+    });
+  }
+
+  function callBL2(preparedRows, periodoInfo, normalized, options){
+    var core = api("BL2Core");
+
+    if(!core || typeof core.saveStudents !== "function"){
+      return Promise.resolve(null);
+    }
+
+    return ensureBL2Ready(core).then(function(){
+      return core.saveStudents(preparedRows, {
+        normalized: true,
+        periodoId: periodoInfo.periodoId,
+        periodoLabel: periodoInfo.periodoLabel,
+        periodoCanonicoId: periodoInfo.periodoCanonicoId,
+        periodoCanonicoLabel: periodoInfo.periodoCanonicoLabel,
+        source: options.source || "carga_excel",
+        fileName: normalized.fileName || options.fileName || "",
+        origen: normalized.origen || options.origen || "",
+        importResult: {
+          periodoId: periodoInfo.periodoId,
+          periodoLabel: periodoInfo.periodoLabel,
+          duplicados: normalized.duplicados || 0,
+          advertencias: normalized.advertencias || [],
+          errores: normalized.errores || []
+        },
+        sync: options.sync !== false,
+        markRetired: options.markRetired !== false
+      });
+    });
+  }
+
+  function callBDLocal(preparedRows, periodoInfo, normalized, options){
+    var bd = api("BDLocal");
+
+    if(!bd){ return Promise.resolve(null); }
+
+    if(typeof bd.guardarEstudiantes === "function"){
+      return bd.guardarEstudiantes(preparedRows, periodoInfo, options || {});
+    }
+
+    if(typeof bd.saveStudents === "function"){
+      return bd.saveStudents(preparedRows, Object.assign({}, options || {}, periodoInfo));
+    }
+
+    return Promise.resolve(null);
+  }
+
+  function callLegacyRepo(preparedRows, periodoInfo, normalized, options){
+    var repo = api("BDLRepoEstudiantes");
+
+    if(!repo || typeof repo.guardarMuchos !== "function"){
+      return Promise.resolve(null);
+    }
+
+    return repo.guardarMuchos(preparedRows, periodoInfo, {
+      source: options.source || "carga_excel",
+      fileName: normalized.fileName || options.fileName || "",
+      origen: normalized.origen || options.origen || "",
+      sync: options.sync !== false
+    });
+  }
+
+  function updateAuxiliaryRepos(preparedRows, periodoInfo){
+    var tasks = [];
+    var carreras = api("BDLRepoCarreras");
+    var requisitos = api("BDLRepoRequisitos");
+    var dashboard = api("BDLRepoDashboard");
+
+    if(carreras && typeof carreras.guardarDesdeEstudiantes === "function"){
+      tasks.push(carreras.guardarDesdeEstudiantes(preparedRows).catch(function(error){
+        console.warn("[CargaSave] No se pudo actualizar carreras", error);
+        return null;
+      }));
+    }
+
+    if(requisitos && typeof requisitos.guardarCatalogo === "function"){
+      tasks.push(requisitos.guardarCatalogo().catch(function(error){
+        console.warn("[CargaSave] No se pudo actualizar catálogo de requisitos", error);
+        return null;
+      }));
+    }
+
+    if(dashboard && typeof dashboard.recalcularBasico === "function"){
+      tasks.push(dashboard.recalcularBasico(periodoInfo.periodoId).catch(function(error){
+        console.warn("[CargaSave] No se pudo recalcular dashboard", error);
+        return null;
+      }));
+    }
+
+    return Promise.all(tasks);
+  }
+
+  function autoBackup(periodoInfo){
+    var backup = api("BL2Backup");
+
+    if(backup && typeof backup.autoAfterExcel === "function"){
+      return backup.autoAfterExcel(periodoInfo.periodoId).catch(function(error){
+        console.warn("[CargaSave] No se pudo crear respaldo automático", error);
+        return null;
       });
     }
+
+    if(backup && typeof backup.dailyIfNeeded === "function"){
+      return backup.dailyIfNeeded({ scope:"period", periodoId:periodoInfo.periodoId, periodoLabel:periodoInfo.periodoLabel }).catch(function(error){
+        console.warn("[CargaSave] No se pudo crear respaldo diario", error);
+        return null;
+      });
+    }
+
+    return Promise.resolve(null);
   }
 
   function save(normalized, validation, options){
@@ -109,8 +429,8 @@ Con qué se conecta:
     normalized = normalized || {};
     validation = validation || {};
 
-    var periodoInfo = selectedPeriod(normalized);
-    var rows = Array.isArray(normalized.rowsMapeadas) ? normalized.rowsMapeadas : [];
+    var rows = rowsFromNormalized(normalized);
+    var periodoInfo = selectedPeriod(normalized, options);
 
     if(validation.ok === false && options.allowErrors !== true){
       return Promise.resolve({
@@ -119,8 +439,8 @@ Con qué se conecta:
         updated: 0,
         merged: 0,
         total: normalized.total || rows.length || 0,
-        errors: (validation.errors || []).length,
-        warnings: (validation.warnings || []).length,
+        errors: validation.errors || [],
+        warnings: validation.warnings || [],
         message: "La carga tiene errores y no fue guardada."
       });
     }
@@ -132,14 +452,10 @@ Con qué se conecta:
         updated: 0,
         merged: 0,
         total: normalized.total || rows.length || 0,
-        errors: 1,
-        warnings: (validation.warnings || []).length,
+        errors: [{ message:"No se puede guardar: primero selecciona un período." }],
+        warnings: validation.warnings || [],
         message: "No se puede guardar: primero selecciona un período."
       });
-    }
-
-    if(!window.BDLRepoEstudiantes){
-      return Promise.reject(new Error("BDLRepoEstudiantes no está disponible."));
     }
 
     var preparedRows = rows.map(function(row){
@@ -153,54 +469,50 @@ Con qué se conecta:
       at: new Date().toISOString()
     });
 
-    return window.BDLRepoEstudiantes.guardarMuchos(preparedRows, periodoInfo, {
-      source: "carga_excel",
-      fileName: normalized.fileName || "",
-      origen: normalized.origen || "",
-      sync: options.sync !== false
+    function trySaveWith(label, fn){
+      return fn().catch(function(error){
+        console.warn("[CargaSave] " + label + " no pudo guardar. Intentando siguiente motor.", error);
+        return null;
+      });
+    }
+
+    var resultPromise = trySaveWith("BL2Core", function(){
+      return callBL2(preparedRows, periodoInfo, normalized, options);
     }).then(function(result){
-      result = result || {};
+      if(result){ return result; }
 
-      var tasks = [];
+      return trySaveWith("BDLocal", function(){
+        return callBDLocal(preparedRows, periodoInfo, normalized, options);
+      });
+    }).then(function(result){
+      if(result){ return result; }
 
-      if(window.BDLRepoCarreras && typeof window.BDLRepoCarreras.guardarDesdeEstudiantes === "function"){
-        tasks.push(window.BDLRepoCarreras.guardarDesdeEstudiantes(preparedRows).catch(function(error){
-          console.warn("[CargaSave] No se pudo actualizar carreras", error);
-          return null;
-        }));
+      return trySaveWith("BDLRepoEstudiantes", function(){
+        return callLegacyRepo(preparedRows, periodoInfo, normalized, options);
+      });
+    }).then(function(result){
+      if(!result){
+        throw new Error("No hay motor de guardado disponible. Falta BL2Core, BDLocal o BDLRepoEstudiantes.");
       }
+      return result;
+    });
 
-      if(window.BDLRepoRequisitos && typeof window.BDLRepoRequisitos.guardarCatalogo === "function"){
-        tasks.push(window.BDLRepoRequisitos.guardarCatalogo().catch(function(error){
-          console.warn("[CargaSave] No se pudo actualizar catálogo de requisitos", error);
-          return null;
-        }));
-      }
+    return resultPromise.then(function(result){
+      var finalResult = normalizeResult(result, periodoInfo, preparedRows);
 
-      if(window.BDLRepoDashboard && typeof window.BDLRepoDashboard.recalcularBasico === "function"){
-        tasks.push(window.BDLRepoDashboard.recalcularBasico(periodoInfo.periodoId).catch(function(error){
-          console.warn("[CargaSave] No se pudo recalcular dashboard", error);
-          return null;
-        }));
-      }
-
-      return Promise.all(tasks).then(function(){
-        var finalResult = Object.assign({
-          ok: true,
-          periodoId: periodoInfo.periodoId,
-          periodoLabel: periodoInfo.periodoLabel
-        }, result);
-
+      return updateAuxiliaryRepos(preparedRows, periodoInfo).then(function(){
+        return autoBackup(periodoInfo);
+      }).then(function(){
         enqueueSyncHint(finalResult, periodoInfo);
 
         emit("bdlocal:carga-save-finish", {
-          ok: true,
-          total: finalResult.total || preparedRows.length,
-          saved: finalResult.saved || 0,
-          updated: finalResult.updated || 0,
-          merged: finalResult.merged || 0,
-          errors: finalResult.errors || 0,
-          changes: Array.isArray(finalResult.changes) ? finalResult.changes.length : 0,
+          ok: finalResult.ok,
+          total: finalResult.total,
+          saved: finalResult.saved,
+          updated: finalResult.updated,
+          merged: finalResult.merged,
+          warnings: Array.isArray(finalResult.warnings) ? finalResult.warnings.length : 0,
+          errors: Array.isArray(finalResult.errors) ? finalResult.errors.length : 0,
           periodoId: periodoInfo.periodoId,
           periodoLabel: periodoInfo.periodoLabel,
           at: new Date().toISOString()
@@ -213,6 +525,7 @@ Con qué se conecta:
         ok: false,
         error: error && error.message ? error.message : String(error),
         periodoId: periodoInfo.periodoId,
+        periodoLabel: periodoInfo.periodoLabel,
         at: new Date().toISOString()
       });
       throw error;
@@ -220,6 +533,12 @@ Con qué se conecta:
   }
 
   window.CargaSave = {
-    save: save
+    save: save,
+    helpers: {
+      selectedPeriod: selectedPeriod,
+      injectPeriod: injectPeriod,
+      normalizeCedula: normalizeCedula,
+      normalizeUnderscorePeriod: normalizeUnderscorePeriod
+    }
   };
 })(window);

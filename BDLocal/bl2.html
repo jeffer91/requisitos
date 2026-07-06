@@ -1,0 +1,235 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>BL2 - Base Local</title>
+
+  <link rel="stylesheet" href="bl2.css" />
+</head>
+
+<body>
+  <div class="bl2-shell" id="bl2-shell">
+
+    <header class="bl2-header">
+      <div class="bl2-header-main">
+        <div>
+          <p class="bl2-eyebrow">Base Local de Trabajo</p>
+          <h1>BL2</h1>
+          <p class="bl2-subtitle">
+            Base local rápida para requisitos, estudiantes, ficha, tabla, estadísticas y sincronización controlada.
+          </p>
+        </div>
+
+        <div class="bl2-header-status">
+          <span id="bl2-runtime-pill" class="bl2-pill bl2-pill-soft">Modo local</span>
+          <span id="bl2-db-pill" class="bl2-pill bl2-pill-warn">Inicializando</span>
+        </div>
+      </div>
+
+      <div id="bl2-sync-bar" class="bl2-sync-bar" hidden>
+        <div class="bl2-sync-info">
+          <strong id="bl2-sync-title">Sincronizando</strong>
+          <span id="bl2-sync-detail">Preparando...</span>
+        </div>
+        <div class="bl2-sync-track">
+          <i id="bl2-sync-progress" style="width: 0%;"></i>
+        </div>
+        <span id="bl2-sync-percent">0%</span>
+      </div>
+    </header>
+
+    <main class="bl2-main">
+
+      <section class="bl2-card bl2-control-card">
+        <div class="bl2-card-head">
+          <div>
+            <h2>Panel principal</h2>
+            <p>Selecciona el período, carga datos y ejecuta sincronizaciones sin afectar la rapidez de la app.</p>
+          </div>
+        </div>
+
+        <div class="bl2-grid bl2-grid-controls">
+          <label class="bl2-field">
+            <span>Período activo</span>
+            <select id="bl2-period-select">
+              <option value="">Seleccione un período...</option>
+            </select>
+          </label>
+
+          <label class="bl2-field">
+            <span>Buscar período</span>
+            <input id="bl2-period-search" type="search" placeholder="Ej: Abril 2026..." autocomplete="off" />
+          </label>
+
+          <div class="bl2-period-actions">
+            <button id="bl2-btn-period-save" class="bl2-btn bl2-btn-light" type="button">
+              Guardar período
+            </button>
+          </div>
+        </div>
+
+        <div class="bl2-actions">
+          <button id="bl2-btn-load" class="bl2-btn bl2-btn-primary" type="button">
+            Cargar Excel / CSV / TXT
+          </button>
+
+          <button id="bl2-btn-sync-google" class="bl2-btn bl2-btn-light" type="button">
+            Sincronizar Google
+          </button>
+
+          <button id="bl2-btn-sync-firebase" class="bl2-btn bl2-btn-light" type="button">
+            Sincronizar Firebase
+          </button>
+
+          <button id="bl2-btn-test" class="bl2-btn bl2-btn-light" type="button">
+            Probar
+          </button>
+
+          <button id="bl2-btn-export" class="bl2-btn bl2-btn-light" type="button">
+            Exportar
+          </button>
+        </div>
+
+        <input
+          id="bl2-file-input"
+          type="file"
+          accept=".xlsx,.xls,.csv,.txt,.json,.html"
+          hidden
+        />
+      </section>
+
+      <section class="bl2-kpis">
+        <article class="bl2-kpi">
+          <span>Período activo</span>
+          <strong id="bl2-kpi-period">—</strong>
+          <small id="bl2-kpi-period-id">Sin seleccionar</small>
+        </article>
+
+        <article class="bl2-kpi">
+          <span>Estudiantes</span>
+          <strong id="bl2-kpi-students">0</strong>
+          <small id="bl2-kpi-students-sub">En BL2</small>
+        </article>
+
+        <article class="bl2-kpi">
+          <span>Pendientes Google</span>
+          <strong id="bl2-kpi-google">0</strong>
+          <small>Cola frecuente</small>
+        </article>
+
+        <article class="bl2-kpi">
+          <span>Pendientes Firebase</span>
+          <strong id="bl2-kpi-firebase">0</strong>
+          <small>Una vez al día</small>
+        </article>
+
+        <article class="bl2-kpi">
+          <span>Advertencias</span>
+          <strong id="bl2-kpi-warnings">0</strong>
+          <small>Última carga</small>
+        </article>
+      </section>
+
+      <section class="bl2-layout">
+
+        <article class="bl2-card">
+          <div class="bl2-card-head">
+            <div>
+              <h2>Resumen de carga</h2>
+              <p>Después de cargar un archivo, aquí aparecerá el resumen corto.</p>
+            </div>
+          </div>
+
+          <div id="bl2-import-summary" class="bl2-summary">
+            <div class="bl2-empty">
+              Todavía no se ha cargado ningún archivo en esta sesión.
+            </div>
+          </div>
+        </article>
+
+        <article class="bl2-card">
+          <div class="bl2-card-head">
+            <div>
+              <h2>Estado de sincronización</h2>
+              <p>Google trabaja frecuente en segundo plano. Firebase solo una vez al día por período.</p>
+            </div>
+          </div>
+
+          <div class="bl2-sync-status-list">
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-warn"></span>
+              <div>
+                <strong>Google Sheets</strong>
+                <p id="bl2-google-status">Pendiente de configuración.</p>
+              </div>
+            </div>
+
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-warn"></span>
+              <div>
+                <strong>Firebase</strong>
+                <p id="bl2-firebase-status">Pendiente de revisión diaria.</p>
+              </div>
+            </div>
+
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-ok"></span>
+              <div>
+                <strong>Respaldo local JSON</strong>
+                <p id="bl2-backup-status">Activo: después de cada carga y una vez al día.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </section>
+
+      <section class="bl2-card">
+        <div class="bl2-card-head bl2-card-head-row">
+          <div>
+            <h2>Períodos disponibles</h2>
+            <p>Stats debe iniciar mostrando los períodos. Luego se analiza el período elegido.</p>
+          </div>
+
+          <button id="bl2-btn-refresh" class="bl2-btn bl2-btn-light" type="button">
+            Refrescar
+          </button>
+        </div>
+
+        <div id="bl2-period-list" class="bl2-period-list">
+          <div class="bl2-empty">No hay períodos cargados todavía.</div>
+        </div>
+      </section>
+
+      <section class="bl2-card">
+        <div class="bl2-card-head">
+          <div>
+            <h2>Registro</h2>
+            <p>Eventos importantes de BL2.</p>
+          </div>
+        </div>
+
+        <div id="bl2-log" class="bl2-log" aria-live="polite">
+          <div class="bl2-log-item">
+            <strong>BL2</strong>
+            <span>Esperando inicialización...</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="bl2.config.js"></script>
+  <script src="bl2.db.js"></script>
+  <script src="bl2.backup.js"></script>
+  <script src="bl2.import.js"></script>
+  <script src="bl2.sync.js"></script>
+  <script src="bl2.core.js"></script>
+  <script src="bl2.compat.js"></script>
+  <script src="bl2.test.js"></script>
+  <script src="bl2.app.js"></script>
+</body>
+</html>
