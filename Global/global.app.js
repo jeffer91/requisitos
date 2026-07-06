@@ -6,42 +6,31 @@ Función:
 - Manejar filtros superiores y menú lateral.
 - Mostrar una sola sección visible.
 - Renderizar tablas inteligentes por sección.
+- Enviar la sección actual al PDF institucional.
 Con qué se conecta:
 - global.config.js
 - global.core.js
 - global.table.js
-- global.pdf.js en el Bloque 4
+- global.pdf.js
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.0.0-bloque-3";
+  var VERSION = "1.0.0-bloque-4";
   var config = window.GlobalConfig || {};
   var activeSection = "resumen";
   var booted = false;
   var lastData = null;
 
   function $(selector){ return document.querySelector(selector); }
-
   function text(value){ return String(value == null ? "" : value).trim(); }
-
-  function esc(value){
-    if(window.GlobalTable && window.GlobalTable.helpers){ return window.GlobalTable.helpers.esc(value); }
-    return text(value);
-  }
-
-  function emit(name, detail){
-    try{ window.dispatchEvent(new CustomEvent(name, { detail:detail || {} })); }catch(error){}
-  }
-
+  function esc(value){ return window.GlobalTable && window.GlobalTable.helpers ? window.GlobalTable.helpers.esc(value) : text(value); }
+  function emit(name, detail){ try{ window.dispatchEvent(new CustomEvent(name, { detail:detail || {} })); }catch(error){} }
   function sections(){ return Array.isArray(config.secciones) ? config.secciones : []; }
 
   function sectionById(id){
     var found = null;
-    sections().some(function(section){
-      if(section.id === id){ found = section; return true; }
-      return false;
-    });
+    sections().some(function(section){ if(section.id === id){ found = section; return true; } return false; });
     return found || sections()[0] || { id:"resumen", label:"Resumen", titulo:"Resumen general", descripcion:"Vista ejecutiva." };
   }
 
@@ -53,10 +42,7 @@ Con qué se conecta:
     return filters;
   }
 
-  function setState(message){
-    var node = $("#globalSectionState");
-    if(node){ node.textContent = message; }
-  }
+  function setState(message){ var node = $("#globalSectionState"); if(node){ node.textContent = message; } }
 
   function renderMenu(){
     var menu = $("#globalMenu");
@@ -66,9 +52,7 @@ Con qué se conecta:
     }).join("");
   }
 
-  function optionHtml(value, label, selected){
-    return '<option value="' + esc(value) + '"' + (selected ? ' selected' : '') + '>' + esc(label) + '</option>';
-  }
+  function optionHtml(value, label, selected){ return '<option value="' + esc(value) + '"' + (selected ? ' selected' : '') + '>' + esc(label) + '</option>'; }
 
   function fillSelect(selector, base, list, mapper){
     var select = $(selector);
@@ -92,25 +76,19 @@ Con qué se conecta:
     fillSelect("#globalFiltroDesde", { value:"", label:"Todos" }, options.periods || [], function(item){
       return { value:item.id || item.periodoId || item.value || item.label, label:item.label || item.periodoLabel || item.id || item.value };
     });
-
     fillSelect("#globalFiltroHasta", { value:"", label:"Todos" }, options.periods || [], function(item){
       return { value:item.id || item.periodoId || item.value || item.label, label:item.label || item.periodoLabel || item.id || item.value };
     });
-
     fillSelect("#globalFiltroCarrera", { value:"", label:"Todas las carreras" }, options.careers || [], function(item){
       return { value:item.codigo || item.id || item.nombre, label:item.nombre || item.label || item.id };
     });
-
     fillSelect("#globalFiltroRequisito", { value:"", label:"Todos los requisitos" }, options.requirements || [], function(item){
       return { value:item.id || item.key || item.label, label:item.label || item.nombre || item.id || item.key };
     });
   }
 
   function loadData(){
-    if(!window.GlobalCore || typeof window.GlobalCore.applyFilters !== "function"){
-      return Promise.resolve(null);
-    }
-
+    if(!window.GlobalCore || typeof window.GlobalCore.applyFilters !== "function"){ return Promise.resolve(null); }
     return window.GlobalCore.ready().then(function(){
       hydrateFilters();
       lastData = window.GlobalCore.applyFilters(currentFilters());
@@ -126,18 +104,13 @@ Con qué se conecta:
     renderMenu();
   }
 
-  function tableMount(id){
-    return '<div id="' + esc(id) + '" class="global-table-mount"></div>';
-  }
+  function tableMount(id){ return '<div id="' + esc(id) + '" class="global-table-mount"></div>'; }
 
   function renderBodyShell(title, intro, mounts){
     var body = $("#globalSectionBody");
     if(!body){ return; }
     body.innerHTML = ''
-      + '<div class="global-section-intro">'
-        + '<h3>' + esc(title) + '</h3>'
-        + '<p>' + esc(intro) + '</p>'
-      + '</div>'
+      + '<div class="global-section-intro"><h3>' + esc(title) + '</h3><p>' + esc(intro) + '</p></div>'
       + mounts.join("");
   }
 
@@ -188,59 +161,46 @@ Con qué se conecta:
   function carreraRows(data){
     var map = Object.create(null);
     (data.students || []).forEach(function(row){
-      var key = row._globalCarrera || "SIN CARRERA";
+      var k = row._globalCarrera || "SIN CARRERA";
       var c = row._globalCumplimiento || {};
-      if(!map[key]){ map[key] = { carrera:key, tipo:row._globalTipoCarrera, estudiantes:0, activos:0, retirados:0, suma:0 }; }
-      map[key].estudiantes += 1;
-      map[key].suma += pct(c.porcentaje);
-      if(row._globalEstadoMatricula === "RETIRADO"){ map[key].retirados += 1; }
-      else{ map[key].activos += 1; }
+      if(!map[k]){ map[k] = { carrera:k, tipo:row._globalTipoCarrera, estudiantes:0, activos:0, retirados:0, suma:0 }; }
+      map[k].estudiantes += 1;
+      map[k].suma += pct(c.porcentaje);
+      if(row._globalEstadoMatricula === "RETIRADO"){ map[k].retirados += 1; } else { map[k].activos += 1; }
     });
-    return Object.keys(map).map(function(k){
-      var item = map[k];
-      item.cumplimiento = item.estudiantes ? Math.round(item.suma / item.estudiantes) : 0;
-      return item;
-    });
+    return Object.keys(map).map(function(k){ var item = map[k]; item.cumplimiento = item.estudiantes ? Math.round(item.suma / item.estudiantes) : 0; return item; });
   }
 
   function periodoRows(data){
     var map = Object.create(null);
     (data.students || []).forEach(function(row){
-      var key = row._globalPeriodoLabel || row._globalPeriodoId || "SIN PERÍODO";
+      var k = row._globalPeriodoLabel || row._globalPeriodoId || "SIN PERÍODO";
       var c = row._globalCumplimiento || {};
-      if(!map[key]){ map[key] = { periodo:key, estudiantes:0, carreras:Object.create(null), suma:0 }; }
-      map[key].estudiantes += 1;
-      map[key].carreras[row._globalCarrera || "SIN CARRERA"] = true;
-      map[key].suma += pct(c.porcentaje);
+      if(!map[k]){ map[k] = { periodo:k, estudiantes:0, carreras:Object.create(null), suma:0 }; }
+      map[k].estudiantes += 1;
+      map[k].carreras[row._globalCarrera || "SIN CARRERA"] = true;
+      map[k].suma += pct(c.porcentaje);
     });
-    return Object.keys(map).map(function(k){
-      var item = map[k];
-      return { periodo:item.periodo, estudiantes:item.estudiantes, carreras:Object.keys(item.carreras).length, cumplimiento:item.estudiantes ? Math.round(item.suma / item.estudiantes) : 0 };
-    });
+    return Object.keys(map).map(function(k){ var item = map[k]; return { periodo:item.periodo, estudiantes:item.estudiantes, carreras:Object.keys(item.carreras).length, cumplimiento:item.estudiantes ? Math.round(item.suma / item.estudiantes) : 0 }; });
   }
 
   function tipoRows(data){
     var map = Object.create(null);
     (data.students || []).forEach(function(row){
-      var key = row._globalTipoCarrera || "SIN TIPO";
+      var k = row._globalTipoCarrera || "SIN TIPO";
       var c = row._globalCumplimiento || {};
-      if(!map[key]){ map[key] = { tipo:key, estudiantes:0, carreras:Object.create(null), suma:0 }; }
-      map[key].estudiantes += 1;
-      map[key].carreras[row._globalCarrera || "SIN CARRERA"] = true;
-      map[key].suma += pct(c.porcentaje);
+      if(!map[k]){ map[k] = { tipo:k, estudiantes:0, carreras:Object.create(null), suma:0 }; }
+      map[k].estudiantes += 1;
+      map[k].carreras[row._globalCarrera || "SIN CARRERA"] = true;
+      map[k].suma += pct(c.porcentaje);
     });
-    return Object.keys(map).map(function(k){
-      var item = map[k];
-      return { tipo:item.tipo, estudiantes:item.estudiantes, carreras:Object.keys(item.carreras).length, cumplimiento:item.estudiantes ? Math.round(item.suma / item.estudiantes) : 0 };
-    });
+    return Object.keys(map).map(function(k){ var item = map[k]; return { tipo:item.tipo, estudiantes:item.estudiantes, carreras:Object.keys(item.carreras).length, cumplimiento:item.estudiantes ? Math.round(item.suma / item.estudiantes) : 0 }; });
   }
 
   function requisitoRows(data){
     var out = [];
     (data.requirements || []).forEach(function(req){
-      var cumple = 0;
-      var pendiente = 0;
-      var noCumple = 0;
+      var cumple = 0, pendiente = 0, noCumple = 0;
       (data.students || []).forEach(function(row){
         var status = window.GlobalCore.helpers.cellStatus(window.GlobalCore.helpers.requirementValue(row, req.id || req.key));
         if(status === "CUMPLE"){ cumple += 1; }
@@ -256,36 +216,23 @@ Con qué se conecta:
   function comparativaRows(data){
     var map = Object.create(null);
     (data.students || []).forEach(function(row){
-      var key = (row._globalPeriodoLabel || row._globalPeriodoId || "SIN PERÍODO") + "__" + (row._globalTipoCarrera || "SIN TIPO");
-      if(!map[key]){ map[key] = { periodo:row._globalPeriodoLabel || row._globalPeriodoId, tipo:row._globalTipoCarrera, estudiantes:0, carreras:Object.create(null) }; }
-      map[key].estudiantes += 1;
-      map[key].carreras[row._globalCarrera || "SIN CARRERA"] = true;
+      var k = (row._globalPeriodoLabel || row._globalPeriodoId || "SIN PERÍODO") + "__" + (row._globalTipoCarrera || "SIN TIPO");
+      if(!map[k]){ map[k] = { periodo:row._globalPeriodoLabel || row._globalPeriodoId, tipo:row._globalTipoCarrera, estudiantes:0, carreras:Object.create(null) }; }
+      map[k].estudiantes += 1;
+      map[k].carreras[row._globalCarrera || "SIN CARRERA"] = true;
     });
-    return Object.keys(map).map(function(k){
-      var item = map[k];
-      return { periodo:item.periodo, tipo:item.tipo, estudiantes:item.estudiantes, carreras:Object.keys(item.carreras).length };
-    });
+    return Object.keys(map).map(function(k){ var item = map[k]; return { periodo:item.periodo, tipo:item.tipo, estudiantes:item.estudiantes, carreras:Object.keys(item.carreras).length }; });
   }
 
   function alertaRows(data){
-    var reqs = requisitoRows(data).map(function(row){
-      return { alerta:"Requisito crítico", detalle:row.requisito, cantidad:row.noCumple + row.pendiente, prioridad:(row.noCumple + row.pendiente) > 0 ? "Revisar" : "Controlado" };
-    });
-    var carreras = carreraRows(data).map(function(row){
-      return { alerta:"Carrera con pendientes", detalle:row.carrera, cantidad:100 - row.cumplimiento, prioridad:row.cumplimiento < 70 ? "Alta" : "Media" };
-    });
+    var reqs = requisitoRows(data).map(function(row){ return { alerta:"Requisito crítico", detalle:row.requisito, cantidad:row.noCumple + row.pendiente, prioridad:(row.noCumple + row.pendiente) > 0 ? "Revisar" : "Controlado" }; });
+    var carreras = carreraRows(data).map(function(row){ return { alerta:"Carrera con pendientes", detalle:row.carrera, cantidad:100 - row.cumplimiento, prioridad:row.cumplimiento < 70 ? "Alta" : "Media" }; });
     return reqs.concat(carreras).filter(function(row){ return Number(row.cantidad || 0) > 0; });
   }
 
   function reportRows(data){
     return sections().map(function(section){
-      return {
-        seccion:section.label,
-        reporte:section.pdfTitulo || section.titulo,
-        estado:section.id === activeSection ? "Actual" : "Disponible",
-        registros:(data.students || []).length,
-        filtros:"Aplica filtros superiores"
-      };
+      return { seccion:section.label, reporte:section.pdfTitulo || section.titulo, estado:section.id === activeSection ? "Actual" : "Disponible", registros:(data.students || []).length, filtros:"Aplica filtros superiores" };
     });
   }
 
@@ -325,75 +272,47 @@ Con qué se conecta:
     if(section.id === "resumen"){ renderResumen(data); return; }
     if(section.id === "estudiantes"){
       renderBodyShell("Estudiantes", "Listado filtrado de estudiantes. Puedes ordenar por encabezados y buscar dentro de la tabla.", [tableMount("globalTablaEstudiantes")]);
-      renderSmartTable("globalTablaEstudiantes", "Estudiantes filtrados", studentRows(data), studentColumns(), "nombres", "asc");
-      return;
+      renderSmartTable("globalTablaEstudiantes", "Estudiantes filtrados", studentRows(data), studentColumns(), "nombres", "asc"); return;
     }
     if(section.id === "carreras"){
       renderBodyShell("Carreras", "Comparativa de carreras incluidas en los filtros actuales.", [tableMount("globalTablaCarreras")]);
       renderSmartTable("globalTablaCarreras", "Carreras", carreraRows(data), [
-        { key:"carrera", label:"Carrera" },
-        { key:"tipo", label:"Tipo" },
-        { key:"estudiantes", label:"Estudiantes", type:"number" },
-        { key:"activos", label:"Activos", type:"number" },
-        { key:"retirados", label:"Retirados", type:"number" },
-        { key:"cumplimiento", label:"Cumplimiento", type:"percent", percent:true }
-      ], "estudiantes", "desc");
-      return;
+        { key:"carrera", label:"Carrera" }, { key:"tipo", label:"Tipo" }, { key:"estudiantes", label:"Estudiantes", type:"number" },
+        { key:"activos", label:"Activos", type:"number" }, { key:"retirados", label:"Retirados", type:"number" }, { key:"cumplimiento", label:"Cumplimiento", type:"percent", percent:true }
+      ], "estudiantes", "desc"); return;
     }
     if(section.id === "requisitos"){
       renderBodyShell("Requisitos", "Cumplimiento por requisito detectado en la base filtrada.", [tableMount("globalTablaRequisitos")]);
       renderSmartTable("globalTablaRequisitos", "Requisitos", requisitoRows(data), [
-        { key:"requisito", label:"Requisito" },
-        { key:"cumple", label:"Cumple", type:"number" },
-        { key:"pendiente", label:"Pendiente", type:"number" },
-        { key:"noCumple", label:"No cumple", type:"number" },
-        { key:"total", label:"Total", type:"number" },
-        { key:"cumplimiento", label:"Cumplimiento", type:"percent", percent:true }
-      ], "noCumple", "desc");
-      return;
+        { key:"requisito", label:"Requisito" }, { key:"cumple", label:"Cumple", type:"number" }, { key:"pendiente", label:"Pendiente", type:"number" },
+        { key:"noCumple", label:"No cumple", type:"number" }, { key:"total", label:"Total", type:"number" }, { key:"cumplimiento", label:"Cumplimiento", type:"percent", percent:true }
+      ], "noCumple", "desc"); return;
     }
     if(section.id === "periodos"){
       renderBodyShell("Períodos académicos", "Comparativa de estudiantes, carreras y cumplimiento por período.", [tableMount("globalTablaPeriodos")]);
-      renderSmartTable("globalTablaPeriodos", "Períodos", periodoRows(data), periodColumns(), "periodo", "asc");
-      return;
+      renderSmartTable("globalTablaPeriodos", "Períodos", periodoRows(data), periodColumns(), "periodo", "asc"); return;
     }
     if(section.id === "tipo-carrera"){
       renderBodyShell("Tipo de carrera", "Comparativa entre carreras Universitarias y Superiores.", [tableMount("globalTablaTipoCarrera")]);
       renderSmartTable("globalTablaTipoCarrera", "Universitaria vs Superior", tipoRows(data), [
-        { key:"tipo", label:"Tipo" },
-        { key:"estudiantes", label:"Estudiantes", type:"number" },
-        { key:"carreras", label:"Carreras", type:"number" },
-        { key:"cumplimiento", label:"Cumplimiento", type:"percent", percent:true }
-      ], "tipo", "asc");
-      return;
+        { key:"tipo", label:"Tipo" }, { key:"estudiantes", label:"Estudiantes", type:"number" }, { key:"carreras", label:"Carreras", type:"number" }, { key:"cumplimiento", label:"Cumplimiento", type:"percent", percent:true }
+      ], "tipo", "asc"); return;
     }
     if(section.id === "comparativas"){
       renderBodyShell("Comparativas", "Cruce inicial entre período y tipo de carrera.", [tableMount("globalTablaComparativas")]);
       renderSmartTable("globalTablaComparativas", "Período por tipo de carrera", comparativaRows(data), [
-        { key:"periodo", label:"Período" },
-        { key:"tipo", label:"Tipo" },
-        { key:"estudiantes", label:"Estudiantes", type:"number" },
-        { key:"carreras", label:"Carreras", type:"number" }
-      ], "periodo", "asc");
-      return;
+        { key:"periodo", label:"Período" }, { key:"tipo", label:"Tipo" }, { key:"estudiantes", label:"Estudiantes", type:"number" }, { key:"carreras", label:"Carreras", type:"number" }
+      ], "periodo", "asc"); return;
     }
     if(section.id === "alertas"){
       renderBodyShell("Alertas", "Datos que requieren revisión institucional según los filtros actuales.", [tableMount("globalTablaAlertas")]);
       renderSmartTable("globalTablaAlertas", "Alertas detectadas", alertaRows(data), [
-        { key:"alerta", label:"Tipo de alerta" },
-        { key:"detalle", label:"Detalle" },
-        { key:"cantidad", label:"Cantidad / indicador", type:"number" },
-        { key:"prioridad", label:"Prioridad" }
-      ], "cantidad", "desc");
-      return;
+        { key:"alerta", label:"Tipo de alerta" }, { key:"detalle", label:"Detalle" }, { key:"cantidad", label:"Cantidad / indicador", type:"number" }, { key:"prioridad", label:"Prioridad" }
+      ], "cantidad", "desc"); return;
     }
     renderBodyShell("Reportes", "Reportes disponibles para la sección y filtros actuales.", [tableMount("globalTablaReportes")]);
     renderSmartTable("globalTablaReportes", "Reportes disponibles", reportRows(data), [
-      { key:"seccion", label:"Sección" },
-      { key:"reporte", label:"Reporte" },
-      { key:"estado", label:"Estado" },
-      { key:"registros", label:"Registros", type:"number" },
-      { key:"filtros", label:"Filtros" }
+      { key:"seccion", label:"Sección" }, { key:"reporte", label:"Reporte" }, { key:"estado", label:"Estado" }, { key:"registros", label:"Registros", type:"number" }, { key:"filtros", label:"Filtros" }
     ], "seccion", "asc");
   }
 
@@ -401,13 +320,8 @@ Con qué se conecta:
     var section = sectionById(activeSection);
     renderSectionHeader(section);
     setState("Actualizando");
-
     loadData().then(function(data){
-      if(!data){
-        setState("Sin datos");
-        renderBodyShell(section.titulo, "No se pudo leer GlobalCore todavía.", [tableMount("globalTablaSinDatos")]);
-        return;
-      }
+      if(!data){ setState("Sin datos"); renderBodyShell(section.titulo, "No se pudo leer GlobalCore todavía.", [tableMount("globalTablaSinDatos")]); return; }
       renderSectionContent(section, data);
       setState("Datos listos");
       emit("global:rendered", { section:section, filters:currentFilters(), summary:data.resumen, at:new Date().toISOString() });
@@ -420,6 +334,21 @@ Con qué se conecta:
   function clearFilters(){
     Array.prototype.forEach.call(document.querySelectorAll("[data-global-filter]"), function(input){ input.value = ""; });
     render();
+  }
+
+  function generatePdf(){
+    var filters = currentFilters();
+    var data = lastData;
+    if(!data && window.GlobalCore && typeof window.GlobalCore.applyFilters === "function"){
+      data = window.GlobalCore.applyFilters(filters);
+      lastData = data;
+    }
+    emit("global:pdf-requested", { section:activeSection, filters:filters, data:data, at:new Date().toISOString() });
+    if(window.GlobalPDF && typeof window.GlobalPDF.generate === "function"){
+      window.GlobalPDF.generate({ section:activeSection, filters:filters, data:data });
+      return;
+    }
+    window.alert("GlobalPDF no está disponible. Revisa que global.pdf.js esté cargado.");
   }
 
   function bind(){
@@ -437,12 +366,8 @@ Con qué se conecta:
       });
     }
 
-    Array.prototype.forEach.call(document.querySelectorAll("[data-global-filter]"), function(input){
-      input.addEventListener("change", render);
-    });
-
+    Array.prototype.forEach.call(document.querySelectorAll("[data-global-filter]"), function(input){ input.addEventListener("change", render); });
     if(btnLimpiar){ btnLimpiar.addEventListener("click", clearFilters); }
-
     if(btnActualizar){
       btnActualizar.addEventListener("click", function(){
         if(window.GlobalCore && typeof window.GlobalCore.refresh === "function"){
@@ -451,13 +376,7 @@ Con qué se conecta:
         }else{ render(); }
       });
     }
-
-    if(btnPdf){
-      btnPdf.addEventListener("click", function(){
-        emit("global:pdf-requested", { section:activeSection, filters:currentFilters(), data:lastData, at:new Date().toISOString() });
-        window.alert("El PDF institucional se activará en el Bloque 4. Ya se enviará la sección actual con filtros y tablas.");
-      });
-    }
+    if(btnPdf){ btnPdf.addEventListener("click", generatePdf); }
   }
 
   function boot(){
@@ -472,6 +391,7 @@ Con qué se conecta:
     version:VERSION,
     boot:boot,
     render:render,
+    generatePdf:generatePdf,
     getActiveSection:function(){ return activeSection; },
     setActiveSection:function(id){ activeSection = id || "resumen"; render(); },
     getFilters:currentFilters,
