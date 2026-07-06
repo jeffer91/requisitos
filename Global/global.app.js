@@ -6,7 +6,7 @@ Función:
 - Manejar filtros superiores y menú lateral.
 - Mostrar una sola sección visible.
 - Renderizar tablas inteligentes por sección.
-- Enviar la sección actual al PDF institucional.
+- Enviar la sección actual al PDF institucional después de tener datos actualizados.
 Con qué se conecta:
 - global.config.js
 - global.core.js
@@ -16,7 +16,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.0.0-bloque-4";
+  var VERSION = "1.0.1-revision";
   var config = window.GlobalConfig || {};
   var activeSection = "resumen";
   var booted = false;
@@ -338,17 +338,21 @@ Con qué se conecta:
 
   function generatePdf(){
     var filters = currentFilters();
-    var data = lastData;
-    if(!data && window.GlobalCore && typeof window.GlobalCore.applyFilters === "function"){
-      data = window.GlobalCore.applyFilters(filters);
-      lastData = data;
-    }
-    emit("global:pdf-requested", { section:activeSection, filters:filters, data:data, at:new Date().toISOString() });
-    if(window.GlobalPDF && typeof window.GlobalPDF.generate === "function"){
-      window.GlobalPDF.generate({ section:activeSection, filters:filters, data:data });
-      return;
-    }
-    window.alert("GlobalPDF no está disponible. Revisa que global.pdf.js esté cargado.");
+    setState("Preparando PDF");
+    loadData().then(function(data){
+      data = data || lastData;
+      emit("global:pdf-requested", { section:activeSection, filters:filters, data:data, at:new Date().toISOString() });
+      if(window.GlobalPDF && typeof window.GlobalPDF.generate === "function"){
+        window.GlobalPDF.generate({ section:activeSection, filters:filters, data:data });
+        setState("PDF enviado");
+        return;
+      }
+      setState("PDF no disponible");
+      window.alert("GlobalPDF no está disponible. Revisa que global.pdf.js esté cargado.");
+    }).catch(function(error){
+      setState("Error PDF");
+      window.alert("No se pudo generar el PDF institucional: " + (error && error.message ? error.message : error));
+    });
   }
 
   function bind(){
