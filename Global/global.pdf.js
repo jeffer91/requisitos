@@ -6,6 +6,7 @@ Función:
 - Crear portada completa, encabezado repetido, filtros aplicados, resumen ejecutivo y tablas.
 - Usar identidad azul marino, dorado y blanco.
 - Funcionar aunque todavía no exista logo-instituto.png.
+- Resolver rutas absolutas para que el logo cargue correctamente en la ventana de impresión.
 Con qué se conecta:
 - global.config.js
 - global.core.js
@@ -14,7 +15,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.0.0-bloque-4";
+  var VERSION = "1.0.1-revision";
   var config = window.GlobalConfig || {};
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -26,6 +27,11 @@ Con qué se conecta:
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  function absoluteUrl(path){
+    try{ return new URL(path, window.location.href).href; }
+    catch(error){ return path; }
   }
 
   function now(){
@@ -54,8 +60,7 @@ Con qué se conecta:
     return text(el.value) || fallback || "Todos";
   }
 
-  function filterRows(filters){
-    filters = filters || {};
+  function filterRows(){
     return [
       { filtro:"Período desde", valor:selectedText("#globalFiltroDesde", "Todos") },
       { filtro:"Período hasta", valor:selectedText("#globalFiltroHasta", "Todos") },
@@ -66,6 +71,14 @@ Con qué se conecta:
   }
 
   function pct(value){ return Number(value || 0); }
+
+  function safeData(data){
+    data = data && typeof data === "object" ? data : {};
+    data.resumen = data.resumen || {};
+    data.students = Array.isArray(data.students) ? data.students : [];
+    data.requirements = Array.isArray(data.requirements) ? data.requirements : [];
+    return data;
+  }
 
   function studentRows(data){
     return (data.students || []).map(function(row){
@@ -212,7 +225,12 @@ Con qué se conecta:
 
   function alertaRows(data){
     return requisitoRows(data).map(function(row){
-      return { alerta:"Requisito crítico", detalle:row.requisito, cantidad:row.noCumple + row.pendiente, prioridad:(row.noCumple + row.pendiente) > 0 ? "Revisar" : "Controlado" };
+      return {
+        alerta:"Requisito crítico",
+        detalle:row.requisito,
+        cantidad:row.noCumple + row.pendiente,
+        prioridad:(row.noCumple + row.pendiente) > 0 ? "Revisar" : "Controlado"
+      };
     }).filter(function(row){ return Number(row.cantidad || 0) > 0; });
   }
 
@@ -223,6 +241,7 @@ Con qué se conecta:
   }
 
   function tableForSection(sectionId, data){
+    data = safeData(data);
     if(sectionId === "estudiantes"){
       return { title:"Estudiantes filtrados", columns:["cedula", "estudiante", "carrera", "tipo", "periodo", "estado", "cumplimiento"], rows:studentRows(data) };
     }
@@ -257,6 +276,7 @@ Con qué se conecta:
   }
 
   function summaryText(section, data){
+    data = safeData(data);
     var r = data.resumen || {};
     var carrera = topItem(carreraRows(data), "estudiantes");
     var req = topItem(requisitoRows(data), "noCumple");
@@ -267,26 +287,37 @@ Con qué se conecta:
     parts.push("El cumplimiento general calculado sobre los requisitos detectados es de " + (r.porcentajeCumplimiento || 0) + "%. Estos valores se generan a partir de la información registrada en la Base Local institucional.");
     if(carrera){ parts.push("La carrera con mayor cantidad de estudiantes dentro del filtro es " + carrera.carrera + ", con " + carrera.estudiantes + " registros."); }
     if(req && Number(req.noCumple || 0) > 0){ parts.push("El requisito con mayor número de incumplimientos es " + req.requisito + ", con " + req.noCumple + " registros en estado No cumple."); }
-
     return parts;
   }
 
   function observations(section, data){
+    data = safeData(data);
     var r = data.resumen || {};
     var obs = [];
     obs.push("El reporte se genera únicamente con la sección seleccionada y los filtros superiores activos al momento de la emisión.");
     obs.push("Los estudiantes retirados se mantienen en el análisis histórico para conservar trazabilidad institucional.");
-    if(Number(r.porcentajeCumplimiento || 0) < 70){ obs.push("Se recomienda revisar los requisitos pendientes o incumplidos, debido a que el cumplimiento general se encuentra por debajo del 70%."); }
-    else{ obs.push("El cumplimiento general se encuentra en un rango aceptable para seguimiento institucional, sin perjuicio de revisar requisitos críticos puntuales."); }
+    if(Number(r.porcentajeCumplimiento || 0) < 70){
+      obs.push("Se recomienda revisar los requisitos pendientes o incumplidos, debido a que el cumplimiento general se encuentra por debajo del 70%.");
+    }else{
+      obs.push("El cumplimiento general se encuentra en un rango aceptable para seguimiento institucional, sin perjuicio de revisar requisitos críticos puntuales.");
+    }
     obs.push("Este documento es un reporte generado desde la Base Local y debe contrastarse con las fuentes oficiales cuando se requiera certificación final.");
     return obs;
+  }
+
+  function label(key){
+    var map = {
+      cedula:"Cédula", estudiante:"Estudiante", carrera:"Carrera", tipo:"Tipo", periodo:"Período", estado:"Estado", cumplimiento:"Cumplimiento",
+      estudiantes:"Estudiantes", activos:"Activos", retirados:"Retirados", requisito:"Requisito", cumple:"Cumple", pendiente:"Pendiente", noCumple:"No cumple",
+      total:"Total", carreras:"Carreras", indicador:"Indicador", valor:"Valor", detalle:"Detalle", alerta:"Alerta", cantidad:"Cantidad", prioridad:"Prioridad", seccion:"Sección", reporte:"Reporte", registros:"Registros", alcance:"Alcance"
+    };
+    return map[key] || key;
   }
 
   function renderTable(table, limit){
     table = table || { columns:[], rows:[] };
     var rows = (table.rows || []).slice(0, limit || 250);
     var columns = table.columns || [];
-
     return ''
       + '<h2>' + esc(table.title || 'Tabla') + '</h2>'
       + '<table class="report-table">'
@@ -298,15 +329,6 @@ Con qué se conecta:
         + '</tbody>'
       + '</table>'
       + ((table.rows || []).length > rows.length ? '<p class="small-note">Se muestran los primeros ' + rows.length + ' registros de ' + table.rows.length + ' disponibles.</p>' : '');
-  }
-
-  function label(key){
-    var map = {
-      cedula:"Cédula", estudiante:"Estudiante", carrera:"Carrera", tipo:"Tipo", periodo:"Período", estado:"Estado", cumplimiento:"Cumplimiento",
-      estudiantes:"Estudiantes", activos:"Activos", retirados:"Retirados", requisito:"Requisito", cumple:"Cumple", pendiente:"Pendiente", noCumple:"No cumple",
-      total:"Total", carreras:"Carreras", indicador:"Indicador", valor:"Valor", detalle:"Detalle", alerta:"Alerta", cantidad:"Cantidad", prioridad:"Prioridad", seccion:"Sección", reporte:"Reporte", registros:"Registros", alcance:"Alcance"
-    };
-    return map[key] || key;
   }
 
   function list(items){
@@ -325,10 +347,10 @@ Con qué se conecta:
       + '.cover-top{display:flex;align-items:center;gap:18px;} .logo-box{width:105px;height:105px;border:1px solid rgba(228,199,102,.6);border-radius:18px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);overflow:hidden;text-align:center;font-size:12px;color:rgba(255,255,255,.8);} .logo-box img{max-width:86%;max-height:86%;object-fit:contain;}'
       + '.eyebrow{color:' + gold + ';text-transform:uppercase;letter-spacing:.08em;font-weight:800;font-size:12px;margin:0 0 8px;} h1{font-size:31px;line-height:1.18;margin:0;} .cover h2{font-size:20px;font-weight:400;color:rgba(255,255,255,.86);margin:12px 0 0;} .cover-meta{border-top:2px solid ' + gold + ';padding-top:18px;font-size:14px;line-height:1.7;color:rgba(255,255,255,.86);}'
       + '.print-header{position:fixed;top:0;left:0;right:0;height:16mm;background:' + navy + ';color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 14mm;border-bottom:2px solid ' + gold + ';font-size:10px;z-index:10;} .print-header strong{color:' + gold + ';}'
-      + '.page{page-break-after:always;} .content{padding-top:3mm;} h2{color:' + navy2 + ';font-size:18px;margin:0 0 10px;border-bottom:2px solid ' + gold + ';padding-bottom:6px;} h3{color:' + navy2 + ';font-size:15px;margin:16px 0 8px;} p{font-size:12px;line-height:1.5;margin:0 0 8px;} ul{margin:0 0 12px 18px;padding:0;} li{font-size:12px;line-height:1.45;margin-bottom:5px;}'
+      + '.page{page-break-after:always;} .content{padding-top:5mm;} h2{color:' + navy2 + ';font-size:18px;margin:0 0 10px;border-bottom:2px solid ' + gold + ';padding-bottom:6px;} h3{color:' + navy2 + ';font-size:15px;margin:16px 0 8px;} p{font-size:12px;line-height:1.5;margin:0 0 8px;} ul{margin:0 0 12px 18px;padding:0;} li{font-size:12px;line-height:1.45;margin-bottom:5px;}'
       + '.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 16px;} .info-card{border:1px solid #D8DEE9;border-left:4px solid ' + gold + ';padding:9px;border-radius:8px;background:#F8FAFC;} .info-card b{display:block;color:' + navy2 + ';font-size:11px;text-transform:uppercase;margin-bottom:3px;} .info-card span{font-size:12px;}'
       + 'table{width:100%;border-collapse:collapse;margin:8px 0 14px;font-size:10px;page-break-inside:auto;} th{background:' + navy2 + ';color:#fff;text-align:left;padding:7px;border:1px solid ' + navy2 + ';} td{padding:6px;border:1px solid #D8DEE9;vertical-align:top;} tr{page-break-inside:avoid;page-break-after:auto;} tbody tr:nth-child(even){background:#F8FAFC;} .small-note{font-size:10px;color:#667085;} .footer-note{margin-top:18px;padding:10px;border-top:1px solid #D8DEE9;color:#667085;font-size:10px;}'
-      + '@media print{.no-print{display:none;} body{print-color-adjust:exact;-webkit-print-color-adjust:exact;} .page{page-break-after:always;}.content{padding-top:5mm;}}'
+      + '@media print{.no-print{display:none;} body{print-color-adjust:exact;-webkit-print-color-adjust:exact;} .page{page-break-after:always;}}'
       + '</style>';
   }
 
@@ -336,23 +358,23 @@ Con qué se conecta:
     options = options || {};
     var sectionId = options.section || "resumen";
     var section = sectionById(sectionId);
-    var data = options.data || (window.GlobalApp && window.GlobalApp.getLastData && window.GlobalApp.getLastData()) || { resumen:{}, students:[], requirements:[] };
-    var filters = options.filters || {};
+    var data = safeData(options.data || (window.GlobalApp && window.GlobalApp.getLastData && window.GlobalApp.getLastData()));
     var table = tableForSection(sectionId, data);
-    var logoPath = (config.branding && config.branding.logoPath) || "assets/branding/logo-instituto.png";
+    var logoPath = absoluteUrl((config.branding && config.branding.logoPath) || "assets/branding/logo-instituto.png");
     var title = section.pdfTitulo || section.titulo || "Reporte Global";
+    var baseHref = absoluteUrl("./");
 
-    var html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>' + esc(title) + '</title>' + institutionalCss() + '</head><body>'
+    var html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><base href="' + esc(baseHref) + '"><title>' + esc(title) + '</title>' + institutionalCss() + '</head><body>'
       + '<section class="cover">'
         + '<div class="cover-top"><div class="logo-box"><img src="' + esc(logoPath) + '" onerror="this.style.display=\'none\';this.parentElement.textContent=\'Logo institucional\';"></div><div><p class="eyebrow">' + esc(config.app && config.app.unidad || "Unidad de Titulación y Eficiencia Terminal") + '</p><h1>' + esc(title) + '</h1><h2>' + esc(config.app && config.app.subtitulo || "Análisis histórico y comparativo") + '</h2></div></div>'
         + '<div class="cover-meta"><div><strong>Sección:</strong> ' + esc(section.label || section.titulo) + '</div><div><strong>Fecha de generación:</strong> ' + esc(now()) + '</div><div><strong>Fuente:</strong> Base Local institucional del sistema de requisitos</div></div>'
       + '</section>'
       + '<div class="print-header"><span><strong>Unidad de Titulación y Eficiencia Terminal</strong> · Reporte Global</span><span>' + esc(section.label || "Global") + '</span></div>'
       + '<main class="content">'
-        + '<section class="page"><h2>Filtros aplicados</h2><div class="info-grid">' + filterRows(filters).map(function(row){ return '<div class="info-card"><b>' + esc(row.filtro) + '</b><span>' + esc(row.valor) + '</span></div>'; }).join('') + '</div><h2>Resumen ejecutivo</h2>' + list(summaryText(section, data)) + '<h2>Observaciones automáticas</h2>' + list(observations(section, data)) + '</section>'
+        + '<section class="page"><h2>Filtros aplicados</h2><div class="info-grid">' + filterRows().map(function(row){ return '<div class="info-card"><b>' + esc(row.filtro) + '</b><span>' + esc(row.valor) + '</span></div>'; }).join('') + '</div><h2>Resumen ejecutivo</h2>' + list(summaryText(section, data)) + '<h2>Observaciones automáticas</h2>' + list(observations(section, data)) + '</section>'
         + '<section class="page">' + renderTable(table, 350) + '<p class="footer-note">El presente reporte ha sido generado automáticamente con base en la información registrada en la Base Local institucional y los filtros seleccionados por el usuario.</p></section>'
       + '</main>'
-      + '<script>window.onload=function(){setTimeout(function(){window.print();},450);};<\/script>'
+      + '<script>window.onload=function(){setTimeout(function(){window.print();},750);};<\/script>'
       + '</body></html>';
 
     var win = window.open("", "_blank");
