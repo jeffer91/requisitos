@@ -776,17 +776,30 @@ Función:
   }
 
   function saveDistributed(student){
-    var chain = Promise.resolve();
-    var reqs = Array.isArray(student._requirements) ? student._requirements : [];
+    student = student || {};
 
-    reqs.forEach(function(req){
-      chain = chain.then(function(){ return saveRequirement(req); });
+    var reqs = Array.isArray(student._requirements) ? student._requirements : [];
+    var validReqs = reqs.filter(function(req){
+      return req && text(req.cedula) && text(req.periodoId) && text(req.key || req.nombre);
+    }).map(function(req){
+      req = clone(req);
+      req.id = req.id || requirementKey(req.cedula, req.periodoId, req.key || req.nombre);
+      req.updatedAt = nowISO();
+      return req;
     });
 
-    chain = chain.then(function(){ return saveContact(student._contact); });
-    chain = chain.then(function(){ return saveNotes(student._notes); });
+    var tasks = [];
 
-    return chain;
+    if(validReqs.length){
+      tasks.push(db.bulkPut(STORE.requisitos, validReqs));
+    }
+
+    tasks.push(saveContact(student._contact));
+    tasks.push(saveNotes(student._notes));
+
+    return Promise.all(tasks).then(function(){
+      return true;
+    });
   }
 
   function chooseMoreComplete(a, b){
