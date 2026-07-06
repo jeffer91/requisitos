@@ -83,20 +83,22 @@
             <h2 id="globalSectionTitle">Resumen general</h2>
             <p id="globalSectionDescription">Vista ejecutiva del universo filtrado.</p>
           </div>
-          <div class="global-section-state" id="globalSectionState">Bloque 1 listo</div>
+          <div class="global-section-state" id="globalSectionState">Conectando BDLocal</div>
         </div>
 
         <section id="globalSectionBody" class="global-section-body">
           <div class="global-empty-state">
             <h3>Módulo Global iniciado</h3>
-            <p>Esta es la base visual del módulo. En los siguientes bloques se conectará con BDLocal, se activarán las tablas inteligentes y se generará el PDF institucional.</p>
+            <p>Esta es la base visual del módulo. Global ya prepara conexión con BDLocal; en los siguientes bloques se activarán las tablas inteligentes y el PDF institucional.</p>
           </div>
         </section>
       </section>
     </section>
   </main>
 
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="global.config.js"></script>
+  <script src="global.core.js"></script>
   <script src="global.index.js"></script>
 </body>
 </html>
