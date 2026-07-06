@@ -5,11 +5,12 @@ Funcion:
 - Inicializar el nucleo BDLocal/BL2 desde cualquier pantalla.
 - Cargar conectores por pantalla.
 - Mantener una cache liviana para pantallas sincronas antiguas.
+- Registrar Global como conector historico multiperiodo.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.0.0";
+  var VERSION = "1.0.1";
   var U = window.BDLocalConUtils;
 
   if(!U){
@@ -177,7 +178,8 @@ Funcion:
       "con.ficha.js",
       "con.stats.js",
       "con.coordi.js",
-      "con.reportes.js"
+      "con.reportes.js",
+      "con.global.js"
     ]).catch(function(error){
       warn("No se pudieron cargar todos los conectores", error);
       return null;
