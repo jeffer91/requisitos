@@ -177,6 +177,11 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .carga-field-year input{text-align:center}
 .carga-period-select-wrap{margin-top:10px}
 
+/* Oculto solo visualmente: la lógica de períodos se conserva en el select y en el estado interno. */
+#cargaPeriodosCards{
+  display:none!important;
+}
+
 .carga-actions{
   display:flex;
   align-items:center;
@@ -216,7 +221,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
   font-weight:700;
 }
 
-/* Tarjetas de período: cada acción queda visualmente dentro de su período. */
+/* Tarjetas de período: se conservan por compatibilidad, pero están ocultas con #cargaPeriodosCards. */
 .carga-period-cards{
   display:grid;
   grid-template-columns:repeat(3,minmax(230px,1fr));
