@@ -5,6 +5,7 @@ Función:
 - Repositorio de notas de titulación/defensas.
 - Usar la tabla actual notas mientras se prepara notas_titulacion.
 - Consultar y guardar notas por periodoId + cedula.
+- Garantizar id compatible con IndexedDB.
 Con qué se conecta:
 - BDLocal/repositories/bdl.repo.index.js
 - BDLocal/rules/bdl.rules.notas.js
@@ -17,6 +18,11 @@ Con qué se conecta:
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function store(){ return Repos.storeName("notas", "notas"); }
+  function makeId(periodoId, cedula){
+    periodoId = text(periodoId);
+    cedula = text(cedula);
+    return periodoId && cedula ? periodoId + "__" + cedula : "";
+  }
 
   function list(options){
     options = options || {};
@@ -35,17 +41,26 @@ Con qué se conecta:
   }
 
   function normalize(row){
-    if(window.BDLRulesNotas && typeof window.BDLRulesNotas.build === "function"){
-      return window.BDLRulesNotas.build(row || {}, { periodoId: row && row.periodoId });
-    }
     row = Object.assign({}, row || {});
+    row.periodoId = text(row.periodoId || "");
+    row.cedula = text(row.cedula || "");
+    row.idEstudiantePeriodo = text(row.idEstudiantePeriodo || row.studentId || makeId(row.periodoId, row.cedula));
+    row.id = text(row.id || row.notaId || row.idEstudiantePeriodo);
+
+    if(window.BDLRulesNotas && typeof window.BDLRulesNotas.build === "function"){
+      row = window.BDLRulesNotas.build(row, { periodoId: row.periodoId, cedula: row.cedula });
+    }
+
+    row.id = text(row.id || row.notaId || row.idEstudiantePeriodo || makeId(row.periodoId, row.cedula));
+    row.notaId = row.notaId || row.id;
+    row.studentId = row.studentId || row.idEstudiantePeriodo || row.id;
     row.updatedAt = row.updatedAt || new Date().toISOString();
     return row;
   }
 
   function save(row){
     var normalized = normalize(row || {});
-    normalized.updatedAt = normalized.updatedAt || new Date().toISOString();
+    if(!normalized.id){ return Promise.reject(new Error("No se pudo guardar nota sin id.")); }
     return Repos.safePut(store(), normalized);
   }
 
