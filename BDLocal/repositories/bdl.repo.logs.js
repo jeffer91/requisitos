@@ -5,6 +5,7 @@ Función:
 - Repositorio de logs técnicos de BDLocal.
 - Usar la tabla actual logs.
 - Registrar eventos de reglas, servicios, repositorios, sync y migraciones.
+- Garantizar id compatible con IndexedDB.
 Con qué se conecta:
 - BDLocal/repositories/bdl.repo.index.js
 - BDLocal/diagnostics/bdl.diagnostics.index.js
@@ -19,14 +20,29 @@ Con qué se conecta:
   function store(){ return Repos.storeName("logs", "logs"); }
 
   function make(scope, level, message, data){
+    var id = "log_" + Date.now() + "_" + Math.random().toString(16).slice(2);
     return {
-      logId: "log_" + Date.now() + "_" + Math.random().toString(16).slice(2),
+      id: id,
+      logId: id,
       scope: text(scope || "BDLocal"),
       level: text(level || "INFO").toUpperCase(),
       message: text(message),
       data: data || null,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
+  }
+
+  function normalize(row){
+    row = Object.assign({}, row || {});
+    row.id = text(row.id || row.logId) || "log_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+    row.logId = row.logId || row.id;
+    row.scope = text(row.scope || "BDLocal");
+    row.level = text(row.level || "INFO").toUpperCase();
+    row.message = text(row.message || "");
+    row.createdAt = text(row.createdAt || "") || new Date().toISOString();
+    row.updatedAt = text(row.updatedAt || "") || row.createdAt;
+    return row;
   }
 
   function list(options){
@@ -38,15 +54,19 @@ Con qué se conecta:
     });
   }
 
+  function save(row){
+    return Repos.safePut(store(), normalize(row || {}));
+  }
+
   function add(scope, level, message, data){
     var row = make(scope, level, message, data);
     if(window.BDLDiagnostics && typeof window.BDLDiagnostics.add === "function"){
       window.BDLDiagnostics.add(row.scope, row.level, row.message, row.data);
     }
-    return Repos.safePut(store(), row).then(function(){ return row; });
+    return save(row).then(function(){ return row; });
   }
 
-  var api = { make: make, list: list, add: add };
+  var api = { make: make, normalize: normalize, list: list, save: save, add: add };
   Repos.register("logs", api);
   window.BDLRepoLogs = api;
 })(window);
