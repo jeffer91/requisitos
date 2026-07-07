@@ -5,6 +5,7 @@ Función:
 - Crear el registro de destinos de sincronización.
 - Registrar adaptador real Google Sheets para cambios_pendientes.
 - Empezar controlado con tabla notas_titulacion.
+- Devolver processedIds para marcar solo los cambios realmente enviados.
 Con qué se conecta:
 - BDLocal/sync/bdl.sync.index.js
 - BDLocal/sync/bdl.sync.orchestrator.js
@@ -14,7 +15,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "0.2.0-block19";
+  var VERSION = "0.2.1-block19";
   var targets = Object.create(null);
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -78,14 +79,7 @@ Con qué se conecta:
     var skipped = pendingRows.filter(function(row){ return !isNotas(row); });
 
     if(!rows.length){
-      return Promise.resolve({
-        ok:true,
-        target:"google",
-        outboxProcessed:false,
-        processedIds:[],
-        skippedIds:skipped.map(rowId),
-        message:"Google Sheets V2: no hay cambios notas_titulacion para enviar."
-      });
+      return Promise.resolve({ ok:true, target:"google", outboxProcessed:false, processedIds:[], skippedIds:skipped.map(rowId), message:"Google Sheets V2: no hay cambios notas_titulacion para enviar." });
     }
 
     var sheets;
@@ -123,7 +117,8 @@ Con qué se conecta:
       return {
         ok:true,
         target:"google",
-        outboxProcessed:true,
+        outboxProcessed:false,
+        partial:true,
         processedIds:rows.map(rowId),
         skippedIds:skipped.map(rowId),
         response:response,
