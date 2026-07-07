@@ -2,9 +2,10 @@
 Archivo: bdl.sync.ui-bridge.js
 Ruta: /BDLocal/sync/bdl.sync.ui-bridge.js
 Función:
-- Conectar un botón visual de BL2 con BDLSyncV2.
-- Ejecutar sincronización de cola desde BDLocal/cambios.
-- Actualizar mensajes básicos en la pantalla sin tocar bl2.app.js.
+- Conectar el botón visual de BL2 con BDLSyncV2.
+- Ejecutar sincronización desde cambios_pendientes.
+- Mostrar modo seguro cuando falta adaptador real de destino.
+- Actualizar conteos sin tocar bl2.app.js.
 Con qué se conecta:
 - BDLocal/sync/bdl.sync.index.js
 - BDLocal/sync/bdl.sync.orchestrator.js
@@ -14,15 +15,12 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "0.1.0-block9";
+  var VERSION = "0.2.0-block18";
 
   function byId(id){ return document.getElementById(id); }
   function text(value){ return String(value == null ? "" : value).trim(); }
 
-  function setText(id, value){
-    var el = byId(id);
-    if(el){ el.textContent = value; }
-  }
+  function setText(id, value){ var el = byId(id); if(el){ el.textContent = value; } }
 
   function log(message){
     var box = byId("bl2-log");
@@ -45,22 +43,31 @@ Con qué se conecta:
     }).catch(function(){});
   }
 
+  function summarizeResult(result){
+    result = result || {};
+    var results = Array.isArray(result.results) ? result.results : [];
+    var skipped = results.filter(function(item){ return item && item.skipped; });
+    var marked = results.reduce(function(total, item){ return total + Number(item && item.marked || 0); }, 0);
+    var pending = results.reduce(function(total, item){ return total + Number(item && item.pending || 0); }, 0);
+
+    if(skipped.length){
+      return "Modo seguro: " + pending + " pendiente(s) siguen en cola. Falta adaptador real para " + skipped.map(function(x){ return x.target; }).join(", ") + ".";
+    }
+    if(result.ok){ return "Cola procesada correctamente. Marcados: " + marked + "."; }
+    return "Cola procesada con alertas: " + (result.message || "revisar diagnóstico");
+  }
+
   function runQueue(){
     var button = byId("bl2-btn-sync-queue");
     if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){
       log("BDLSyncV2 no disponible.");
       return;
     }
-
     if(button){ button.disabled = true; }
-    log("Procesando cola de cambios pendientes...");
+    log("Procesando cambios_pendientes en modo seguro...");
 
     Promise.resolve(window.BDLSyncV2.request({ source:"BL2SyncQueueButton" })).then(function(result){
-      if(result && result.ok){
-        log("Cola procesada correctamente.");
-      }else{
-        log("Cola procesada con alertas: " + (result && result.message ? result.message : "sin detalle"));
-      }
+      log(summarizeResult(result));
       refreshCounts();
     }).catch(function(error){
       log("Error procesando cola: " + (error.message || String(error)));
@@ -78,12 +85,7 @@ Con qué se conecta:
     refreshCounts();
   }
 
-  window.BDLSyncUIBridge = {
-    version: VERSION,
-    bind: bind,
-    refreshCounts: refreshCounts,
-    runQueue: runQueue
-  };
+  window.BDLSyncUIBridge = { version:VERSION, bind:bind, refreshCounts:refreshCounts, runQueue:runQueue, summarizeResult:summarizeResult };
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", bind);
