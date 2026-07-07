@@ -15,7 +15,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "0.1.0-block15";
+  var VERSION = "0.1.1-block15";
   var originalSummary = null;
   var cache = Object.create(null);
   var loading = Object.create(null);
@@ -23,7 +23,6 @@ Con qué se conecta:
   var lastFilterKey = "";
 
   function text(v){ return String(v == null ? "" : v).trim(); }
-  function norm(v){ return text(v).toLowerCase(); }
 
   function service(){
     return window.BDLServices && typeof window.BDLServices.get === "function" ? window.BDLServices.get("defensas") : null;
@@ -75,7 +74,7 @@ Con qué se conecta:
   function sourceRow(row, index){
     row = Object.assign({}, row || {});
     var idEP = text(row.idEstudiantePeriodo || row.studentId || row.id || "");
-    row._bl2Id = row._bl2Id || idEP || row.cedula || ("fila_" + index);
+    row._docId = row._docId || idEP || row.cedula || ("fila_" + index);
     row._bl2PeriodoId = row._bl2PeriodoId || row.periodoId || row.periodId || "";
     row._bl2Periodo = row._bl2Periodo || row.periodoLabel || row.periodo || row.periodoId || "";
     row._bl2Nombre = row._bl2Nombre || row.nombreCompleto || row.nombres || row.Nombres || row.nombre || row.Nombre || "";
