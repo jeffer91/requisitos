@@ -2,14 +2,15 @@
 Nombre completo: defart.table.js
 Ruta o ubicación: /Requisitos/defart/defart.table.js
 Función o funciones:
-- Renderizar la tabla elegante de Defensas separada de defart.app.js.
+- Renderizar la tabla visual de Defensas separada de defart.app.js.
 - Mostrar encabezados ordenables con indicador visual ascendente/descendente.
 - Pintar filas alternadas y estados: pendiente, completo, error, guardado y cambios sin guardar.
-- Mostrar botón por fila solo cuando el estudiante tenga cambios pendientes.
+- Mostrar en Acciones un botón claro de Guardar por fila.
 - Actualizar vista previa de una fila sin reconstruir toda la tabla.
 Con qué se conecta:
 - defart.core.js
 - defart.app.js
+- defart.table.visual.css
 ========================================================= */
 (function(window, document){
   "use strict";
@@ -33,7 +34,6 @@ Con qué se conecta:
       .replace(/\"/g,"&quot;")
       .replace(/'/g,"&#039;");
   }
-  function hasOwn(obj, key){ return Object.prototype.hasOwnProperty.call(obj || {}, key); }
   function cssEscape(value){
     value = text(value);
     if(window.CSS && typeof window.CSS.escape === "function"){ return window.CSS.escape(value); }
@@ -89,7 +89,7 @@ Con qué se conecta:
   function headHtml(options){
     return '<thead><tr>' + HEADERS.map(function(header){
       return '<th class="'+esc(header.className || "")+'" data-sort="'+esc(header.key)+'" scope="col"><button class="def-sort-button" type="button">'+esc(header.label)+sortIcon(header.key, options)+'</button></th>';
-    }).join("") + '<th class="col-accion" scope="col">Acción</th></tr></thead>';
+    }).join("") + '<th class="col-accion" scope="col"><span class="def-action-head">Acciones</span></th></tr></thead>';
   }
   function inputHtml(original, field, options){
     var shown = withPending(original, options);
@@ -107,24 +107,27 @@ Con qué se conecta:
     var value = noteText(row && row._nfin);
     return '<strong class="def-nfin-value">'+esc(value || "—")+'</strong>';
   }
+  function actionButton(id, label, className, title, disabled){
+    return '<button class="def-row-save '+esc(className || "")+'" type="button" data-save-row="'+esc(id)+'" title="'+esc(title || label)+'" '+(disabled ? "disabled" : "")+'><span class="def-row-save-icon">💾</span><span>'+esc(label)+'</span></button>';
+  }
   function actionHtml(original, options){
     var id = original && original._defId;
     var pending = !!pendingPatch(original, options);
     var feedback = feedbackFor(id, options);
 
     if(feedback === "saving"){
-      return '<span class="def-row-action-state saving" title="Guardando fila">⏳</span>';
+      return actionButton(id, "Guardando", "is-saving", "Guardando esta fila", true);
     }
     if(feedback === "saved"){
-      return '<span class="def-row-action-state saved" title="Fila guardada">✓</span>';
+      return '<span class="def-row-action-state saved" title="Fila guardada">✓ Guardado</span>';
     }
     if(feedback === "error"){
-      return pending ? '<button class="def-row-save is-error" type="button" data-save-row="'+esc(id)+'" title="Reintentar guardar esta fila">↻</button>' : '<span class="def-row-action-state error" title="Error al guardar">!</span>';
+      return pending ? actionButton(id, "Reintentar", "is-error", "Reintentar guardar esta fila", false) : '<span class="def-row-action-state error" title="Error al guardar">! Error</span>';
     }
     if(pending){
-      return '<button class="def-row-save" type="button" data-save-row="'+esc(id)+'" title="Guardar solo esta fila">💾</button>';
+      return actionButton(id, "Guardar", "is-pending", "Guardar solo esta fila", false);
     }
-    return '<span class="def-row-action-state muted" title="Sin cambios">—</span>';
+    return '<button class="def-row-save is-clean" type="button" disabled title="Sin cambios pendientes"><span class="def-row-save-icon">✓</span><span>Listo</span></button>';
   }
   function cellHtml(original, header, options){
     var row = withPending(original, options);
@@ -176,7 +179,7 @@ Con qué se conecta:
       }
 
       var saveButton = event.target.closest ? event.target.closest("[data-save-row]") : null;
-      if(saveButton && target.contains(saveButton)){
+      if(saveButton && target.contains(saveButton) && !saveButton.disabled){
         var id = saveButton.getAttribute("data-save-row");
         if(options && typeof options.onSaveRow === "function"){ options.onSaveRow(id); }
       }
