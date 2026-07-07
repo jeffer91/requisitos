@@ -5,6 +5,7 @@ Función:
 - Preparar cambios pendientes por destino.
 - Evitar el modelo inseguro de sincronizado:true único.
 - Crear envoltorio estándar para Firebase, Supabase y Google Sheets.
+- Mantener compatibilidad con la tabla actual cambios, cuyo keyPath es id.
 Con qué se conecta:
 - BDLocal/rules/bdl.rules.index.js
 - BDLocal/sync/bdl.sync.index.js
@@ -15,9 +16,7 @@ Con qué se conecta:
   var Rules = window.BDLRules;
   if(!Rules){ return; }
 
-  function text(value){
-    return String(value == null ? "" : value).trim();
-  }
+  function text(value){ return String(value == null ? "" : value).trim(); }
 
   function safeJson(value){
     try{ return JSON.stringify(value || {}); }
@@ -54,9 +53,11 @@ Con qué se conecta:
     var action = text(options.accion || options.action || "UPSERT").toUpperCase();
     var registroId = text(options.registroId || row.idEstudiantePeriodo || row.id || row.cedula || "");
     var payload = options.payload || row;
+    var id = text(row.id || row.cambioId || changeId(row, action, table));
 
     return {
-      cambioId: changeId(row, action, table),
+      id: id,
+      cambioId: id,
       periodoId: text(row.periodoId || options.periodoId || ""),
       cedula: text(row.cedula || options.cedula || ""),
       tabla: table,
@@ -67,20 +68,22 @@ Con qué se conecta:
       prioridad: Number(options.prioridad || options.priority || 4),
       source: text(options.source || row.origen || "local"),
       schemaVersion: text(options.schemaVersion || "1"),
-      createdAt: new Date().toISOString(),
+      createdAt: text(row.createdAt || "") || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      estadoFirebase: "PENDIENTE",
-      estadoSupabase: "PENDIENTE",
-      estadoSheets: "PENDIENTE",
-      intentosFirebase: 0,
-      intentosSupabase: 0,
-      intentosSheets: 0,
-      ultimoErrorFirebase: "",
-      ultimoErrorSupabase: "",
-      ultimoErrorSheets: "",
-      sincronizadoEnFirebase: "",
-      sincronizadoEnSupabase: "",
-      sincronizadoEnSheets: ""
+      estadoFirebase: text(row.estadoFirebase || "PENDIENTE"),
+      estadoSupabase: text(row.estadoSupabase || "PENDIENTE"),
+      estadoSheets: text(row.estadoSheets || row.statusGoogle || "PENDIENTE"),
+      statusFirebase: text(row.statusFirebase || row.estadoFirebase || "PENDIENTE"),
+      statusGoogle: text(row.statusGoogle || row.estadoSheets || "PENDIENTE"),
+      intentosFirebase: Number(row.intentosFirebase || 0),
+      intentosSupabase: Number(row.intentosSupabase || 0),
+      intentosSheets: Number(row.intentosSheets || 0),
+      ultimoErrorFirebase: text(row.ultimoErrorFirebase || ""),
+      ultimoErrorSupabase: text(row.ultimoErrorSupabase || ""),
+      ultimoErrorSheets: text(row.ultimoErrorSheets || ""),
+      sincronizadoEnFirebase: text(row.sincronizadoEnFirebase || ""),
+      sincronizadoEnSupabase: text(row.sincronizadoEnSupabase || ""),
+      sincronizadoEnSheets: text(row.sincronizadoEnSheets || "")
     };
   }
 
