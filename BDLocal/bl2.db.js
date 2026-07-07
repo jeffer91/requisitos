@@ -1,10 +1,10 @@
-﻿/* =========================================================
+/* =========================================================
 Archivo: bl2.db.js
 Ruta: /BDLocal/bl2.db.js
 Función:
 - Crear y administrar IndexedDB de BL2.
-- Manejar tablas principales: periodos, estudiantes, requisitos,
-  contactos, notas, cambios, logs, resumen, errores, sync_meta y backups.
+- Manejar tablas principales actuales y tablas nuevas DB_VERSION 2.
+- Crear tablas nuevas sin borrar ni renombrar datos existentes.
 - Entregar funciones simples para leer, guardar, listar, contar y consultar.
 ========================================================= */
 (function(window){
@@ -15,7 +15,7 @@ Función:
   var utils = config.utils || {};
 
   var DB_NAME = config.dbName || "REQUISITOS_BL2";
-  var DB_VERSION = config.dbVersion || 1;
+  var DB_VERSION = Math.max(Number(config.dbVersion || 1), 1);
 
   var state = {
     db: null,
@@ -48,7 +48,7 @@ Función:
 
   function createIndexSafe(store, name, keyPath, options){
     try{
-      if(!store.indexNames.contains(name)){
+      if(store && !store.indexNames.contains(name)){
         store.createIndex(name, keyPath, options || {});
       }
     }catch(error){
@@ -56,103 +56,179 @@ Función:
     }
   }
 
-  function createStoreSafe(db, name, options){
-    if(db.objectStoreNames.contains(name)){
+  function upgradeStore(db, transaction, name, options){
+    name = text(name);
+    if(!name){ return null; }
+
+    try{
+      if(db.objectStoreNames.contains(name)){
+        return transaction ? transaction.objectStore(name) : null;
+      }
+      return db.createObjectStore(name, options || { keyPath: "id" });
+    }catch(error){
+      console.warn("[BL2DB] No se pudo preparar store:", name, error);
       return null;
     }
-    return db.createObjectStore(name, options || { keyPath: "id" });
   }
 
-  function ensureStores(db){
-    var settings = createStoreSafe(db, stores.settings || "settings", { keyPath: "key" });
-    if(settings){
-      createIndexSafe(settings, "updatedAt", "updatedAt", { unique: false });
-    }
+  function ensureStores(db, transaction){
+    var settings = upgradeStore(db, transaction, stores.settings || "settings", { keyPath: "key" });
+    createIndexSafe(settings, "updatedAt", "updatedAt", { unique: false });
 
-    var periodos = createStoreSafe(db, stores.periodos || "periodos", { keyPath: "id" });
-    if(periodos){
-      createIndexSafe(periodos, "label", "label", { unique: false });
-      createIndexSafe(periodos, "updatedAt", "updatedAt", { unique: false });
-    }
+    var periodos = upgradeStore(db, transaction, stores.periodos || "periodos", { keyPath: "id" });
+    createIndexSafe(periodos, "label", "label", { unique: false });
+    createIndexSafe(periodos, "updatedAt", "updatedAt", { unique: false });
 
-    var estudiantes = createStoreSafe(db, stores.estudiantes || "estudiantes", { keyPath: "id" });
-    if(estudiantes){
-      createIndexSafe(estudiantes, "cedula", "cedula", { unique: false });
-      createIndexSafe(estudiantes, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(estudiantes, "periodo_cedula", ["periodoId", "cedula"], { unique: true });
-      createIndexSafe(estudiantes, "periodo_carrera", ["periodoId", "NombreCarrera"], { unique: false });
-      createIndexSafe(estudiantes, "periodo_division", ["periodoId", "division"], { unique: false });
-      createIndexSafe(estudiantes, "estadoMatricula", "estadoMatricula", { unique: false });
-      createIndexSafe(estudiantes, "updatedAt", "updatedAt", { unique: false });
-    }
+    var estudiantes = upgradeStore(db, transaction, stores.estudiantes || "estudiantes", { keyPath: "id" });
+    createIndexSafe(estudiantes, "cedula", "cedula", { unique: false });
+    createIndexSafe(estudiantes, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(estudiantes, "periodo_cedula", ["periodoId", "cedula"], { unique: true });
+    createIndexSafe(estudiantes, "periodo_carrera", ["periodoId", "NombreCarrera"], { unique: false });
+    createIndexSafe(estudiantes, "periodo_division", ["periodoId", "division"], { unique: false });
+    createIndexSafe(estudiantes, "estadoMatricula", "estadoMatricula", { unique: false });
+    createIndexSafe(estudiantes, "updatedAt", "updatedAt", { unique: false });
 
-    var requisitos = createStoreSafe(db, stores.requisitos || "requisitos", { keyPath: "id" });
-    if(requisitos){
-      createIndexSafe(requisitos, "studentId", "studentId", { unique: false });
-      createIndexSafe(requisitos, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(requisitos, "cedula", "cedula", { unique: false });
-      createIndexSafe(requisitos, "nombre", "nombre", { unique: false });
-      createIndexSafe(requisitos, "valor", "valor", { unique: false });
-      createIndexSafe(requisitos, "periodo_nombre", ["periodoId", "nombre"], { unique: false });
-      createIndexSafe(requisitos, "updatedAt", "updatedAt", { unique: false });
-    }
+    var requisitos = upgradeStore(db, transaction, stores.requisitos || "requisitos", { keyPath: "id" });
+    createIndexSafe(requisitos, "studentId", "studentId", { unique: false });
+    createIndexSafe(requisitos, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(requisitos, "cedula", "cedula", { unique: false });
+    createIndexSafe(requisitos, "nombre", "nombre", { unique: false });
+    createIndexSafe(requisitos, "valor", "valor", { unique: false });
+    createIndexSafe(requisitos, "periodo_nombre", ["periodoId", "nombre"], { unique: false });
+    createIndexSafe(requisitos, "updatedAt", "updatedAt", { unique: false });
 
-    var contactos = createStoreSafe(db, stores.contactos || "contactos", { keyPath: "id" });
-    if(contactos){
-      createIndexSafe(contactos, "studentId", "studentId", { unique: false });
-      createIndexSafe(contactos, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(contactos, "cedula", "cedula", { unique: false });
-      createIndexSafe(contactos, "updatedAt", "updatedAt", { unique: false });
-    }
+    var contactos = upgradeStore(db, transaction, stores.contactos || "contactos", { keyPath: "id" });
+    createIndexSafe(contactos, "studentId", "studentId", { unique: false });
+    createIndexSafe(contactos, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(contactos, "cedula", "cedula", { unique: false });
+    createIndexSafe(contactos, "updatedAt", "updatedAt", { unique: false });
 
-    var notas = createStoreSafe(db, stores.notas || "notas", { keyPath: "id" });
-    if(notas){
-      createIndexSafe(notas, "studentId", "studentId", { unique: false });
-      createIndexSafe(notas, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(notas, "cedula", "cedula", { unique: false });
-      createIndexSafe(notas, "updatedAt", "updatedAt", { unique: false });
-    }
+    var notas = upgradeStore(db, transaction, stores.notas || "notas", { keyPath: "id" });
+    createIndexSafe(notas, "studentId", "studentId", { unique: false });
+    createIndexSafe(notas, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(notas, "cedula", "cedula", { unique: false });
+    createIndexSafe(notas, "idEstudiantePeriodo", "idEstudiantePeriodo", { unique: false });
+    createIndexSafe(notas, "updatedAt", "updatedAt", { unique: false });
 
-    var cambios = createStoreSafe(db, stores.cambios || "cambios", { keyPath: "id" });
-    if(cambios){
-      createIndexSafe(cambios, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(cambios, "cedula", "cedula", { unique: false });
-      createIndexSafe(cambios, "tipo", "tipo", { unique: false });
-      createIndexSafe(cambios, "statusGoogle", "statusGoogle", { unique: false });
-      createIndexSafe(cambios, "statusFirebase", "statusFirebase", { unique: false });
-      createIndexSafe(cambios, "createdAt", "createdAt", { unique: false });
-    }
+    var cambios = upgradeStore(db, transaction, stores.cambios || "cambios", { keyPath: "id" });
+    createIndexSafe(cambios, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(cambios, "cedula", "cedula", { unique: false });
+    createIndexSafe(cambios, "tipo", "tipo", { unique: false });
+    createIndexSafe(cambios, "tabla", "tabla", { unique: false });
+    createIndexSafe(cambios, "accion", "accion", { unique: false });
+    createIndexSafe(cambios, "statusGoogle", "statusGoogle", { unique: false });
+    createIndexSafe(cambios, "statusFirebase", "statusFirebase", { unique: false });
+    createIndexSafe(cambios, "estadoSheets", "estadoSheets", { unique: false });
+    createIndexSafe(cambios, "estadoFirebase", "estadoFirebase", { unique: false });
+    createIndexSafe(cambios, "estadoSupabase", "estadoSupabase", { unique: false });
+    createIndexSafe(cambios, "createdAt", "createdAt", { unique: false });
+    createIndexSafe(cambios, "updatedAt", "updatedAt", { unique: false });
 
-    var logs = createStoreSafe(db, stores.logs || "logs", { keyPath: "id" });
-    if(logs){
-      createIndexSafe(logs, "level", "level", { unique: false });
-      createIndexSafe(logs, "createdAt", "createdAt", { unique: false });
-    }
+    var logs = upgradeStore(db, transaction, stores.logs || "logs", { keyPath: "id" });
+    createIndexSafe(logs, "level", "level", { unique: false });
+    createIndexSafe(logs, "scope", "scope", { unique: false });
+    createIndexSafe(logs, "createdAt", "createdAt", { unique: false });
 
-    var resumen = createStoreSafe(db, stores.resumen || "resumen", { keyPath: "id" });
-    if(resumen){
-      createIndexSafe(resumen, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(resumen, "updatedAt", "updatedAt", { unique: false });
-    }
+    var resumen = upgradeStore(db, transaction, stores.resumen || "resumen", { keyPath: "id" });
+    createIndexSafe(resumen, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(resumen, "updatedAt", "updatedAt", { unique: false });
 
-    var errores = createStoreSafe(db, stores.errores || "errores", { keyPath: "id" });
-    if(errores){
-      createIndexSafe(errores, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(errores, "level", "level", { unique: false });
-      createIndexSafe(errores, "createdAt", "createdAt", { unique: false });
-    }
+    var errores = upgradeStore(db, transaction, stores.errores || "errores", { keyPath: "id" });
+    createIndexSafe(errores, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(errores, "level", "level", { unique: false });
+    createIndexSafe(errores, "createdAt", "createdAt", { unique: false });
 
-    var syncMeta = createStoreSafe(db, stores.syncMeta || "sync_meta", { keyPath: "key" });
-    if(syncMeta){
-      createIndexSafe(syncMeta, "updatedAt", "updatedAt", { unique: false });
-    }
+    var syncMeta = upgradeStore(db, transaction, stores.syncMeta || "sync_meta", { keyPath: "key" });
+    createIndexSafe(syncMeta, "updatedAt", "updatedAt", { unique: false });
 
-    var backups = createStoreSafe(db, stores.backups || "backups", { keyPath: "id" });
-    if(backups){
-      createIndexSafe(backups, "type", "type", { unique: false });
-      createIndexSafe(backups, "periodoId", "periodoId", { unique: false });
-      createIndexSafe(backups, "createdAt", "createdAt", { unique: false });
-    }
+    var backups = upgradeStore(db, transaction, stores.backups || "backups", { keyPath: "id" });
+    createIndexSafe(backups, "type", "type", { unique: false });
+    createIndexSafe(backups, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(backups, "createdAt", "createdAt", { unique: false });
+
+    ensureStoresV2(db, transaction);
+  }
+
+  function ensureStoresV2(db, transaction){
+    var periodosCarreras = upgradeStore(db, transaction, stores.periodosCarreras || "periodos_carreras", { keyPath: "id" });
+    createIndexSafe(periodosCarreras, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(periodosCarreras, "carrera", "carrera", { unique: false });
+    createIndexSafe(periodosCarreras, "updatedAt", "updatedAt", { unique: false });
+
+    var periodosDivisiones = upgradeStore(db, transaction, stores.periodosDivisiones || "periodos_divisiones", { keyPath: "id" });
+    createIndexSafe(periodosDivisiones, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(periodosDivisiones, "division", "division", { unique: false });
+    createIndexSafe(periodosDivisiones, "updatedAt", "updatedAt", { unique: false });
+
+    var personas = upgradeStore(db, transaction, stores.personas || "personas", { keyPath: "cedula" });
+    createIndexSafe(personas, "nombreCompleto", "nombreCompleto", { unique: false });
+    createIndexSafe(personas, "correoPersonal", "correoPersonal", { unique: false });
+    createIndexSafe(personas, "updatedAt", "updatedAt", { unique: false });
+
+    var matriculas = upgradeStore(db, transaction, stores.matriculasPeriodo || "matriculas_periodo", { keyPath: "idEstudiantePeriodo" });
+    createIndexSafe(matriculas, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(matriculas, "cedula", "cedula", { unique: false });
+    createIndexSafe(matriculas, "periodo_cedula", ["periodoId", "cedula"], { unique: true });
+    createIndexSafe(matriculas, "periodo_carrera", ["periodoId", "carrera"], { unique: false });
+    createIndexSafe(matriculas, "periodo_division", ["periodoId", "division"], { unique: false });
+    createIndexSafe(matriculas, "estadoMatricula", "estadoMatricula", { unique: false });
+    createIndexSafe(matriculas, "updatedAt", "updatedAt", { unique: false });
+
+    var requisitosEstudiante = upgradeStore(db, transaction, stores.requisitosEstudiante || "requisitos_estudiante", { keyPath: "id" });
+    createIndexSafe(requisitosEstudiante, "idEstudiantePeriodo", "idEstudiantePeriodo", { unique: false });
+    createIndexSafe(requisitosEstudiante, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(requisitosEstudiante, "cedula", "cedula", { unique: false });
+    createIndexSafe(requisitosEstudiante, "requisitoKey", "requisitoKey", { unique: false });
+    createIndexSafe(requisitosEstudiante, "estado", "estado", { unique: false });
+    createIndexSafe(requisitosEstudiante, "updatedAt", "updatedAt", { unique: false });
+
+    var notasTitulacion = upgradeStore(db, transaction, stores.notasTitulacion || "notas_titulacion", { keyPath: "idEstudiantePeriodo" });
+    createIndexSafe(notasTitulacion, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(notasTitulacion, "cedula", "cedula", { unique: false });
+    createIndexSafe(notasTitulacion, "estadoNota", "estadoNota", { unique: false });
+    createIndexSafe(notasTitulacion, "updatedAt", "updatedAt", { unique: false });
+
+    var contactosEstudiante = upgradeStore(db, transaction, stores.contactosEstudiante || "contactos_estudiante", { keyPath: "id" });
+    createIndexSafe(contactosEstudiante, "idEstudiantePeriodo", "idEstudiantePeriodo", { unique: false });
+    createIndexSafe(contactosEstudiante, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(contactosEstudiante, "cedula", "cedula", { unique: false });
+    createIndexSafe(contactosEstudiante, "updatedAt", "updatedAt", { unique: false });
+
+    var divisionesEstudiante = upgradeStore(db, transaction, stores.divisionesEstudiante || "divisiones_estudiante", { keyPath: "id" });
+    createIndexSafe(divisionesEstudiante, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(divisionesEstudiante, "cedula", "cedula", { unique: false });
+    createIndexSafe(divisionesEstudiante, "division", "division", { unique: false });
+    createIndexSafe(divisionesEstudiante, "updatedAt", "updatedAt", { unique: false });
+
+    var importaciones = upgradeStore(db, transaction, stores.importaciones || "importaciones", { keyPath: "id" });
+    createIndexSafe(importaciones, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(importaciones, "tipo", "tipo", { unique: false });
+    createIndexSafe(importaciones, "createdAt", "createdAt", { unique: false });
+
+    var cambiosPendientes = upgradeStore(db, transaction, stores.cambiosPendientes || "cambios_pendientes", { keyPath: "id" });
+    createIndexSafe(cambiosPendientes, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(cambiosPendientes, "cedula", "cedula", { unique: false });
+    createIndexSafe(cambiosPendientes, "tabla", "tabla", { unique: false });
+    createIndexSafe(cambiosPendientes, "estadoSheets", "estadoSheets", { unique: false });
+    createIndexSafe(cambiosPendientes, "estadoFirebase", "estadoFirebase", { unique: false });
+    createIndexSafe(cambiosPendientes, "estadoSupabase", "estadoSupabase", { unique: false });
+    createIndexSafe(cambiosPendientes, "createdAt", "createdAt", { unique: false });
+
+    var syncEstado = upgradeStore(db, transaction, stores.syncEstado || "sync_estado", { keyPath: "id" });
+    createIndexSafe(syncEstado, "target", "target", { unique: false });
+    createIndexSafe(syncEstado, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(syncEstado, "updatedAt", "updatedAt", { unique: false });
+
+    var erroresValidacion = upgradeStore(db, transaction, stores.erroresValidacion || "errores_validacion", { keyPath: "id" });
+    createIndexSafe(erroresValidacion, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(erroresValidacion, "cedula", "cedula", { unique: false });
+    createIndexSafe(erroresValidacion, "nivel", "nivel", { unique: false });
+    createIndexSafe(erroresValidacion, "createdAt", "createdAt", { unique: false });
+
+    var cacheViews = upgradeStore(db, transaction, stores.cacheViews || "cache_views", { keyPath: "id" });
+    createIndexSafe(cacheViews, "view", "view", { unique: false });
+    createIndexSafe(cacheViews, "periodoId", "periodoId", { unique: false });
+    createIndexSafe(cacheViews, "updatedAt", "updatedAt", { unique: false });
   }
 
   function open(){
@@ -174,7 +250,7 @@ Función:
 
       request.onupgradeneeded = function(event){
         var db = event.target.result;
-        ensureStores(db);
+        ensureStores(db, event.target.transaction);
       };
 
       request.onsuccess = function(event){
@@ -193,7 +269,7 @@ Función:
       };
 
       request.onblocked = function(){
-        rejectFn(new Error("BL2 está bloqueada por otra pestaña o ventana."));
+        rejectFn(new Error("BL2 está bloqueada por otra pestaña o ventana. Cierre otras pestañas o ventanas de la app y vuelva a abrir."));
       };
     }).finally(function(){
       state.opening = null;
@@ -433,9 +509,18 @@ Función:
     });
   }
 
-  function exportAll(){
-    var names = Object.keys(stores).map(function(k){ return stores[k]; }).filter(Boolean);
+  function allStoreNames(){
+    var seen = Object.create(null);
+    return Object.keys(stores).map(function(k){ return stores[k]; }).filter(function(name){
+      name = text(name);
+      if(!name || seen[name]){ return false; }
+      seen[name] = true;
+      return true;
+    });
+  }
 
+  function exportAll(){
+    var names = allStoreNames();
     var result = {
       name: DB_NAME,
       version: DB_VERSION,
@@ -449,6 +534,9 @@ Función:
       chain = chain.then(function(){
         return getAll(name).then(function(rows){
           result.tables[name] = rows;
+        }).catch(function(error){
+          result.tables[name] = [];
+          result.tables[name + "__error"] = error.message || String(error);
         });
       });
     });
@@ -479,18 +567,10 @@ Función:
     names.forEach(function(name){
       chain = chain.then(function(){
         var rows = Array.isArray(tables[name]) ? tables[name] : [];
-
         if(options.clearBeforeImport){
-          return clear(name).then(function(){
-            return bulkPut(name, rows);
-          }).then(function(saved){
-            imported += saved.length;
-          });
+          return clear(name).then(function(){ return bulkPut(name, rows); }).then(function(saved){ imported += saved.length; });
         }
-
-        return bulkPut(name, rows).then(function(saved){
-          imported += saved.length;
-        });
+        return bulkPut(name, rows).then(function(saved){ imported += saved.length; });
       });
     });
 
@@ -505,18 +585,14 @@ Función:
   }
 
   function resetAll(){
-    var names = Object.keys(stores).map(function(k){ return stores[k]; }).filter(Boolean);
+    var names = allStoreNames();
     var chain = Promise.resolve();
 
     names.forEach(function(name){
-      chain = chain.then(function(){
-        return clear(name);
-      });
+      chain = chain.then(function(){ return clear(name); });
     });
 
-    return chain.then(function(){
-      return true;
-    });
+    return chain.then(function(){ return true; });
   }
 
   function deleteDatabase(){
@@ -524,16 +600,25 @@ Función:
 
     return new Promise(function(resolve, rejectFn){
       var request = window.indexedDB.deleteDatabase(DB_NAME);
-
       request.onsuccess = function(){ resolve(true); };
       request.onerror = function(){ rejectFn(request.error || new Error("No se pudo eliminar BL2.")); };
       request.onblocked = function(){ rejectFn(new Error("No se pudo eliminar BL2 porque está abierta.")); };
     });
   }
 
+  function meta(){
+    return {
+      name: DB_NAME,
+      version: DB_VERSION,
+      stores: allStoreNames(),
+      schemaVersion: config.schemaVersion || String(DB_VERSION)
+    };
+  }
+
   window.BL2DB = {
     open: open,
     close: close,
+    meta: meta,
 
     get: get,
     getAll: getAll,
