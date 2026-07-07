@@ -162,7 +162,18 @@ Con qué se conecta:
 
   function shouldForceFull(options){
     options = options || {};
-    return options.fullPeriod === true || options.mode === "full_period" || options.forceFull === true;
+
+    /*
+      IMPORTANTE:
+      fullPeriod:true puede venir de una sincronización automática antigua.
+      No debe tomarse como orden obligatoria de subida completa, porque eso
+      vuelve a mandar todo el período y genera duplicados en Google Sheets.
+
+      Solo se permite subida completa forzada cuando venga explícitamente:
+      - forceFull:true
+      - manualFull:true
+    */
+    return options.forceFull === true || options.manualFull === true;
   }
 
   function install(){
