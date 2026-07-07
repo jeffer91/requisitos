@@ -34,7 +34,12 @@
   }
 
   function clone(value) {
-    return JSON.parse(JSON.stringify(value));
+    if (value === undefined) return undefined;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return value;
+    }
   }
 
   function isObject(value) {
@@ -73,15 +78,15 @@
   }
 
   function mask(value) {
-    var text = String(value || '');
-    if (!text) return '';
-    if (text.length <= 8) return '********';
-    return text.slice(0, 4) + '********' + text.slice(-4);
+    var clean = String(value || '');
+    if (!clean) return '';
+    if (clean.length <= 8) return '********';
+    return clean.slice(0, 4) + '********' + clean.slice(-4);
   }
 
   function defaultConfig() {
     return {
-      version: 1,
+      version: 2,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       ui: { activeSection: 'resumen' },
@@ -113,7 +118,7 @@
         status: 'sin_configurar',
         url: '',
         anonKeyProtected: '',
-        tableName: 'requisitos_estudiantes',
+        tableName: 'app_records',
         lastTestAt: '',
         lastSyncAt: '',
         lastError: ''
@@ -149,6 +154,7 @@
 
   function normalize(config) {
     var out = merge(defaultConfig(), config || {});
+    out.version = 2;
     out.firebase.dailyLimit = Number(out.firebase.dailyLimit || 500);
     out.firebase.warningPercent = Number(out.firebase.warningPercent || 80);
     out.firebase.stopPercent = Number(out.firebase.stopPercent || 95);
@@ -156,6 +162,10 @@
 
     if (!out.firebase.usage || out.firebase.usage.date !== todayKey()) {
       out.firebase.usage = { date: todayKey(), reads: 0, writes: 0, deletes: 0, total: 0 };
+    }
+
+    if (!out.supabase.tableName || out.supabase.tableName === 'requisitos_estudiantes') {
+      out.supabase.tableName = 'app_records';
     }
 
     return out;
@@ -192,7 +202,7 @@
       status: c.status,
       url: c.url,
       anonKey: includeSecret ? key : mask(key),
-      tableName: c.tableName,
+      tableName: c.tableName || 'app_records',
       lastTestAt: c.lastTestAt,
       lastSyncAt: c.lastSyncAt,
       lastError: c.lastError
@@ -200,11 +210,14 @@
   }
 
   function setSupabaseConfig(data) {
+    var tableName = String(data.tableName || 'app_records').trim();
+    if (!tableName || tableName === 'requisitos_estudiantes') tableName = 'app_records';
+
     var patch = {
       supabase: {
         enabled: !!data.enabled,
         url: String(data.url || '').trim(),
-        tableName: String(data.tableName || 'requisitos_estudiantes').trim(),
+        tableName: tableName,
         status: data.enabled ? 'configurado' : 'sin_configurar'
       }
     };
@@ -324,6 +337,7 @@
   }
 
   function addQueueItem(item) {
+    item = item || {};
     var q = loadQueue();
     var clean = {
       id: item.id || ('q_' + Date.now() + '_' + Math.random().toString(16).slice(2)),
