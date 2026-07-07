@@ -5,6 +5,7 @@ Función:
 - Diagnosticar conexión de Defensas con BDLocal.
 - Verificar disponibilidad de servicios, repositorios, cone.defensas, notas y cambios.
 - Contar estudiantes, períodos, notas y cambios pendientes sin modificar datos.
+- Pintar diagnóstico manualmente desde la pantalla Defensas.
 Con qué se conecta:
 - BDLocal/bl2.db.js
 - BDLocal/repositories/bdl.repo.*.js
@@ -12,13 +13,12 @@ Con qué se conecta:
 - BDLocal/conexiones/cone.defensas.js
 - defart/defart.app.js
 ========================================================= */
-(function(window){
+(function(window, document){
   "use strict";
 
-  var VERSION = "0.1.0-block8";
+  var VERSION = "0.1.1-block8";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
-
   function ok(value){ return !!value; }
 
   function safeCount(repoName, options){
@@ -95,7 +95,6 @@ Con qué se conecta:
         counts: counts,
         defartState: readDefartState()
       };
-
       result.ok = result.globals.BL2DB && result.globals.BDLRepositories && result.globals.BDLServices && result.globals.DefartCore;
       return result;
     });
@@ -103,15 +102,35 @@ Con qué se conecta:
 
   function paint(targetId){
     var target = document.getElementById(targetId || "def-diagnostics");
+    if(target){ target.textContent = "Diagnosticando..."; }
     return status().then(function(result){
+      if(target){ target.textContent = JSON.stringify(result, null, 2); }
+      return result;
+    }).catch(function(error){
+      var result = { ok:false, error:error.message || String(error), checkedAt:new Date().toISOString() };
       if(target){ target.textContent = JSON.stringify(result, null, 2); }
       return result;
     });
   }
 
+  function bind(){
+    var button = document.getElementById("def-btn-diagnostics");
+    if(button && !button.__bdlDiagnosticsBound){
+      button.__bdlDiagnosticsBound = true;
+      button.addEventListener("click", function(){ paint("def-diagnostics"); });
+    }
+  }
+
   window.BDLDiagnosticsDefensas = {
     version: VERSION,
     status: status,
-    paint: paint
+    paint: paint,
+    bind: bind
   };
-})(window);
+
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", bind);
+  }else{
+    bind();
+  }
+})(window, document);
