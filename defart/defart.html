@@ -12,7 +12,7 @@ Función o funciones:
 - Descargar Excel visible de notas.
 - Usar divisiones configuradas rápidas.
 - Aplicar paginación de 25 filas y cache de resumen para mejorar rendimiento.
-- Conectar Defensas directamente con BDLocal/services mediante cone.defensas.js.
+- Conectar Defensas directamente con BDLServiceDefensas.getPage().
 - Duplicar notas guardadas hacia BDLocal/notas y BDLocal/cambios.
 - Mostrar diagnóstico rápido de conexión Defensas/BDLocal.
 - Cargar configuración DB_VERSION 2 antes de abrir IndexedDB.
@@ -21,11 +21,13 @@ Con qué se conecta:
 - ../BDLocal/adapters/bdl.divisiones.fast-cache.js
 - ../BDLocal/conexiones/cone.defensas.js
 - ../BDLocal/diagnostics/bdl.diagnostics.defensas.js
+- ../BDLocal/services/bdl.service.defensas.js
 - defart.css
 - defart.table.visual.css
 - defart.pagination.css
 - defart.core.js
 - defart.performance.js
+- defart.service-bridge.js
 - defart.persistence.js
 - defart.continuity.js
 - defart.export.js
@@ -126,7 +128,7 @@ Con qué se conecta:
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
 
-  <!-- Bloques 6, 7, 8 y 11: conexión, persistencia, diagnóstico y DB_VERSION 2. -->
+  <!-- Bloques 6, 7, 8, 11 y 15: conexión, persistencia, diagnóstico, DB_VERSION 2 y servicio real. -->
   <script src="../BDLocal/bl2.config.js"></script>
   <script src="../BDLocal/bl2.config.v2.js"></script>
   <script src="../BDLocal/bl2.db.js"></script>
@@ -136,11 +138,15 @@ Con qué se conecta:
   <script src="../BDLocal/repositories/bdl.repo.index.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.periodos.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.estudiantes.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.personas.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.matriculas.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.requisitos.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.notas.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.cambios.js"></script>
   <script src="../BDLocal/services/bdl.service.index.js"></script>
   <script src="../BDLocal/services/bdl.service.periodos.js"></script>
   <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
+  <script src="../BDLocal/services/bdl.service.defensas.js"></script>
   <script src="../BDLocal/conexiones/cone.defensas.js"></script>
   <script src="../BDLocal/diagnostics/bdl.diagnostics.defensas.js"></script>
 
@@ -150,6 +156,7 @@ Con qué se conecta:
   <script src="defart.export.js"></script>
   <script src="defart.table.js"></script>
   <script src="defart.performance.js"></script>
+  <script src="defart.service-bridge.js"></script>
   <script src="defart.app.js"></script>
 </body>
 </html>
