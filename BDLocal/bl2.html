@@ -78,6 +78,14 @@
             Cargar Excel / CSV / TXT
           </button>
 
+          <button id="bl2-btn-fetch-firebase-config" class="bl2-btn bl2-btn-light" type="button">
+            Traer config Firebase
+          </button>
+
+          <button id="bl2-btn-pull-sheets" class="bl2-btn bl2-btn-light" type="button">
+            Traer Sheets → BL
+          </button>
+
           <button id="bl2-btn-sync-google" class="bl2-btn bl2-btn-light" type="button">
             Sincronizar Google
           </button>
@@ -141,7 +149,7 @@
           <div class="bl2-card-head">
             <div>
               <h2>Resumen de carga</h2>
-              <p>Después de cargar un archivo, aquí aparecerá el resumen corto.</p>
+              <p>Después de cargar un archivo o traer datos desde Google Sheets, aquí aparecerá el resumen corto.</p>
             </div>
           </div>
 
@@ -239,6 +247,7 @@
   <script src="../js/bdlocal-config/bdlocal-google-bridge.js"></script>
   <script src="../js/bdlocal-config/bdlocal-modal.js"></script>
   <script src="../js/bdlocal-config/bdlocal-sync-fixups.js"></script>
+  <script src="bl2.cloud-pull.js"></script>
   <script src="bl2.app.js"></script>
 </body>
 </html>
