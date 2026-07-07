@@ -7,6 +7,7 @@ Función o funciones:
 - Pintar filas alternadas y estados: pendiente, completo, error, guardado y cambios sin guardar.
 - Mostrar en Acciones un botón claro de Guardar por fila.
 - Actualizar vista previa de una fila sin reconstruir toda la tabla.
+- Mantener la fila más liviana: sin período debajo del nombre y sin sede debajo de carrera.
 Con qué se conecta:
 - defart.core.js
 - defart.app.js
@@ -137,10 +138,10 @@ Con qué se conecta:
     if(header.key === "_estadoDefensa"){ return statePill(row); }
 
     if(header.key === "_carrera"){
-      return '<div class="def-career-cell"><strong>'+esc(row._carrera || "SIN CARRERA")+'</strong><span>'+esc(row._sede || "SIN SEDE")+'</span></div>';
+      return '<div class="def-career-cell"><strong>'+esc(row._carrera || "SIN CARRERA")+'</strong></div>';
     }
     if(header.key === "_nombre"){
-      return '<div class="def-name-cell"><strong>'+esc(row._nombre || "SIN NOMBRE")+'</strong><span>'+esc(row._periodoLabel || row._periodoId || "Sin período")+'</span></div>';
+      return '<div class="def-name-cell"><strong>'+esc(row._nombre || "SIN NOMBRE")+'</strong></div>';
     }
     return esc(row[header.key] || "");
   }
