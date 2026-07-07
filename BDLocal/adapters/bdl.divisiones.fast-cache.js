@@ -6,6 +6,7 @@ Función o funciones:
 - Evitar parsear localStorage una vez por cada estudiante.
 - Tomar divisiones desde configuración por período: carga.periodos.divisiones, carga.periodos.local y cache BDLocal.
 - Mantener studentDivision(), hasDivision(), divisionsForPeriod(), careersForPeriod() y listDivisions().
+- Reinstalarse automáticamente si otro adaptador antiguo sobrescribe BLDivisionesService durante el arranque.
 Con qué se conecta:
 - bdl.divisiones.service.js
 - bdl.screen-deps.js
@@ -18,12 +19,10 @@ Con qué se conecta:
   var LS_PERIODOS = "carga.periodos.local";
   var CACHE_KEY = "REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var OLD_SNAPSHOT_KEY = "REQ_EXCEL_LOCAL_V1:snapshot";
-  var VERSION = "1.1.1-fast-cache";
+  var VERSION = "1.1.2-fast-cache-final";
 
-  var memo = {
-    sig:"",
-    state:null
-  };
+  var memo = { sig:"", state:null };
+  var api = null;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase(); }
@@ -210,14 +209,8 @@ Con qué se conecta:
     return "";
   }
 
-  function studentDivision(row){
-    return divisionByCareer(row) || directDivision(row) || "Sin división";
-  }
-
-  function hasDivision(row, division){
-    if(!text(division)){ return true; }
-    return key(studentDivision(row)) === key(division);
-  }
+  function studentDivision(row){ return divisionByCareer(row) || directDivision(row) || "Sin división"; }
+  function hasDivision(row, division){ return !text(division) || key(studentDivision(row)) === key(division); }
 
   function listDivisions(rows, options){
     rows = Array.isArray(rows) ? rows : [];
@@ -242,27 +235,40 @@ Con qué se conecta:
 
   function invalidate(){ memo.sig = ""; memo.state = null; }
 
-  window.BLDivisionesService = Object.assign({}, window.BLDivisionesService || {}, {
-    version:VERSION,
-    key:key,
-    canonicalPeriodId:canonicalPeriodId,
-    samePeriod:samePeriod,
-    periodIdOf:periodIdOf,
-    findPeriod:findPeriod,
-    normalizeCareer:normalizeCareer,
-    normalizeDivision:normalizeDivision,
-    divisionsForPeriod:divisionsForPeriod,
-    careersForPeriod:careersForPeriod,
-    directDivision:directDivision,
-    divisionByCareer:divisionByCareer,
-    studentDivision:studentDivision,
-    hasDivision:hasDivision,
-    listDivisions:listDivisions,
-    listDivisionsWithEmpty:listDivisionsWithEmpty,
-    readState:buildState,
-    invalidate:invalidate
-  });
+  function install(){
+    api = {
+      version:VERSION,
+      key:key,
+      canonicalPeriodId:canonicalPeriodId,
+      samePeriod:samePeriod,
+      periodIdOf:periodIdOf,
+      findPeriod:findPeriod,
+      normalizeCareer:normalizeCareer,
+      normalizeDivision:normalizeDivision,
+      divisionsForPeriod:divisionsForPeriod,
+      careersForPeriod:careersForPeriod,
+      directDivision:directDivision,
+      divisionByCareer:divisionByCareer,
+      studentDivision:studentDivision,
+      hasDivision:hasDivision,
+      listDivisions:listDivisions,
+      listDivisionsWithEmpty:listDivisionsWithEmpty,
+      readState:buildState,
+      invalidate:invalidate
+    };
 
-  window.addEventListener("storage", invalidate);
-  try{ window.dispatchEvent(new CustomEvent("bdlocal:divisiones-fast-cache-ready", { detail:{ ok:true, version:VERSION } })); }catch(error){}
+    window.BLDivisionesService = Object.assign({}, window.BLDivisionesService || {}, api);
+  }
+
+  install();
+  window.addEventListener("storage", function(){ invalidate(); install(); });
+
+  var attempts = 0;
+  var guard = window.setInterval(function(){
+    attempts += 1;
+    if(!window.BLDivisionesService || window.BLDivisionesService.version !== VERSION){ install(); }
+    if(attempts >= 40){ window.clearInterval(guard); }
+  }, 100);
+
+  try{ window.dispatchEvent(new CustomEvent("bdlocal:divisiones-fast-cache-ready", { detail:{ ok:true, version:VERSION, final:true } })); }catch(error){}
 })(window);
