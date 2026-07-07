@@ -7,8 +7,8 @@
   - Probar Firebase, Supabase y Google Sheets.
   - Traer Firebase -> BDLocal usando BL2Sync.
   - Subir BDLocal -> Firebase usando BL2Sync y control de cuota manual.
-  - Subir BDLocal -> Google Sheets usando BL2Sync y la configuración guardada en el panel.
-  - Subir BDLocal -> Supabase por REST en lotes.
+  - Subir BDLocal -> Google Sheets usando BL2Sync y configuración del panel.
+  - Subir BDLocal -> Supabase usando la tabla fallback app_records.
 */
 (function (window, document) {
   'use strict';
@@ -345,7 +345,7 @@
           periodoLabel: period.label,
           force: true,
           fullPeriod: firstFull,
-          action: firstFull ? 'first_full_upload' : 'sync_bl2'
+          action: 'sync_bl2'
         }).then(function (result) {
           var patch = {
             sheets: {
@@ -393,12 +393,17 @@
     }, extra || {});
   }
 
+  function getSupabaseTable(config) {
+    var table = text(config.tableName || 'app_records');
+    return table === 'requisitos_estudiantes' ? 'app_records' : table;
+  }
+
   function testSupabase() {
     var store = getStore();
     var config = store.getSupabaseConfig({ includeSecret: true });
     var url = text(config.url).replace(/\/$/, '');
     var key = text(config.anonKey);
-    var table = text(config.tableName || 'requisitos_estudiantes');
+    var table = getSupabaseTable(config);
 
     if (!url || !key || !table) {
       store.updateConnectionStatus('supabase', { connected: false, status: 'sin_configurar', lastError: 'Faltan URL, anon key o tabla.' });
@@ -407,7 +412,7 @@
 
     uiProgress(true, 15, 'Probando Supabase...');
 
-    return fetch(url + '/rest/v1/' + encodeURIComponent(table) + '?select=*&limit=1', {
+    return fetch(url + '/rest/v1/' + encodeURIComponent(table) + '?select=id&limit=1', {
       method: 'GET',
       mode: 'cors',
       headers: supabaseHeaders(key)
@@ -417,6 +422,7 @@
       }
       return response.text();
     }).then(function () {
+      store.patchConfig({ supabase: { tableName: table } });
       store.updateConnectionStatus('supabase', { connected: true, status: 'ok', lastError: '' });
       uiProgress(false, 100, 'Supabase conectado.');
       return { ok: true, message: 'Supabase respondió correctamente.' };
@@ -427,16 +433,29 @@
     });
   }
 
-  function toSupabaseRow(row, period) {
+  function toAppRecord(row, period) {
     row = clone(row || {});
-    return Object.assign({}, row, {
-      id: text(row.id || ((row.cedula || row.numeroIdentificacion || '') + '__' + period.id)),
-      cedula: text(row.cedula || row.numeroIdentificacion || ''),
-      periodoId: text(row.periodoId || period.id),
-      periodoLabel: text(row.periodoLabel || period.label),
-      updatedAt: text(row.updatedAt || nowIso()),
-      syncSource: 'BDLocal'
-    });
+    var studentId = text(row.id || ((row.cedula || row.numeroIdentificacion || '') + '__' + period.id));
+
+    return {
+      id: 'estudiantes__' + studentId,
+      module_key: 'requisitos',
+      table_key: 'estudiantes',
+      record_key: studentId,
+      periodo_id: text(row.periodoId || period.id),
+      estudiante_id: studentId,
+      source: 'bdlocal',
+      sync_status: 'sincronizado',
+      schema_version: '1',
+      payload: Object.assign({}, row, {
+        id: studentId,
+        cedula: text(row.cedula || row.numeroIdentificacion || ''),
+        periodoId: text(row.periodoId || period.id),
+        periodoLabel: text(row.periodoLabel || period.label),
+        updatedAt: text(row.updatedAt || nowIso()),
+        syncSource: 'BDLocal'
+      })
+    };
   }
 
   function runBatches(items, size, handler, target) {
@@ -468,7 +487,7 @@
     var config = store.getSupabaseConfig({ includeSecret: true });
     var url = text(config.url).replace(/\/$/, '');
     var key = text(config.anonKey);
-    var table = text(config.tableName || 'requisitos_estudiantes');
+    var table = getSupabaseTable(config);
     var batchSize = Math.max(1, Number((store.loadConfig().sheets || {}).batchSize || 25));
 
     if (!config.enabled) {
@@ -483,7 +502,7 @@
 
     return getStudentsForActivePeriod().then(function (data) {
       var rows = data.students.map(function (row) {
-        return toSupabaseRow(row, data.period);
+        return toAppRecord(row, data.period);
       });
 
       if (!rows.length) {
@@ -499,6 +518,7 @@
       }, 'supabase').then(function (result) {
         store.patchConfig({
           supabase: {
+            tableName: table,
             connected: true,
             status: 'ok',
             lastSyncAt: nowIso(),
@@ -516,14 +536,19 @@
   }
 
   function testAll() {
+    var store = getStore();
+    var config = store ? store.loadConfig() : {};
+    var supabaseEnabled = !!(config.supabase && config.supabase.enabled);
+    var sheetsEnabled = !!(config.sheets && config.sheets.enabled);
+
     return Promise.resolve()
       .then(testFirebase)
       .then(function (firebaseResult) {
-        return testSheets().then(function (sheetsResult) {
-          return testSupabase().then(function (supabaseResult) {
+        return (sheetsEnabled ? testSheets() : Promise.resolve({ ok: true, skipped: true, message: 'Google Sheets desactivado.' })).then(function (sheetsResult) {
+          return (supabaseEnabled ? testSupabase() : Promise.resolve({ ok: true, skipped: true, message: 'Supabase desactivado.' })).then(function (supabaseResult) {
             return {
               ok: !!firebaseResult.ok && !!sheetsResult.ok && !!supabaseResult.ok,
-              message: 'Pruebas finalizadas. Firebase: ' + (firebaseResult.ok ? 'OK' : 'Error') + ', Sheets: ' + (sheetsResult.ok ? 'OK' : 'Error') + ', Supabase: ' + (supabaseResult.ok ? 'OK' : 'Error') + '.'
+              message: 'Pruebas finalizadas. Firebase: ' + (firebaseResult.ok ? 'OK' : 'Error') + ', Sheets: ' + (sheetsResult.skipped ? 'Desactivado' : (sheetsResult.ok ? 'OK' : 'Error')) + ', Supabase: ' + (supabaseResult.skipped ? 'Desactivado' : (supabaseResult.ok ? 'OK' : 'Error')) + '.'
             };
           });
         });
