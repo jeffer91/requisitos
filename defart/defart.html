@@ -13,6 +13,7 @@ Función o funciones:
 - Usar divisiones configuradas rápidas.
 - Aplicar paginación de 25 filas y cache de resumen para mejorar rendimiento.
 - Conectar Defensas directamente con BDLocal/services mediante cone.defensas.js.
+- Duplicar notas guardadas hacia BDLocal/notas y BDLocal/cambios.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - ../BDLocal/adapters/bdl.divisiones.fast-cache.js
@@ -22,6 +23,7 @@ Con qué se conecta:
 - defart.pagination.css
 - defart.core.js
 - defart.performance.js
+- defart.persistence.js
 - defart.continuity.js
 - defart.export.js
 - defart.table.js
@@ -120,18 +122,24 @@ Con qué se conecta:
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
 
-  <!-- Bloque 6: conexión mínima de Defensas con BDLocal/services. -->
+  <!-- Bloques 6 y 7: conexión y persistencia mínima de Defensas con BDLocal. -->
   <script src="../BDLocal/bl2.config.js"></script>
   <script src="../BDLocal/bl2.db.js"></script>
+  <script src="../BDLocal/rules/bdl.rules.index.js"></script>
+  <script src="../BDLocal/rules/bdl.rules.notas.js"></script>
+  <script src="../BDLocal/rules/bdl.rules.sync.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.index.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.periodos.js"></script>
   <script src="../BDLocal/repositories/bdl.repo.estudiantes.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.notas.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.cambios.js"></script>
   <script src="../BDLocal/services/bdl.service.index.js"></script>
   <script src="../BDLocal/services/bdl.service.periodos.js"></script>
   <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
   <script src="../BDLocal/conexiones/cone.defensas.js"></script>
 
   <script src="defart.core.js"></script>
+  <script src="defart.persistence.js"></script>
   <script src="defart.continuity.js"></script>
   <script src="defart.export.js"></script>
   <script src="defart.table.js"></script>
