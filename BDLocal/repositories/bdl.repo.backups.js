@@ -5,6 +5,7 @@ Función:
 - Repositorio de respaldos locales.
 - Usar la tabla actual backups.
 - Preparar consultas por período, scope y tipo.
+- Garantizar id compatible con IndexedDB.
 Con qué se conecta:
 - BDLocal/repositories/bdl.repo.index.js
 - BDLocal/bl2.backup.js
@@ -20,16 +21,20 @@ Con qué se conecta:
 
   function make(options){
     options = options || {};
+    var id = text(options.id || options.backupId) || "backup_" + Date.now() + "_" + Math.random().toString(16).slice(2);
     return {
-      backupId: text(options.backupId) || "backup_" + Date.now() + "_" + Math.random().toString(16).slice(2),
+      id: id,
+      backupId: id,
       scope: text(options.scope || "bdlocal"),
       periodoId: text(options.periodoId || ""),
       tipo: text(options.tipo || options.type || "manual"),
+      type: text(options.type || options.tipo || "manual"),
       payload: options.payload || null,
       schemaVersion: text(options.schemaVersion || "1"),
       totalRegistros: Number(options.totalRegistros || options.total || 0),
       origen: text(options.origen || options.source || "local"),
-      createdAt: text(options.createdAt || "") || new Date().toISOString()
+      createdAt: text(options.createdAt || "") || new Date().toISOString(),
+      updatedAt: text(options.updatedAt || "") || new Date().toISOString()
     };
   }
 
