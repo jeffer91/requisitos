@@ -3,16 +3,19 @@ Archivo: bdl.sync.index.js
 Ruta: /BDLocal/sync/bdl.sync.index.js
 Función:
 - Crear el punto de entrada de sincronización nueva de BDLocal.
-- Preparar orquestador futuro basado en cambios_pendientes.
+- Usar BDLSyncOutbox para leer cambios pendientes.
+- Usar BDLSyncOrchestrator para procesar destinos.
 - Mantener compatibilidad inicial con BL2Sync y bdlocal-sync.manager.js.
 Con qué se conecta:
+- BDLocal/sync/bdl.sync.outbox.js
+- BDLocal/sync/bdl.sync.orchestrator.js
 - BDLocal/sync/targets/bdl.sync.targets.index.js
 - js/bdlocal-config/bdlocal-sync.manager.js
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.1.0-block1";
+  var VERSION = "0.2.0-block9";
   var state = {
     running: false,
     pausedReason: "",
@@ -20,38 +23,72 @@ Con qué se conecta:
     lastResult: null
   };
 
-  function text(value){
-    return String(value == null ? "" : value).trim();
-  }
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function outbox(){ return window.BDLSyncOutbox || null; }
+  function orchestrator(){ return window.BDLSyncOrchestrator || null; }
 
   function setPaused(reason){
     state.pausedReason = text(reason || "");
     return state.pausedReason;
   }
 
-  function isPaused(){
-    return !!state.pausedReason;
-  }
+  function isPaused(){ return !!state.pausedReason; }
 
   function status(){
-    return {
+    var base = {
       version: VERSION,
       running: !!state.running,
       paused: isPaused(),
       pausedReason: state.pausedReason,
       lastRunAt: state.lastRunAt,
       lastResult: state.lastResult,
-      targets: window.BDLSyncTargets && typeof window.BDLSyncTargets.list === "function" ? window.BDLSyncTargets.list() : []
+      targets: window.BDLSyncTargets && typeof window.BDLSyncTargets.list === "function" ? window.BDLSyncTargets.list() : [],
+      outboxReady: !!outbox(),
+      orchestratorReady: !!orchestrator()
     };
+
+    if(orchestrator() && typeof orchestrator().status === "function"){
+      return orchestrator().status().then(function(detail){
+        return Object.assign(base, { detail: detail });
+      });
+    }
+
+    if(outbox() && typeof outbox().counts === "function"){
+      return outbox().counts({}).then(function(counts){
+        return Object.assign(base, { counts: counts });
+      });
+    }
+
+    return Promise.resolve(base);
   }
 
   function request(options){
     options = options || {};
+
+    if(isPaused()){
+      state.lastResult = { ok:false, paused:true, message:"Sincronización pausada: " + state.pausedReason };
+      return Promise.resolve(state.lastResult);
+    }
+
     state.lastRunAt = new Date().toISOString();
+
+    if(orchestrator() && typeof orchestrator().syncQueue === "function"){
+      state.running = true;
+      return orchestrator().syncQueue(options).then(function(result){
+        state.running = false;
+        state.lastResult = result;
+        return result;
+      }).catch(function(error){
+        state.running = false;
+        state.lastResult = { ok:false, message:error.message || String(error) };
+        return state.lastResult;
+      });
+    }
+
     state.lastResult = {
       ok: true,
       mode: "prepared_only",
-      message: "BDLSyncV2 preparado. La sincronización real sigue en el manager actual hasta el bloque de sync.",
+      message: "BDLSyncV2 preparado, pero el orquestador todavía no está cargado.",
       options: options
     };
     return Promise.resolve(state.lastResult);
@@ -61,6 +98,7 @@ Con qué se conecta:
     version: VERSION,
     status: status,
     request: request,
+    syncQueue: request,
     setPaused: setPaused,
     isPaused: isPaused
   };
