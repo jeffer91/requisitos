@@ -7,6 +7,7 @@ Función o funciones:
 - Resumir estudiantes por matrícula, período, división, carrera, estado, requisito y notas.
 - Conectar normalización de carreras y protección de notas vacías.
 - Mostrar una sola sección activa al presionar la navegación lateral.
+- Usar divisiones configuradas rápidas para filtros.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -44,9 +45,11 @@ Función o funciones:
     </section>
   </main>
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
   <script src="stats.rules.js"></script>
   <script src="stats.notes.guard.js"></script>
   <script src="stats.core.js"></script>
+  <script src="stats.divisiones.fast.js"></script>
   <script src="stats.carrera.guard.js"></script>
   <script src="stats.charts.js"></script>
   <script src="stats.tables.js"></script>
