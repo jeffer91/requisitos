@@ -6,6 +6,7 @@ Función o funciones:
 - Resolver división directa del estudiante o por carrera asignada al período.
 - Leer divisiones guardadas desde BDLocal/periodos y desde Carga.
 - Exponer BLDivisionesService para Ficha, Stats, Tabla, Defensas, Reportes y otras pantallas.
+- Evitar recursión con bdl.screen-deps.js leyendo localStorage directamente.
 Con qué se conecta:
 - bdl.screen-deps.js
 - BL2Core cuando está disponible
@@ -15,10 +16,11 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0";
+  var VERSION = "1.0.1";
   var LS_DIVISIONES = "carga.periodos.divisiones";
   var LS_PERIODOS = "carga.periodos.local";
   var CACHE_KEY = "REQ_BDLOCAL_CONEXIONES_CACHE_V1";
+  var OLD_SNAPSHOT_KEY = "REQ_EXCEL_LOCAL_V1:snapshot";
 
   function text(value){
     return String(value === null || value === undefined ? "" : value).trim();
@@ -152,20 +154,33 @@ Con qué se conecta:
     };
   }
 
-  function readCache(){
-    if(window.BDLocalScreenDeps && typeof window.BDLocalScreenDeps.readCache === "function"){
-      try{ return window.BDLocalScreenDeps.readCache(); }catch(error){}
+  function readRawCache(){
+    var cache = storageGet(CACHE_KEY, null);
+
+    if(!cache || typeof cache !== "object"){
+      cache = {
+        periods: [],
+        students: []
+      };
     }
 
-    return storageGet(CACHE_KEY, {
-      periods: [],
-      students: []
-    }) || { periods: [], students: [] };
+    if((!cache.periods || !cache.periods.length) && (!cache.students || !cache.students.length)){
+      var old = storageGet(OLD_SNAPSHOT_KEY, null);
+      if(old && typeof old === "object"){
+        cache.periods = Array.isArray(old.periods) ? old.periods : [];
+        cache.students = Array.isArray(old.students) ? old.students : [];
+      }
+    }
+
+    cache.periods = Array.isArray(cache.periods) ? cache.periods : [];
+    cache.students = Array.isArray(cache.students) ? cache.students : [];
+
+    return cache;
   }
 
   function localPeriods(){
     var fromCarga = storageGet(LS_PERIODOS, []);
-    var cache = readCache();
+    var cache = readRawCache();
     var out = [];
 
     if(Array.isArray(cache.periods)){ out = out.concat(cache.periods); }
@@ -401,7 +416,8 @@ Con qué se conecta:
     listDivisionsWithEmpty: listDivisionsWithEmpty,
     divisionByCareer: divisionByCareer,
     directDivision: directDivision,
-    readStore: storeDivisionsMap
+    readStore: storeDivisionsMap,
+    readRawCache: readRawCache
   });
 
   try{
