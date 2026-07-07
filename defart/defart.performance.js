@@ -5,7 +5,7 @@ Función o funciones:
 - Agregar paginación fija de 25 filas a Defensas sin romper DefartCore.
 - Cachear el resumen filtrado para evitar recalcular en cambios de página.
 - Mantener exportación con todos los filtros aplicados, no solo la página visible.
-- Resetear página cuando cambian filtros o se guardan notas.
+- Resetear página cuando cambian filtros, se guardan notas o cambia BDLocal.
 Con qué se conecta:
 - defart.core.js
 - defart.table.js
@@ -29,11 +29,6 @@ Con qué se conecta:
   };
 
   function text(value){ return String(value == null ? "" : value).trim(); }
-
-  function clone(value){
-    try{ return JSON.parse(JSON.stringify(value == null ? null : value)); }
-    catch(error){ return value; }
-  }
 
   function pageState(){ return window.DEFART_PAGING; }
 
@@ -61,6 +56,11 @@ Con qué se conecta:
 
   function clearCache(){
     cache = Object.create(null);
+  }
+
+  function resetCacheAndPage(){
+    clearCache();
+    pageState().page = 1;
   }
 
   function getFullSummary(options){
@@ -230,6 +230,17 @@ Con qué se conecta:
     document.addEventListener("click", exportAllFiltered, true);
   }
 
+  function bindCacheInvalidators(){
+    window.addEventListener("storage", function(event){
+      if(event.key === "REQ_BL_SIGNAL_V1" || event.key === "REQ_EXCEL_LOCAL_V1:snapshot"){
+        resetCacheAndPage();
+      }
+    });
+
+    window.addEventListener("bdlocal:changes-created", resetCacheAndPage);
+    window.addEventListener("bl2:students-saved", resetCacheAndPage);
+  }
+
   function installCorePatch(){
     if(!window.DefartCore || typeof window.DefartCore.summary !== "function"){ return false; }
     if(window.DefartCore.__performancePatch){ return true; }
@@ -247,8 +258,7 @@ Con qué se conecta:
     if(typeof originalSaveNotes === "function"){
       window.DefartCore.saveNotes = function(changes){
         var result = originalSaveNotes.call(window.DefartCore, changes);
-        clearCache();
-        pageState().page = 1;
+        resetCacheAndPage();
         return result;
       };
     }
@@ -275,6 +285,7 @@ Con qué se conecta:
     installTablePatch();
     bindPager();
     bindExportInterceptor();
+    bindCacheInvalidators();
   }
 
   install();
