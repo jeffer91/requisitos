@@ -5,11 +5,13 @@ Función:
 - Finalizar el arranque de la pantalla Carga.
 - Inicializar la conexión BDLocal desde el inicio de la pantalla.
 - Mantener Carga comunicada con BDLocal aunque BL2 no esté abierto.
+- Cargar el popup conectado de divisiones por período.
 ========================================================= */
 (function(window, document){
   "use strict";
 
   var ADAPTER_PATH = "../BDLocal/adapters/bdl.screen-deps.js";
+  var DIVISION_POPUP_PATH = "./carga.divisiones.popup.js";
 
   function emit(name, detail){
     try{ window.dispatchEvent(new CustomEvent(name, { detail: detail || {} })); }catch(error){}
@@ -59,6 +61,20 @@ Función:
     });
   }
 
+  function ensureDivisionsPopup(){
+    if(window.CargaDivisionesPopup){
+      return Promise.resolve({ ok:true, loaded:true, source:"existing" });
+    }
+
+    return loadScript(DIVISION_POPUP_PATH).then(function(){
+      return {
+        ok:!!window.CargaDivisionesPopup,
+        loaded:!!window.CargaDivisionesPopup,
+        source:DIVISION_POPUP_PATH
+      };
+    });
+  }
+
   function refreshCargaPeriodsFromBDLocal(){
     try{
       if(window.CargaUI && typeof window.CargaUI.refreshPeriods === "function"){
@@ -77,6 +93,13 @@ Función:
         at:new Date().toISOString()
       });
       refreshCargaPeriodsFromBDLocal();
+      return ensureDivisionsPopup();
+    }).then(function(status){
+      emit("carga:divisiones-popup-ready", {
+        ok:status && status.ok !== false,
+        status:status || {},
+        at:new Date().toISOString()
+      });
       return status;
     }).catch(function(error){
       emit("carga:bdlocal-error", {
