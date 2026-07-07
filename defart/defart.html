@@ -12,9 +12,11 @@ Función o funciones:
 - Descargar Excel visible de notas.
 - Usar divisiones configuradas rápidas.
 - Aplicar paginación de 25 filas y cache de resumen para mejorar rendimiento.
+- Conectar Defensas directamente con BDLocal/services mediante cone.defensas.js.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - ../BDLocal/adapters/bdl.divisiones.fast-cache.js
+- ../BDLocal/conexiones/cone.defensas.js
 - defart.css
 - defart.table.visual.css
 - defart.pagination.css
@@ -117,6 +119,18 @@ Con qué se conecta:
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
+
+  <!-- Bloque 6: conexión mínima de Defensas con BDLocal/services. -->
+  <script src="../BDLocal/bl2.config.js"></script>
+  <script src="../BDLocal/bl2.db.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.index.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.periodos.js"></script>
+  <script src="../BDLocal/repositories/bdl.repo.estudiantes.js"></script>
+  <script src="../BDLocal/services/bdl.service.index.js"></script>
+  <script src="../BDLocal/services/bdl.service.periodos.js"></script>
+  <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
+  <script src="../BDLocal/conexiones/cone.defensas.js"></script>
+
   <script src="defart.core.js"></script>
   <script src="defart.continuity.js"></script>
   <script src="defart.export.js"></script>
