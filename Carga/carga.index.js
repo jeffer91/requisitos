@@ -5,6 +5,7 @@ Función:
 - Finalizar el arranque de la pantalla Carga.
 - Inicializar la conexión BDLocal desde el inicio de la pantalla.
 - Mantener Carga comunicada con BDLocal aunque BL2 no esté abierto.
+- Cargar cache rápido de divisiones por período.
 - Cargar el popup conectado de divisiones por período.
 - Evitar escaneos masivos de estudiantes para mantener la pantalla rápida.
 ========================================================= */
@@ -12,6 +13,7 @@ Función:
   "use strict";
 
   var ADAPTER_PATH = "../BDLocal/adapters/bdl.screen-deps.js";
+  var DIVISION_CACHE_PATH = "../BDLocal/adapters/bdl.divisiones.fast-cache.js";
   var DIVISION_POPUP_PATH = "./carga.divisiones.popup.js";
 
   function emit(name, detail){
@@ -62,6 +64,21 @@ Función:
     });
   }
 
+  function ensureDivisionsCache(){
+    if(window.BLDivisionesService && window.BLDivisionesService.version === "1.1.1-fast-cache"){
+      return Promise.resolve({ ok:true, loaded:true, source:"existing" });
+    }
+
+    return loadScript(DIVISION_CACHE_PATH).then(function(){
+      return {
+        ok:!!window.BLDivisionesService,
+        loaded:!!window.BLDivisionesService,
+        source:DIVISION_CACHE_PATH,
+        version:window.BLDivisionesService && window.BLDivisionesService.version
+      };
+    });
+  }
+
   function ensureDivisionsPopup(){
     if(window.CargaDivisionesPopup){
       return Promise.resolve({ ok:true, loaded:true, source:"existing" });
@@ -94,6 +111,13 @@ Función:
         at:new Date().toISOString()
       });
       refreshCargaPeriodsFromBDLocal();
+      return ensureDivisionsCache();
+    }).then(function(status){
+      emit("carga:divisiones-cache-ready", {
+        ok:status && status.ok !== false,
+        status:status || {},
+        at:new Date().toISOString()
+      });
       return ensureDivisionsPopup();
     }).then(function(status){
       emit("carga:divisiones-popup-ready", {
