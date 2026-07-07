@@ -9,30 +9,11 @@ Función o funciones:
 - Mostrar tabla más visual, ordenable y cómoda para navegar.
 - Guardar cambios generales y guardar una sola fila con botón por estudiante en Acciones.
 - Registrar notas como eventos críticos de continuidad.
-- Descargar Excel visible de notas.
-- Usar divisiones configuradas rápidas.
-- Aplicar paginación de 25 filas y cache de resumen para mejorar rendimiento.
-- Conectar Defensas directamente con BDLServiceDefensas.getPage().
-- Duplicar notas guardadas hacia BDLocal/notas y BDLocal/cambios.
-- Mostrar diagnóstico rápido de conexión Defensas/BDLocal.
-- Cargar configuración DB_VERSION 2 antes de abrir IndexedDB.
-Con qué se conecta:
-- ../BDLocal/adapters/bdl.screen-deps.js
-- ../BDLocal/adapters/bdl.divisiones.fast-cache.js
-- ../BDLocal/conexiones/cone.defensas.js
-- ../BDLocal/diagnostics/bdl.diagnostics.defensas.js
-- ../BDLocal/services/bdl.service.defensas.js
-- defart.css
-- defart.table.visual.css
-- defart.pagination.css
-- defart.core.js
-- defart.performance.js
-- defart.service-bridge.js
-- defart.persistence.js
-- defart.continuity.js
-- defart.export.js
-- defart.table.js
-- defart.app.js
+- Descargar Excel visible.
+- Aplicar paginación real de 25 filas.
+- Consultar Defensas mediante BDLServiceDefensas.getPage().
+- Guardar notas primero en notas_titulacion y cambios_pendientes.
+- Mantener fallback legacy si el servicio nuevo no está disponible.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -128,7 +109,6 @@ Con qué se conecta:
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
 
-  <!-- Bloques 6, 7, 8, 11 y 15: conexión, persistencia, diagnóstico, DB_VERSION 2 y servicio real. -->
   <script src="../BDLocal/bl2.config.js"></script>
   <script src="../BDLocal/bl2.config.v2.js"></script>
   <script src="../BDLocal/bl2.db.js"></script>
@@ -157,6 +137,7 @@ Con qué se conecta:
   <script src="defart.table.js"></script>
   <script src="defart.performance.js"></script>
   <script src="defart.service-bridge.js"></script>
+  <script src="defart.save-service-bridge.js"></script>
   <script src="defart.app.js"></script>
 </body>
 </html>
