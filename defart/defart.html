@@ -14,10 +14,12 @@ Función o funciones:
 - Aplicar paginación de 25 filas y cache de resumen para mejorar rendimiento.
 - Conectar Defensas directamente con BDLocal/services mediante cone.defensas.js.
 - Duplicar notas guardadas hacia BDLocal/notas y BDLocal/cambios.
+- Mostrar diagnóstico rápido de conexión Defensas/BDLocal.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - ../BDLocal/adapters/bdl.divisiones.fast-cache.js
 - ../BDLocal/conexiones/cone.defensas.js
+- ../BDLocal/diagnostics/bdl.diagnostics.defensas.js
 - defart.css
 - defart.table.visual.css
 - defart.pagination.css
@@ -112,6 +114,7 @@ Con qué se conecta:
     <section class="def-diagnostics-card">
       <details>
         <summary>Diagnóstico</summary>
+        <button id="def-btn-diagnostics" type="button">Actualizar diagnóstico</button>
         <pre id="def-diagnostics">{}</pre>
       </details>
     </section>
@@ -122,7 +125,7 @@ Con qué se conecta:
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
 
-  <!-- Bloques 6 y 7: conexión y persistencia mínima de Defensas con BDLocal. -->
+  <!-- Bloques 6, 7 y 8: conexión, persistencia y diagnóstico de Defensas con BDLocal. -->
   <script src="../BDLocal/bl2.config.js"></script>
   <script src="../BDLocal/bl2.db.js"></script>
   <script src="../BDLocal/rules/bdl.rules.index.js"></script>
@@ -137,6 +140,7 @@ Con qué se conecta:
   <script src="../BDLocal/services/bdl.service.periodos.js"></script>
   <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
   <script src="../BDLocal/conexiones/cone.defensas.js"></script>
+  <script src="../BDLocal/diagnostics/bdl.diagnostics.defensas.js"></script>
 
   <script src="defart.core.js"></script>
   <script src="defart.persistence.js"></script>
