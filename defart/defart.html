@@ -10,8 +10,10 @@ Función o funciones:
 - Guardar cambios generales y guardar una sola fila con botón por estudiante.
 - Registrar notas como eventos críticos de continuidad.
 - Descargar Excel visible de notas.
+- Usar divisiones configuradas rápidas.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
+- ../BDLocal/adapters/bdl.divisiones.fast-cache.js
 - defart.css
 - defart.core.js
 - defart.continuity.js
@@ -60,7 +62,6 @@ Con qué se conecta:
             <option value="Completo">Completo</option>
           </select>
         </label>
-
       </div>
 
       <div class="def-toolbar-row def-toolbar-row-secondary">
@@ -109,6 +110,7 @@ Con qué se conecta:
   <button id="def-btn-save" class="def-floating-save" type="button" disabled>Guardar cambios</button>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
   <script src="defart.core.js"></script>
   <script src="defart.continuity.js"></script>
   <script src="defart.export.js"></script>
