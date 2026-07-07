@@ -15,6 +15,7 @@ Función o funciones:
 - Conectar Defensas directamente con BDLocal/services mediante cone.defensas.js.
 - Duplicar notas guardadas hacia BDLocal/notas y BDLocal/cambios.
 - Mostrar diagnóstico rápido de conexión Defensas/BDLocal.
+- Cargar configuración DB_VERSION 2 antes de abrir IndexedDB.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - ../BDLocal/adapters/bdl.divisiones.fast-cache.js
@@ -125,8 +126,9 @@ Con qué se conecta:
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
 
-  <!-- Bloques 6, 7 y 8: conexión, persistencia y diagnóstico de Defensas con BDLocal. -->
+  <!-- Bloques 6, 7, 8 y 11: conexión, persistencia, diagnóstico y DB_VERSION 2. -->
   <script src="../BDLocal/bl2.config.js"></script>
+  <script src="../BDLocal/bl2.config.v2.js"></script>
   <script src="../BDLocal/bl2.db.js"></script>
   <script src="../BDLocal/rules/bdl.rules.index.js"></script>
   <script src="../BDLocal/rules/bdl.rules.notas.js"></script>
