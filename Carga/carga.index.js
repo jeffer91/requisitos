@@ -6,12 +6,14 @@ Función:
 - Inicializar la conexión BDLocal desde el inicio de la pantalla.
 - Mantener Carga comunicada con BDLocal aunque BL2 no esté abierto.
 - Cargar el popup conectado de divisiones por período.
+- Cargar el origen tipo Ficha para que Carga detecte divisiones reales desde estudiantes.
 ========================================================= */
 (function(window, document){
   "use strict";
 
   var ADAPTER_PATH = "../BDLocal/adapters/bdl.screen-deps.js";
   var DIVISION_POPUP_PATH = "./carga.divisiones.popup.js";
+  var DIVISION_FICHA_SOURCE_PATH = "./carga.divisiones.ficha-source.js";
 
   function emit(name, detail){
     try{ window.dispatchEvent(new CustomEvent(name, { detail: detail || {} })); }catch(error){}
@@ -75,6 +77,24 @@ Función:
     });
   }
 
+  function ensureDivisionsFichaSource(){
+    if(window.CargaDivisionesFichaSource){
+      return Promise.resolve({ ok:true, loaded:true, source:"existing" });
+    }
+
+    return loadScript(DIVISION_FICHA_SOURCE_PATH).then(function(){
+      if(window.CargaDivisionesFichaSource && typeof window.CargaDivisionesFichaSource.sync === "function"){
+        try{ window.CargaDivisionesFichaSource.sync(); }catch(error){}
+      }
+
+      return {
+        ok:!!window.CargaDivisionesFichaSource,
+        loaded:!!window.CargaDivisionesFichaSource,
+        source:DIVISION_FICHA_SOURCE_PATH
+      };
+    });
+  }
+
   function refreshCargaPeriodsFromBDLocal(){
     try{
       if(window.CargaUI && typeof window.CargaUI.refreshPeriods === "function"){
@@ -96,6 +116,13 @@ Función:
       return ensureDivisionsPopup();
     }).then(function(status){
       emit("carga:divisiones-popup-ready", {
+        ok:status && status.ok !== false,
+        status:status || {},
+        at:new Date().toISOString()
+      });
+      return ensureDivisionsFichaSource();
+    }).then(function(status){
+      emit("carga:divisiones-ficha-source-ready", {
         ok:status && status.ok !== false,
         status:status || {},
         at:new Date().toISOString()
