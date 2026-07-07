@@ -5,8 +5,10 @@ Función:
 - Normalizar notas de titulación/defensas.
 - Calcular nota final institucional: 70% artículo + 30% defensa.
 - Preparar la futura tabla notas_titulacion.
+- Mantener compatibilidad con la tabla actual notas, cuyo keyPath es id.
 Con qué se conecta:
 - BDLocal/rules/bdl.rules.index.js
+- BDLocal/repositories/bdl.repo.notas.js
 - defart/defart.core.js
 ========================================================= */
 (function(window){
@@ -15,9 +17,7 @@ Con qué se conecta:
   var Rules = window.BDLRules;
   if(!Rules){ return; }
 
-  function text(value){
-    return String(value == null ? "" : value).trim();
-  }
+  function text(value){ return String(value == null ? "" : value).trim(); }
 
   function parseNota(value){
     var raw = text(value).replace(",", ".");
@@ -36,6 +36,12 @@ Con qué se conecta:
       if(text(row[names[i]]) !== ""){ return row[names[i]]; }
     }
     return "";
+  }
+
+  function makeId(periodoId, cedula){
+    periodoId = text(periodoId);
+    cedula = text(cedula);
+    return periodoId && cedula ? periodoId + "__" + cedula : "";
   }
 
   function finalNota(notart, notdef){
@@ -58,25 +64,38 @@ Con qué se conecta:
     context = context || {};
 
     var periodoId = text(row.periodoId || context.periodoId || "");
-    var cedula = text(row.cedula || "");
-    var idEstudiantePeriodo = text(row.idEstudiantePeriodo || (periodoId && cedula ? periodoId + "__" + cedula : ""));
+    var cedula = text(row.cedula || context.cedula || "");
+    var idEstudiantePeriodo = text(row.idEstudiantePeriodo || row.studentId || makeId(periodoId, cedula));
+    var id = text(row.id || row.notaId || idEstudiantePeriodo);
 
-    var notart = parseNota(first(row, ["Notart", "Nart", "nart", "notart", "notaArticulo", "nota_articulo"]));
-    var notdef = parseNota(first(row, ["Notdef", "Ndef", "ndef", "notdef", "notaDefensa", "nota_defensa"]));
-    var explicitFinal = parseNota(first(row, ["Notafinal", "Nfinal", "nfin", "notafinal", "notaFinal", "nota_final"]));
+    var notart = parseNota(first(row, ["Notart", "Nart", "nart", "notart", "notaArticulo", "nota_articulo", "_nart"]));
+    var notdef = parseNota(first(row, ["Notdef", "Ndef", "ndef", "notdef", "notaDefensa", "nota_defensa", "_ndef"]));
+    var explicitFinal = parseNota(first(row, ["Notafinal", "Nfinal", "nfin", "notafinal", "notaFinal", "nota_final", "_nfin"]));
     var notafinal = explicitFinal != null ? explicitFinal : finalNota(notart, notdef);
+    var estado = estadoNota(notart, notdef, notafinal);
+    var updatedAt = text(row.updatedAt || "") || new Date().toISOString();
 
     return {
+      id: id,
+      notaId: id,
+      studentId: idEstudiantePeriodo,
       idEstudiantePeriodo: idEstudiantePeriodo,
       periodoId: periodoId,
       cedula: cedula,
       notart: notart,
       notdef: notdef,
       notafinal: notafinal,
-      estadoNota: estadoNota(notart, notdef, notafinal),
-      updatedAt: text(row.updatedAt || "") || new Date().toISOString(),
-      _bdlNotasValid: !!idEstudiantePeriodo,
-      _bdlNotasError: idEstudiantePeriodo ? "" : "No se pudo crear registro de notas porque falta período o cédula."
+      Notart: notart,
+      Notdef: notdef,
+      Notafinal: notafinal,
+      Nart: notart,
+      Ndef: notdef,
+      Nfinal: notafinal,
+      estadoNota: estado,
+      origen: text(row.origen || context.origen || "defensas"),
+      updatedAt: updatedAt,
+      _bdlNotasValid: !!id,
+      _bdlNotasError: id ? "" : "No se pudo crear registro de notas porque falta período o cédula."
     };
   }
 
@@ -98,6 +117,7 @@ Con qué se conecta:
 
   window.BDLRulesNotas = {
     parseNota: parseNota,
+    makeId: makeId,
     finalNota: finalNota,
     estadoNota: estadoNota,
     build: build,
