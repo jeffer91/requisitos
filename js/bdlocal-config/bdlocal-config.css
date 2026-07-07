@@ -1,0 +1,468 @@
+/*
+  Archivo: bdlocal-config.css
+  Ruta: js/bdlocal-config/bdlocal-config.css
+  Estilos MVP para centro de control BDLocal.
+*/
+
+.bdlc-shell {
+  width: 100%;
+  min-height: 680px;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  background: #f6f8fb;
+  border-radius: 16px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.bdlc-sidebar,
+.bdlc-main,
+.bdlc-card {
+  background: #ffffff;
+  border: 1px solid #e3e8ef;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.bdlc-sidebar {
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.bdlc-sidebar-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 4px 4px 14px;
+}
+
+.bdlc-sidebar-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin: -8px 4px 14px;
+  line-height: 1.4;
+}
+
+.bdlc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bdlc-nav-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 11px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.bdlc-nav-button:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.bdlc-nav-button.is-active {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.bdlc-main {
+  min-width: 0;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.bdlc-section {
+  display: none;
+}
+
+.bdlc-section.is-active {
+  display: block;
+}
+
+.bdlc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.bdlc-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0;
+}
+
+.bdlc-description {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.bdlc-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.bdlc-card-grid.two {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.bdlc-card-grid.three {
+  grid-template-columns: repeat(3, minmax(190px, 1fr));
+}
+
+.bdlc-card {
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.bdlc-card-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #334155;
+  margin: 0 0 8px;
+}
+
+.bdlc-card-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0;
+}
+
+.bdlc-card-note {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 8px 0 0;
+}
+
+.bdlc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.bdlc-status::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.bdlc-status.ok {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #bbf7d0;
+}
+
+.bdlc-status.ok::before {
+  background: #10b981;
+}
+
+.bdlc-status.warning {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.bdlc-status.warning::before {
+  background: #f59e0b;
+}
+
+.bdlc-status.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.bdlc-status.error::before {
+  background: #ef4444;
+}
+
+.bdlc-status.pending {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.bdlc-status.pending::before {
+  background: #94a3b8;
+}
+
+.bdlc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.bdlc-button {
+  border: 0;
+  background: #1d4ed8;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bdlc-button:hover {
+  opacity: 0.95;
+}
+
+.bdlc-button.secondary {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.bdlc-button.success {
+  background: #059669;
+}
+
+.bdlc-button.warning {
+  background: #d97706;
+}
+
+.bdlc-button.danger {
+  background: #dc2626;
+}
+
+.bdlc-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.bdlc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bdlc-field.full {
+  grid-column: 1 / -1;
+}
+
+.bdlc-label {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 800;
+}
+
+.bdlc-input,
+.bdlc-select,
+.bdlc-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+}
+
+.bdlc-input:focus,
+.bdlc-select:focus,
+.bdlc-textarea:focus {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+}
+
+.bdlc-help {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.bdlc-progress {
+  width: 100%;
+  height: 12px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.bdlc-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #1d4ed8;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.bdlc-progress-text {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.bdlc-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e3e8ef;
+  border-radius: 14px;
+  margin-top: 12px;
+}
+
+.bdlc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.bdlc-table th,
+.bdlc-table td {
+  border-bottom: 1px solid #e3e8ef;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.bdlc-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 900;
+}
+
+.bdlc-table td {
+  color: #475569;
+}
+
+.bdlc-empty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 20px;
+  color: #64748b;
+  background: #f8fafc;
+  text-align: center;
+  font-weight: 700;
+}
+
+.bdlc-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.bdlc-log-item {
+  border: 1px solid #e3e8ef;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.bdlc-log-item strong,
+.bdlc-log-item span {
+  display: block;
+}
+
+.bdlc-log-item strong {
+  color: #0f172a;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.bdlc-log-item span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.bdlc-alert {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 12px 0;
+  border: 1px solid transparent;
+}
+
+.bdlc-alert.info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.bdlc-alert.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.bdlc-alert.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.bdlc-alert.success {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #065f46;
+}
+
+@media (max-width: 980px) {
+  .bdlc-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .bdlc-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bdlc-card-grid,
+  .bdlc-card-grid.two,
+  .bdlc-card-grid.three,
+  .bdlc-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .bdlc-shell {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .bdlc-main,
+  .bdlc-sidebar {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .bdlc-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .bdlc-header {
+    flex-direction: column;
+  }
+}
