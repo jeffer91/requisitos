@@ -16,9 +16,7 @@
 
   var remoteAdapter = null;
 
-  function nowIso() {
-    return new Date().toISOString();
-  }
+  function nowIso() { return new Date().toISOString(); }
 
   function todayKey() {
     var d = new Date();
@@ -26,20 +24,14 @@
   }
 
   function parseJson(value, fallback) {
-    try {
-      return value ? JSON.parse(value) : fallback;
-    } catch (error) {
-      return fallback;
-    }
+    try { return value ? JSON.parse(value) : fallback; }
+    catch (error) { return fallback; }
   }
 
   function clone(value) {
     if (value === undefined) return undefined;
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch (error) {
-      return value;
-    }
+    try { return JSON.parse(JSON.stringify(value)); }
+    catch (error) { return value; }
   }
 
   function isObject(value) {
@@ -49,32 +41,23 @@
   function merge(base, patch) {
     var out = clone(base || {});
     Object.keys(patch || {}).forEach(function (key) {
-      if (isObject(out[key]) && isObject(patch[key])) {
-        out[key] = merge(out[key], patch[key]);
-      } else {
-        out[key] = patch[key];
-      }
+      if (isObject(out[key]) && isObject(patch[key])) out[key] = merge(out[key], patch[key]);
+      else out[key] = patch[key];
     });
     return out;
   }
 
   function protect(value) {
     if (!value) return '';
-    try {
-      return 'bdlc1:' + window.btoa(unescape(encodeURIComponent(String(value))));
-    } catch (error) {
-      return String(value);
-    }
+    try { return 'bdlc1:' + window.btoa(unescape(encodeURIComponent(String(value)))); }
+    catch (error) { return String(value); }
   }
 
   function unprotect(value) {
     if (!value) return '';
     if (String(value).indexOf('bdlc1:') !== 0) return String(value);
-    try {
-      return decodeURIComponent(escape(window.atob(String(value).replace('bdlc1:', ''))));
-    } catch (error) {
-      return '';
-    }
+    try { return decodeURIComponent(escape(window.atob(String(value).replace('bdlc1:', '')))); }
+    catch (error) { return ''; }
   }
 
   function mask(value) {
@@ -86,7 +69,7 @@
 
   function defaultConfig() {
     return {
-      version: 2,
+      version: 3,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       ui: { activeSection: 'resumen' },
@@ -128,6 +111,7 @@
         connected: false,
         status: 'sin_configurar',
         appsScriptUrlProtected: '',
+        tokenProtected: '',
         spreadsheetId: '',
         sheetName: 'Requisitos',
         batchSize: 25,
@@ -154,7 +138,7 @@
 
   function normalize(config) {
     var out = merge(defaultConfig(), config || {});
-    out.version = 2;
+    out.version = 3;
     out.firebase.dailyLimit = Number(out.firebase.dailyLimit || 500);
     out.firebase.warningPercent = Number(out.firebase.warningPercent || 80);
     out.firebase.stopPercent = Number(out.firebase.stopPercent || 95);
@@ -171,9 +155,7 @@
     return out;
   }
 
-  function loadConfig() {
-    return normalize(parseJson(window.localStorage.getItem(KEYS.CONFIG), null));
-  }
+  function loadConfig() { return normalize(parseJson(window.localStorage.getItem(KEYS.CONFIG), null)); }
 
   function saveConfig(config) {
     var out = normalize(config || defaultConfig());
@@ -182,9 +164,7 @@
     return out;
   }
 
-  function patchConfig(patch) {
-    return saveConfig(merge(loadConfig(), patch || {}));
-  }
+  function patchConfig(patch) { return saveConfig(merge(loadConfig(), patch || {})); }
 
   function resetConfig() {
     var config = saveConfig(defaultConfig());
@@ -212,7 +192,6 @@
   function setSupabaseConfig(data) {
     var tableName = String(data.tableName || 'app_records').trim();
     if (!tableName || tableName === 'requisitos_estudiantes') tableName = 'app_records';
-
     var patch = {
       supabase: {
         enabled: !!data.enabled,
@@ -230,11 +209,13 @@
     var c = loadConfig().sheets;
     var includeSecret = options && options.includeSecret;
     var url = unprotect(c.appsScriptUrlProtected);
+    var token = unprotect(c.tokenProtected);
     return {
       enabled: !!c.enabled,
       connected: !!c.connected,
       status: c.status,
       appsScriptUrl: includeSecret ? url : mask(url),
+      token: includeSecret ? token : mask(token),
       spreadsheetId: c.spreadsheetId,
       sheetName: c.sheetName,
       batchSize: c.batchSize,
@@ -259,6 +240,7 @@
       }
     };
     if (typeof data.appsScriptUrl === 'string') patch.sheets.appsScriptUrlProtected = protect(data.appsScriptUrl.trim());
+    if (typeof data.token === 'string') patch.sheets.tokenProtected = protect(data.token.trim());
     addLog('sheets', 'Configuración de Google Sheets guardada.', 'success');
     return patchConfig(patch);
   }
@@ -284,16 +266,7 @@
     var level = 'ok';
     if (nextPercent >= c.stopPercent) level = 'bloqueado';
     else if (nextPercent >= c.warningPercent) level = 'advertencia';
-    return {
-      allowed: level !== 'bloqueado',
-      level: level,
-      limit: limit,
-      used: used,
-      remaining: Math.max(limit - used, 0),
-      percent: percent,
-      nextPercent: nextPercent,
-      estimatedOps: Number(estimatedOps || 0)
-    };
+    return { allowed: level !== 'bloqueado', level: level, limit: limit, used: used, remaining: Math.max(limit - used, 0), percent: percent, nextPercent: nextPercent, estimatedOps: Number(estimatedOps || 0) };
   }
 
   function registerFirebaseUsage(ops) {
@@ -314,12 +287,7 @@
     var allowed = ['bdlocal', 'firebase', 'supabase', 'sheets'];
     if (allowed.indexOf(target) === -1) return loadConfig();
     var patch = {};
-    patch[target] = {
-      connected: !!data.connected,
-      status: data.status || (data.connected ? 'ok' : 'error'),
-      lastTestAt: data.lastTestAt || nowIso(),
-      lastError: data.lastError || ''
-    };
+    patch[target] = { connected: !!data.connected, status: data.status || (data.connected ? 'ok' : 'error'), lastTestAt: data.lastTestAt || nowIso(), lastError: data.lastError || '' };
     if (target === 'sheets' && typeof data.pendingCount !== 'undefined') patch[target].pendingCount = Number(data.pendingCount || 0);
     addLog(target, data.connected ? 'Conexión correcta.' : 'Error de conexión.', data.connected ? 'success' : 'error', { error: patch[target].lastError });
     return patchConfig(patch);
@@ -339,37 +307,20 @@
   function addQueueItem(item) {
     item = item || {};
     var q = loadQueue();
-    var clean = {
-      id: item.id || ('q_' + Date.now() + '_' + Math.random().toString(16).slice(2)),
-      target: item.target || 'all',
-      type: item.type || 'upsert',
-      status: item.status || 'pendiente',
-      key: item.key || '',
-      periodo: item.periodo || '',
-      cedula: item.cedula || '',
-      payload: item.payload || {},
-      attempts: Number(item.attempts || 0),
-      lastError: item.lastError || '',
-      createdAt: item.createdAt || nowIso(),
-      updatedAt: nowIso()
-    };
+    var clean = { id: item.id || ('q_' + Date.now() + '_' + Math.random().toString(16).slice(2)), target: item.target || 'all', type: item.type || 'upsert', status: item.status || 'pendiente', key: item.key || '', periodo: item.periodo || '', cedula: item.cedula || '', payload: item.payload || {}, attempts: Number(item.attempts || 0), lastError: item.lastError || '', createdAt: item.createdAt || nowIso(), updatedAt: nowIso() };
     q.push(clean);
     saveQueue(q);
     return clean;
   }
 
   function updateQueueItem(id, patch) {
-    var q = loadQueue().map(function (item) {
-      return item.id === id ? merge(item, merge(patch || {}, { updatedAt: nowIso() })) : item;
-    });
+    var q = loadQueue().map(function (item) { return item.id === id ? merge(item, merge(patch || {}, { updatedAt: nowIso() })) : item; });
     saveQueue(q);
     return q.find(function (item) { return item.id === id; }) || null;
   }
 
   function clearQueue(options) {
-    if (options && options.keepErrors) {
-      return saveQueue(loadQueue().filter(function (item) { return item.status === 'error'; }));
-    }
+    if (options && options.keepErrors) return saveQueue(loadQueue().filter(function (item) { return item.status === 'error'; }));
     return saveQueue([]);
   }
 
@@ -396,28 +347,13 @@
 
   function addLog(scope, message, level, data) {
     var logs = loadLogs();
-    logs.push({
-      id: 'log_' + Date.now() + '_' + Math.random().toString(16).slice(2),
-      scope: scope || 'general',
-      message: message || '',
-      level: level || 'info',
-      data: data || {},
-      createdAt: nowIso()
-    });
+    logs.push({ id: 'log_' + Date.now() + '_' + Math.random().toString(16).slice(2), scope: scope || 'general', message: message || '', level: level || 'info', data: data || {}, createdAt: nowIso() });
     return saveLogs(logs);
   }
 
-  function clearLogs() {
-    return saveLogs([]);
-  }
-
-  function setRemoteConfigAdapter(adapter) {
-    remoteAdapter = adapter;
-  }
-
-  function getAdapter() {
-    return remoteAdapter || window.BDLocalFirebaseConfigAdapter || null;
-  }
+  function clearLogs() { return saveLogs([]); }
+  function setRemoteConfigAdapter(adapter) { remoteAdapter = adapter; }
+  function getAdapter() { return remoteAdapter || window.BDLocalFirebaseConfigAdapter || null; }
 
   async function backupConfigToFirebase() {
     var adapter = getAdapter();
