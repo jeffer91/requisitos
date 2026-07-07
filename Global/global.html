@@ -8,32 +8,17 @@
 </head>
 <body>
   <main class="global-shell" data-global-shell>
-    <header class="global-hero">
-      <section class="global-brand-card">
-        <div class="global-logo-wrap" aria-label="Logo institucional">
-          <img id="globalLogo" src="assets/branding/logo-instituto.png" alt="Logo institucional" onerror="this.style.display='none'; this.parentElement.classList.add('sin-logo');">
-          <span class="global-logo-fallback">Logo institucional</span>
-        </div>
-        <div>
-          <p class="global-eyebrow">Unidad de Titulación y Eficiencia Terminal</p>
-          <h1>Análisis Global de Titulación</h1>
-          <p class="global-subtitle">Histórico multiperíodo, comparativas institucionales y reportes por sección.</p>
-        </div>
-      </section>
-
-      <section class="global-actions" aria-label="Acciones principales">
-        <button type="button" class="global-btn global-btn-light" id="globalBtnActualizar">Actualizar datos</button>
-        <button type="button" class="global-btn global-btn-gold" id="globalBtnPdf">PDF institucional</button>
-      </section>
-    </header>
-
     <section class="global-filters" aria-label="Filtros superiores">
       <div class="global-filter-item"><label for="globalFiltroDesde">Período desde</label><select id="globalFiltroDesde" data-global-filter="periodoDesde"><option value="">Todos</option></select></div>
       <div class="global-filter-item"><label for="globalFiltroHasta">Período hasta</label><select id="globalFiltroHasta" data-global-filter="periodoHasta"><option value="">Todos</option></select></div>
       <div class="global-filter-item global-filter-wide"><label for="globalFiltroCarrera">Carrera</label><select id="globalFiltroCarrera" data-global-filter="carrera"><option value="">Todas las carreras</option></select></div>
       <div class="global-filter-item"><label for="globalFiltroRequisito">Requisito</label><select id="globalFiltroRequisito" data-global-filter="requisito"><option value="">Todos los requisitos</option></select></div>
       <div class="global-filter-item"><label for="globalFiltroTipo">Tipo de carrera</label><select id="globalFiltroTipo" data-global-filter="tipoCarrera"><option value="">Todas</option><option value="UNIVERSITARIA">Universitaria</option><option value="SUPERIOR">Superior</option></select></div>
-      <div class="global-filter-actions"><button type="button" class="global-btn global-btn-light" id="globalBtnLimpiar">Limpiar filtros</button></div>
+      <div class="global-filter-actions">
+        <button type="button" class="global-btn global-btn-light" id="globalBtnActualizar">Actualizar datos</button>
+        <button type="button" class="global-btn global-btn-gold" id="globalBtnPdf">PDF institucional</button>
+        <button type="button" class="global-btn global-btn-light" id="globalBtnLimpiar">Limpiar filtros</button>
+      </div>
     </section>
 
     <section class="global-workspace">
