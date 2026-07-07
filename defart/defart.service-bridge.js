@@ -5,6 +5,7 @@ Función:
 - Conectar DefArt con BDLServiceDefensas.getPage().
 - Mantener DefartApp sin reescritura completa.
 - Reemplazar DefartCore.summary() por un resumen cacheado desde servicio.
+- Exponer navegación de página real para DefArtPerformance.
 - Usar fallback legacy si el servicio todavía no está listo.
 Con qué se conecta:
 - ../BDLocal/services/bdl.service.defensas.js
@@ -15,7 +16,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "0.1.1-block15";
+  var VERSION = "0.2.0-block16";
   var originalSummary = null;
   var cache = Object.create(null);
   var loading = Object.create(null);
@@ -29,7 +30,9 @@ Con qué se conecta:
   }
 
   function pageState(){
-    window.DEFART_PAGING = window.DEFART_PAGING || { page:1, limit:25, lastInfo:null };
+    window.DEFART_PAGING = window.DEFART_PAGING || { page:1, limit:25, filterKey:"", lastInfo:null };
+    if(!window.DEFART_PAGING.limit){ window.DEFART_PAGING.limit = 25; }
+    if(!window.DEFART_PAGING.page){ window.DEFART_PAGING.page = 1; }
     return window.DEFART_PAGING;
   }
 
@@ -51,6 +54,33 @@ Con qué se conecta:
     var paging = pageState();
     return filterKey(options) + "::" + (paging.page || 1) + "::" + (paging.limit || 25);
   }
+
+  function clearCache(options){
+    cache = Object.create(null);
+    loading = Object.create(null);
+    if(options && options.resetPage){ pageState().page = 1; }
+    lastSummary = null;
+  }
+
+  function refresh(){
+    clearCache({ resetPage:false });
+    try{ if(window.DefartApp && typeof window.DefartApp.render === "function"){ window.DefartApp.render(); } }catch(error){}
+  }
+
+  function setPage(page){
+    var paging = pageState();
+    var info = paging.lastInfo || {};
+    var totalPages = Number(info.totalPages || 1);
+    page = Number(page || 1);
+    if(!Number.isFinite(page) || page < 1){ page = 1; }
+    if(totalPages && page > totalPages){ page = totalPages; }
+    paging.page = page;
+    clearCache({ resetPage:false });
+    refresh();
+  }
+
+  function nextPage(){ setPage((pageState().lastInfo && pageState().lastInfo.page || pageState().page || 1) + 1); }
+  function prevPage(){ setPage((pageState().lastInfo && pageState().lastInfo.page || pageState().page || 1) - 1); }
 
   function applyPagingInfo(paged){
     var paging = pageState();
@@ -139,6 +169,9 @@ Con qué se conecta:
         source: "BDLServiceDefensas.getPage",
         total: paged.total || rows.length,
         visible: rows.length,
+        page: info.page,
+        limit: info.limit,
+        totalPages: info.totalPages,
         queryMode: paged.source || "service",
         notesHydrated: paged.notesHydrated || rows.length,
         exportRows: exportRows.length,
@@ -195,14 +228,18 @@ Con qué se conecta:
   function serviceSummary(options){
     options = options || {};
     var fKey = filterKey(options);
-    if(lastFilterKey && lastFilterKey !== fKey){ pageState().page = 1; }
+    var paging = pageState();
+    if(lastFilterKey && lastFilterKey !== fKey){
+      paging.page = 1;
+      clearCache({ resetPage:false });
+    }
     lastFilterKey = fKey;
+    paging.filterKey = fKey;
     var key = cacheKey(options);
     if(cache[key]){ return cache[key]; }
     fetchPage(key, options);
     if(lastSummary){
-      var clone = Object.assign({}, lastSummary, { rows: [], diagnostics: Object.assign({}, lastSummary.diagnostics || {}, { loading:true, requested:true }) });
-      return clone;
+      return Object.assign({}, lastSummary, { rows: [], diagnostics: Object.assign({}, lastSummary.diagnostics || {}, { loading:true, requested:true }) });
     }
     return originalSummary ? originalSummary(options) : { rows:[], periodList:[], divisionList:[], careerList:[], sedeList:[], kpis:{ total:0 }, diagnostics:{ loading:true, source:"service_pending" } };
   }
@@ -215,6 +252,15 @@ Con qué se conecta:
     return true;
   }
 
-  window.DefartServiceBridge = { version:VERSION, install:install, clear:function(){ cache = Object.create(null); lastSummary = null; } };
+  window.DefartServiceBridge = {
+    version: VERSION,
+    install: install,
+    clear: clearCache,
+    refresh: refresh,
+    setPage: setPage,
+    nextPage: nextPage,
+    prevPage: prevPage,
+    pageState: pageState
+  };
   install();
 })(window);
