@@ -16,6 +16,7 @@ Función o funciones:
 - Usar divisiones configuradas rápidas antes de recorrer estudiantes.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
+- ../BDLocal/adapters/bdl.divisiones.fast-cache.js
 - ficha.css
 - ficha.compact.css
 - ficha.core.js
@@ -102,40 +103,13 @@ Con qué se conecta:
           </div>
 
           <section class="ficha-grid-info">
-            <article>
-              <span>División</span>
-              <strong id="ficha-division-label">—</strong>
-            </article>
-
-            <article>
-              <span>Matrícula</span>
-              <strong id="ficha-matricula-label">—</strong>
-            </article>
-
-            <article>
-              <span>Sede</span>
-              <strong id="ficha-sede">—</strong>
-            </article>
-
-            <article>
-              <span>Horario</span>
-              <strong id="ficha-horario">—</strong>
-            </article>
-
-            <article>
-              <span>Correo personal</span>
-              <strong id="ficha-correo-personal">—</strong>
-            </article>
-
-            <article>
-              <span>Correo institucional</span>
-              <strong id="ficha-correo-institucional">—</strong>
-            </article>
-
-            <article>
-              <span>Celular</span>
-              <strong id="ficha-celular">—</strong>
-            </article>
+            <article><span>División</span><strong id="ficha-division-label">—</strong></article>
+            <article><span>Matrícula</span><strong id="ficha-matricula-label">—</strong></article>
+            <article><span>Sede</span><strong id="ficha-sede">—</strong></article>
+            <article><span>Horario</span><strong id="ficha-horario">—</strong></article>
+            <article><span>Correo personal</span><strong id="ficha-correo-personal">—</strong></article>
+            <article><span>Correo institucional</span><strong id="ficha-correo-institucional">—</strong></article>
+            <article><span>Celular</span><strong id="ficha-celular">—</strong></article>
           </section>
 
           <section class="ficha-actions">
@@ -171,6 +145,7 @@ Con qué se conecta:
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
   <script src="ficha.core.js"></script>
   <script src="ficha.periodo-normalizer.js"></script>
   <script src="ficha.divisiones.fast.js"></script>
