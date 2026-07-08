@@ -7,7 +7,8 @@ Función o funciones:
 - Usar período canónico obligatorio.
 - Enviar datos a tablas inteligentes de BL2.
 - Mantener compatibilidad con ConCarga, BDLocalCarga, BL2Core, BDLocal y BDLRepoEstudiantes.
-- Crear eventos para respaldo y sincronización inteligente.
+- Crear eventos de cambios pendientes sin ejecutar sincronización externa.
+- Garantizar que Carga guarde solo en BDLocal; Firebase, Supabase y Google Sheets se suben manualmente desde BDLocal.
 Con qué se conecta:
 - carga.app.js
 - carga.validator.js
@@ -315,21 +316,35 @@ Con qué se conecta:
 
     emit("bdlocal:changes-created", {
       source:"CargaSave",
+      localOnly:true,
+      manualCloudSync:true,
       periodoId:periodoInfo.periodoId,
       periodoLabel:periodoInfo.periodoLabel,
       total:totalChanges,
       changes:Array.isArray(changes) ? changes : [],
+      targets:["firebase", "supabase", "google"],
+      message:"Guardado local correcto. Las bases externas quedan pendientes para subida manual desde BDLocal.",
       at:new Date().toISOString()
     });
 
-    emit("bdlocal:sync-requested", {
+    emit("bdlocal:cloud-pending", {
       source:"CargaSave",
-      reason:"carga_guardada",
-      pending:totalChanges,
-      lowCost:true,
-      idleOnly:true,
-      batchSize:50,
+      periodoId:periodoInfo.periodoId,
+      periodoLabel:periodoInfo.periodoLabel,
+      total:totalChanges,
+      firebase:"PENDIENTE",
+      supabase:"PENDIENTE",
+      google:"PENDIENTE",
       at:new Date().toISOString()
+    });
+  }
+
+  function localSaveOptions(options){
+    return Object.assign({}, options || {}, {
+      sync:false,
+      localOnly:true,
+      cloudSync:false,
+      manualCloudSync:true
     });
   }
 
@@ -337,12 +352,14 @@ Con qué se conecta:
     var con = api("ConCarga") || api("BDLocalCarga") || (api("BDLocalConexiones") && api("BDLocalConexiones").get && api("BDLocalConexiones").get("carga"));
     if(!con){ return Promise.resolve(null); }
 
+    var safeOptions = localSaveOptions(options);
+
     if(typeof con.guardarEstudiantes === "function"){
-      return con.guardarEstudiantes(preparedRows, periodoInfo, options || {});
+      return con.guardarEstudiantes(preparedRows, periodoInfo, safeOptions);
     }
 
     if(typeof con.saveStudents === "function"){
-      return con.saveStudents(preparedRows, Object.assign({}, options || {}, periodoInfo));
+      return con.saveStudents(preparedRows, Object.assign({}, safeOptions, periodoInfo));
     }
 
     return Promise.resolve(null);
@@ -369,7 +386,10 @@ Con qué se conecta:
           advertencias:normalized.advertencias || [],
           errores:normalized.errores || []
         },
-        sync:options.sync !== false,
+        sync:false,
+        localOnly:true,
+        cloudSync:false,
+        manualCloudSync:true,
         markRetired:options.markRetired !== false
       });
     });
@@ -379,12 +399,14 @@ Con qué se conecta:
     var bd = api("BDLocal");
     if(!bd){ return Promise.resolve(null); }
 
+    var safeOptions = localSaveOptions(options);
+
     if(typeof bd.guardarEstudiantes === "function"){
-      return bd.guardarEstudiantes(preparedRows, periodoInfo, options || {});
+      return bd.guardarEstudiantes(preparedRows, periodoInfo, safeOptions);
     }
 
     if(typeof bd.saveStudents === "function"){
-      return bd.saveStudents(preparedRows, Object.assign({}, options || {}, periodoInfo));
+      return bd.saveStudents(preparedRows, Object.assign({}, safeOptions, periodoInfo));
     }
 
     return Promise.resolve(null);
@@ -398,7 +420,10 @@ Con qué se conecta:
       source:options.source || "carga_excel",
       fileName:normalized.fileName || options.fileName || "",
       origen:normalized.origen || options.origen || "",
-      sync:options.sync !== false
+      sync:false,
+      localOnly:true,
+      cloudSync:false,
+      manualCloudSync:true
     });
   }
 
@@ -460,7 +485,7 @@ Con qué se conecta:
   }
 
   function save(normalized, validation, options){
-    options = options || {};
+    options = localSaveOptions(options);
     normalized = normalized || {};
     validation = validation || {};
 

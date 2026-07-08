@@ -4,57 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>BL2 - Base Local</title>
+  <title>BDLocal | Base Local BL2</title>
 
-  <link rel="stylesheet" href="bl2.css" />
-  <link rel="stylesheet" href="../js/bdlocal-config/bdlocal-config.css" />
-  <link rel="stylesheet" href="diagnostics/bdl.diagnostics.general.css" />
+  <link rel="stylesheet" href="./bl2.css" />
 </head>
-
 <body>
-  <div class="bl2-shell" id="bl2-shell">
-
+  <main class="bl2-shell">
     <header class="bl2-header">
-      <div class="bl2-header-main">
-        <div>
-          <p class="bl2-eyebrow">Base Local de Trabajo</p>
-          <h1>BL2</h1>
-          <p class="bl2-subtitle">
-            Base local rápida para requisitos, estudiantes, ficha, tabla, estadísticas y sincronización controlada.
-          </p>
-        </div>
-
-        <div class="bl2-header-status">
-          <span id="bl2-runtime-pill" class="bl2-pill bl2-pill-soft">Modo local</span>
-          <span id="bl2-db-pill" class="bl2-pill bl2-pill-warn">Inicializando</span>
-        </div>
+      <div>
+        <span class="bl2-eyebrow">Base Local</span>
+        <h1>BDLocal BL2</h1>
+        <p>Base principal local para estudiantes, períodos, requisitos, notas, divisiones, respaldos y sincronización manual.</p>
       </div>
 
-      <div id="bl2-sync-bar" class="bl2-sync-bar" hidden>
-        <div class="bl2-sync-info">
-          <strong id="bl2-sync-title">Sincronizando</strong>
-          <span id="bl2-sync-detail">Preparando...</span>
-        </div>
-        <div class="bl2-sync-track">
-          <i id="bl2-sync-progress" style="width: 0%;"></i>
-        </div>
-        <span id="bl2-sync-percent">0%</span>
+      <div class="bl2-header-actions">
+        <span id="bl2-runtime-pill" class="bl2-pill bl2-pill-soft">Detectando entorno...</span>
+        <span id="bl2-db-pill" class="bl2-pill bl2-pill-warn">BDLocal cargando...</span>
+        <button id="bl2-btn-refresh" class="bl2-btn bl2-btn-light" type="button">Actualizar</button>
       </div>
     </header>
 
-    <main class="bl2-main">
-
-      <section id="bdlocal-config-root" class="bdlocal-config-root"></section>
-
-      <section class="bl2-card bl2-control-card">
-        <div class="bl2-card-head">
-          <div>
-            <h2>Panel principal</h2>
-            <p>Selecciona el período, carga datos y ejecuta sincronizaciones sin afectar la rapidez de la app.</p>
-          </div>
-        </div>
-
-        <div class="bl2-grid bl2-grid-controls">
+    <section class="bl2-panel">
+      <section class="bl2-toolbar">
+        <div class="bl2-period-box">
           <label class="bl2-field">
             <span>Período activo</span>
             <select id="bl2-period-select">
@@ -79,9 +51,10 @@
           <button id="bl2-btn-fetch-firebase-config" class="bl2-btn bl2-btn-light" type="button">Traer config Firebase</button>
           <button id="bl2-btn-pull-sheets" class="bl2-btn bl2-btn-light" type="button">Traer Sheets → BL</button>
           <button id="bl2-btn-clean-sheets-duplicates" class="bl2-btn bl2-btn-light" type="button">Limpiar duplicados Sheets</button>
-          <button id="bl2-btn-sync-google" class="bl2-btn bl2-btn-light" type="button">Sincronizar Google</button>
-          <button id="bl2-btn-sync-firebase" class="bl2-btn bl2-btn-light" type="button">Sincronizar Firebase</button>
-          <button id="bl2-btn-sync-queue" class="bl2-btn bl2-btn-light" type="button">Sincronizar cola</button>
+          <button id="bl2-btn-push-google" class="bl2-btn bl2-btn-light" type="button">Subir Google Sheets</button>
+          <button id="bl2-btn-push-firebase" class="bl2-btn bl2-btn-light" type="button">Subir Firebase</button>
+          <button id="bl2-btn-push-supabase" class="bl2-btn bl2-btn-light" type="button">Subir Supabase</button>
+          <button id="bl2-btn-sync-queue" class="bl2-btn bl2-btn-light" type="button">Subir todas</button>
           <button id="bl2-btn-test" class="bl2-btn bl2-btn-light" type="button">Probar</button>
           <button id="bl2-btn-export" class="bl2-btn bl2-btn-light" type="button">Exportar</button>
         </div>
@@ -92,121 +65,319 @@
       <section class="bl2-kpis">
         <article class="bl2-kpi"><span>Período activo</span><strong id="bl2-kpi-period">—</strong><small id="bl2-kpi-period-id">Sin seleccionar</small></article>
         <article class="bl2-kpi"><span>Estudiantes</span><strong id="bl2-kpi-students">0</strong><small id="bl2-kpi-students-sub">En BL2</small></article>
-        <article class="bl2-kpi"><span>Pendientes Google</span><strong id="bl2-kpi-google">0</strong><small>Cola frecuente</small></article>
-        <article class="bl2-kpi"><span>Pendientes Firebase</span><strong id="bl2-kpi-firebase">0</strong><small>Una vez al día</small></article>
+        <article class="bl2-kpi"><span>Pendientes Google</span><strong id="bl2-kpi-google">0</strong><small>Botón rojo si falta subir</small></article>
+        <article class="bl2-kpi"><span>Pendientes Firebase</span><strong id="bl2-kpi-firebase">0</strong><small>Botón rojo si falta subir</small></article>
+        <article class="bl2-kpi"><span>Pendientes Supabase</span><strong id="bl2-kpi-supabase">0</strong><small>Botón rojo si falta subir</small></article>
         <article class="bl2-kpi"><span>Advertencias</span><strong id="bl2-kpi-warnings">0</strong><small>Última carga</small></article>
       </section>
 
       <section class="bl2-layout">
         <article class="bl2-card">
-          <div class="bl2-card-head"><div><h2>Resumen de carga</h2><p>Después de cargar un archivo o traer datos desde Google Sheets, aquí aparecerá el resumen corto.</p></div></div>
-          <div id="bl2-import-summary" class="bl2-summary"><div class="bl2-empty">Todavía no se ha cargado ningún archivo en esta sesión.</div></div>
+          <div class="bl2-card-head">
+            <div>
+              <h2>Resumen de carga</h2>
+              <p>Después de cargar un archivo o traer datos desde Google Sheets, aquí aparecerá el resumen corto.</p>
+            </div>
+          </div>
+          <div id="bl2-import-summary" class="bl2-summary">
+            <div class="bl2-empty">Todavía no se ha cargado ningún archivo en esta sesión.</div>
+          </div>
         </article>
 
         <article class="bl2-card">
-          <div class="bl2-card-head"><div><h2>Estado de sincronización</h2><p>Google trabaja frecuente en segundo plano. Firebase solo una vez al día por período.</p></div></div>
+          <div class="bl2-card-head">
+            <div>
+              <h2>Estado de sincronización manual</h2>
+              <p>BDLocal es la base principal. Google Sheets, Firebase y Supabase se suben solo cuando presionas su botón.</p>
+            </div>
+          </div>
           <div class="bl2-sync-status-list">
-            <div class="bl2-sync-status"><span class="bl2-dot bl2-dot-warn"></span><div><strong>Google Sheets</strong><p id="bl2-google-status">Pendiente de configuración.</p></div></div>
-            <div class="bl2-sync-status"><span class="bl2-dot bl2-dot-warn"></span><div><strong>Firebase</strong><p id="bl2-firebase-status">Pendiente de revisión diaria.</p></div></div>
-            <div class="bl2-sync-status"><span class="bl2-dot bl2-dot-ok"></span><div><strong>Respaldo local JSON</strong><p id="bl2-backup-status">Activo: después de cada carga y una vez al día.</p></div></div>
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-warn" id="bl2-dot-google"></span>
+              <div>
+                <strong>Google Sheets</strong>
+                <p id="bl2-google-status">Pendiente de configuración.</p>
+              </div>
+            </div>
+
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-warn" id="bl2-dot-firebase"></span>
+              <div>
+                <strong>Firebase</strong>
+                <p id="bl2-firebase-status">Pendiente de subida manual.</p>
+              </div>
+            </div>
+
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-warn" id="bl2-dot-supabase"></span>
+              <div>
+                <strong>Supabase</strong>
+                <p id="bl2-supabase-status">Pendiente de subida manual.</p>
+              </div>
+            </div>
+
+            <div class="bl2-sync-status">
+              <span class="bl2-dot bl2-dot-ok"></span>
+              <div>
+                <strong>Respaldo local JSON</strong>
+                <p id="bl2-backup-status">Activo: después de cada carga y una vez al día.</p>
+              </div>
+            </div>
           </div>
         </article>
       </section>
 
       <section class="bl2-card">
-        <div class="bl2-card-head bl2-card-head-row">
-          <div><h2>Períodos disponibles</h2><p>Stats debe iniciar mostrando los períodos. Luego se analiza el período elegido.</p></div>
-          <button id="bl2-btn-refresh" class="bl2-btn bl2-btn-light" type="button">Refrescar</button>
+        <div class="bl2-card-head">
+          <div>
+            <h2>Períodos registrados</h2>
+            <p>Lista de períodos guardados en BDLocal. Selecciona uno para revisar o trabajar con sus datos.</p>
+          </div>
         </div>
-        <div id="bl2-period-list" class="bl2-period-list"><div class="bl2-empty">No hay períodos cargados todavía.</div></div>
+
+        <div id="bl2-period-list" class="bl2-period-list">
+          <div class="bl2-empty">No hay períodos cargados.</div>
+        </div>
       </section>
 
       <section class="bl2-card">
-        <div class="bl2-card-head"><div><h2>Registro</h2><p>Eventos importantes de BL2.</p></div></div>
-        <div id="bl2-log" class="bl2-log" aria-live="polite"><div class="bl2-log-item"><strong>BL2</strong><span>Esperando inicialización...</span></div></div>
+        <div class="bl2-card-head">
+          <div>
+            <h2>Registro de actividad</h2>
+            <p>Mensajes técnicos de importación, respaldo y sincronización.</p>
+          </div>
+        </div>
+        <div id="bl2-log" class="bl2-log"></div>
       </section>
+    </section>
+  </main>
 
-    </main>
+  <div id="bl2-sync-bar" class="bl2-sync-bar" hidden>
+    <div class="bl2-sync-bar-head">
+      <strong id="bl2-sync-title">Sincronizando...</strong>
+      <span id="bl2-sync-percent">0%</span>
+    </div>
+    <div class="bl2-sync-bar-track">
+      <span id="bl2-sync-progress" style="width:0%"></span>
+    </div>
+    <p id="bl2-sync-detail">Preparando...</p>
   </div>
 
-  <script src="bl2.config.js"></script>
-  <script src="bl2.config.v2.js"></script>
-  <script src="bl2.db.js"></script>
+  <script>
+    (function(){
+      "use strict";
 
-  <!-- Bloques 1 y 2: estructura nueva y reglas base de BDLocal. No reemplazan la lógica actual todavía. -->
-  <script src="rules/bdl.rules.index.js"></script>
-  <script src="rules/bdl.rules.periodo.js"></script>
-  <script src="rules/bdl.rules.persona.js"></script>
-  <script src="rules/bdl.rules.matricula.js"></script>
-  <script src="rules/bdl.rules.requisitos.js"></script>
-  <script src="rules/bdl.rules.notas.js"></script>
-  <script src="rules/bdl.rules.duplicados.js"></script>
-  <script src="rules/bdl.rules.retirados.js"></script>
-  <script src="rules/bdl.rules.sync.js"></script>
-  <script src="rules/bdl.rules.errors.js"></script>
-  <script src="rules/bdl.rules.pipeline.js"></script>
+      var REQUIRED = true;
+      var OPTIONAL = false;
 
-  <!-- Bloque 3: repositorios compatibles con DB_VERSION 1 y listos para migración. -->
-  <script src="repositories/bdl.repo.index.js"></script>
-  <script src="repositories/bdl.repo.periodos.js"></script>
-  <script src="repositories/bdl.repo.estudiantes.js"></script>
-  <script src="repositories/bdl.repo.personas.js"></script>
-  <script src="repositories/bdl.repo.matriculas.js"></script>
-  <script src="repositories/bdl.repo.requisitos.js"></script>
-  <script src="repositories/bdl.repo.notas.js"></script>
-  <script src="repositories/bdl.repo.contactos.js"></script>
-  <script src="repositories/bdl.repo.cambios.js"></script>
-  <script src="repositories/bdl.repo.logs.js"></script>
-  <script src="repositories/bdl.repo.backups.js"></script>
-  <script src="patches/bdl.changes.outbox-bridge.js"></script>
-  <script src="patches/bdl.v2.mirror.js"></script>
+      function byId(id){ return document.getElementById(id); }
 
-  <!-- Bloque 4: servicios de consulta para pantallas. -->
-  <script src="services/bdl.service.index.js"></script>
-  <script src="services/bdl.service.periodos.js"></script>
-  <script src="services/bdl.service.estudiantes.js"></script>
-  <script src="services/bdl.service.ficha.js"></script>
-  <script src="services/bdl.service.defensas.js"></script>
-  <script src="services/bdl.service.tabla.js"></script>
-  <script src="services/bdl.service.stats.js"></script>
-  <script src="services/bdl.service.reportes.js"></script>
-  <script src="services/bdl.service.coordi.js"></script>
+      function log(message, type){
+        var box = byId("bl2-log");
+        if(!box){ return; }
 
-  <script src="views/bdl.view.index.js"></script>
-  <script src="migrations/bdl.migration.index.js"></script>
-  <script src="diagnostics/bdl.diagnostics.index.js"></script>
+        var item = document.createElement("div");
+        item.className = "bl2-log-item " + (type ? "is-" + type : "");
+        item.innerHTML = "<strong>" + (type === "error" ? "Error" : type === "ok" ? "OK" : type === "warn" ? "Aviso" : "Info") + "</strong><span>" + String(message || "") + "</span>";
+        box.insertBefore(item, box.firstChild);
+      }
 
-  <!-- Bloque 9: sincronización por cola de cambios pendientes. -->
-  <script src="sync/targets/bdl.sync.targets.index.js"></script>
-  <script src="sync/bdl.sync.outbox.js"></script>
-  <script src="sync/bdl.sync.orchestrator.js"></script>
-  <script src="sync/bdl.sync.index.js"></script>
+      function setDbPill(message, className){
+        var pill = byId("bl2-db-pill");
+        if(!pill){ return; }
+        pill.textContent = message;
+        pill.className = "bl2-pill " + (className || "bl2-pill-soft");
+      }
 
-  <!-- Bloque 10: diagnóstico general de BDLocal. -->
-  <script src="diagnostics/bdl.diagnostics.general.js"></script>
-  <script src="diagnostics/bdl.diagnostics.ui-bridge.js"></script>
-  <script src="diagnostics/bdl.final.health.js"></script>
+      function setRuntime(){
+        var pill = byId("bl2-runtime-pill");
+        if(!pill){ return; }
+        pill.textContent = window.electronAPI ? "Electron" : "Navegador";
+      }
 
-  <script src="bl2.backup.js"></script>
-  <script src="bl2.backup.v2.js"></script>
-  <script src="bl2.import.js"></script>
-  <script src="bl2.sync.js"></script>
-  <script src="bl2.core.js"></script>
-  <script src="bl2.compat.js"></script>
-  <script src="bl2.test.js"></script>
-  <script src="../js/bdlocal-config/bdlocal-config.store.js"></script>
-  <script src="../js/bdlocal-config/bdlocal-config.ui.js"></script>
-  <script src="../js/bdlocal-config/bdlocal-sync.manager.js"></script>
-  <script src="sync/bdl.sync.ui-bridge.js"></script>
-  <script src="../js/bdlocal-config/bdlocal-google-bridge.js"></script>
-  <script src="../js/bdlocal-config/bdlocal-modal.js"></script>
-  <script src="../js/bdlocal-config/bdlocal-sync-fixups.js"></script>
-  <script src="bl2.cloud-pull.js"></script>
-  <script src="bl2.app.js"></script>
-  <script src="bl2.raw-view.js"></script>
-  <script src="maintenance/bdl.legacy.cleanup.js"></script>
-  <script src="diagnostics/bdl.performance.audit.js"></script>
-  <script src="bl2.cloud-pull.safe.js"></script>
-  <script src="bl2.google-push.guard.js"></script>
+      function exists(src){
+        return Array.prototype.slice.call(document.scripts || []).some(function(script){
+          return script.getAttribute("src") === src || script.getAttribute("data-bl2-loader-src") === src;
+        });
+      }
+
+      function loadOne(item){
+        return new Promise(function(resolve, reject){
+          var srcList = Array.isArray(item.src) ? item.src.slice() : [item.src];
+          var required = item.required !== false;
+
+          function tryNext(){
+            var src = srcList.shift();
+
+            if(!src){
+              if(required){ reject(new Error("No se pudo cargar script requerido.")); }
+              else{ resolve(false); }
+              return;
+            }
+
+            if(exists(src)){
+              resolve(true);
+              return;
+            }
+
+            var script = document.createElement("script");
+            script.src = src;
+            script.defer = false;
+            script.async = false;
+            script.setAttribute("data-bl2-loader-src", src);
+
+            script.onload = function(){ resolve(true); };
+            script.onerror = function(){
+              if(srcList.length){ tryNext(); return; }
+              if(required){ reject(new Error("No se pudo cargar: " + src)); }
+              else{
+                log("Script opcional no cargado: " + src, "warn");
+                resolve(false);
+              }
+            };
+
+            document.body.appendChild(script);
+          }
+
+          tryNext();
+        });
+      }
+
+      function loadSequence(items){
+        var chain = Promise.resolve();
+        items.forEach(function(item){
+          chain = chain.then(function(){ return loadOne(item); });
+        });
+        return chain;
+      }
+
+      var scripts = [
+        { src:"bl2.config.js", required:REQUIRED },
+        { src:"bl2.config.v2.js", required:REQUIRED },
+        { src:"bl2.db.js", required:REQUIRED },
+
+        { src:"rules/bdl.rules.persona.js", required:REQUIRED },
+        { src:"rules/bdl.rules.periodo.js", required:REQUIRED },
+        { src:"rules/bdl.rules.requisitos.js", required:REQUIRED },
+        { src:"rules/bdl.rules.notas.js", required:REQUIRED },
+        { src:"rules/bdl.rules.matricula.js", required:REQUIRED },
+        { src:"rules/bdl.rules.duplicados.js", required:REQUIRED },
+        { src:"rules/bdl.rules.errors.js", required:REQUIRED },
+        { src:"rules/bdl.rules.retirados.js", required:REQUIRED },
+        { src:"rules/bdl.rules.sync.js", required:REQUIRED },
+        { src:"rules/bdl.rules.pipeline.js", required:REQUIRED },
+        { src:"rules/bdl.rules.index.js", required:REQUIRED },
+
+        { src:"repositories/bdl.repo.logs.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.periodos.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.personas.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.matriculas.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.requisitos.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.notas.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.contactos.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.cambios.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.backups.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.estudiantes.js", required:REQUIRED },
+        { src:"repositories/bdl.repo.index.js", required:REQUIRED },
+
+        { src:"migrations/bdl.migration.v2.schema.js", required:REQUIRED },
+        { src:"migrations/bdl.migration.legacy-v2.js", required:REQUIRED },
+        { src:"migrations/bdl.migration.legacy-v2.ui.js", required:REQUIRED },
+        { src:"migrations/bdl.migration.index.js", required:REQUIRED },
+
+        { src:"patches/bdl.v2.mirror.js", required:REQUIRED },
+        { src:"patches/bdl.changes.outbox-bridge.js", required:REQUIRED },
+
+        { src:"adapters/bdl.divisiones.service.js", required:REQUIRED },
+        { src:"adapters/bdl.divisiones.fast-cache.js", required:REQUIRED },
+        { src:"adapters/bdl.screen-deps.js", required:REQUIRED },
+
+        { src:"conexiones/cone.utils.js", required:REQUIRED },
+        { src:"conexiones/cone.carga.js", required:REQUIRED },
+        { src:"conexiones/cone.ficha.js", required:REQUIRED },
+        { src:"conexiones/cone.tabla.js", required:REQUIRED },
+        { src:"conexiones/cone.stats.js", required:REQUIRED },
+        { src:"conexiones/cone.reportes.js", required:REQUIRED },
+        { src:"conexiones/cone.coordi.js", required:REQUIRED },
+        { src:"conexiones/cone.defensas.js", required:REQUIRED },
+        { src:"conexiones/cone.global.js", required:REQUIRED },
+        { src:"conexiones/cone.index.js", required:REQUIRED },
+
+        { src:"services/bdl.service.periodos.js", required:REQUIRED },
+        { src:"services/bdl.service.estudiantes.js", required:REQUIRED },
+        { src:"services/bdl.service.ficha.js", required:REQUIRED },
+        { src:"services/bdl.service.tabla.js", required:REQUIRED },
+        { src:"services/bdl.service.stats.js", required:REQUIRED },
+        { src:"services/bdl.service.reportes.js", required:REQUIRED },
+        { src:"services/bdl.service.coordi.js", required:REQUIRED },
+        { src:"services/bdl.service.defensas.js", required:REQUIRED },
+        { src:"services/bdl.service.index.js", required:REQUIRED },
+
+        { src:"views/bdl.view.index.js", required:REQUIRED },
+
+        { src:"sync/targets/bdl.sync.targets.index.js", required:REQUIRED },
+        { src:"sync/bdl.sync.outbox.js", required:REQUIRED },
+        { src:"sync/bdl.sync.orchestrator.js", required:REQUIRED },
+        { src:"sync/bdl.sync.index.js", required:REQUIRED },
+
+        { src:"diagnostics/bdl.diagnostics.general.js", required:REQUIRED },
+        { src:"diagnostics/bdl.diagnostics.ui-bridge.js", required:REQUIRED },
+        { src:"diagnostics/bdl.final.health.js", required:REQUIRED },
+
+        { src:"bl2.backup.js", required:REQUIRED },
+        { src:"bl2.backup.v2.js", required:REQUIRED },
+        { src:"bl2.import.js", required:REQUIRED },
+        { src:"bl2.sync.js", required:REQUIRED },
+        { src:"bl2.core.js", required:REQUIRED },
+        { src:"bl2.compat.js", required:REQUIRED },
+        { src:"bl2.test.js", required:OPTIONAL },
+
+        { src:["../js/bdlocal-config/bdlocal-config.store.js", "./js/bdlocal-config/bdlocal-config.store.js"], required:OPTIONAL },
+        { src:["../js/bdlocal-config/bdlocal-config.ui.js", "./js/bdlocal-config/bdlocal-config.ui.js"], required:OPTIONAL },
+        { src:["../js/bdlocal-config/bdlocal-sync.manager.js", "./js/bdlocal-config/bdlocal-sync.manager.js"], required:OPTIONAL },
+        { src:"sync/bdl.sync.ui-bridge.js", required:OPTIONAL },
+        { src:["../js/bdlocal-config/bdlocal-google-bridge.js", "./js/bdlocal-config/bdlocal-google-bridge.js"], required:OPTIONAL },
+        { src:["../js/bdlocal-config/bdlocal-modal.js", "./js/bdlocal-config/bdlocal-modal.js"], required:OPTIONAL },
+        { src:["../js/bdlocal-config/bdlocal-sync-fixups.js", "./js/bdlocal-config/bdlocal-sync-fixups.js"], required:OPTIONAL },
+
+        { src:"bl2.cloud-pull.js", required:OPTIONAL },
+        { src:"bl2.app.js", required:REQUIRED },
+        { src:"bl2.raw-view.js", required:OPTIONAL },
+        { src:"maintenance/bdl.legacy.cleanup.js", required:OPTIONAL },
+        { src:"diagnostics/bdl.performance.audit.js", required:OPTIONAL },
+        { src:"bl2.cloud-pull.safe.js", required:OPTIONAL },
+        { src:"bl2.google-push.guard.js", required:OPTIONAL }
+      ];
+
+      setRuntime();
+      setDbPill("Cargando scripts", "bl2-pill-warn");
+
+      loadSequence(scripts).then(function(){
+        setDbPill("Scripts cargados", "bl2-pill-ok");
+        log("Scripts de BDLocal cargados en orden seguro.", "ok");
+
+        try{
+          window.dispatchEvent(new CustomEvent("bdlocal:bl2-html-scripts-loaded", {
+            detail: { ok:true, total:scripts.length }
+          }));
+        }catch(error){}
+
+        try{
+          if(window.BDLFinalHealth && typeof window.BDLFinalHealth.reportToConsole === "function"){
+            window.BDLFinalHealth.reportToConsole();
+          }
+        }catch(error2){}
+      }).catch(function(error){
+        setDbPill("Error de carga", "bl2-pill-error");
+        log(error && error.message ? error.message : String(error), "error");
+
+        try{
+          window.dispatchEvent(new CustomEvent("bdlocal:bl2-html-scripts-error", {
+            detail: { ok:false, error:error && error.message ? error.message : String(error) }
+          }));
+        }catch(error3){}
+      });
+    })();
+  </script>
 </body>
 </html>

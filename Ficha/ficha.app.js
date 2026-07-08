@@ -1,23 +1,13 @@
 /* =========================================================
 Nombre completo: ficha.app.js
 Ruta o ubicación: /Requisitos/Ficha/ficha.app.js
-Función o funciones:
-- Renderizar lista y ficha individual de estudiantes.
-- Cargar lista liviana primero para mejorar velocidad.
-- Calcular detalle completo solo del estudiante seleccionado.
-- Manejar búsqueda, selección y copia de datos.
-- Filtrar por período, división y matrícula.
-- Mostrar ACTIVO por defecto.
-- Pintar aprobaciones especiales y abrir Telegram con mensaje copiado.
-- Renderizar notas finales Nart, Ndef y Nfin solo en el detalle.
-- Renderizar y guardar modalidadTitulacion para Infor bajo demanda.
-- Cargar ficha.export.js y ficha.modalidad.js solo cuando sean necesarios.
-- Refrescarse automáticamente cuando BDLocal actualiza el snapshot sin recalcular de más.
-- Mantener seleccionado el mismo estudiante cuando sea posible.
-Con qué se conecta:
-- ficha.core.js
-- ficha.export.js bajo demanda
-- ficha.modalidad.js bajo demanda
+Función:
+- Control visual rápido de Ficha.
+- No reconstruye toda la pantalla al seleccionar.
+- En búsqueda solo filtra y pinta lista; no carga detalle automático.
+- El detalle se llena únicamente al hacer clic en un estudiante.
+- Abre WhatsApp bajo demanda.
+- Abre Outlook/correo predeterminado con correo personal + institucional.
 ========================================================= */
 (function(window, document){
   "use strict";
@@ -31,19 +21,19 @@ Con qué se conecta:
     selectedId:"",
     selectedDetail:null,
     renderTimer:null,
-    refreshTimer:null,
     detailTimer:null,
+    refreshTimer:null,
+    modalidadTimer:null,
     divisionKey:"",
     divisionOptions:[],
+    filtersReady:false,
     listBound:false,
     bdlocalBound:false,
     loading:{},
     loaded:{}
   };
 
-  function el(id){
-    return document.getElementById(id);
-  }
+  function el(id){ return document.getElementById(id); }
 
   function text(value){
     return String(value == null ? "" : value).trim();
@@ -60,16 +50,12 @@ Con qué se conecta:
 
   function setText(id, value){
     var node = el(id);
-    if(node){
-      node.textContent = text(value) || "—";
-    }
+    if(node){ node.textContent = text(value) || "—"; }
   }
 
   function setHtml(id, value){
     var node = el(id);
-    if(node){
-      node.innerHTML = value;
-    }
+    if(node){ node.innerHTML = value; }
   }
 
   function status(message, cls){
@@ -86,9 +72,15 @@ Con qué se conecta:
 
   function bindIf(id, eventName, handler){
     var node = el(id);
-    if(node){
-      node.addEventListener(eventName, handler);
-    }
+    if(node){ node.addEventListener(eventName, handler); }
+  }
+
+  function rowId(row){
+    return text(row && (row._id || row._cedula));
+  }
+
+  function selectedMatches(row){
+    return rowId(row) === text(state.selectedId);
   }
 
   function sourceLabel(){
@@ -144,7 +136,6 @@ Con qué se conecta:
     if(window.FichaExport && typeof window.FichaExport.copyText === "function"){
       return Promise.resolve();
     }
-
     return loadScript("ficha.export.js");
   }
 
@@ -152,7 +143,6 @@ Con qué se conecta:
     if(window.FichaModalidad && typeof window.FichaModalidad.current === "function"){
       return Promise.resolve();
     }
-
     return loadScript("ficha.modalidad.js");
   }
 
@@ -233,10 +223,7 @@ Con qué se conecta:
 
   function fillDivisionFilter(){
     var div = el("ficha-division");
-
-    if(!div){
-      return;
-    }
+    if(!div){ return; }
 
     var divisions = getDivisionOptions();
 
@@ -244,9 +231,7 @@ Con qué se conecta:
       return option(value, value, state.division === value);
     }).join("");
 
-    if(state.division && !divisions.some(function(value){
-      return value === state.division;
-    })){
+    if(state.division && divisions.indexOf(state.division) < 0){
       state.division = "";
       div.value = "";
     }else{
@@ -257,54 +242,66 @@ Con qué se conecta:
   function fillFilters(){
     fillPeriodAndMatricula();
     fillDivisionFilter();
+    state.filtersReady = true;
+  }
+
+  function shouldFillFilters(reason){
+    if(!state.filtersReady){ return true; }
+
+    return [
+      "boot",
+      "periodo",
+      "matricula",
+      "refresh",
+      "bdlocal-refresh",
+      "modalidad"
+    ].indexOf(reason || "") >= 0;
   }
 
   function invalidateDivisionOptions(){
     state.divisionKey = "";
     state.divisionOptions = [];
+    state.filtersReady = false;
   }
 
   function estadoClass(estado){
-    if(estado && estado.id === "cumple"){
-      return "ficha-pill-ok";
-    }
-
-    if(estado && estado.id === "no_cumple"){
-      return "ficha-pill-bad";
-    }
-
+    if(estado && estado.id === "cumple"){ return "ficha-pill-ok"; }
+    if(estado && estado.id === "no_cumple"){ return "ficha-pill-bad"; }
     return "ficha-pill-warn";
   }
 
   function bindListOnce(){
     var box = el("ficha-list");
 
-    if(!box || state.listBound){
-      return;
-    }
+    if(!box || state.listBound){ return; }
 
     box.addEventListener("click", function(event){
       var btn = event.target.closest ? event.target.closest("[data-id]") : null;
-
-      if(btn){
-        select(btn.getAttribute("data-id"));
-      }
+      if(btn){ select(btn.getAttribute("data-id")); }
     });
 
     state.listBound = true;
+  }
+
+  function setListActive(id){
+    var box = el("ficha-list");
+    if(!box){ return; }
+
+    var wanted = text(id);
+    var items = box.querySelectorAll("[data-id]");
+    var i;
+
+    for(i = 0; i < items.length; i += 1){
+      items[i].classList.toggle("is-active", text(items[i].getAttribute("data-id")) === wanted);
+    }
   }
 
   function renderList(){
     var box = el("ficha-list");
     var count = el("ficha-count");
 
-    if(count){
-      count.textContent = String(state.rows.length);
-    }
-
-    if(!box){
-      return;
-    }
+    if(count){ count.textContent = String(state.rows.length); }
+    if(!box){ return; }
 
     bindListOnce();
 
@@ -314,11 +311,10 @@ Con qué se conecta:
     }
 
     box.innerHTML = state.rows.slice(0, 400).map(function(row){
-      var id = text(row._id || row._cedula);
-      var active = id === state.selectedId ? " is-active" : "";
+      var id = rowId(row);
 
       return '' +
-        '<button type="button" class="ficha-item' + active + '" data-id="' + esc(id) + '">' +
+        '<button type="button" class="ficha-item' + (id === state.selectedId ? " is-active" : "") + '" data-id="' + esc(id) + '">' +
           '<strong>' + esc(row._nombres || "Sin nombre") + '</strong>' +
           '<span>' +
             esc(row._cedula) + ' · ' +
@@ -336,21 +332,20 @@ Con qué se conecta:
 
   function renderReqs(row){
     var box = el("ficha-requisitos");
+    var expectedId = rowId(row);
 
-    if(!box){
-      return;
-    }
-
-    if(!row){
-      box.innerHTML = "";
-      return;
-    }
+    if(!box){ return; }
+    if(!row){ box.innerHTML = ""; return; }
 
     box.innerHTML = '<div class="empty-list">Cargando requisitos...</div>';
 
     setTimeout(function(){
+      if(expectedId && expectedId !== text(state.selectedId)){ return; }
+
       try{
         var reqs = window.FichaCore.requisitos(row);
+
+        if(expectedId && expectedId !== text(state.selectedId)){ return; }
 
         box.innerHTML = reqs.map(function(item){
           return '' +
@@ -371,14 +366,8 @@ Con qué se conecta:
   function renderNotas(row){
     var box = el("ficha-notas");
 
-    if(!box){
-      return;
-    }
-
-    if(!row){
-      box.innerHTML = "";
-      return;
-    }
+    if(!box){ return; }
+    if(!row){ box.innerHTML = ""; return; }
 
     try{
       var notas = window.FichaCore.notas ? window.FichaCore.notas(row) : [];
@@ -401,9 +390,7 @@ Con qué se conecta:
   function applySpecialBadge(id, item){
     var node = el(id);
 
-    if(!node){
-      return;
-    }
+    if(!node){ return; }
 
     if(!item){
       node.className = "ficha-mini-badge ficha-badge-bad";
@@ -422,15 +409,14 @@ Con qué se conecta:
   function renderSpecials(row){
     try{
       var list = window.FichaCore.especiales ? window.FichaCore.especiales(row) : [];
-      var titulacion = list.find(function(item){
-        return item.key === "aprobaciontitulacion";
-      });
-      var complexivo = list.find(function(item){
-        return item.key === "aprobacioncomplexivoproyecto";
-      });
 
-      applySpecialBadge("ficha-special-titulacion", titulacion);
-      applySpecialBadge("ficha-special-complexivo", complexivo);
+      applySpecialBadge("ficha-special-titulacion", list.find(function(item){
+        return item.key === "aprobaciontitulacion";
+      }));
+
+      applySpecialBadge("ficha-special-complexivo", list.find(function(item){
+        return item.key === "aprobacioncomplexivoproyecto";
+      }));
     }catch(error){
       console.error("[Ficha especiales]", error);
       applySpecialBadge("ficha-special-titulacion", null);
@@ -457,9 +443,7 @@ Con qué se conecta:
   function renderHeaderIdentity(row){
     var box = el("ficha-identidad");
 
-    if(!box){
-      return;
-    }
+    if(!box){ return; }
 
     box.innerHTML = [
       headerLine("Cédula", row._cedula || "—"),
@@ -494,27 +478,27 @@ Con qué se conecta:
     var infoBox = el("ficha-modalidad-info");
     var btn = el("ficha-modalidad-save");
 
-    if(!select){
-      return;
-    }
+    if(!select){ return; }
 
     if(!row){
       select.innerHTML = "";
-      if(infoBox){
-        infoBox.textContent = "—";
-      }
+      if(infoBox){ infoBox.textContent = "—"; }
       return;
     }
 
-    setModalidadLoading("Preparando modalidad...");
+    if(!selectedMatches(row)){ return; }
 
     ensureModalidad().then(function(){
+      if(!selectedMatches(row)){ return; }
+
       if(!window.FichaModalidad){
         throw new Error("FichaModalidad no disponible.");
       }
 
       var info = window.FichaModalidad.current(row || {});
       var opts = window.FichaModalidad.options(row || {});
+
+      if(!selectedMatches(row)){ return; }
 
       select.innerHTML = opts.map(function(item){
         return option(item.value, item.label, item.value === info.value);
@@ -542,31 +526,108 @@ Con qué se conecta:
     });
   }
 
+  function scheduleModalidad(row){
+    if(state.modalidadTimer){
+      clearTimeout(state.modalidadTimer);
+    }
+
+    if(!row){
+      renderModalidad(null);
+      return;
+    }
+
+    setModalidadLoading("Preparando modalidad...");
+
+    state.modalidadTimer = setTimeout(function(){
+      state.modalidadTimer = null;
+
+      if(selectedMatches(row)){
+        renderModalidad(row);
+      }
+    }, 120);
+  }
+
   function correoPrincipal(row){
     row = row || {};
     return text(row._correoPersonal || row._correoInstitucional || row._correo || row.correoPersonal || row.correoInstitucional || row.correo);
   }
 
+  function emailList(row){
+    if(window.FichaCore && typeof window.FichaCore.emailList === "function"){
+      return window.FichaCore.emailList(row || {});
+    }
+
+    row = row || {};
+
+    var list = [
+      row._correoPersonal,
+      row._correoInstitucional,
+      row._correo,
+      row.correoPersonal,
+      row.correoInstitucional,
+      row.correo
+    ].map(text).filter(Boolean);
+
+    var seen = {};
+    return list.filter(function(email){
+      var key = email.toLowerCase();
+      if(seen[key]){ return false; }
+      seen[key] = true;
+      return email.indexOf("@") > 0;
+    });
+  }
+
+  function phoneFromRow(row){
+    row = row || {};
+    return text(row._celular || row.celular || row.Celular || row.telefono || row.Telefono || row.whatsapp || row.WhatsApp).replace(/[^0-9]/g, "");
+  }
+
+  function updateCommunicationButtons(row){
+    var email = el("ficha-email");
+    var whatsapp = el("ficha-whatsapp");
+    var telegram = el("ficha-telegram");
+    var emails = emailList(row);
+    var hasPhone = !!phoneFromRow(row);
+    var telegramUrl = "";
+
+    if(email){
+      email.href = "#";
+      email.classList.toggle("is-disabled", !emails.length);
+      email.title = emails.length
+        ? "Abrir correo para: " + emails.join("; ")
+        : "Correo no registrado";
+    }
+
+    if(whatsapp){
+      whatsapp.href = "#";
+      whatsapp.classList.toggle("is-disabled", !hasPhone);
+      whatsapp.title = hasPhone ? "Enviar mensaje por WhatsApp" : "Celular no registrado";
+    }
+
+    try{
+      telegramUrl = window.FichaCore && typeof window.FichaCore.telegramUrl === "function"
+        ? window.FichaCore.telegramUrl(row || {})
+        : "";
+    }catch(error){
+      telegramUrl = "";
+    }
+
+    if(telegram){
+      telegram.href = telegramUrl || "#";
+      telegram.classList.toggle("is-disabled", !telegramUrl);
+      telegram.title = telegramUrl ? "Copiar mensaje y abrir Telegram" : "Telegram no registrado";
+    }
+  }
+
   function showEmpty(){
-    if(el("ficha-empty")){
-      el("ficha-empty").classList.remove("is-hidden");
-    }
-
-    if(el("ficha-detail")){
-      el("ficha-detail").classList.add("is-hidden");
-    }
-
+    if(el("ficha-empty")){ el("ficha-empty").classList.remove("is-hidden"); }
+    if(el("ficha-detail")){ el("ficha-detail").classList.add("is-hidden"); }
     state.selectedDetail = null;
   }
 
   function showDetail(){
-    if(el("ficha-empty")){
-      el("ficha-empty").classList.add("is-hidden");
-    }
-
-    if(el("ficha-detail")){
-      el("ficha-detail").classList.remove("is-hidden");
-    }
+    if(el("ficha-empty")){ el("ficha-empty").classList.add("is-hidden"); }
+    if(el("ficha-detail")){ el("ficha-detail").classList.remove("is-hidden"); }
   }
 
   function renderBasicDetail(row){
@@ -581,6 +642,7 @@ Con qué se conecta:
     renderHeaderIdentity(row);
 
     var estado = el("ficha-estado");
+
     if(estado){
       estado.textContent = "Cargando...";
       estado.className = "ficha-pill ficha-pill-warn";
@@ -594,6 +656,7 @@ Con qué se conecta:
     setText("ficha-correo-institucional", row._correoInstitucional || "—");
     setText("ficha-celular", row._celular || "—");
 
+    updateCommunicationButtons(row);
     setHtml("ficha-requisitos", '<div class="empty-list">Seleccionado. Cargando detalle...</div>');
     setHtml("ficha-notas", '<div class="empty-list">Cargando notas...</div>');
     setModalidadLoading("Esperando detalle del estudiante...");
@@ -612,6 +675,7 @@ Con qué se conecta:
     renderHeaderIdentity(row);
 
     var estado = el("ficha-estado");
+
     if(estado){
       estado.textContent = row._estado && row._estado.label ? row._estado.label : "Pendiente";
       estado.className = "ficha-pill " + estadoClass(row._estado);
@@ -625,28 +689,11 @@ Con qué se conecta:
     setText("ficha-correo-institucional", row._correoInstitucional || "—");
     setText("ficha-celular", row._celular || "—");
 
-    var whatsapp = el("ficha-whatsapp");
-    var whatsappUrl = window.FichaCore.whatsappUrl(row);
-
-    if(whatsapp){
-      whatsapp.href = whatsappUrl || "#";
-      whatsapp.classList.toggle("is-disabled", !whatsappUrl);
-      whatsapp.title = whatsappUrl ? "Enviar mensaje por WhatsApp" : "Celular no registrado";
-    }
-
-    var telegram = el("ficha-telegram");
-    var telegramUrl = window.FichaCore.telegramUrl ? window.FichaCore.telegramUrl(row) : "";
-
-    if(telegram){
-      telegram.href = telegramUrl || "#";
-      telegram.classList.toggle("is-disabled", !telegramUrl);
-      telegram.title = telegramUrl ? "Copiar mensaje y abrir Telegram" : "Telegram no registrado";
-    }
-
+    updateCommunicationButtons(row);
     renderSpecials(row);
     renderReqs(row);
     renderNotas(row);
-    renderModalidad(row);
+    scheduleModalidad(row);
   }
 
   function loadSelectedDetail(){
@@ -667,7 +714,7 @@ Con qué se conecta:
       state.detailTimer = null;
 
       try{
-        var id = text(lightRow._id || lightRow._cedula);
+        var id = rowId(lightRow);
         var detail = window.FichaCore.getById(id, {
           periodId:state.periodId,
           division:state.division,
@@ -688,15 +735,29 @@ Con qué se conecta:
   }
 
   function select(id){
-    state.selectedId = text(id || "");
+    var nextId = text(id || "");
+
+    if(!nextId){ return; }
+
+    if(nextId === state.selectedId && state.selectedDetail){
+      setListActive(nextId);
+      return;
+    }
+
+    state.selectedId = nextId;
     state.selectedDetail = null;
-    renderList();
+
+    setListActive(nextId);
     loadSelectedDetail();
   }
 
   function render(reason){
+    reason = reason || "";
+
     try{
-      fillFilters();
+      if(shouldFillFilters(reason)){
+        fillFilters();
+      }
 
       var previousSelectedId = state.selectedId;
 
@@ -709,18 +770,29 @@ Con qué se conecta:
         force:reason === "bdlocal-refresh" || reason === "refresh"
       });
 
-      if(previousSelectedId && state.rows.some(function(row){
+      var selectedStillVisible = previousSelectedId && state.rows.some(function(row){
         return text(row._id) === previousSelectedId || text(row._cedula) === previousSelectedId;
-      })){
+      });
+
+      if(selectedStillVisible){
         state.selectedId = previousSelectedId;
       }else{
-        state.selectedId = state.rows[0] ? text(state.rows[0]._id || state.rows[0]._cedula) : "";
+        state.selectedId = reason === "search" ? "" : (state.rows[0] ? rowId(state.rows[0]) : "");
+        state.selectedDetail = null;
       }
 
-      state.selectedDetail = null;
-
       renderList();
-      loadSelectedDetail();
+
+      if(reason === "search"){
+        if(!state.selectedId){
+          showEmpty();
+        }else{
+          setListActive(state.selectedId);
+        }
+      }else{
+        state.selectedDetail = null;
+        loadSelectedDetail();
+      }
 
       status(
         "Ficha cargada por " + sourceLabel() +
@@ -749,16 +821,14 @@ Con qué se conecta:
       }
 
       render("bdlocal-refresh");
-    }, 260);
+    }, 900);
   }
 
   function saveModalidad(){
     var row = selectedFull();
     var select = el("ficha-modalidad-select");
 
-    if(!row || !select){
-      return;
-    }
+    if(!row || !select){ return; }
 
     ensureModalidad().then(function(){
       if(!window.FichaModalidad){
@@ -781,10 +851,73 @@ Con qué se conecta:
     });
   }
 
-  function bindBDLocalEvents(){
-    if(state.bdlocalBound){
+  function openWhatsapp(row){
+    if(!row){ return; }
+
+    var url = "";
+
+    try{
+      url = window.FichaCore && typeof window.FichaCore.whatsappUrl === "function"
+        ? window.FichaCore.whatsappUrl(row)
+        : "";
+    }catch(error){
+      console.error("[Ficha WhatsApp]", error);
+      url = "";
+    }
+
+    if(!url){
+      status("Celular no registrado.", "warn");
       return;
     }
+
+    window.open(url, "_blank", "noopener");
+  }
+
+  function openEmail(row){
+    if(!row){ return; }
+
+    var url = "";
+    var emails = emailList(row);
+
+    if(!emails.length){
+      status("El estudiante no tiene correos registrados.", "warn");
+      return;
+    }
+
+    try{
+      url = window.FichaCore && typeof window.FichaCore.emailUrl === "function"
+        ? window.FichaCore.emailUrl(row)
+        : "";
+    }catch(error){
+      console.error("[Ficha correo]", error);
+      url = "";
+    }
+
+    if(!url){
+      status("No se pudo preparar el correo.", "warn");
+      return;
+    }
+
+    try{
+      var a = document.createElement("a");
+      a.href = url;
+      a.target = "_self";
+      a.rel = "noopener";
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      status("Correo preparado para: " + emails.join("; "), "ok");
+    }catch(error2){
+      console.error("[Ficha abrir correo]", error2);
+      status("No se pudo abrir Outlook. Se copiará el correo.", "warn");
+      copyText(window.FichaCore && window.FichaCore.emailMessage ? window.FichaCore.emailMessage(row) : "", "Mensaje de correo copiado.");
+    }
+  }
+
+  function bindBDLocalEvents(){
+    if(state.bdlocalBound){ return; }
 
     window.addEventListener("bdlocal:legacy-ready", refreshFromBDLocal);
     window.addEventListener("bdlocal:legacy-snapshot", refreshFromBDLocal);
@@ -836,7 +969,6 @@ Con qué se conecta:
 
     bindIf("ficha-search", "input", function(event){
       state.search = event.target.value;
-      state.selectedDetail = null;
       scheduleRender("search");
     });
 
@@ -852,22 +984,27 @@ Con qué se conecta:
 
     bindIf("ficha-copy-detail", "click", function(){
       var row = selectedFull();
-
-      if(!row){
-        return;
+      if(row){
+        copyText(window.FichaCore.toText(row), "Ficha copiada.");
       }
-
-      copyText(window.FichaCore.toText(row), "Ficha copiada.");
     });
 
     bindIf("ficha-modalidad-save", "click", saveModalidad);
 
+    bindIf("ficha-email", "click", function(event){
+      event.preventDefault();
+      openEmail(selectedFull());
+    });
+
+    bindIf("ficha-whatsapp", "click", function(event){
+      event.preventDefault();
+      openWhatsapp(selectedFull());
+    });
+
     bindIf("ficha-telegram", "click", function(event){
       var row = selectedFull();
 
-      if(!row){
-        return;
-      }
+      if(!row){ return; }
 
       var url = window.FichaCore.telegramUrl ? window.FichaCore.telegramUrl(row) : "";
 
@@ -886,7 +1023,6 @@ Con qué se conecta:
 
     bindIf("ficha-copy-cedula", "click", function(){
       var row = selectedFull();
-
       if(row){
         copyText(row._cedula, "Cédula copiada.");
       }
@@ -894,9 +1030,13 @@ Con qué se conecta:
 
     bindIf("ficha-copy-correo", "click", function(){
       var row = selectedFull();
-
       if(row){
-        copyText(correoPrincipal(row), "Correo copiado.");
+        var emails = emailList(row);
+        if(emails.length){
+          copyText(emails.join("; "), "Correos copiados.");
+        }else{
+          copyText(correoPrincipal(row), "Correo copiado.");
+        }
       }
     });
 

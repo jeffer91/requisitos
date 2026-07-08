@@ -5,23 +5,40 @@ Función:
 - Registro de destinos de sincronización.
 - Adaptador Google Sheets para cambios_pendientes genéricos.
 - Adaptador Supabase para cambios_pendientes genéricos.
-- Devolver processedIds para marcar solo cambios enviados.
+- Mantener Firebase registrable desde bdl.sync.target.firebase.js.
+- Devolver processedIds para marcar solo cambios confirmados.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.4.0-generic-outbox";
+  var VERSION = "0.5.0-manual-targets";
   var targets = Object.create(null);
 
-  function text(v){ return String(v == null ? "" : v).trim(); }
+  function text(value){ return String(value == null ? "" : value).trim(); }
   function now(){ return new Date().toISOString(); }
-  function store(){ return window.BDLocalConfigStore || null; }
   function rowId(row){ return text(row && (row.id || row.cambioId)); }
   function tableOf(row){ return text(row && (row.tabla || row.tipo || row.tableKey || "registro")).toLowerCase() || "registro"; }
+  function actionOf(row){ return text(row && (row.accion || row.action || "UPSERT")).toUpperCase() || "UPSERT"; }
   function payloadOf(row){ return Object.assign({}, row && row.payload ? row.payload : row || {}); }
+  function store(){ return window.BDLocalConfigStore || null; }
 
-  function register(name, adapter){ name = text(name).toLowerCase(); if(!name || !adapter){ return false; } targets[name] = adapter; return true; }
-  function get(name){ return targets[text(name).toLowerCase()] || null; }
+  function normalizeTarget(name){
+    name = text(name).toLowerCase();
+    if(name === "sheets" || name === "sheet" || name === "google_sheets"){ return "google"; }
+    if(name === "firestore"){ return "firebase"; }
+    return name;
+  }
+
+  function register(name, adapter){
+    name = normalizeTarget(name);
+    if(!name || !adapter){ return false; }
+    targets[name] = adapter;
+    return true;
+  }
+
+  function get(name){ return targets[normalizeTarget(name)] || null; }
+  function list(){ return Object.keys(targets).sort(); }
+  function unregister(name){ name = normalizeTarget(name); if(targets[name]){ delete targets[name]; return true; } return false; }
 
   function groupByTable(rows){
     var grouped = {};
@@ -34,10 +51,12 @@ Función:
   }
 
   function fetchJson(url, options, timeoutMs){
+    if(!window.fetch){ return Promise.reject(new Error("fetch no disponible en este entorno.")); }
     var controller = window.AbortController ? new AbortController() : null;
     var timer = controller ? window.setTimeout(function(){ controller.abort(); }, timeoutMs || 60000) : null;
     options = options || {};
     if(controller){ options.signal = controller.signal; }
+
     return fetch(url, options).then(function(response){
       return response.text().then(function(raw){
         var data = {};
@@ -52,99 +71,229 @@ Función:
     }).finally(function(){ if(timer){ window.clearTimeout(timer); } });
   }
 
-  function sheetsConfig(){
-    var s = store();
-    if(!s || typeof s.getSheetsConfig !== "function"){ throw new Error("BDLocalConfigStore no disponible."); }
-    var c = s.getSheetsConfig({ includeSecret:true }) || {};
-    if(!c.enabled){ throw new Error("Google Sheets está desactivado."); }
-    if(!text(c.appsScriptUrl)){ throw new Error("Falta URL de Apps Script."); }
-    if(!text(c.token)){ throw new Error("Falta token de Apps Script."); }
-    if(!text(c.spreadsheetId)){ throw new Error("Falta spreadsheetId."); }
-    return { store:s, url:text(c.appsScriptUrl), token:text(c.token), spreadsheetId:text(c.spreadsheetId), sheetName:text(c.sheetName || "Requisitos") };
+  function readConfigPath(path, fallback){
+    var cfgStore = store();
+    if(cfgStore && typeof cfgStore.getPath === "function"){
+      try{
+        var value = cfgStore.getPath(path);
+        if(value != null && value !== ""){ return value; }
+      }catch(error){}
+    }
+    return fallback;
   }
 
-  function buildSheetsTables(rows){
-    var grouped = groupByTable(rows);
-    var tables = {};
-    Object.keys(grouped).forEach(function(table){
-      tables[table] = grouped[table].map(function(change){
-        var payload = payloadOf(change);
-        payload.syncSource = "cambios_pendientes";
-        payload.syncTarget = "google_sheets";
-        payload.tableKey = table;
-        payload.changeId = rowId(change);
-        return payload;
-      });
-    });
-    return tables;
+  function readConfigObject(key){
+    var cfgStore = store();
+    if(cfgStore && typeof cfgStore.get === "function"){
+      try{ return cfgStore.get(key) || {}; }catch(error){}
+    }
+    return {};
   }
 
-  function googlePush(pendingRows, options){
-    var rows = Array.isArray(pendingRows) ? pendingRows : [];
-    options = options || {};
-    if(!rows.length){ return Promise.resolve({ ok:true, target:"google", outboxProcessed:false, partial:true, processedIds:[], message:"Google Sheets V2: no hay cambios para enviar." }); }
-
-    var sheets;
-    try{ sheets = sheetsConfig(); }catch(error){ return Promise.resolve({ ok:false, target:"google", message:error.message || String(error), outboxProcessed:false }); }
-
-    var tables = buildSheetsTables(rows);
-    var payload = { action:"sync_bl2", target:"google_sheets", source:options.source || "BDLSyncTargetsGoogleV2", schemaVersion:"2", mode:"changes_pendientes", token:sheets.token, spreadsheetId:sheets.spreadsheetId, sheetName:sheets.sheetName, generatedAt:now(), changes:rows, tables:tables, meta:{ total:rows.length, tables:Object.keys(tables) } };
-
-    return fetchJson(sheets.url, { method:"POST", mode:"cors", redirect:"follow", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload) }, 60000).then(function(response){
-      try{ if(sheets.store && typeof sheets.store.patchConfig === "function"){ sheets.store.patchConfig({ sheets:{ connected:true, status:"ok", lastSyncAt:now(), lastError:"" } }); } }catch(error){}
-      return { ok:true, target:"google", outboxProcessed:false, partial:true, processedIds:rows.map(rowId), response:response, message:"Google Sheets V2: " + rows.length + " cambio(s) enviados." };
-    }).catch(function(error){
-      try{ if(sheets.store && typeof sheets.store.updateConnectionStatus === "function"){ sheets.store.updateConnectionStatus("sheets", { connected:false, status:"error", lastError:error.message || String(error) }); } }catch(e){}
-      return { ok:false, target:"google", message:error.message || String(error), outboxProcessed:false };
-    });
+  function googleEndpoint(){
+    var direct = text(readConfigPath("google.webAppUrl", "")) || text(readConfigPath("googleSheets.webAppUrl", ""));
+    if(direct){ return direct; }
+    var obj = readConfigObject("google") || readConfigObject("googleSheets") || {};
+    return text(obj.webAppUrl || obj.endpoint || obj.url || "");
   }
 
   function supabaseConfig(){
-    var s = store();
-    if(!s || typeof s.getSupabaseConfig !== "function"){ throw new Error("BDLocalConfigStore no disponible."); }
-    var c = s.getSupabaseConfig({ includeSecret:true }) || {};
-    var url = text(c.url).replace(/\/$/, "");
-    var key = text(c.anonKey);
-    var table = text(c.tableName || "app_records");
-    if(table === "requisitos_estudiantes"){ table = "app_records"; }
-    if(!c.enabled){ throw new Error("Supabase está desactivado."); }
-    if(!url){ throw new Error("Falta URL de Supabase."); }
-    if(!key){ throw new Error("Falta anonKey de Supabase."); }
-    return { store:s, url:url, key:key, table:table };
+    var obj = readConfigObject("supabase") || {};
+    return {
+      url:text(readConfigPath("supabase.url", obj.url || obj.projectUrl || "")),
+      anonKey:text(readConfigPath("supabase.anonKey", obj.anonKey || obj.key || "")),
+      serviceKey:text(readConfigPath("supabase.serviceKey", obj.serviceKey || obj.serviceRoleKey || "")),
+      restPath:text(readConfigPath("supabase.restPath", obj.restPath || "/rest/v1/")) || "/rest/v1/",
+      schema:text(readConfigPath("supabase.schema", obj.schema || "public")) || "public"
+    };
   }
 
-  function toSupabaseRecord(change){
-    var payload = payloadOf(change);
-    var table = tableOf(change);
-    var recordKey = text(change.registroId || payload.idEstudiantePeriodo || payload.id || change.studentId || change.cedula || rowId(change));
-    var periodoId = text(payload.periodoId || change.periodoId);
-    var cedula = text(payload.cedula || change.cedula);
-    return { id:table + "__" + recordKey, module_key:"requisitos", table_key:table, record_key:recordKey, periodo_id:periodoId, estudiante_id:text(payload.idEstudiantePeriodo || change.studentId || recordKey), source:"bdlocal", sync_status:"sincronizado", schema_version:text(change.schemaVersion || "2"), payload:Object.assign({}, payload, { recordKey:recordKey, periodoId:periodoId, cedula:cedula, syncSource:"cambios_pendientes", syncTarget:"supabase", changeId:rowId(change), action:text(change.accion || change.action || "UPSERT"), updatedAt:text(payload.updatedAt || change.updatedAt || now()) }) };
+  function normalizeGoogleRow(row){
+    var payload = payloadOf(row);
+    return {
+      id:rowId(row),
+      cambioId:rowId(row),
+      tabla:tableOf(row),
+      accion:actionOf(row),
+      periodoId:text(row && (row.periodoId || payload.periodoId)),
+      cedula:text(row && (row.cedula || payload.cedula || payload.numeroIdentificacion)),
+      payload:payload,
+      updatedAt:text((row && row.updatedAt) || payload.updatedAt || now())
+    };
   }
 
-  function supabasePush(pendingRows){
-    var rows = Array.isArray(pendingRows) ? pendingRows : [];
-    if(!rows.length){ return Promise.resolve({ ok:true, target:"supabase", outboxProcessed:false, partial:true, processedIds:[], message:"Supabase V2: no hay cambios para enviar." }); }
+  function pushGoogleWithBridge(rows, options){
+    if(window.BDLocalGoogleBridge && typeof window.BDLocalGoogleBridge.pushChanges === "function"){
+      return Promise.resolve(window.BDLocalGoogleBridge.pushChanges(rows, options || {}));
+    }
+    if(window.BL2GooglePush && typeof window.BL2GooglePush.pushChanges === "function"){
+      return Promise.resolve(window.BL2GooglePush.pushChanges(rows, options || {}));
+    }
+    return null;
+  }
 
-    var sb;
-    try{ sb = supabaseConfig(); }catch(error){ return Promise.resolve({ ok:false, target:"supabase", message:error.message || String(error), outboxProcessed:false }); }
+  function pushGoogleRows(rows, options){
+    rows = Array.isArray(rows) ? rows : [];
+    options = options || {};
 
-    var headers = { apikey:sb.key, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=minimal" };
-    headers.Authorization = "Bearer " + sb.key;
-    var endpoint = sb.url + "/rest/v1/" + encodeURIComponent(sb.table) + "?on_conflict=id";
+    if(!rows.length){
+      return Promise.resolve({ ok:true, target:"google", processedIds:[], message:"Google Sheets: no hay cambios para enviar." });
+    }
 
-    return fetchJson(endpoint, { method:"POST", mode:"cors", headers:headers, body:JSON.stringify(rows.map(toSupabaseRecord)) }, 60000).then(function(response){
-      try{ if(sb.store && typeof sb.store.patchConfig === "function"){ sb.store.patchConfig({ supabase:{ tableName:sb.table, connected:true, status:"ok", lastSyncAt:now(), lastError:"" } }); } }catch(error){}
-      return { ok:true, target:"supabase", outboxProcessed:false, partial:true, processedIds:rows.map(rowId), response:response, message:"Supabase V2: " + rows.length + " cambio(s) enviados." };
-    }).catch(function(error){
-      try{ if(sb.store && typeof sb.store.updateConnectionStatus === "function"){ sb.store.updateConnectionStatus("supabase", { connected:false, status:"error", lastError:error.message || String(error) }); } }catch(e){}
-      return { ok:false, target:"supabase", message:error.message || String(error), outboxProcessed:false };
+    var bridgeResult = pushGoogleWithBridge(rows, options);
+    if(bridgeResult){
+      return bridgeResult.then(function(result){
+        result = result || {};
+        return Object.assign({ ok:result.ok !== false, target:"google", processedIds:result.processedIds || result.ids || rows.map(rowId).filter(Boolean) }, result);
+      });
+    }
+
+    var url = googleEndpoint();
+    if(!url){
+      return Promise.resolve({
+        ok:false,
+        target:"google",
+        processedIds:[],
+        message:"Google Sheets no está configurado. Falta Web App URL o bridge."
+      });
+    }
+
+    var payload = {
+      action:"syncChanges",
+      target:"google",
+      source:"BDLocal",
+      sentAt:now(),
+      rows:rows.map(normalizeGoogleRow)
+    };
+
+    return fetchJson(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify(payload)
+    }, options.timeoutMs || 90000).then(function(data){
+      var processed = data.processedIds || data.ids || data.syncedIds || rows.map(rowId).filter(Boolean);
+      return {
+        ok:data.ok !== false,
+        target:"google",
+        response:data,
+        processedIds:processed,
+        message:data.message || ("Google Sheets: " + processed.length + " cambio(s) enviados.")
+      };
     });
   }
 
-  register("google", { push:googlePush, version:VERSION });
-  register("sheets", { push:googlePush, version:VERSION });
-  register("supabase", { push:supabasePush, version:VERSION });
+  function supabaseTableName(table){
+    table = text(table || "registro").toLowerCase();
+    var map = {
+      estudiante:"estudiantes",
+      estudiantes:"estudiantes",
+      matricula:"matriculas_periodo",
+      matriculas:"matriculas_periodo",
+      requisito:"requisitos_estudiante",
+      requisitos:"requisitos_estudiante",
+      nota:"notas_titulacion",
+      notas:"notas_titulacion",
+      persona:"personas",
+      personas:"personas",
+      periodo:"periodos",
+      periodos:"periodos"
+    };
+    return map[table] || table;
+  }
 
-  window.BDLSyncTargets = { version:VERSION, register:register, get:get, list:function(){ return Object.keys(targets); }, groupByTable:groupByTable };
+  function supabaseRecord(row){
+    var payload = payloadOf(row);
+    var record = Object.assign({}, payload);
+    record.id = text(payload.id || payload.registroId || row.registroId || rowId(row));
+    record.periodo_id = text(payload.periodoId || payload.periodo_id || row.periodoId || "");
+    record.cedula = text(payload.cedula || payload.numeroIdentificacion || row.cedula || "");
+    record.updated_at = text(payload.updatedAt || payload.updated_at || row.updatedAt || now());
+    record.sync_source = "bdlocal";
+    record.sync_change_id = rowId(row);
+    return record;
+  }
+
+  function pushSupabaseRows(rows, options){
+    rows = Array.isArray(rows) ? rows : [];
+    options = options || {};
+
+    if(!rows.length){
+      return Promise.resolve({ ok:true, target:"supabase", processedIds:[], message:"Supabase: no hay cambios para enviar." });
+    }
+
+    if(window.BDLocalSupabaseBridge && typeof window.BDLocalSupabaseBridge.pushChanges === "function"){
+      return Promise.resolve(window.BDLocalSupabaseBridge.pushChanges(rows, options)).then(function(result){
+        result = result || {};
+        return Object.assign({ ok:result.ok !== false, target:"supabase", processedIds:result.processedIds || rows.map(rowId).filter(Boolean) }, result);
+      });
+    }
+
+    var cfg = supabaseConfig();
+    var key = cfg.serviceKey || cfg.anonKey;
+    if(!cfg.url || !key){
+      return Promise.resolve({
+        ok:false,
+        target:"supabase",
+        processedIds:[],
+        message:"Supabase no está configurado. Falta URL y anon/service key."
+      });
+    }
+
+    var grouped = groupByTable(rows);
+    var processedIds = [];
+    var chain = Promise.resolve();
+
+    Object.keys(grouped).forEach(function(table){
+      chain = chain.then(function(){
+        var records = grouped[table].map(supabaseRecord).filter(function(record){ return !!record.id; });
+        if(!records.length){ return null; }
+
+        var endpoint = cfg.url.replace(/\/+$/, "") + cfg.restPath + encodeURIComponent(supabaseTableName(table));
+
+        return fetchJson(endpoint, {
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json",
+            "apikey":key,
+            "Authorization":"Bearer " + key,
+            "Prefer":"resolution=merge-duplicates,return=minimal"
+          },
+          body:JSON.stringify(records)
+        }, options.timeoutMs || 90000).then(function(){
+          grouped[table].forEach(function(row){
+            if(rowId(row)){ processedIds.push(rowId(row)); }
+          });
+        });
+      });
+    });
+
+    return chain.then(function(){
+      return {
+        ok:true,
+        target:"supabase",
+        processedIds:processedIds,
+        message:"Supabase: " + processedIds.length + " cambio(s) enviados."
+      };
+    });
+  }
+
+  var googleAdapter = { version:VERSION, target:"google", push:pushGoogleRows };
+  var supabaseAdapter = { version:VERSION, target:"supabase", push:pushSupabaseRows };
+
+  register("google", googleAdapter);
+  register("sheets", googleAdapter);
+  register("supabase", supabaseAdapter);
+
+  window.BDLSyncTargets = {
+    version:VERSION,
+    register:register,
+    unregister:unregister,
+    get:get,
+    list:list,
+    normalizeTarget:normalizeTarget,
+    groupByTable:groupByTable,
+    payloadOf:payloadOf,
+    rowId:rowId,
+    fetchJson:fetchJson
+  };
 })(window);

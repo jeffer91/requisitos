@@ -1,18 +1,29 @@
 /* =========================================================
 Nombre completo: bdl.screen-deps.js
-Ruta o ubicacion: /Requisitos/BDLocal/adapters/bdl.screen-deps.js
-Funcion:
-- Adaptador comun para pantallas que necesitan BDLocal.
-- Carga conectores compatibles con Windows: cone.utils.js y cone.index.js.
-- Carga BLDivisionesService para que Ficha, Stats, Tabla, Defensas y Reportes usen la misma lógica de divisiones.
+Ruta o ubicación: /Requisitos/BDLocal/adapters/bdl.screen-deps.js
+Función o funciones:
+- Adaptador común para pantallas que necesitan BDLocal.
+- Evitar parsear y normalizar localStorage en cada filtro.
+- Cargar conectores compatibles con Windows.
+- Cargar BLDivisionesService y fast-cache de divisiones.
+- Exponer adaptadores compatibles: ExcelLocalRepo, BL2DataEngine,
+  BL2EstudiantesRepo y BL2ReportesRepo.
+- Mantener compatibilidad con Ficha, Tabla, Stats, Coordi, Reportes y Defensas.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.2.0";
+  var VERSION = "1.3.0-fast-screen-deps";
   var currentScript = document.currentScript;
   var CACHE_KEY = "REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var OLD_SNAPSHOT_KEY = "REQ_EXCEL_LOCAL_V1:snapshot";
+
+  var memo = {
+    raw: "",
+    cache: null,
+    normalizedAt: "",
+    readyPromise: null
+  };
 
   function text(value){
     return String(value == null ? "" : value).trim();
@@ -20,10 +31,17 @@ Funcion:
 
   function safeParse(value, fallback){
     try{
-      return value ? JSON.parse(value) : fallback;
+      if(!value){ return fallback; }
+      var parsed = JSON.parse(value);
+      return parsed == null ? fallback : parsed;
     }catch(error){
       return fallback;
     }
+  }
+
+  function rawStorage(key){
+    try{ return window.localStorage.getItem(key) || ""; }
+    catch(error){ return ""; }
   }
 
   function normalizeCedula(value){
@@ -33,6 +51,7 @@ Funcion:
 
   function canonicalPeriodId(value){
     value = text(value);
+    if(!value){ return ""; }
     var match = value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
     return match ? match[1] + "-" + match[2] + "__" + match[3] + "-" + match[4] : value.replace(/_+/g, "__");
   }
@@ -53,6 +72,18 @@ Funcion:
     a = canonicalPeriodId(a);
     b = canonicalPeriodId(b);
     return !b || !!a && (a === b || normalizeKey(a) === normalizeKey(b));
+  }
+
+  function sameText(a, b){
+    a = normalizeKey(a);
+    b = normalizeKey(b);
+    return !b || a === b;
+  }
+
+  function containsText(haystack, needle){
+    needle = normalizeBasic(needle).toLowerCase();
+    if(!needle){ return true; }
+    return normalizeBasic(haystack).toLowerCase().indexOf(needle) >= 0;
   }
 
   function normalizePeriod(period){
@@ -86,6 +117,7 @@ Funcion:
       label: label,
       nombre: label,
       periodoId: id,
+      periodId: id,
       periodoLabel: label,
       periodoCanonicoId: id,
       periodoCanonicoLabel: label,
@@ -96,13 +128,30 @@ Funcion:
 
   function fallbackDivision(row){
     row = row || {};
-    var direct = text(row.division || row.Division || row["División"] || "");
+    var direct = text(row._division || row._bl2Division || row.division || row.Division || row["División"] || row.divisionActual || "");
     var list = Array.isArray(row.divisiones) ? row.divisiones : [];
-    return direct || list[0] || "Sin división";
+    return direct || text(list[0]) || "Sin división";
+  }
+
+  function resolveDivision(row){
+    var division = "";
+
+    try{
+      if(window.BLDivisionesService && typeof window.BLDivisionesService.studentDivision === "function"){
+        division = window.BLDivisionesService.studentDivision(row);
+      }
+    }catch(error){}
+
+    division = text(division || fallbackDivision(row) || "Sin división");
+    return division || "Sin división";
   }
 
   function normalizeStudent(row){
     row = Object.assign({}, row || {});
+
+    if(row.__bdlScreenDepsVersion === VERSION){
+      return row;
+    }
 
     var cedula = normalizeCedula(
       row.cedula ||
@@ -112,10 +161,12 @@ Funcion:
       row.Identificacion ||
       row.Cedula ||
       row["Cédula"] ||
+      row._cedula ||
       ""
     );
 
     var periodoId = canonicalPeriodId(
+      row.periodoCanonicoId ||
       row.periodoId ||
       row.periodId ||
       row.ultimoPeriodoId ||
@@ -126,6 +177,7 @@ Funcion:
     );
 
     var periodoLabel = text(
+      row.periodoCanonicoLabel ||
       row.periodoLabel ||
       row.periodo ||
       row.Periodo ||
@@ -134,40 +186,93 @@ Funcion:
       periodoId
     );
 
-    row.id = row.id || row._id || (cedula && periodoId ? cedula + "__" + periodoId : cedula);
+    var nombres = text(
+      row.Nombres ||
+      row.nombres ||
+      row.nombreCompleto ||
+      row.Nombre ||
+      row.nombre ||
+      row.Estudiante ||
+      row.estudiante ||
+      row._nombres ||
+      ""
+    );
+
+    var carrera = text(
+      row.NombreCarrera ||
+      row.nombreCarrera ||
+      row.Carrera ||
+      row.carrera ||
+      row._carrera ||
+      ""
+    );
+
+    var codigoCarrera = text(row.CodigoCarrera || row.codigoCarrera || row.codCarrera || "");
+    var sede = text(row.Sede || row.sede || row.campus || row._sede || "");
+    var division = resolveDivision(Object.assign({}, row, {
+      cedula: cedula,
+      periodoId: periodoId,
+      periodId: periodoId,
+      NombreCarrera: carrera,
+      carrera: carrera,
+      CodigoCarrera: codigoCarrera
+    }));
+
+    var estado = text(row._estadoMatricula || row.estadoMatricula || row.EstadoMatricula || row.estado || row.Estado || "ACTIVO").toUpperCase();
+    estado = estado === "RETIRADO" ? "RETIRADO" : "ACTIVO";
+
+    row.id = row.id || row._id || row.idEstudiantePeriodo || (cedula && periodoId ? cedula + "__" + periodoId : cedula);
     row._id = row._id || row.id;
+    row.studentId = row.studentId || row.idEstudiantePeriodo || row.id;
+    row.idEstudiantePeriodo = row.idEstudiantePeriodo || (periodoId && cedula ? periodoId + "__" + cedula : row.studentId || row.id);
+
     row.cedula = cedula;
     row._cedula = row._cedula || cedula;
     row.numeroIdentificacion = row.numeroIdentificacion || cedula;
     row.NumeroIdentificacion = row.NumeroIdentificacion || cedula;
+
     row.periodoId = periodoId;
     row.periodId = periodoId;
     row.ultimoPeriodoId = row.ultimoPeriodoId || periodoId;
+    row.periodoCanonicoId = row.periodoCanonicoId || periodoId;
     row.periodoLabel = periodoLabel;
+    row.periodoCanonicoLabel = row.periodoCanonicoLabel || periodoLabel;
     row.Periodo = row.Periodo || periodoLabel;
     row._periodoId = row._periodoId || periodoId;
     row._periodo = row._periodo || periodoLabel;
-    row.Nombres = row.Nombres || row.nombres || row.Nombre || row.nombre || row.Estudiante || row.estudiante || "";
-    row.nombres = row.nombres || row.Nombres || "";
-    row._nombres = row._nombres || row.Nombres || row.nombres;
-    row.NombreCarrera = row.NombreCarrera || row.nombreCarrera || row.Carrera || row.carrera || "";
-    row.CodigoCarrera = row.CodigoCarrera || row.codigoCarrera || "";
-    row._carrera = row._carrera || row.NombreCarrera || row.CodigoCarrera || "SIN CARRERA";
 
-    var division = "";
-    try{
-      if(window.BLDivisionesService && typeof window.BLDivisionesService.studentDivision === "function"){
-        division = window.BLDivisionesService.studentDivision(row);
-      }
-    }catch(error){}
+    row.Nombres = row.Nombres || nombres;
+    row.nombres = row.nombres || nombres;
+    row.nombreCompleto = row.nombreCompleto || nombres;
+    row._nombres = row._nombres || nombres;
 
-    division = text(division || fallbackDivision(row) || "Sin división");
+    row.NombreCarrera = row.NombreCarrera || carrera;
+    row.nombreCarrera = row.nombreCarrera || carrera;
+    row.Carrera = row.Carrera || carrera;
+    row.carrera = row.carrera || carrera;
+    row.CodigoCarrera = row.CodigoCarrera || codigoCarrera;
+    row.codigoCarrera = row.codigoCarrera || codigoCarrera;
+    row._carrera = row._carrera || carrera || codigoCarrera || "SIN CARRERA";
+
+    row.Sede = row.Sede || sede;
+    row.sede = row.sede || sede;
+    row._sede = row._sede || sede || "SIN SEDE";
+
     row.division = division;
+    row.Division = row.Division || division;
     row._division = division;
-    row.divisiones = Array.isArray(row.divisiones) && row.divisiones.length ? row.divisiones : (division && normalizeKey(division) !== "sindivision" ? [division] : []);
+    row.divisiones = Array.isArray(row.divisiones) && row.divisiones.length
+      ? row.divisiones
+      : (division && normalizeKey(division) !== "sindivision" ? [division] : []);
 
-    row.estadoMatricula = text(row.estadoMatricula || row.EstadoMatricula || "ACTIVO").toUpperCase() === "RETIRADO" ? "RETIRADO" : "ACTIVO";
-    row._estadoMatricula = row._estadoMatricula || row.estadoMatricula;
+    row.estadoMatricula = estado;
+    row._estadoMatricula = estado;
+
+    row.CorreoPersonal = row.CorreoPersonal || row.correoPersonal || "";
+    row.CorreoInstitucional = row.CorreoInstitucional || row.correoInstitucional || "";
+    row.Celular = row.Celular || row.celular || row.telefono || "";
+
+    row.__bdlScreenDepsVersion = VERSION;
 
     return row;
   }
@@ -188,86 +293,127 @@ Funcion:
     };
   }
 
-  function readCache(){
-    var cache = emptyCache();
+  function normalizeCache(cache){
+    cache = cache && typeof cache === "object" ? cache : emptyCache();
 
-    try{
-      cache = safeParse(localStorage.getItem(CACHE_KEY), null) || cache;
-    }catch(error){}
-
-    if((!cache.students || !cache.students.length) && (!cache.periods || !cache.periods.length)){
-      try{
-        var old = safeParse(localStorage.getItem(OLD_SNAPSHOT_KEY), null);
-        if(old && typeof old === "object"){
-          cache.periods = Array.isArray(old.periods) ? old.periods : [];
-          cache.students = Array.isArray(old.students) ? old.students : [];
-          cache.meta = Object.assign({}, old.meta || {}, { source: "legacy-snapshot" });
-        }
-      }catch(error2){}
-    }
-
+    cache.meta = cache.meta && typeof cache.meta === "object" ? cache.meta : {};
     cache.periods = Array.isArray(cache.periods) ? cache.periods.map(normalizePeriod).filter(Boolean) : [];
     cache.students = Array.isArray(cache.students) ? cache.students.map(normalizeStudent) : [];
     cache.requirements = Array.isArray(cache.requirements) ? cache.requirements : [];
     cache.summaries = cache.summaries && typeof cache.summaries === "object" ? cache.summaries : {};
     cache.diagnostics = Array.isArray(cache.diagnostics) ? cache.diagnostics : [];
-    cache.meta = cache.meta && typeof cache.meta === "object" ? cache.meta : {};
+
     cache.meta.totalPeriods = cache.periods.length;
     cache.meta.totalStudents = cache.students.length;
+    cache.meta.screenDepsVersion = VERSION;
 
     return cache;
   }
 
+  function readCache(force){
+    var raw = rawStorage(CACHE_KEY);
+
+    if(!raw){
+      raw = rawStorage(OLD_SNAPSHOT_KEY);
+    }
+
+    if(!force && memo.cache && memo.raw === raw){
+      return memo.cache;
+    }
+
+    var cache = safeParse(raw, null);
+
+    if((!cache || !Array.isArray(cache.students)) && rawStorage(OLD_SNAPSHOT_KEY)){
+      cache = safeParse(rawStorage(OLD_SNAPSHOT_KEY), null);
+    }
+
+    cache = normalizeCache(cache);
+    memo.raw = raw;
+    memo.cache = cache;
+    memo.normalizedAt = new Date().toISOString();
+
+    return cache;
+  }
+
+  function clearMemo(){
+    memo.raw = "";
+    memo.cache = null;
+    memo.normalizedAt = "";
+  }
+
   function filterStudents(rows, options){
     options = options || {};
-    rows = Array.isArray(rows) ? rows.map(normalizeStudent) : [];
+    rows = Array.isArray(rows) ? rows : [];
 
     var periodoId = canonicalPeriodId(options.periodoId || options.periodId || options.period || "");
     var matricula = text(options.matricula || options.estadoMatricula || "");
-    var division = normalizeBasic(options.division || "").toLowerCase();
-    var search = normalizeBasic(options.search || options.busqueda || options.query || "").toLowerCase();
+    var division = text(options.division || "");
+    var carrera = text(options.carrera || options.career || "");
+    var sede = text(options.sede || "");
+    var search = text(options.search || options.busqueda || options.query || "");
     var limit = Number(options.limit || 0);
 
-    rows = rows.filter(function(row){
+    var out = rows.filter(function(input){
+      var row = input && input.__bdlScreenDepsVersion === VERSION ? input : normalizeStudent(input);
+
       if(periodoId && !samePeriod(row.periodoId || row._periodoId || row.ultimoPeriodoId, periodoId)){ return false; }
-      if(matricula && text(row.estadoMatricula || row._estadoMatricula).toUpperCase() !== matricula.toUpperCase()){ return false; }
 
-      if(division){
-        var matchesDivision = false;
-        try{
-          if(window.BLDivisionesService && typeof window.BLDivisionesService.hasDivision === "function"){
-            matchesDivision = window.BLDivisionesService.hasDivision(row, division);
-          }
-        }catch(error){}
-
-        if(!matchesDivision && normalizeBasic(row.division || row._division || "").toLowerCase() !== division){ return false; }
+      if(matricula){
+        if(text(row.estadoMatricula || row._estadoMatricula).toUpperCase() !== matricula.toUpperCase()){ return false; }
       }
 
+      if(division){
+        var matchesDivision = sameText(row.division || row._division, division);
+        if(!matchesDivision){
+          try{
+            if(window.BLDivisionesService && typeof window.BLDivisionesService.hasDivision === "function"){
+              matchesDivision = window.BLDivisionesService.hasDivision(row, division);
+            }
+          }catch(error){}
+        }
+        if(!matchesDivision){ return false; }
+      }
+
+      if(carrera && !containsText([row.NombreCarrera, row.nombreCarrera, row.Carrera, row.carrera, row.CodigoCarrera, row.codigoCarrera].join(" "), carrera)){ return false; }
+      if(sede && !containsText([row.Sede, row.sede, row._sede].join(" "), sede)){ return false; }
+
       if(search){
-        var hay = normalizeBasic([
+        var haystack = [
           row.cedula,
           row.numeroIdentificacion,
+          row.NumeroIdentificacion,
           row.Nombres,
           row.nombres,
+          row.nombreCompleto,
           row.NombreCarrera,
+          row.nombreCarrera,
+          row.Carrera,
+          row.carrera,
           row.CodigoCarrera,
+          row.codigoCarrera,
           row.division,
+          row._division,
+          row.Sede,
+          row.sede,
           row.CorreoPersonal,
           row.CorreoInstitucional,
-          row.Celular
-        ].join(" ")).toLowerCase();
+          row.correoPersonal,
+          row.correoInstitucional,
+          row.Celular,
+          row.celular
+        ].join(" ");
 
-        if(hay.indexOf(search) < 0){ return false; }
+        if(!containsText(haystack, search)){ return false; }
       }
 
       return true;
     });
 
-    return limit > 0 ? rows.slice(0, limit) : rows;
+    return limit > 0 ? out.slice(0, limit) : out;
   }
 
   function listPeriodsSync(){
-    return readCache().periods;
+    return readCache().periods.slice();
   }
 
   function getStudentsSync(options){
@@ -281,7 +427,8 @@ Funcion:
       rows: rows,
       total: rows.length,
       periodList: listPeriodsSync(),
-      source: "BDLocalScreenDeps"
+      source: "BDLocalScreenDeps",
+      cacheAt: memo.normalizedAt
     };
   }
 
@@ -291,7 +438,9 @@ Funcion:
     var cedula = normalizeCedula(filters.cedula || filters.numeroIdentificacion || "");
 
     return readCache().requirements.filter(function(req){
-      return (!periodoId || samePeriod(req.periodoId, periodoId)) && (!cedula || normalizeCedula(req.cedula) === cedula);
+      req = req || {};
+      return (!periodoId || samePeriod(req.periodoId || req.periodId, periodoId)) &&
+             (!cedula || normalizeCedula(req.cedula || req.numeroIdentificacion) === cedula);
     });
   }
 
@@ -322,123 +471,137 @@ Funcion:
     if(!id){ return null; }
 
     return getStudentsSync(Object.assign({}, options || {}, {
-      matricula: options && options.matricula == null ? "" : options && options.matricula
+      matricula: options && options.matricula != null ? options.matricula : ""
     })).filter(function(row){
-      return text(row.id) === id || text(row._id) === id || text(row.cedula) === id || text(row.numeroIdentificacion) === id;
+      return text(row.id) === id ||
+             text(row._id) === id ||
+             text(row.studentId) === id ||
+             text(row.idEstudiantePeriodo) === id ||
+             text(row.cedula) === id ||
+             text(row.numeroIdentificacion) === id;
     })[0] || null;
   }
 
   function makeSyncAdapters(){
-    var readyFn = function(){ return window.BDLScreenDepsReady || Promise.resolve(true); };
+    var readyFn = function(){
+      return window.BDLScreenDepsReady || Promise.resolve(true);
+    };
+
+    var excelAdapter = {
+      ready: readyFn,
+      source: "BDLocalScreenDeps",
+      getSnapshot: function(){
+        var cache = readCache();
+        return {
+          meta: cache.meta,
+          periods: cache.periods,
+          students: cache.students,
+          history: [],
+          diagnostics: cache.diagnostics || []
+        };
+      },
+      listPeriods: listPeriodsSync,
+      getPeriods: listPeriodsSync,
+      periods: listPeriodsSync,
+      listStudents: listStudentsSync,
+      getStudents: getStudentsSync,
+      getRows: getStudentsSync,
+      rows: getStudentsSync,
+      all: getStudentsSync,
+      listar: getStudentsSync,
+      listAllStudents: function(){ return getStudentsSync({ matricula: "" }); },
+      filterStudents: getStudentsSync,
+      listStudentsByStatus: function(status, periodoId){
+        return getStudentsSync({ matricula: status || "", periodoId: periodoId || "" });
+      },
+      byCedula: getStudentByCedulaSync,
+      getStudentByCedula: getStudentByCedulaSync,
+      getStudentById: getStudentByIdSync,
+      search: function(q, options){
+        return listStudentsSync(Object.assign({}, options || {}, { search: q || "" }));
+      },
+      getSummary: getSummarySync,
+      summary: getSummarySync,
+      getRequirements: getRequirementsSync,
+      invalidate: clearMemo
+    };
+
+    var engineAdapter = Object.assign({}, excelAdapter, {
+      search: function(options){ return listStudentsSync(options || {}); },
+      requirements: getRequirementsSync,
+      stats: function(periodoId){
+        return {
+          periodoId: periodoId,
+          estudiantes: getStudentsSync({ periodoId: periodoId, matricula: "" }),
+          requisitos: getRequirementsSync({ periodoId: periodoId }),
+          resumen: getSummarySync(periodoId),
+          source: "BDLocalScreenDeps"
+        };
+      }
+    });
+
+    var estudiantesAdapter = {
+      ready: readyFn,
+      source: "BDLocalScreenDeps",
+      buscar: listStudentsSync,
+      getStudents: getStudentsSync,
+      listStudents: listStudentsSync,
+      filterStudents: getStudentsSync,
+      listAllStudents: function(){ return getStudentsSync({ matricula: "" }); },
+      obtenerPorCedula: getStudentByCedulaSync,
+      getStudentByCedula: getStudentByCedulaSync,
+      getStudentById: getStudentByIdSync,
+      listPeriods: listPeriodsSync,
+      getPeriods: listPeriodsSync,
+      invalidate: clearMemo
+    };
+
+    var reportesAdapter = {
+      ready: readyFn,
+      source: "BDLocalScreenDeps",
+      buildReportData: function(filters){
+        filters = filters || {};
+        var rows = getStudentsSync(filters);
+        return {
+          ok: true,
+          source: "BDLocalScreenDeps",
+          filters: filters,
+          generatedAt: new Date().toISOString(),
+          estudiantes: rows,
+          rows: rows,
+          requisitos: getRequirementsSync(filters),
+          periodos: listPeriodsSync(),
+          resumen: { totalEstudiantes: rows.length }
+        };
+      },
+      build: function(filters){ return this.buildReportData(filters || {}); },
+      report: function(filters){ return this.buildReportData(filters || {}); },
+      getStudents: getStudentsSync,
+      listStudents: listStudentsSync,
+      getRequirements: getRequirementsSync,
+      getSummary: getSummarySync,
+      getPeriods: listPeriodsSync,
+      listPeriods: listPeriodsSync,
+      invalidate: clearMemo
+    };
 
     return {
-      excel: {
-        ready: readyFn,
-        source: "BDLocalScreenDeps",
-        getSnapshot: function(){
-          var cache = readCache();
-          return { meta: cache.meta, periods: cache.periods, students: cache.students, history: [], diagnostics: cache.diagnostics || [] };
-        },
-        listPeriods: listPeriodsSync,
-        getPeriods: listPeriodsSync,
-        periods: listPeriodsSync,
-        listStudents: listStudentsSync,
-        getStudents: getStudentsSync,
-        getRows: getStudentsSync,
-        rows: getStudentsSync,
-        all: getStudentsSync,
-        listar: getStudentsSync,
-        listAllStudents: function(){ return getStudentsSync({ matricula: "" }); },
-        filterStudents: getStudentsSync,
-        listStudentsByStatus: function(status, periodoId){ return getStudentsSync({ matricula: status || "", periodoId: periodoId || "" }); },
-        byCedula: getStudentByCedulaSync,
-        getStudentByCedula: getStudentByCedulaSync,
-        getStudentById: getStudentByIdSync,
-        search: function(q, options){ return listStudentsSync(Object.assign({}, options || {}, { search: q || "" })); },
-        getSummary: getSummarySync,
-        summary: getSummarySync,
-        getRequirements: getRequirementsSync
-      },
-      engine: {
-        ready: readyFn,
-        source: "BDLocalScreenDeps",
-        listPeriods: listPeriodsSync,
-        getPeriods: listPeriodsSync,
-        periods: listPeriodsSync,
-        listStudents: listStudentsSync,
-        getStudents: getStudentsSync,
-        getRows: getStudentsSync,
-        rows: getStudentsSync,
-        filterStudents: getStudentsSync,
-        listAllStudents: function(){ return getStudentsSync({ matricula: "" }); },
-        listStudentsByStatus: function(status, periodoId){ return getStudentsSync({ matricula: status || "", periodoId: periodoId || "" }); },
-        getStudentByCedula: getStudentByCedulaSync,
-        getStudentById: getStudentByIdSync,
-        search: function(options){ return listStudentsSync(options || {}); },
-        getRequirements: getRequirementsSync,
-        requirements: getRequirementsSync,
-        getSummary: getSummarySync,
-        summary: getSummarySync,
-        stats: function(periodoId){
-          return {
-            periodoId: periodoId,
-            estudiantes: getStudentsSync({ periodoId: periodoId, matricula: "" }),
-            requisitos: getRequirementsSync({ periodoId: periodoId }),
-            resumen: getSummarySync(periodoId),
-            source: "BDLocalScreenDeps"
-          };
-        }
-      },
-      estudiantes: {
-        ready: readyFn,
-        source: "BDLocalScreenDeps",
-        buscar: listStudentsSync,
-        getStudents: getStudentsSync,
-        listStudents: listStudentsSync,
-        filterStudents: getStudentsSync,
-        listAllStudents: function(){ return getStudentsSync({ matricula: "" }); },
-        obtenerPorCedula: getStudentByCedulaSync,
-        getStudentByCedula: getStudentByCedulaSync,
-        getStudentById: getStudentByIdSync,
-        listPeriods: listPeriodsSync,
-        getPeriods: listPeriodsSync
-      },
-      reportes: {
-        ready: readyFn,
-        source: "BDLocalScreenDeps",
-        buildReportData: function(filters){
-          filters = filters || {};
-          var rows = getStudentsSync(filters);
-          return {
-            ok: true,
-            source: "BDLocalScreenDeps",
-            filters: filters,
-            generatedAt: new Date().toISOString(),
-            estudiantes: rows,
-            rows: rows,
-            requisitos: getRequirementsSync(filters),
-            periodos: listPeriodsSync(),
-            resumen: { totalEstudiantes: rows.length }
-          };
-        },
-        build: function(filters){ return this.buildReportData(filters || {}); },
-        report: function(filters){ return this.buildReportData(filters || {}); },
-        getStudents: getStudentsSync,
-        listStudents: listStudentsSync,
-        getRequirements: getRequirementsSync,
-        getSummary: getSummarySync,
-        getPeriods: listPeriodsSync,
-        listPeriods: listPeriodsSync
-      }
+      excel: excelAdapter,
+      engine: engineAdapter,
+      estudiantes: estudiantesAdapter,
+      reportes: reportesAdapter
     };
   }
 
   function ensureSyncAdapters(){
     var adapters = makeSyncAdapters();
+
     window.ExcelLocalRepo = Object.assign({}, window.ExcelLocalRepo || {}, adapters.excel);
     window.BL2DataEngine = Object.assign({}, window.BL2DataEngine || {}, adapters.engine);
     window.BL2EstudiantesRepo = Object.assign({}, window.BL2EstudiantesRepo || {}, adapters.estudiantes);
     window.BL2ReportesRepo = Object.assign({}, window.BL2ReportesRepo || {}, adapters.reportes);
+
+    return adapters;
   }
 
   function resolve(relative){
@@ -459,14 +622,19 @@ Funcion:
     var src = resolve(relative);
     if(loaded(src)){ return Promise.resolve(src); }
 
-    return new Promise(function(resolvePromise, reject){
+    return new Promise(function(resolvePromise){
       var script = document.createElement("script");
       script.src = src;
       script.async = false;
       script.defer = false;
       script.setAttribute("data-bdl-screen-src", src);
+
       script.onload = function(){ resolvePromise(src); };
-      script.onerror = function(){ reject(new Error("No se pudo cargar " + src)); };
+      script.onerror = function(){
+        try{ console.warn("[BDLocalScreenDeps] No se pudo cargar", src); }catch(error){}
+        resolvePromise(src);
+      };
+
       document.head.appendChild(script);
     });
   }
@@ -484,52 +652,82 @@ Funcion:
       return Promise.resolve(window.BLDivisionesService);
     }
 
-    return load("./bdl.divisiones.service.js").then(function(){
+    return sequential([
+      "./bdl.divisiones.service.js",
+      "./bdl.divisiones.fast-cache.js"
+    ]).then(function(){
+      clearMemo();
       return window.BLDivisionesService || null;
     });
   }
 
+  function ensureConexiones(){
+    if(window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"){
+      return window.BDLocalConexiones.ready();
+    }
+
+    return sequential([
+      "../conexiones/cone.utils.js",
+      "../conexiones/cone.index.js"
+    ]).then(function(){
+      if(window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"){
+        return window.BDLocalConexiones.ready();
+      }
+
+      return {
+        ok: false,
+        ready: false,
+        message: "BDLocalConexiones no disponible."
+      };
+    });
+  }
+
   function ready(){
+    if(memo.readyPromise){ return memo.readyPromise; }
+
     ensureSyncAdapters();
 
-    return ensureDivisionesService()
+    memo.readyPromise = ensureDivisionesService()
       .then(function(){
         ensureSyncAdapters();
+        return ensureConexiones();
+      })
+      .then(function(result){
+        clearMemo();
+        ensureSyncAdapters();
 
-        if(window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"){
-          return window.BDLocalConexiones.ready();
-        }
+        try{
+          window.dispatchEvent(new CustomEvent("bdlocal:screen-deps-ready", {
+            detail: status()
+          }));
+        }catch(error){}
 
-        return sequential(["../conexiones/cone.utils.js", "../conexiones/cone.index.js"]).then(function(){
-          ensureSyncAdapters();
-
-          if(window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"){
-            return window.BDLocalConexiones.ready().then(function(result){
-              ensureSyncAdapters();
-              return result;
-            });
-          }
-
-          return { ok: false, message: "BDLocalConexiones no disponible." };
-        });
+        return result || status();
+      })
+      .catch(function(error){
+        try{ console.warn("[BDLocalScreenDeps]", error); }catch(innerError){}
+        ensureSyncAdapters();
+        return status();
       });
+
+    return memo.readyPromise;
   }
 
   function status(){
-    if(window.BDLocalConexiones && typeof window.BDLocalConexiones.status === "function"){
-      return window.BDLocalConexiones.status();
-    }
-
     var cache = readCache();
+
     return {
       ok: true,
-      ready: false,
+      ready: !!memo.readyPromise,
       version: VERSION,
-      mode: "sync-adapter",
+      mode: "sync-adapter-fast",
       periods: cache.periods.length,
       students: cache.students.length,
+      requirements: cache.requirements.length,
+      cacheAt: memo.normalizedAt,
       divisionesService: !!window.BLDivisionesService,
-      message: "Adaptador sincronico cargado; conexiones completas inicializando."
+      conexiones: !!window.BDLocalConexiones,
+      message: "Adaptador rápido de pantallas cargado."
     };
   }
 
@@ -541,20 +739,36 @@ Funcion:
     status: status,
     load: load,
     readCache: readCache,
+    clearMemo: clearMemo,
     filterStudents: getStudentsSync,
+    listStudents: listStudentsSync,
+    listPeriods: listPeriodsSync,
+    getRequirements: getRequirementsSync,
+    getSummary: getSummarySync,
+    getStudentByCedula: getStudentByCedulaSync,
+    getStudentById: getStudentByIdSync,
     ensureSyncAdapters: ensureSyncAdapters,
-    ensureDivisionesService: ensureDivisionesService
+    ensureDivisionesService: ensureDivisionesService,
+    normalizeStudent: normalizeStudent,
+    normalizePeriod: normalizePeriod
   };
 
   window.BDLScreenDepsReady = ready();
 
-  window.BDLScreenDepsReady.then(function(){
+  window.addEventListener("storage", function(event){
+    if(!event || event.key === CACHE_KEY || event.key === OLD_SNAPSHOT_KEY || event.key === "carga.periodos.divisiones" || event.key === "carga.periodos.local"){
+      clearMemo();
+      ensureSyncAdapters();
+    }
+  });
+
+  window.addEventListener("bdlocal:conexiones-cache-updated", function(){
+    clearMemo();
     ensureSyncAdapters();
-    try{
-      window.dispatchEvent(new CustomEvent("bdlocal:screen-deps-ready", { detail: status() }));
-    }catch(error){}
-  }).catch(function(error){
-    try{ console.warn("[BDLocalScreenDeps]", error); }catch(innerError){}
-    return null;
+  });
+
+  window.addEventListener("bdlocal:divisiones-fast-cache-ready", function(){
+    clearMemo();
+    ensureSyncAdapters();
   });
 })(window, document);

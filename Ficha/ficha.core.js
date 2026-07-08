@@ -1,35 +1,30 @@
 /* =========================================================
 Nombre completo: ficha.core.js
 Ruta o ubicación: /Requisitos/Ficha/ficha.core.js
-Función o funciones:
-- Leer estudiantes desde BL2DataEngine y usar BL2/ExcelLocalRepo solo como respaldo.
-- Cargar lista liviana de estudiantes para que Ficha abra más rápido.
-- Calcular requisitos, aprobaciones especiales y notas solo del estudiante seleccionado.
-- Mantener aprobación final separada de requisitos base.
-- Respetar reglas Regular/PVC cuando exista BL2RequirementsEngine.
-- No exigir Titulación en PVC.
-- Buscar por cédula, nombre, carrera, división, correo, celular y Telegram.
-- Generar mensajes para WhatsApp y Telegram con saludo automático.
-- Leer y evaluar notas Nart, Ndef y Nfin.
-- Mantener caché interno para evitar recalcular mientras no cambie BDLocal.
-Con qué se conecta:
-- ../BDLocal/adapters/bdl.screen-deps.js
-- BL2DataEngine / BL2StudentNormalizer / BL2RequirementsEngine cuando existan
-- BL2EstudiantesRepo cuando exista
-- ExcelLocalRepo como respaldo
-- ficha.app.js
+Función:
+- Preparar estudiantes una sola vez por período/matrícula.
+- Crear índice interno de búsqueda.
+- Buscar en memoria sin llamar siempre a la base.
+- Entregar datos listos para llenar la ficha.
+- Generar mensajes para WhatsApp, Telegram y correo.
+- Generar enlace mailto para abrir Outlook/correo predeterminado.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-ficha-core-rapido";
+  var VERSION = "4.1.0-ficha-prearmada-email";
 
   var cache = {
     periods:null,
+    base:{},
+    byId:{},
     divisions:{},
     listKey:"",
     listRows:[],
-    full:{}
+    full:{},
+    reqs:{},
+    specials:{},
+    notes:{}
   };
 
   var FALLBACK_BASE = [
@@ -56,119 +51,44 @@ Con qué se conecta:
     {
       key:"nart",
       label:"Nart",
-      aliases:[
-        "Notart",
-        "notart",
-        "Nart",
-        "nart",
-        "N_ART",
-        "N-ART",
-        "NotaArt",
-        "notaArt",
-        "notaArticulo",
-        "nota_articulo"
-      ]
+      aliases:["Notart","notart","Nart","nart","N_ART","N-ART","NotaArt","notaArt","notaArticulo","nota_articulo"]
     },
     {
       key:"ndef",
       label:"Ndef",
-      aliases:[
-        "Notdef",
-        "notdef",
-        "Ndef",
-        "ndef",
-        "N_DEF",
-        "N-DEF",
-        "NotaDef",
-        "notaDef",
-        "notaDefensa",
-        "nota_defensa"
-      ]
+      aliases:["Notdef","notdef","Ndef","ndef","N_DEF","N-DEF","NotaDef","notaDef","notaDefensa","nota_defensa"]
     },
     {
       key:"nfin",
       label:"Nfin",
-      aliases:[
-        "Notafinal",
-        "notafinal",
-        "NotaFinal",
-        "notaFinal",
-        "Nfin",
-        "nfin",
-        "N_FIN",
-        "N-FIN",
-        "Nota final",
-        "nota final"
-      ]
+      aliases:["Notafinal","notafinal","NotaFinal","notaFinal","Nfin","nfin","N_FIN","N-FIN","Nota final","nota final"]
     }
   ];
 
   var CORREO_PERSONAL_ALIASES = [
-    "_correoPersonal",
-    "_bl2CorreoPersonal",
-    "correoPersonal",
-    "CorreoPersonal",
-    "correopersonal",
-    "correo",
-    "Correo",
-    "email",
-    "Email",
-    "mail",
-    "Mail"
+    "_correoPersonal","_bl2CorreoPersonal","correoPersonal","CorreoPersonal",
+    "correopersonal","correo","Correo","email","Email","mail","Mail"
   ];
 
   var CORREO_INSTITUCIONAL_ALIASES = [
-    "_correoInstitucional",
-    "_bl2CorreoInstitucional",
-    "correoInstitucional",
-    "CorreoInstitucional",
-    "correoinstitucional",
-    "correoInst",
-    "CorreoInst",
-    "emailInstitucional",
-    "EmailInstitucional",
-    "mailInstitucional"
+    "_correoInstitucional","_bl2CorreoInstitucional","correoInstitucional",
+    "CorreoInstitucional","correoinstitucional","correoInst","CorreoInst",
+    "emailInstitucional","EmailInstitucional","mailInstitucional"
   ];
 
   var CELULAR_ALIASES = [
-    "_celular",
-    "_bl2Celular",
-    "celular",
-    "Celular",
-    "telefono",
-    "Telefono",
-    "Teléfono",
-    "telf",
-    "Telf",
-    "whatsapp",
-    "WhatsApp",
-    "numeroCelular",
-    "NumeroCelular"
+    "_celular","_bl2Celular","celular","Celular","telefono","Telefono",
+    "Teléfono","telf","Telf","whatsapp","WhatsApp","numeroCelular","NumeroCelular"
   ];
 
   var TELEGRAM_USER_ALIASES = [
-    "_telegramUser",
-    "telegramUser",
-    "TelegramUser",
-    "telegramuser",
-    "usuarioTelegram",
-    "UsuarioTelegram",
-    "usuariotelegram",
-    "telegram",
-    "Telegram"
+    "_telegramUser","telegramUser","TelegramUser","telegramuser",
+    "usuarioTelegram","UsuarioTelegram","usuariotelegram","telegram","Telegram"
   ];
 
   var TELEGRAM_CHAT_ID_ALIASES = [
-    "_telegramChatId",
-    "telegramChatId",
-    "TelegramChatId",
-    "telegramchatid",
-    "chatIdTelegram",
-    "ChatIdTelegram",
-    "chatidtelegram",
-    "chatId",
-    "ChatId",
-    "chatid"
+    "_telegramChatId","telegramChatId","TelegramChatId","telegramchatid",
+    "chatIdTelegram","ChatIdTelegram","chatidtelegram","chatId","ChatId","chatid"
   ];
 
   function text(value){
@@ -221,55 +141,28 @@ Con qué se conecta:
     return (list || []).map(cloneReq);
   }
 
-  function normalizer(){
-    return window.BL2StudentNormalizer || null;
-  }
-
-  function reqEngine(){
-    return window.BL2RequirementsEngine || window.StatsRules || null;
-  }
-
-  function dataEngine(){
-    return window.BL2DataEngine || null;
-  }
-
-  function screenAdapter(){
-    return window.BL2ScreenAdapter || null;
-  }
-
-  function bl2Students(){
-    return window.BL2EstudiantesRepo || null;
-  }
-
-  function bl2Reqs(){
-    return window.BL2RequisitosRepo || null;
-  }
-
-  function notasService(){
-    return window.BLNotasDefensa || null;
-  }
-
-  function excelRepo(){
-    return window.ExcelLocalRepo || null;
-  }
+  function normalizer(){ return window.BL2StudentNormalizer || null; }
+  function reqEngine(){ return window.BL2RequirementsEngine || window.StatsRules || null; }
+  function dataEngine(){ return window.BL2DataEngine || null; }
+  function screenAdapter(){ return window.BL2ScreenAdapter || null; }
+  function bl2Students(){ return window.BL2EstudiantesRepo || null; }
+  function bl2Reqs(){ return window.BL2RequisitosRepo || null; }
+  function notasService(){ return window.BLNotasDefensa || null; }
+  function excelRepo(){ return window.ExcelLocalRepo || null; }
 
   function source(){
-    if(dataEngine()){
-      return "BL2DataEngine";
-    }
-    if(bl2Students()){
-      return "BL2";
-    }
+    if(dataEngine()){ return "BL2DataEngine"; }
+    if(bl2Students()){ return "BL2"; }
     return "ExcelLocalRepo";
   }
 
   function pick(row, aliases, fallback){
     row = row || {};
     aliases = aliases || [];
+
     var keys = Object.keys(row);
     var wanted = aliases.map(compact);
     var i;
-    var j;
 
     for(i = 0; i < aliases.length; i += 1){
       if(Object.prototype.hasOwnProperty.call(row, aliases[i]) && text(row[aliases[i]]) !== ""){
@@ -277,9 +170,9 @@ Con qué se conecta:
       }
     }
 
-    for(j = 0; j < keys.length; j += 1){
-      if(wanted.indexOf(compact(keys[j])) >= 0 && row[keys[j]] != null && text(row[keys[j]]) !== ""){
-        return row[keys[j]];
+    for(i = 0; i < keys.length; i += 1){
+      if(wanted.indexOf(compact(keys[i])) >= 0 && row[keys[i]] != null && text(row[keys[i]]) !== ""){
+        return row[keys[i]];
       }
     }
 
@@ -292,18 +185,14 @@ Con qué se conecta:
     try{
       if(normalizer() && typeof normalizer().value === "function"){
         var nv = normalizer().value(row, field);
-        if(text(nv) !== ""){
-          return nv;
-        }
+        if(text(nv) !== ""){ return nv; }
       }
     }catch(error){}
 
     try{
       if(window.BLCampos && typeof window.BLCampos.getValue === "function"){
         var bv = window.BLCampos.getValue(row, field, fallback);
-        if(text(bv) !== ""){
-          return bv;
-        }
+        if(text(bv) !== ""){ return bv; }
       }
     }catch(error){}
 
@@ -315,9 +204,7 @@ Con qué se conecta:
   }
 
   function samePeriod(a, b){
-    if(!text(b)){
-      return true;
-    }
+    if(!text(b)){ return true; }
 
     try{
       if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.samePeriod === "function"){
@@ -332,9 +219,7 @@ Con qué se conecta:
     row = row || {};
     var raw = text(row._periodoNormalizado || row._periodo || row.periodoLabel || row.periodoId || row.ultimoPeriodoId || row.periodo || row.Periodo);
 
-    if(!raw){
-      return "Sin período";
-    }
+    if(!raw){ return "Sin período"; }
 
     try{
       if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.normalizePeriod === "function"){
@@ -354,9 +239,7 @@ Con qué se conecta:
   function divisionOf(row){
     row = row || {};
 
-    if(row._bl2Division){
-      return row._bl2Division;
-    }
+    if(row._bl2Division){ return row._bl2Division; }
 
     try{
       if(window.BLDivisionesService && typeof window.BLDivisionesService.studentDivision === "function"){
@@ -369,9 +252,7 @@ Con qué se conecta:
   }
 
   function hasDivision(row, division){
-    if(!text(division)){
-      return true;
-    }
+    if(!text(division)){ return true; }
 
     try{
       if(window.BLDivisionesService && typeof window.BLDivisionesService.hasDivision === "function"){
@@ -395,8 +276,28 @@ Con qué se conecta:
     };
   }
 
-  function baseLight(row){
+  function searchTextFor(row){
     row = row || {};
+    return norm([
+      row._cedula,
+      row._nombres,
+      row._carrera,
+      row._division,
+      row._correo,
+      row._correoPersonal,
+      row._correoInstitucional,
+      row._celular,
+      row._periodo,
+      row._periodoId,
+      row._estadoMatricula,
+      row._telegramUser,
+      row._telegramChatId
+    ].join(" "));
+  }
+
+  function normalizeLight(row){
+    row = row || {};
+
     var r = normalizer() && typeof normalizer().normalize === "function"
       ? normalizer().normalize(row, {clone:false})
       : Object.assign({}, row);
@@ -407,7 +308,7 @@ Con qué se conecta:
     var celular = text(r._bl2Celular || fieldValue(r, "celular", pick(r, CELULAR_ALIASES, "")));
     var tg = telegramInfo(r);
 
-    return {
+    var out = {
       _id:text(r._bl2Id || r.cedula || r.numeroIdentificacion || r.numeroidentificacion || r._docId || r.docId || r.id),
       _cedula:text(r._bl2Id || r.cedula || r.numeroIdentificacion || r.numeroidentificacion || r.Cedula || r.NumeroIdentificacion),
       _nombres:text(r._bl2Nombre || r.nombres || r.Nombres || r.nombre || r.Nombre || r.estudiante || r.Estudiante || r.apellidosNombres || r.ApellidosNombres),
@@ -427,20 +328,22 @@ Con qué se conecta:
       _telegramTiene:tg.hasTelegram,
       _raw:r
     };
-  }
 
-  function normalizeLight(row){
-    return baseLight(row);
+    out._searchText = searchTextFor(out);
+    return out;
   }
 
   function normalizeFull(row){
-    var light = baseLight(row);
+    if(row && row._fichaFull === VERSION){ return row; }
+
+    var light = normalizeLight(row || {});
     var full = Object.assign({}, row || {}, light);
 
     full._periodoNormalizado = periodDisplay(full);
     full._approval = studentApproval(full);
     full._estado = estadoGeneral(full);
     full._finalApproval = finalApproval(full);
+    full._fichaFull = VERSION;
 
     return full;
   }
@@ -454,22 +357,12 @@ Con qué se conecta:
 
     var k = norm(value);
 
-    if([
-      "cumple",
-      "si",
-      "sí",
-      "s",
-      "ok",
-      "aprobado",
-      "aprobada",
-      "1",
-      "true",
-      "x",
-      "validado",
-      "completo",
-      "completa"
-    ].indexOf(k) >= 0){
+    if(["cumple","si","sí","s","ok","aprobado","aprobada","1","true","x","validado","completo","completa"].indexOf(k) >= 0){
       return "cumple";
+    }
+
+    if(["no aplica","no_aplica","na","n/a"].indexOf(k) >= 0){
+      return "no_aplica";
     }
 
     return "no_cumple";
@@ -521,8 +414,7 @@ Con qué se conecta:
       }
     }catch(error){}
 
-    var info = classifyStudent(row);
-    return info.id === "REGULAR"
+    return classifyStudent(row).id === "REGULAR"
       ? cloneList(FALLBACK_BASE.concat(FALLBACK_EXTRA))
       : cloneList(FALLBACK_BASE);
   }
@@ -550,9 +442,9 @@ Con qué se conecta:
       key:item.key,
       label:item.label,
       status:estado,
-      labelStatus:estado === "cumple" ? "Cumple" : "No cumple",
+      labelStatus:estado === "cumple" ? "Cumple" : (estado === "no_aplica" ? "No aplica" : "No cumple"),
       cumple:estado === "cumple",
-      applies:true
+      applies:estado !== "no_aplica"
     };
   }
 
@@ -567,14 +459,15 @@ Con qué se conecta:
     var missing = applicable.filter(function(item){
       return estadoCelda(reqValue(row, item)) !== "cumple";
     });
+    var type = classifyStudent(row);
 
     return {
       approved:missing.length === 0,
       label:missing.length ? "No cumple" : "Aprobado",
       applicableRequirements:applicable,
       missingRequirements:missing,
-      notApplicableRequirements:classifyStudent(row).id === "PVC" ? cloneList(FALLBACK_EXTRA) : [],
-      periodType:classifyStudent(row)
+      notApplicableRequirements:type.id === "PVC" ? cloneList(FALLBACK_EXTRA) : [],
+      periodType:type
     };
   }
 
@@ -616,9 +509,7 @@ Con qué se conecta:
   }
 
   function periods(){
-    if(cache.periods){
-      return cache.periods.slice();
-    }
+    if(cache.periods){ return cache.periods.slice(); }
 
     var list = [];
 
@@ -648,17 +539,163 @@ Con qué se conecta:
     return list;
   }
 
-  function listKey(options){
+  function baseKey(options){
     options = options || {};
     return [
       source(),
       text(options.periodId),
-      text(options.division),
-      options.matricula == null ? "ACTIVO" : text(options.matricula),
-      norm(options.search),
-      Number(options.limit || 400),
-      options.force === true ? "force" : ""
+      options.matricula == null ? "ACTIVO" : text(options.matricula)
     ].join("|");
+  }
+
+  function resultKey(options){
+    options = options || {};
+    return [
+      baseKey(options),
+      text(options.division),
+      norm(options.search),
+      Number(options.limit || 400)
+    ].join("|");
+  }
+
+  function rememberRows(key, rows){
+    var map = {};
+
+    (rows || []).forEach(function(row){
+      var id = text(row._id);
+      var cedula = text(row._cedula);
+
+      if(id && !map[id]){ map[id] = row; }
+      if(cedula && !map[cedula]){ map[cedula] = row; }
+    });
+
+    cache.byId[key] = map;
+  }
+
+  function rowsFromDataEngine(options){
+    try{
+      if(dataEngine() && typeof dataEngine().listStudents === "function"){
+        var response = dataEngine().listStudents({
+          periodId:options.periodId || "",
+          division:"",
+          matricula:options.matricula == null ? "ACTIVO" : options.matricula,
+          search:"",
+          limit:50000,
+          force:options.force === true
+        });
+
+        return response && Array.isArray(response.rows) ? response.rows : [];
+      }
+    }catch(error){
+      console.warn("[FichaCore] BL2DataEngine falló", error);
+    }
+
+    return [];
+  }
+
+  function rowsFromBL2(options){
+    try{
+      if(bl2Students() && typeof bl2Students().buscar === "function"){
+        var response = bl2Students().buscar({
+          periodId:options.periodId || "",
+          division:"",
+          matricula:options.matricula == null ? "ACTIVO" : options.matricula,
+          search:"",
+          limit:50000,
+          force:options.force === true
+        });
+
+        return response && Array.isArray(response.rows) ? response.rows : [];
+      }
+    }catch(error){
+      console.warn("[FichaCore] BL2EstudiantesRepo falló", error);
+    }
+
+    return [];
+  }
+
+  function rowsFromExcel(options){
+    if(!excelRepo()){ return []; }
+
+    try{
+      if(typeof excelRepo().filterStudents === "function"){
+        return excelRepo().filterStudents({
+          periodoId:options.periodId || "",
+          estadoMatricula:options.matricula || "",
+          division:""
+        }) || [];
+      }
+
+      if(typeof excelRepo().listStudentsByStatus === "function"){
+        return excelRepo().listStudentsByStatus(options.matricula || "", options.periodId || "") || [];
+      }
+
+      if(typeof excelRepo().listAllStudents === "function"){
+        return excelRepo().listAllStudents() || [];
+      }
+    }catch(error){}
+
+    return [];
+  }
+
+  function postFilterRows(rows, options){
+    options = options || {};
+
+    var q = norm(options.search || "");
+    var tokens = q ? q.split(" ").filter(Boolean) : [];
+    var periodId = text(options.periodId);
+    var division = text(options.division);
+    var matricula = options.matricula == null ? "ACTIVO" : text(options.matricula);
+
+    return (rows || []).filter(function(row){
+      if(matricula && row._estadoMatricula !== matricula){ return false; }
+      if(periodId && !samePeriod(row._periodoId || row._periodo, periodId)){ return false; }
+      if(division && !hasDivision(row, division)){ return false; }
+
+      if(tokens.length){
+        var hay = row._searchText || searchTextFor(row);
+        if(!tokens.every(function(token){ return hay.indexOf(token) >= 0; })){
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  function baseRows(options){
+    options = options || {};
+
+    var payload = {
+      periodId:options.periodId || "",
+      matricula:options.matricula == null ? "ACTIVO" : options.matricula,
+      force:options.force === true
+    };
+
+    var key = baseKey(payload);
+
+    if(!payload.force && cache.base[key]){
+      return cache.base[key].slice();
+    }
+
+    var raw = rowsFromDataEngine(payload);
+
+    if(!raw.length){ raw = rowsFromBL2(payload); }
+    if(!raw.length){ raw = rowsFromExcel(payload); }
+
+    var prepared = (raw || []).map(normalizeLight);
+
+    prepared = postFilterRows(prepared, {
+      periodId:payload.periodId,
+      matricula:payload.matricula,
+      division:"",
+      search:""
+    });
+
+    cache.base[key] = prepared.slice();
+    rememberRows(key, prepared);
+
+    return prepared;
   }
 
   function queryRowsLight(options){
@@ -673,118 +710,18 @@ Con qué se conecta:
       force:options.force === true
     };
 
-    var key = listKey(payload);
+    var key = resultKey(payload) + (payload.force ? "|force" : "");
 
-    if(cache.listKey === key && Array.isArray(cache.listRows)){
+    if(!payload.force && cache.listKey === key && Array.isArray(cache.listRows)){
       return cache.listRows.slice();
     }
 
-    var rows = [];
-
-    try{
-      if(dataEngine() && typeof dataEngine().listStudents === "function"){
-        var er = dataEngine().listStudents(payload);
-        rows = (er.rows || []).map(normalizeLight);
-        rows = postFilterRows(rows, payload).slice(0, payload.limit);
-        cache.listKey = key;
-        cache.listRows = rows.slice();
-        return rows;
-      }
-    }catch(error){
-      console.warn("[FichaCore] BL2DataEngine falló", error);
-    }
-
-    try{
-      if(bl2Students() && typeof bl2Students().buscar === "function"){
-        var br = bl2Students().buscar(payload);
-        rows = (br.rows || []).map(normalizeLight);
-        rows = postFilterRows(rows, payload).slice(0, payload.limit);
-        cache.listKey = key;
-        cache.listRows = rows.slice();
-        return rows;
-      }
-    }catch(error2){
-      console.warn("[FichaCore] BL2EstudiantesRepo falló", error2);
-    }
-
-    rows = rowsFromExcel(payload).map(normalizeLight);
-    rows = postFilterRows(rows, payload).slice(0, payload.limit);
+    var rows = postFilterRows(baseRows(payload), payload).slice(0, payload.limit);
 
     cache.listKey = key;
     cache.listRows = rows.slice();
 
     return rows;
-  }
-
-  function rowsFromExcel(options){
-    if(!excelRepo()){
-      return [];
-    }
-
-    var rows = [];
-
-    try{
-      if(typeof excelRepo().filterStudents === "function"){
-        rows = excelRepo().filterStudents({
-          periodoId:options.periodId || "",
-          estadoMatricula:options.matricula || "",
-          division:options.division || ""
-        });
-      }else if(typeof excelRepo().listStudentsByStatus === "function"){
-        rows = excelRepo().listStudentsByStatus(options.matricula || "", options.periodId || "");
-      }else if(typeof excelRepo().listAllStudents === "function"){
-        rows = excelRepo().listAllStudents();
-      }
-    }catch(error){
-      rows = [];
-    }
-
-    return rows || [];
-  }
-
-  function postFilterRows(rows, options){
-    options = options || {};
-    var q = norm(options.search || "");
-    var periodId = text(options.periodId);
-    var division = text(options.division);
-    var matricula = options.matricula == null ? "ACTIVO" : text(options.matricula);
-
-    return (rows || []).filter(function(row){
-      if(matricula && row._estadoMatricula !== matricula){
-        return false;
-      }
-
-      if(periodId && !samePeriod(row._periodoId || row._periodo, periodId)){
-        return false;
-      }
-
-      if(division && !hasDivision(row, division)){
-        return false;
-      }
-
-      if(q){
-        var hay = norm([
-          row._cedula,
-          row._nombres,
-          row._carrera,
-          row._division,
-          row._correo,
-          row._correoPersonal,
-          row._correoInstitucional,
-          row._celular,
-          row._periodo,
-          row._estadoMatricula,
-          row._telegramUser,
-          row._telegramChatId
-        ].join(" "));
-
-        if(hay.indexOf(q) < 0){
-          return false;
-        }
-      }
-
-      return true;
-    });
   }
 
   function students(matricula){
@@ -795,35 +732,25 @@ Con qué se conecta:
   }
 
   function filter(options){
-    options = options || {};
-    return queryRowsLight({
-      periodId:options.periodId || "",
-      division:options.division || "",
-      matricula:options.matricula == null ? "ACTIVO" : options.matricula,
-      search:options.search || "",
-      limit:options.limit || 400,
-      force:options.force === true
-    });
+    return queryRowsLight(options || {});
   }
 
   function divisions(list, options){
     options = options || {};
-    var key = [
-      text(options.periodId),
-      options.matricula == null ? "ACTIVO" : text(options.matricula)
-    ].join("|");
+
+    var payload = {
+      periodId:options.periodId || "",
+      matricula:options.matricula == null ? "ACTIVO" : options.matricula,
+      force:options.force === true
+    };
+
+    var key = baseKey(payload);
 
     if(!list && cache.divisions[key]){
       return cache.divisions[key].slice();
     }
 
-    var rows = list || queryRowsLight({
-      periodId:options.periodId || "",
-      matricula:options.matricula == null ? "ACTIVO" : options.matricula,
-      search:"",
-      limit:5000
-    });
-
+    var rows = list || baseRows(payload);
     var map = {};
 
     rows.forEach(function(row){
@@ -841,15 +768,30 @@ Con qué se conecta:
     return out;
   }
 
-  function findInCachedRows(id){
+  function findInCache(id, options){
     var wanted = text(id);
-    if(!wanted){
-      return null;
+    if(!wanted){ return null; }
+
+    options = options || {};
+
+    var key = baseKey({
+      periodId:options.periodId || "",
+      matricula:options.matricula == null ? "ACTIVO" : options.matricula
+    });
+
+    if(cache.byId[key] && cache.byId[key][wanted]){
+      return cache.byId[key][wanted];
     }
 
-    var rows = cache.listRows || [];
+    if(!cache.base[key]){
+      baseRows(options);
+    }
 
-    return rows.find(function(row){
+    if(cache.byId[key] && cache.byId[key][wanted]){
+      return cache.byId[key][wanted];
+    }
+
+    return (cache.listRows || []).find(function(row){
       return text(row._id) === wanted || text(row._cedula) === wanted;
     }) || null;
   }
@@ -858,13 +800,18 @@ Con qué se conecta:
     var wanted = text(id);
     options = options || {};
 
-    if(!wanted){
-      return null;
-    }
+    if(!wanted){ return null; }
 
-    var fullKey = wanted + "|" + text(options.periodId) + "|" + text(options.matricula);
+    var fullKey = wanted + "|" + text(options.periodId) + "|" + (options.matricula == null ? "ACTIVO" : text(options.matricula));
 
     if(cache.full[fullKey]){
+      return cache.full[fullKey];
+    }
+
+    var cached = findInCache(wanted, options);
+
+    if(cached){
+      cache.full[fullKey] = normalizeFull(cached._raw || cached);
       return cache.full[fullKey];
     }
 
@@ -898,26 +845,6 @@ Con qué se conecta:
       }
     }catch(error3){}
 
-    var cached = findInCachedRows(wanted);
-
-    if(cached){
-      cache.full[fullKey] = normalizeFull(cached._raw || cached);
-      return cache.full[fullKey];
-    }
-
-    var found = filter(Object.assign({}, options, {
-      matricula:options.matricula == null ? "" : options.matricula,
-      search:wanted,
-      limit:40
-    })).find(function(row){
-      return text(row._id) === wanted || text(row._cedula) === wanted;
-    }) || null;
-
-    if(found){
-      cache.full[fullKey] = normalizeFull(found._raw || found);
-      return cache.full[fullKey];
-    }
-
     return null;
   }
 
@@ -937,20 +864,45 @@ Con qué se conecta:
     };
   }
 
+  function rowCacheId(row, suffix){
+    row = row || {};
+    return [
+      text(row._id || row._cedula),
+      text(row._periodoId || row._periodo),
+      suffix || ""
+    ].join("|");
+  }
+
   function requisitos(row){
     row = normalizeFull(row || {});
-    return requirementsForStudent(row).map(function(item){
+    var key = rowCacheId(row, "reqs");
+
+    if(cache.reqs[key]){
+      return cache.reqs[key].slice();
+    }
+
+    cache.reqs[key] = requirementsForStudent(row).map(function(item){
       return buildReq(row, item);
     }).filter(function(item){
       return item.aplica !== false;
     });
+
+    return cache.reqs[key].slice();
   }
 
   function especiales(row){
     row = normalizeFull(row || {});
-    return finalRequirements().map(function(item){
+    var key = rowCacheId(row, "specials");
+
+    if(cache.specials[key]){
+      return cache.specials[key].slice();
+    }
+
+    cache.specials[key] = finalRequirements().map(function(item){
       return buildReq(row, item);
     });
+
+    return cache.specials[key].slice();
   }
 
   function pendientes(row, includeSpecial){
@@ -967,10 +919,7 @@ Con qué se conecta:
     }
 
     var raw = text(value).replace(",", ".");
-
-    if(!raw){
-      return null;
-    }
+    if(!raw){ return null; }
 
     var n = Number(raw);
     return Number.isFinite(n) ? n : null;
@@ -1031,17 +980,24 @@ Con qué se conecta:
 
   function notas(row){
     row = normalizeFull(row || {});
+    var key = rowCacheId(row, "notes");
+
+    if(cache.notes[key]){
+      return cache.notes[key].slice();
+    }
 
     try{
       if(bl2Reqs() && typeof bl2Reqs().notes === "function"){
-        return bl2Reqs().notes(row, NOTE_FIELDS);
+        cache.notes[key] = bl2Reqs().notes(row, NOTE_FIELDS) || [];
+        return cache.notes[key].slice();
       }
     }catch(error){}
 
     var fromService = notasDesdeServicio(row);
 
     if(fromService){
-      return fromService;
+      cache.notes[key] = fromService.slice();
+      return cache.notes[key].slice();
     }
 
     var nart = numberValue(pick(row, NOTE_FIELDS[0].aliases, ""));
@@ -1058,7 +1014,7 @@ Con qué se conecta:
       nfin:nfin
     };
 
-    return NOTE_FIELDS.map(function(note){
+    cache.notes[key] = NOTE_FIELDS.map(function(note){
       var n = values[note.key];
 
       return {
@@ -1069,6 +1025,8 @@ Con qué se conecta:
         estado:estadoNota(n)
       };
     });
+
+    return cache.notes[key].slice();
   }
 
   function telegramUrl(row){
@@ -1088,27 +1046,35 @@ Con qué se conecta:
   function saludo(){
     var h = new Date().getHours();
 
-    if(h < 12){
-      return "Buen día";
-    }
-
-    if(h < 19){
-      return "Buena tarde";
-    }
-
+    if(h < 12){ return "Buen día"; }
+    if(h < 19){ return "Buena tarde"; }
     return "Buena noche";
+  }
+
+  function cleanPendingList(row, includeSpecial){
+    return pendientes(row, includeSpecial).filter(function(item){
+      var key = text(item && item.key).toLowerCase();
+      var itemLabel = norm(item && item.label);
+
+      return key !== "aprobaciontitulacion" &&
+        key !== "aprobacioncomplexivoproyecto" &&
+        itemLabel !== "aprobacion titulacion" &&
+        itemLabel !== "aprobacion complexivo/proyecto";
+    });
   }
 
   function studentMessage(row){
     row = normalizeFull(row || {});
-    var faltantes = pendientes(row, true);
+
+    var faltantes = cleanPendingList(row, false);
 
     var lines = [
       saludo() + ", " + (row._nombres || "estudiante") + ".",
       "",
-      "Le escribimos desde el área de Titulación.",
+      "Le escribe Mgs. Jefferson Villarreal, Coordinador de Titulación.",
+      "",
       "Carrera: " + (row._carrera || "—"),
-      "Período: " + (row._periodo || "—"),
+      "Período: " + (periodDisplay(row) || "—"),
       ""
     ];
 
@@ -1121,14 +1087,18 @@ Con qué se conecta:
       lines.push("No registra requisitos pendientes.");
     }
 
-    lines.push("", "Por favor revisar y regularizar la información pendiente.");
+    lines.push(
+      "",
+      "Por favor revisar y regularizar la información pendiente.",
+      "Para cualquier consulta, escribir al WhatsApp: 098 840 2774."
+    );
 
     return lines.join("\n");
   }
 
   function whatsappUrl(row){
-    row = normalizeLight(row || {});
-    var phone = text(row._celular).replace(/[^0-9]/g, "");
+    var base = normalizeLight(row || {});
+    var phone = text(base._celular).replace(/[^0-9]/g, "");
 
     if(!phone){
       return "";
@@ -1138,7 +1108,101 @@ Con qué se conecta:
       phone = "593" + phone.slice(1);
     }
 
-    return "https://wa.me/" + phone + "?text=" + encodeURIComponent(studentMessage(row._raw || row));
+    return "https://wa.me/" + phone + "?text=" + encodeURIComponent(studentMessage(base._raw || base));
+  }
+
+  function isValidEmail(value){
+    value = text(value);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  function emailList(row){
+    row = normalizeLight(row || {});
+
+    var raw = [
+      row._correoPersonal,
+      row._correoInstitucional,
+      row._correo,
+      row._raw && row._raw.correoPersonal,
+      row._raw && row._raw.correoInstitucional,
+      row._raw && row._raw.correo,
+      row._raw && row._raw.Correo,
+      row._raw && row._raw.email,
+      row._raw && row._raw.Email
+    ];
+
+    var seen = {};
+    var out = [];
+
+    raw.forEach(function(value){
+      var email = text(value);
+      var key = email.toLowerCase();
+
+      if(email && isValidEmail(email) && !seen[key]){
+        seen[key] = true;
+        out.push(email);
+      }
+    });
+
+    return out;
+  }
+
+  function emailSubject(row){
+    row = normalizeFull(row || {});
+    return "Requisitos pendientes de titulación - " + (row._nombres || "Estudiante");
+  }
+
+  function emailMessage(row){
+    row = normalizeFull(row || {});
+
+    var faltantes = cleanPendingList(row, false);
+    var lines = [
+      saludo() + ", " + (row._nombres || "estudiante") + ".",
+      "",
+      "Le escribe Mgs. Jefferson Villarreal, Coordinador de Titulación.",
+      "",
+      "Se registra la siguiente información para su proceso de titulación:",
+      "",
+      "Carrera: " + (row._carrera || "—"),
+      "Período: " + (periodDisplay(row) || "—"),
+      ""
+    ];
+
+    if(faltantes.length){
+      lines.push("Requisitos pendientes:");
+      faltantes.forEach(function(item){
+        lines.push("- " + item.label);
+      });
+    }else{
+      lines.push("No registra requisitos pendientes en la ficha.");
+    }
+
+    lines.push(
+      "",
+      "Por favor revisar y regularizar la información pendiente.",
+      "",
+      "Para cualquier consulta, puede escribir al WhatsApp: 098 840 2774.",
+      "",
+      "Saludos cordiales,",
+      "Mgs. Jefferson Villarreal",
+      "Coordinador de Titulación"
+    );
+
+    return lines.join("\n");
+  }
+
+  function emailUrl(row){
+    var emails = emailList(row);
+
+    if(!emails.length){
+      return "";
+    }
+
+    var to = emails.map(encodeURIComponent).join(",");
+    var subject = encodeURIComponent(emailSubject(row));
+    var body = encodeURIComponent(emailMessage(row));
+
+    return "mailto:" + to + "?subject=" + subject + "&body=" + body;
   }
 
   function toText(row){
@@ -1158,10 +1222,10 @@ Con qué se conecta:
       "Nombre: " + row._nombres,
       "Cédula: " + row._cedula,
       "Carrera: " + row._carrera,
-      "Período: " + row._periodo,
+      "Período: " + periodDisplay(row),
       "Matrícula: " + row._estadoMatricula,
       "Tipo de período: " + (approval.periodType && approval.periodType.label || "—"),
-      "Estado: " + (row._estado && row._estado.label),
+      "Estado: " + (row._estado && row._estado.label || "—"),
       "Correo personal: " + (row._correoPersonal || "—"),
       "Correo institucional: " + (row._correoInstitucional || "—"),
       "Celular: " + (row._celular || "—"),
@@ -1189,10 +1253,15 @@ Con qué se conecta:
 
   function invalidate(){
     cache.periods = null;
+    cache.base = {};
+    cache.byId = {};
     cache.divisions = {};
     cache.listKey = "";
     cache.listRows = [];
     cache.full = {};
+    cache.reqs = {};
+    cache.specials = {};
+    cache.notes = {};
 
     try{
       if(dataEngine() && typeof dataEngine().invalidate === "function"){
@@ -1208,8 +1277,9 @@ Con qué se conecta:
   }
 
   window.FichaCore = {
-    version:VERSION,
-    REQS:FALLBACK_BASE,
+    VERSION:VERSION,
+    BASE_REQS:FALLBACK_BASE,
+    EXTRA_REQS:FALLBACK_EXTRA,
     SPECIAL_REQS:FALLBACK_FINAL,
     ALL_REQS:FALLBACK_BASE.concat(FALLBACK_EXTRA).concat(FALLBACK_FINAL),
     NOTE_FIELDS:NOTE_FIELDS,
@@ -1226,6 +1296,10 @@ Con qué se conecta:
     telegramUrl:telegramUrl,
     telegramInfo:telegramInfo,
     studentMessage:studentMessage,
+    emailList:emailList,
+    emailSubject:emailSubject,
+    emailMessage:emailMessage,
+    emailUrl:emailUrl,
     toText:toText,
     estadoCelda:estadoCelda,
     estadoNota:estadoNota,
@@ -1242,6 +1316,15 @@ Con qué se conecta:
     normalizeStudent:normalizeFull,
     normalizeLight:normalizeLight,
     normalizeFull:normalizeFull,
-    periodDisplay:periodDisplay
+    searchTextFor:searchTextFor,
+    periodDisplay:periodDisplay,
+    cacheInfo:function(){
+      return {
+        baseKeys:Object.keys(cache.base).length,
+        listRows:cache.listRows.length,
+        fullKeys:Object.keys(cache.full).length,
+        source:source()
+      };
+    }
   };
 })(window);

@@ -6,7 +6,8 @@ Función o funciones:
 - Para períodos regulares permitir Examen Complexivo o Trabajo de Titulación.
 - Para PVC fijar Artículo Académico.
 - Guardar modalidadTitulacion en BaseLocal cuando sea posible.
-- Registrar evento manual de continuidad al cambiar modalidad.
+- Mantener respaldo local si no existe repositorio disponible.
+- Registrar evento manual de continuidad al cambiar modalidad cuando exista el servicio.
 Con qué se conecta:
 - ficha.core.js
 - ficha.app.js
@@ -16,8 +17,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  function text(value){return String(value == null ? "" : value).trim();}
-  function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();}
+  var STORAGE_KEY = "REQ_FICHA_MODALIDAD_TITULACION_V1";
 
   var VALUES = {
     complexivo:"EXAMEN_COMPLEXIVO",
@@ -25,98 +25,372 @@ Con qué se conecta:
     articulo:"ARTICULO_ACADEMICO"
   };
 
-  function classifyPeriod(value){
-    var raw = text(value);
-    if(window.StatsRules && typeof window.StatsRules.classifyPeriod === "function"){
-      return window.StatsRules.classifyPeriod(raw);
-    }
-    var n = norm(raw);
-    var regular = (n.indexOf("octubre") >= 0 && n.indexOf("marzo") >= 0) || (n.indexOf("abril") >= 0 && n.indexOf("septiembre") >= 0);
-    return {id:regular ? "REGULAR" : "PVC", label:regular ? "Regular" : "PVC", isRegular:regular, isPVC:!regular, raw:raw};
+  var LABELS = {};
+  LABELS[VALUES.complexivo] = "Examen Complexivo";
+  LABELS[VALUES.trabajo] = "Trabajo de Titulación";
+  LABELS[VALUES.articulo] = "Artículo Académico";
+
+  function text(value){
+    return String(value == null ? "" : value).trim();
+  }
+
+  function norm(value){
+    return text(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function rowId(row){
+    row = row || {};
+
+    return text(
+      row._id ||
+      row._cedula ||
+      row.cedula ||
+      row.numeroIdentificacion ||
+      row.numeroidentificacion ||
+      row.Cedula ||
+      row.NumeroIdentificacion ||
+      row.id ||
+      row.docId ||
+      row._docId
+    );
   }
 
   function periodOf(row){
     row = row || {};
-    return text(row._periodo || row._periodoNormalizado || row.periodoLabel || row.periodoId || row.ultimoPeriodoId || row.periodo || row.Periodo);
+
+    return text(
+      row._periodoNormalizado ||
+      row._periodo ||
+      row._periodoId ||
+      row.periodoLabel ||
+      row.periodoId ||
+      row.ultimoPeriodoId ||
+      row.periodId ||
+      row.periodo ||
+      row.Periodo
+    );
   }
 
-  function label(value){
-    value = text(value).toUpperCase();
-    if(value === VALUES.complexivo){return "Examen Complexivo";}
-    if(value === VALUES.trabajo){return "Trabajo de Titulación";}
-    if(value === VALUES.articulo){return "Artículo Académico";}
-    return "Sin modalidad";
+  function classifyPeriod(value){
+    var raw = text(value);
+
+    try{
+      if(window.FichaCore && typeof window.FichaCore.requirementsForStudent === "function"){
+        var fake = {_periodo:raw, periodo:raw, periodoLabel:raw, periodoId:raw};
+        var approval = window.FichaCore.studentApproval ? window.FichaCore.studentApproval(fake) : null;
+
+        if(approval && approval.periodType){
+          return approval.periodType;
+        }
+      }
+    }catch(error){}
+
+    try{
+      if(window.StatsRules && typeof window.StatsRules.classifyPeriod === "function"){
+        return window.StatsRules.classifyPeriod(raw);
+      }
+    }catch(error2){}
+
+    var n = norm(raw);
+    var regular =
+      (n.indexOf("octubre") >= 0 && n.indexOf("marzo") >= 0) ||
+      (n.indexOf("abril") >= 0 && n.indexOf("septiembre") >= 0) ||
+      /20\d{2}[-_/ ]?10.*20\d{2}[-_/ ]?03/.test(n) ||
+      /20\d{2}[-_/ ]?04.*20\d{2}[-_/ ]?09/.test(n);
+
+    return {
+      id:regular ? "REGULAR" : "PVC",
+      label:regular ? "Regular" : "PVC",
+      isRegular:regular,
+      isPVC:!regular,
+      raw:raw
+    };
   }
 
-  function normalize(value, periodInfo){
-    var n = norm(value);
-    if(n.indexOf("trabajo") >= 0 || n.indexOf("tesis") >= 0 || n.indexOf("proyecto") >= 0){return VALUES.trabajo;}
-    if(n.indexOf("articulo") >= 0 || n.indexOf("pvc") >= 0){return VALUES.articulo;}
-    if(n.indexOf("complexivo") >= 0 || n.indexOf("examen") >= 0){return VALUES.complexivo;}
-    if(periodInfo && periodInfo.id === "PVC"){return VALUES.articulo;}
-    if(periodInfo && periodInfo.id === "REGULAR"){return VALUES.complexivo;}
-    return "";
+  function normalizeValue(value){
+    var raw = text(value);
+    var n = norm(raw);
+
+    if(!raw){
+      return "";
+    }
+
+    if(raw === VALUES.complexivo || n.indexOf("complexivo") >= 0){
+      return VALUES.complexivo;
+    }
+
+    if(raw === VALUES.trabajo || n.indexOf("trabajo") >= 0 || n.indexOf("titulacion") >= 0 || n.indexOf("tesis") >= 0){
+      return VALUES.trabajo;
+    }
+
+    if(raw === VALUES.articulo || n.indexOf("articulo") >= 0 || n.indexOf("academico") >= 0){
+      return VALUES.articulo;
+    }
+
+    return raw;
+  }
+
+  function labelOf(value){
+    value = normalizeValue(value);
+    return LABELS[value] || text(value) || "Sin modalidad";
+  }
+
+  function storageKey(row){
+    return [
+      rowId(row),
+      periodOf(row)
+    ].join("|");
+  }
+
+  function readStorage(){
+    try{
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+    }catch(error){
+      return {};
+    }
+  }
+
+  function writeStorage(map){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(map || {}));
+    }catch(error){}
+  }
+
+  function savedFromStorage(row){
+    var map = readStorage();
+    return normalizeValue(map[storageKey(row)]);
+  }
+
+  function savedFromRow(row){
+    row = row || {};
+
+    return normalizeValue(
+      row._modalidadTitulacion ||
+      row.modalidadTitulacion ||
+      row.ModalidadTitulacion ||
+      row.modalidad ||
+      row.Modalidad ||
+      row.tipoTitulacion ||
+      row.TipoTitulacion ||
+      row._raw && (
+        row._raw._modalidadTitulacion ||
+        row._raw.modalidadTitulacion ||
+        row._raw.ModalidadTitulacion ||
+        row._raw.modalidad ||
+        row._raw.Modalidad ||
+        row._raw.tipoTitulacion ||
+        row._raw.TipoTitulacion
+      )
+    );
+  }
+
+  function defaultFor(row){
+    var type = classifyPeriod(periodOf(row));
+
+    if(type.isPVC || type.id === "PVC"){
+      return VALUES.articulo;
+    }
+
+    return VALUES.complexivo;
+  }
+
+  function options(row){
+    var type = classifyPeriod(periodOf(row));
+
+    if(type.isPVC || type.id === "PVC"){
+      return [
+        {
+          value:VALUES.articulo,
+          label:LABELS[VALUES.articulo],
+          locked:true
+        }
+      ];
+    }
+
+    return [
+      {
+        value:VALUES.complexivo,
+        label:LABELS[VALUES.complexivo],
+        locked:false
+      },
+      {
+        value:VALUES.trabajo,
+        label:LABELS[VALUES.trabajo],
+        locked:false
+      }
+    ];
   }
 
   function current(row){
     row = row || {};
-    var periodInfo = classifyPeriod(periodOf(row));
-    var raw = text(row.modalidadTitulacion || row.ModalidadTitulacion || row.modalidad || row.Modalidad || "");
-    var value = normalize(raw, periodInfo);
+
+    var type = classifyPeriod(periodOf(row));
+    var locked = !!(type.isPVC || type.id === "PVC");
+    var savedRow = savedFromRow(row);
+    var savedLocal = savedFromStorage(row);
+    var value = "";
+
+    if(locked){
+      value = VALUES.articulo;
+    }else{
+      value = savedRow || savedLocal || defaultFor(row);
+    }
+
     return {
       value:value,
-      label:label(value),
-      periodType:periodInfo,
-      editable:periodInfo.id === "REGULAR",
-      locked:periodInfo.id === "PVC",
-      source:raw ? "guardado" : "automatico"
+      label:labelOf(value),
+      source:savedRow ? "guardado" : (savedLocal ? "local" : "automático"),
+      locked:locked,
+      periodType:type,
+      options:options(row)
     };
   }
 
-  function options(row){
-    var info = current(row);
-    if(info.periodType.id === "PVC"){
-      return [{value:VALUES.articulo, label:"Artículo Académico", selected:true, disabled:false}];
+  function patchRow(row, value){
+    if(!row){
+      return;
     }
-    return [
-      {value:VALUES.complexivo, label:"Examen Complexivo", selected:info.value === VALUES.complexivo, disabled:false},
-      {value:VALUES.trabajo, label:"Trabajo de Titulación", selected:info.value === VALUES.trabajo, disabled:false}
-    ];
+
+    row._modalidadTitulacion = value;
+    row.modalidadTitulacion = value;
+
+    if(row._raw && typeof row._raw === "object"){
+      row._raw._modalidadTitulacion = value;
+      row._raw.modalidadTitulacion = value;
+    }
   }
 
-  function studentId(row){
-    row = row || {};
-    return text(row._id || row._cedula || row._bl2Id || row._docId || row.docId || row.cedula || row.numeroIdentificacion);
+  function saveStorage(row, value){
+    var map = readStorage();
+    map[storageKey(row)] = value;
+    writeStorage(map);
+  }
+
+  function trySaveRepo(row, value){
+    var id = rowId(row);
+    var period = periodOf(row);
+    var payload = {
+      modalidadTitulacion:value,
+      _modalidadTitulacion:value,
+      actualizadoEn:new Date().toISOString()
+    };
+
+    try{
+      if(window.BL2EstudiantesRepo && typeof window.BL2EstudiantesRepo.updateStudent === "function"){
+        window.BL2EstudiantesRepo.updateStudent(id, payload, {periodId:period});
+        return true;
+      }
+    }catch(error){}
+
+    try{
+      if(window.BL2EstudiantesRepo && typeof window.BL2EstudiantesRepo.actualizar === "function"){
+        window.BL2EstudiantesRepo.actualizar(id, payload, {periodId:period});
+        return true;
+      }
+    }catch(error2){}
+
+    try{
+      if(window.ExcelLocalRepo && typeof window.ExcelLocalRepo.updateStudent === "function"){
+        window.ExcelLocalRepo.updateStudent(id, payload, {periodId:period});
+        return true;
+      }
+    }catch(error3){}
+
+    try{
+      if(window.ExcelLocalRepo && typeof window.ExcelLocalRepo.updateStudentField === "function"){
+        window.ExcelLocalRepo.updateStudentField(id, "modalidadTitulacion", value, {periodId:period});
+        return true;
+      }
+    }catch(error4){}
+
+    try{
+      if(window.BL2DataEngine && typeof window.BL2DataEngine.updateStudent === "function"){
+        window.BL2DataEngine.updateStudent(id, payload, {periodId:period});
+        return true;
+      }
+    }catch(error5){}
+
+    return false;
+  }
+
+  function registerEvent(row, value, source){
+    var id = rowId(row);
+
+    try{
+      if(window.ContEventManual && typeof window.ContEventManual.record === "function"){
+        window.ContEventManual.record({
+          type:"ficha.modalidad",
+          cedula:id,
+          estudiante:id,
+          periodo:periodOf(row),
+          modalidadTitulacion:value,
+          source:source || "Ficha",
+          createdAt:new Date().toISOString()
+        });
+      }
+    }catch(error){}
+
+    try{
+      if(window.BDLocalContinuity && typeof window.BDLocalContinuity.manual === "function"){
+        window.BDLocalContinuity.manual({
+          type:"ficha.modalidad",
+          cedula:id,
+          periodo:periodOf(row),
+          modalidadTitulacion:value,
+          createdAt:new Date().toISOString()
+        });
+      }
+    }catch(error2){}
   }
 
   function save(row, value){
     row = row || {};
-    var id = studentId(row);
-    var info = current(row);
-    var oldValue = info.value || "";
-    var finalValue = normalize(value, info.periodType);
-    if(info.periodType.id === "PVC"){finalValue = VALUES.articulo;}
-    if(!id){throw new Error("No se puede guardar modalidad: estudiante sin identificador.");}
-    if(!finalValue){throw new Error("Modalidad inválida.");}
 
-    if(window.ExcelLocalRepo && typeof window.ExcelLocalRepo.patchStudentById === "function"){
-      window.ExcelLocalRepo.patchStudentById(id, {modalidadTitulacion:finalValue, modalidadTitulacionActualizadaEn:new Date().toISOString()});
-      if(window.BDLManualEvents && oldValue !== finalValue){
-        window.BDLManualEvents.recordModalidad(row, oldValue, finalValue, { source:"FichaModalidad.save" });
-      }
-      if(window.FichaCore && typeof window.FichaCore.invalidate === "function"){window.FichaCore.invalidate();}
-      return {ok:true, value:finalValue, label:label(finalValue), source:"ExcelLocalRepo"};
+    var info = current(row);
+    var selected = normalizeValue(value || info.value || defaultFor(row));
+
+    if(info.locked){
+      selected = VALUES.articulo;
     }
-    throw new Error("ExcelLocalRepo.patchStudentById no está disponible.");
+
+    var allowed = options(row).some(function(item){
+      return item.value === selected;
+    });
+
+    if(!allowed){
+      selected = defaultFor(row);
+    }
+
+    patchRow(row, selected);
+    saveStorage(row, selected);
+
+    var savedInRepo = trySaveRepo(row, selected);
+
+    registerEvent(row, selected, savedInRepo ? "repo" : "localStorage");
+
+    return {
+      value:selected,
+      label:labelOf(selected),
+      source:savedInRepo ? "guardado" : "local",
+      locked:info.locked,
+      periodType:info.periodType,
+      savedInRepo:savedInRepo
+    };
   }
 
   window.FichaModalidad = {
     VALUES:VALUES,
-    classifyPeriod:classifyPeriod,
+    LABELS:LABELS,
     current:current,
     options:options,
     save:save,
-    label:label,
-    normalize:normalize
+    labelOf:labelOf,
+    normalizeValue:normalizeValue,
+    classifyPeriod:classifyPeriod
   };
 })(window);

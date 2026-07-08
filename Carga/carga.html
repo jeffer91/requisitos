@@ -7,6 +7,9 @@
 
   <link rel="stylesheet" href="./carga.css" />
 
+  <!-- Diagnóstico global: va primero para capturar errores desde el inicio. -->
+  <script src="../Diagnostico/diag.loader.js"></script>
+
   <!--
     Puente mínimo para que Carga pueda trabajar dentro de la Maqueta,
     dentro de iframe o abierta directamente en Electron.
@@ -115,35 +118,67 @@
               "NumeroIdentificacion",
               "identificacion",
               "cedula",
-              "Cédula",
-              "Cedula",
+              "cédula",
               "documento"
-            ]) || "SIN_IDENTIFICACION";
-          }
-        };
-      }
-
-      if(!window.BDLValidatorEstudiante){
-        window.BDLValidatorEstudiante = {
-          periodFromSelected: function(periodo){
-            return window.BDLNormPeriodo.normalize({}, periodo || {});
+            ]);
           },
 
-          injectPeriod: function(row, periodo){
-            row = Object.assign({}, row || {});
-            periodo = periodo || {};
+          normalize: function(row){
+            var T = window.BDLNormText;
+            row = row || {};
 
-            row.periodoId = periodo.periodoId || periodo.id || "";
-            row.PeriodoId = row.periodoId;
-            row.periodId = row.periodoId;
-            row.periodo = periodo.periodoLabel || periodo.label || row.periodoId;
-            row.Periodo = row.periodo;
-            row.periodoLabel = row.periodo;
-            row.PeriodoLabel = row.periodo;
-            row._periodoSeleccionado = row.periodoId;
-            row._periodoSeleccionadoLabel = row.periodo;
+            var cedula = T.cleanSpaces(this.numero(row)).replace(/[^0-9A-Za-z]/g, "");
+            if(/^\d{9}$/.test(cedula)){ cedula = "0" + cedula; }
 
-            return row;
+            var periodo = window.BDLNormPeriodo.normalize(row, {
+              periodoId: row.periodoCanonicoId || row.periodoId || row.PeriodoId || row._periodoSeleccionado || "",
+              periodoLabel: row.periodoCanonicoLabel || row.periodoLabel || row.Periodo || row._periodoSeleccionadoLabel || ""
+            });
+
+            var nombres = T.first(row, ["nombres", "Nombres", "nombre", "estudiante", "alumno"]);
+            var codigoCarrera = T.first(row, ["codigoCarrera", "CodigoCarrera", "CódigoCarrera", "codCarrera"]);
+            var nombreCarrera = T.first(row, ["nombreCarrera", "NombreCarrera", "carrera", "Carrera", "programa"]);
+            var idEstudiantePeriodo = periodo.periodoId + "__" + cedula;
+
+            return {
+              periodo: periodo,
+              persona: {
+                numeroIdentificacion: cedula,
+                nombres: nombres,
+                correoPersonal: T.first(row, ["correoPersonal", "CorreoPersonal", "correo", "email"]),
+                correoInstitucional: T.first(row, ["correoInstitucional", "CorreoInstitucional"]),
+                celular: T.first(row, ["celular", "Celular", "telefono", "teléfono"])
+              },
+              resumen: {
+                id: idEstudiantePeriodo,
+                idEstudiantePeriodo: idEstudiantePeriodo,
+                numeroIdentificacion: cedula,
+                cedula: cedula,
+                nombres: nombres,
+                periodoId: periodo.periodoId,
+                periodoLabel: periodo.periodoLabel,
+                codigoCarrera: codigoCarrera,
+                nombreCarrera: nombreCarrera,
+                carrera: nombreCarrera,
+                estadoMatricula: T.upper(row.estadoMatricula || row.EstadoMatricula || "ACTIVO") || "ACTIVO"
+              },
+              detalle: Object.assign({}, row, {
+                id: idEstudiantePeriodo,
+                idEstudiantePeriodo: idEstudiantePeriodo,
+                numeroIdentificacion: cedula,
+                cedula: cedula,
+                periodoId: periodo.periodoId,
+                periodoLabel: periodo.periodoLabel,
+                periodoCanonicoId: periodo.periodoId,
+                periodoCanonicoLabel: periodo.periodoLabel,
+                nombres: nombres,
+                Nombres: nombres,
+                codigoCarrera: codigoCarrera,
+                CodigoCarrera: codigoCarrera,
+                nombreCarrera: nombreCarrera,
+                NombreCarrera: nombreCarrera
+              })
+            };
           }
         };
       }
@@ -161,7 +196,10 @@
               source: options.source || "carga_excel",
               fileName: options.fileName || "",
               origen: options.origen || "",
-              sync: options.sync !== false
+              sync: false,
+              localOnly: true,
+              cloudSync: false,
+              manualCloudSync: true
             }).then(function(result){
               result = result || {};
               return {
@@ -190,127 +228,92 @@
   <script defer src="./readers/carga.reader.txt.js"></script>
   <script defer src="./readers/carga.reader.html.js"></script>
   <script defer src="./readers/carga.reader.xlsx.js"></script>
-  <script defer src="./readers/carga.reader.file.js"></script>
   <script defer src="./readers/carga.reader.clipboard.js"></script>
+  <script defer src="./readers/carga.reader.file.js"></script>
 
-  <!-- Mapeo y detección -->
+  <!-- Mapeo -->
   <script defer src="./mapping/carga.field-map.js"></script>
   <script defer src="./mapping/carga.detect-periodo.js"></script>
   <script defer src="./mapping/carga.detect-carrera.js"></script>
+  <script defer src="./mapping/carga.detect-division.js"></script>
   <script defer src="./mapping/carga.detect-requisitos.js"></script>
   <script defer src="./mapping/carga.detect-notas.js"></script>
-  <script defer src="./mapping/carga.detect-division.js"></script>
 
   <!-- Proceso -->
   <script defer src="./process/carga.normalizer.js"></script>
   <script defer src="./process/carga.validator.js"></script>
   <script defer src="./process/carga.preview.js"></script>
   <script defer src="./process/carga.report.js"></script>
-  <script defer src="./process/carga.save.js"></script>
   <script defer src="./process/carga.distributor.js"></script>
+  <script defer src="./process/carga.save.js"></script>
 
-  <!-- App y UI -->
+  <!-- UI -->
+  <script defer src="./carga.divisiones.popup.js"></script>
   <script defer src="./carga.app.js"></script>
   <script defer src="./carga.ui.js"></script>
   <script defer src="./carga.index.js"></script>
 </head>
 
 <body>
-  <main class="carga-shell" data-carga-screen>
-    <section class="carga-topbar">
+  <main class="carga-shell">
+    <header class="carga-header">
       <div>
-        <p class="carga-eyebrow">Base Local · Carga inteligente</p>
-        <h1>Carga</h1>
-        <p class="carga-lead">Administra períodos, sube el Excel oficial y revisa la sincronización sin llenar la pantalla.</p>
+        <span class="carga-eyebrow">Carga de datos</span>
+        <h1>Carga a BDLocal</h1>
+        <p>Selecciona un período, sube el archivo y guarda los estudiantes en la base local. Las bases externas se suben manualmente desde BDLocal.</p>
       </div>
 
-      <div class="carga-status-mini" aria-live="polite">
-        <span id="cargaStatusDot" class="carga-status-dot is-ok"></span>
-        <div>
-          <strong id="cargaStatusText">Listo</strong>
-          <small id="cargaStatusMessage">Esperando período y archivo</small>
-        </div>
+      <div class="carga-header-status">
+        <span class="carga-pill" id="cargaRuntimePill">Detectando entorno...</span>
+        <span class="carga-pill carga-pill-ok" id="cargaEstadoPill">Listo</span>
       </div>
-    </section>
+    </header>
 
-    <section class="carga-message carga-hidden" id="cargaMessageBox"></section>
-
-    <section class="carga-layout-compact">
-      <!-- 1. Periodos -->
-      <article class="carga-card carga-card-compact" id="cargaPeriodosModulo">
+    <section class="carga-grid">
+      <!-- 1. Periodo -->
+      <article class="carga-card carga-card-compact" id="cargaPeriodoModulo">
         <div class="carga-card-header carga-card-header-tight">
           <div>
-            <h2>1. Períodos</h2>
-            <p>Crear, editar, borrar y usar períodos canónicos.</p>
+            <h2>1. Período</h2>
+            <p>Elige el período antes de subir el archivo.</p>
           </div>
-          <span class="carga-chip" id="cargaPeriodosCount">0 períodos</span>
+          <span class="carga-chip warn" id="cargaPeriodoChip">Sin período</span>
         </div>
 
         <div class="carga-period-form">
-          <div class="carga-field">
-            <label for="cargaPeriodoMesInicio">Mes inicio</label>
-            <select id="cargaPeriodoMesInicio">
-              <option value="01">Enero</option>
-              <option value="02">Febrero</option>
-              <option value="03">Marzo</option>
-              <option value="04">Abril</option>
-              <option value="05">Mayo</option>
-              <option value="06">Junio</option>
-              <option value="07">Julio</option>
-              <option value="08">Agosto</option>
-              <option value="09">Septiembre</option>
-              <option value="10">Octubre</option>
-              <option value="11" selected>Noviembre</option>
-              <option value="12">Diciembre</option>
+          <label>
+            <span>Período guardado</span>
+            <select id="cargaPeriodoSelect">
+              <option value="">Seleccione...</option>
             </select>
-          </div>
+          </label>
 
-          <div class="carga-field carga-field-year">
-            <label for="cargaPeriodoAnioInicio">Año</label>
-            <input id="cargaPeriodoAnioInicio" type="number" min="2020" max="2100" step="1" value="2025" />
-          </div>
-
-          <div class="carga-field">
-            <label for="cargaPeriodoMesFin">Mes fin</label>
-            <select id="cargaPeriodoMesFin">
-              <option value="01">Enero</option>
-              <option value="02">Febrero</option>
-              <option value="03">Marzo</option>
-              <option value="04">Abril</option>
-              <option value="05" selected>Mayo</option>
-              <option value="06">Junio</option>
-              <option value="07">Julio</option>
-              <option value="08">Agosto</option>
-              <option value="09">Septiembre</option>
-              <option value="10">Octubre</option>
-              <option value="11">Noviembre</option>
-              <option value="12">Diciembre</option>
-            </select>
-          </div>
-
-          <div class="carga-field carga-field-year">
-            <label for="cargaPeriodoAnioFin">Año</label>
-            <input id="cargaPeriodoAnioFin" type="number" min="2020" max="2100" step="1" value="2026" />
-          </div>
-        </div>
-
-        <div class="carga-actions carga-actions-tight">
-          <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnPeriodoCrear">Crear</button>
-          <button type="button" class="carga-btn carga-btn-secondary" id="cargaBtnPeriodoEditar">Editar</button>
+          <button type="button" class="carga-btn carga-btn-light" id="cargaBtnPeriodoEditar">Editar</button>
           <button type="button" class="carga-btn carga-btn-light" id="cargaBtnPeriodoBorrar">Borrar</button>
-          <button type="button" class="carga-btn carga-btn-light" id="cargaBtnCorregirDuplicados">Corregir duplicados</button>
-        </div>
 
-        <div class="carga-field carga-hidden" id="cargaPeriodoPersonalizadoWrap">
-          <label for="cargaPeriodoPersonalizado">Nombre del período</label>
-          <input id="cargaPeriodoPersonalizado" type="text" autocomplete="off" placeholder="Noviembre 2025 a Mayo 2026" />
-        </div>
+          <div class="carga-period-custom" id="cargaPeriodoPersonalizadoWrap">
+            <label>
+              <span>Desde</span>
+              <select id="cargaPeriodoDesdeMes"></select>
+            </label>
+            <label>
+              <span>Año</span>
+              <input id="cargaPeriodoDesdeAnio" type="number" min="2020" max="2100" placeholder="2026" />
+            </label>
+            <label>
+              <span>Hasta</span>
+              <select id="cargaPeriodoHastaMes"></select>
+            </label>
+            <label>
+              <span>Año</span>
+              <input id="cargaPeriodoHastaAnio" type="number" min="2020" max="2100" placeholder="2026" />
+            </label>
+            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnPeriodoCrear">Crear período</button>
+          </div>
+               </div>
 
-        <div class="carga-field carga-period-select-wrap">
-          <label for="cargaPeriodoSelect">Período seleccionado</label>
-          <select id="cargaPeriodoSelect">
-            <option value="">Selecciona un período</option>
-          </select>
+        <div class="carga-selected-period" id="cargaPeriodoSeleccionado">
+          Ningún período seleccionado.
         </div>
 
         <div class="carga-period-cards" id="cargaPeriodosCards">
@@ -343,7 +346,7 @@
           <div class="carga-file-info" id="cargaFileInfo">Ningún archivo seleccionado.</div>
 
           <div class="carga-actions carga-actions-tight">
-            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnGuardar" disabled>Subir y guardar</button>
+            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnGuardar" disabled>Subir y guardar en BDLocal</button>
             <button type="button" class="carga-btn carga-btn-light" id="cargaBtnLimpiar">Limpiar</button>
           </div>
         </div>
@@ -351,8 +354,9 @@
         <div class="carga-summary-mini">
           <div><span>Archivo</span><strong id="cargaResumenArchivo">—</strong></div>
           <div><span>Período</span><strong id="cargaResumenPeriodo">—</strong></div>
-          <div><span>Registros</span><strong id="cargaResumenTotal">0</strong></div>
-          <div><span>Estado</span><strong id="cargaResumenEstado">Sin carga</strong></div>
+          <div><span>Filas</span><strong id="cargaResumenFilas">0</strong></div>
+          <div><span>Carreras</span><strong id="cargaResumenCarreras">0</strong></div>
+          <div><span>Requisitos</span><strong id="cargaResumenRequisitos">0</strong></div>
         </div>
 
         <section class="carga-result-mini carga-hidden" id="cargaResultadoBox">
@@ -364,117 +368,89 @@
         </section>
       </article>
 
-      <!-- 3. Sincronizacion -->
+      <!-- 3. Estado posterior a la carga -->
       <article class="carga-card carga-card-compact" id="cargaSyncModulo">
         <div class="carga-card-header carga-card-header-tight">
           <div>
-            <h2>3. Sincronización</h2>
-            <p>Cola inteligente y bajo consumo de Firebase.</p>
+            <h2>3. Estado de bases</h2>
+            <p>Carga guarda solo en BDLocal. Las bases externas se suben manualmente desde BDLocal.</p>
           </div>
           <span class="carga-chip ok" id="cargaSyncChip">BDLocal OK</span>
         </div>
 
         <div class="carga-sync-box">
           <div class="carga-sync-row">
-            <strong id="cargaSyncBase">Firebase</strong>
-            <span id="cargaSyncTexto">0% · Pendientes 0 · En espera</span>
+            <strong id="cargaSyncBase">BDLocal</strong>
+            <span id="cargaSyncTexto">0% · Cambios para nubes 0 · En espera</span>
           </div>
-          <div class="carga-progress" aria-label="Progreso de sincronización">
+          <div class="carga-progress" aria-label="Estado de guardado local">
             <span id="cargaSyncBar" style="width:0%"></span>
           </div>
           <div class="carga-sync-foot">
             <span id="cargaSyncUltimo">Último resultado: sin actividad</span>
-            <button type="button" class="carga-btn carga-btn-light carga-btn-xs" id="cargaBtnSyncManual">Sincronizar</button>
           </div>
         </div>
 
         <div class="carga-note compact">
-          Se sincronizan solo registros nuevos o realmente modificados, en lotes pequeños.
+          Después de guardar, Firebase, Supabase y Google Sheets quedan pendientes. Súbelas con los botones rojos desde BDLocal.
         </div>
       </article>
     </section>
 
     <section class="carga-problems-grid">
-      <article class="carga-card carga-hidden" id="cargaErroresBox">
-        <div class="carga-card-header carga-card-header-tight">
-          <div>
-            <h2>Errores</h2>
-            <p>Bloquean el guardado.</p>
-          </div>
-        </div>
-        <div id="cargaErroresList" class="carga-list"></div>
-      </article>
-
-      <article class="carga-card carga-hidden" id="cargaWarningsBox">
-        <div class="carga-card-header carga-card-header-tight">
+      <article class="carga-card">
+        <div class="carga-card-header">
           <div>
             <h2>Advertencias</h2>
-            <p>No bloquean, pero se reportan.</p>
+            <p>Datos que se guardan, pero conviene revisar.</p>
           </div>
         </div>
-        <div id="cargaWarningsList" class="carga-list"></div>
+        <div id="cargaWarnings" class="carga-list">
+          <div class="carga-empty">Sin advertencias.</div>
+        </div>
+      </article>
+
+      <article class="carga-card">
+        <div class="carga-card-header">
+          <div>
+            <h2>Errores</h2>
+            <p>Si existen errores, la carga se bloquea hasta corregirlos.</p>
+          </div>
+        </div>
+        <div id="cargaErrors" class="carga-list">
+          <div class="carga-empty">Sin errores.</div>
+        </div>
       </article>
     </section>
-
-    <!-- Compatibilidad: se mantiene oculto porque la app ya no tendrá vista previa. -->
-    <div id="cargaPreviewTable" class="carga-hidden"></div>
-
-    <!-- Compatibilidad: no se muestra pegado rápido en la pantalla comprimida. -->
-    <textarea id="cargaPegadoTextarea" class="carga-hidden" aria-hidden="true"></textarea>
-    <button type="button" id="cargaBtnProcesarPegado" class="carga-hidden" aria-hidden="true">Procesar pegado</button>
   </main>
 
-  <div class="carga-modal carga-hidden" id="cargaDivisionesModal" role="dialog" aria-modal="true" aria-labelledby="cargaDivisionesTitle">
-    <div class="carga-modal-backdrop" data-carga-modal-close></div>
-    <section class="carga-modal-card">
+  <div class="carga-toast carga-hidden" id="cargaToast"></div>
+
+  <div class="carga-modal carga-hidden" id="cargaDivisionesModal" aria-hidden="true">
+    <div class="carga-modal-backdrop" data-close="1"></div>
+    <section class="carga-modal-box">
       <header class="carga-modal-header">
         <div>
-          <p class="carga-eyebrow">Divisiones por período</p>
-          <h2 id="cargaDivisionesTitle">Divisiones</h2>
-          <p id="cargaDivisionesPeriodo">—</p>
+          <span class="carga-eyebrow">Divisiones</span>
+          <h2 id="cargaDivisionesTitulo">Configurar divisiones</h2>
+          <p id="cargaDivisionesSubtitulo">Anexa carreras a cada división para el período seleccionado.</p>
         </div>
-        <button type="button" class="carga-icon-btn" id="cargaBtnCerrarDivisiones" aria-label="Cerrar">×</button>
+        <button type="button" class="carga-modal-close" id="cargaBtnCerrarDivisiones">×</button>
       </header>
 
-      <div class="carga-modal-body">
-        <div class="carga-division-create">
-          <div class="carga-field">
-            <label for="cargaDivisionNombre">Crear división</label>
-            <input id="cargaDivisionNombre" type="text" placeholder="Superior, Online, Norte, Intensivo..." autocomplete="off" />
-          </div>
-          <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnCrearDivision">Crear</button>
+      <div class="carga-modal-content">
+        <div class="carga-divisiones-toolbar">
+          <input id="cargaNuevaDivisionNombre" type="text" placeholder="Nombre de la división" />
+          <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnAgregarDivision">Agregar división</button>
         </div>
 
-        <div class="carga-modal-grid">
-          <section>
-            <div class="carga-mini-title">Carreras detectadas</div>
-            <div id="cargaCarrerasDetectadas" class="carga-check-list">
-              <div class="carga-empty compact">Todavía no hay carreras detectadas en este período.</div>
-            </div>
-          </section>
-
-          <section>
-            <div class="carga-mini-title">Anexar a división</div>
-            <div class="carga-field">
-              <label for="cargaDivisionDestino">División</label>
-              <select id="cargaDivisionDestino">
-                <option value="">Crea una división primero</option>
-              </select>
-            </div>
-            <button type="button" class="carga-btn carga-btn-secondary" id="cargaBtnAnexarCarreras">Anexar carreras</button>
-          </section>
+        <div id="cargaDivisionesLista" class="carga-divisiones-lista">
+          <div class="carga-empty">No hay divisiones configuradas.</div>
         </div>
-
-        <section>
-          <div class="carga-mini-title">Divisiones creadas</div>
-          <div id="cargaDivisionesLista" class="carga-division-list">
-            <div class="carga-empty compact">Sin divisiones creadas.</div>
-          </div>
-        </section>
       </div>
 
-      <footer class="carga-modal-actions">
-        <button type="button" class="carga-btn carga-btn-light" data-carga-modal-close>Cerrar</button>
+      <footer class="carga-modal-footer">
+        <button type="button" class="carga-btn carga-btn-light" id="cargaBtnCancelarDivisiones">Cancelar</button>
         <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnGuardarDivisiones">Guardar cambios</button>
       </footer>
     </section>
