@@ -3,7 +3,7 @@
   var U=window.BDLocalConUtils;
   if(!U){return;}
   var base=document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
-  var state={connectors:{},errors:[],ready:false,loading:null};
+  var state={connectors:{},errors:[],ready:false,loading:null,lastRefreshMode:""};
   function src(file){try{return new URL(file,base).href;}catch(e){return file;}}
   function add(file){
     return new Promise(function(resolve){
@@ -57,27 +57,63 @@
       return c||bd||null;
     });
   }
+  function refreshMode(options, existing){
+    options=options||{};
+    existing=existing||U.readCache();
+    if(options.full===true||options.mode==="full"){return "full";}
+    if(options.periodsOnly===true||options.light===true||options.mode==="light"){return (existing.students&&existing.students.length)?"light":"full";}
+    return (existing.students&&existing.students.length)?"light":"full";
+  }
+  function writeCachePayload(mode, existing, periods, students, requirements, source){
+    var payload={
+      meta:{
+        app:"Requisitos",
+        module:"BDLocalConexiones",
+        version:"1.1.0",
+        source:source||"cone.index",
+        refreshMode:mode,
+        updatedAt:U.nowISO(),
+        schemaVersion:(window.BL2Config&&window.BL2Config.schemaVersion)||""
+      },
+      periods:periods||[],
+      students:students||[],
+      requirements:requirements||[],
+      summaries:(existing&&existing.summaries)||{},
+      diagnostics:state.errors
+    };
+    state.lastRefreshMode=mode;
+    return U.writeCache(payload);
+  }
   function refreshCache(options){
     options=options||{};
+    var existing=U.readCache();
     return ensureCoreReady().then(function(c){
       c=window.BL2Core||c;
-      if(!c){return U.readCache();}
-      var p=typeof c.getPeriods==="function"?c.getPeriods().catch(function(){return [];}):Promise.resolve([]);
-      var s=typeof c.getStudents==="function"?c.getStudents({}).catch(function(){return [];}):Promise.resolve([]);
-      var r=typeof c.getRequirements==="function"?c.getRequirements({}).catch(function(){return [];}):Promise.resolve([]);
-      return Promise.all([p,s,r]).then(function(v){return U.writeCache({meta:{app:"Requisitos",module:"BDLocalConexiones",version:"1.0.5",source:options.source||"cone.index",updatedAt:U.nowISO(),schemaVersion:(window.BL2Config&&window.BL2Config.schemaVersion)||""},periods:v[0]||[],students:v[1]||[],requirements:v[2]||[],summaries:{},diagnostics:state.errors});});
+      if(!c){return existing;}
+      var mode=refreshMode(options,existing);
+      var p=typeof c.getPeriods==="function"?c.getPeriods().catch(function(){return existing.periods||[];}):Promise.resolve(existing.periods||[]);
+      if(mode==="light"){
+        return p.then(function(periods){
+          return writeCachePayload("light",existing,periods,existing.students||[],existing.requirements||[],options.source||"cone.index.light");
+        });
+      }
+      var s=typeof c.getStudents==="function"?c.getStudents({}).catch(function(){return existing.students||[];}):Promise.resolve(existing.students||[]);
+      var r=typeof c.getRequirements==="function"?c.getRequirements({}).catch(function(){return existing.requirements||[];}):Promise.resolve(existing.requirements||[]);
+      return Promise.all([p,s,r]).then(function(v){
+        return writeCachePayload("full",existing,v[0]||[],v[1]||[],v[2]||[],options.source||"cone.index.full");
+      });
     });
   }
-  function status(){var c=U.readCache();return {ok:state.errors.length===0,ready:state.ready,connectors:Object.keys(state.connectors),periods:c.periods.length,students:c.students.length,outboxBridge:!!window.BDLOutboxBridge,errors:state.errors};}
+  function status(){var c=U.readCache();return {ok:state.errors.length===0,ready:state.ready,connectors:Object.keys(state.connectors),periods:c.periods.length,students:c.students.length,refreshMode:state.lastRefreshMode||((c.meta&&c.meta.refreshMode)||""),outboxBridge:!!window.BDLOutboxBridge,errors:state.errors};}
   function loadConnectors(){return seq(["cone.carga.js","cone.tabla.js","cone.ficha.js","cone.stats.js","cone.coordi.js","cone.reportes.js","cone.global.js"]);}
   function ready(options){
     options=options||{};
     if(state.ready&&!options.force){return Promise.resolve(status());}
     if(state.loading&&!options.force){return state.loading;}
-    state.loading=refreshCache({source:"BDLocalConexiones.ready"}).then(function(){return loadConnectors();}).then(function(){state.ready=true;return status();}).finally(function(){state.loading=null;});
+    state.loading=refreshCache({source:"BDLocalConexiones.ready",light:true}).then(function(){return loadConnectors();}).then(function(){state.ready=true;return status();}).finally(function(){state.loading=null;});
     return state.loading;
   }
   window.BDLocalConexiones=window.BDLocalConexiones||{};
-  Object.assign(window.BDLocalConexiones,{version:"1.0.5",ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,register:register,get:get,status:status,utils:U});
+  Object.assign(window.BDLocalConexiones,{version:"1.1.0",ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,register:register,get:get,status:status,utils:U});
   ready({force:false});
 })(window,document);
