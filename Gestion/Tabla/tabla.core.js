@@ -1,933 +1,113 @@
 /* =========================================================
 Nombre completo: tabla.core.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/tabla.core.js
-Función o funciones:
-- Leer estudiantes desde BL2DataEngine y usar BL2/ExcelLocalRepo solo como respaldo.
-- Normalizar una sola vez los estudiantes mientras no cambie la base.
-- Calcular estado general respetando reglas Regular/PVC cuando exista BL2RequirementsEngine.
-- Aplicar filtros de período, división, matrícula, carrera, estado y búsqueda.
-- Entregar resultados paginados para no renderizar toda la base en pantalla.
-- Entregar opciones de filtros sin recalcular toda la tabla varias veces.
-- Comparar períodos de forma estable usando id, label y texto normalizado.
-- Normalizar datos de WhatsApp y Telegram para contacto individual y masivo.
-Con qué se conecta:
-- ../../BDLocal/adapters/bdl.screen-deps.js
-- BL2DataEngine / BL2StudentNormalizer / BL2RequirementsEngine cuando existan
-- BL2EstudiantesRepo cuando exista
-- ExcelLocalRepo como respaldo
-- tabla.app.js
+Ruta: /Requisitos/Gestion/Tabla/tabla.core.js
+Función:
+- Motor de datos para Tabla.
+- Lee estudiantes desde BL2DataEngine, BL2EstudiantesRepo o ExcelLocalRepo.
+- Filtra por período, división, carrera, búsqueda y requisitos activos.
+- Prepara faltantes, carrera corta y notas para la pantalla compacta.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.1-tabla-core-periodo-estable";
-
-  var TELEGRAM_USER_ALIASES = [
-    "_telegramUser",
-    "telegramUser",
-    "TelegramUser",
-    "telegramuser",
-    "usuarioTelegram",
-    "UsuarioTelegram",
-    "usuariotelegram",
-    "telegram",
-    "Telegram"
+  var VERSION="2.2.0-tabla-core-filtros-requisitos";
+  var REQS=[
+    {key:"academico",short:"Aca",label:"Académico",aliases:["academico","academico"]},
+    {key:"documentacion",short:"Doc",label:"Documentación académica",aliases:["documentacion","documentacionacademica","documentos"]},
+    {key:"financiero",short:"Fin",label:"Financiero",aliases:["financiero","deuda","pago","pagos"]},
+    {key:"titulacion",short:"Tit",label:"Titulación",aliases:["titulacion","aprobaciontitulacion"]},
+    {key:"practicasvinculacion",short:"PP",label:"Prácticas preprofesionales",aliases:["practicasvinculacion","practicas","practicaspreprofesionales"]},
+    {key:"vinculacion",short:"Vinc",label:"Vinculación",aliases:["vinculacion"]},
+    {key:"seguimientograduados",short:"Grad",label:"Seguimiento a graduados",aliases:["seguimientograduados","graduados"]},
+    {key:"ingles",short:"Ing",label:"Segunda lengua / Inglés",aliases:["ingles","segundalengua"]},
+    {key:"actualizaciondatos",short:"Datos",label:"Actualización de datos",aliases:["actualizaciondatos","datos"]}
   ];
-
-  var TELEGRAM_CHAT_ID_ALIASES = [
-    "_telegramChatId",
-    "telegramChatId",
-    "TelegramChatId",
-    "telegramchatid",
-    "chatIdTelegram",
-    "ChatIdTelegram",
-    "chatidtelegram",
-    "chatId",
-    "ChatId",
-    "chatid"
-  ];
-
-  var BASE_REQUIREMENTS = [
-    {key:"academico", label:"Académico"},
-    {key:"documentacion", label:"Documentación"},
-    {key:"financiero", label:"Financiero"},
-    {key:"practicasvinculacion", label:"Prácticas"},
-    {key:"vinculacion", label:"Vinculación"},
-    {key:"seguimientograduados", label:"Seguimiento graduados"},
-    {key:"ingles", label:"Inglés"},
-    {key:"actualizaciondatos", label:"Actualización de datos"}
-  ];
-
-  var cache = {
-    baseKey:"",
-    baseRows:[],
-    filterKey:"",
-    filterRows:[],
-    optionsKey:"",
-    options:null,
-    periodsKey:"",
-    periods:[]
-  };
-
-  function text(value){
-    return String(value == null ? "" : value).trim();
-  }
-
-  function norm(value){
-    return text(value)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
-  }
-
-  function compact(value){
-    return norm(value).replace(/[^a-z0-9]/g, "");
-  }
-
-  function safeJson(value){
-    try{
-      return JSON.stringify(value || "");
-    }catch(error){
-      return String(value || "");
-    }
-  }
-
-  function cleanTelegramUser(value){
-    return text(value).replace(/^@+/, "").trim();
-  }
-
-  function dataEngine(){
-    return window.BL2DataEngine || null;
-  }
-
-  function normalizer(){
-    return window.BL2StudentNormalizer || null;
-  }
-
-  function reqEngine(){
-    return window.BL2RequirementsEngine || window.StatsRules || null;
-  }
-
-  function bl2Repo(){
-    return window.BL2EstudiantesRepo || null;
-  }
-
-  function pager(){
-    return window.BL2PaginationService || null;
-  }
-
-  function repo(){
-    if(!window.ExcelLocalRepo){
-      throw new Error("ExcelLocalRepo no disponible. Primero carga Base Local.");
-    }
-    return window.ExcelLocalRepo;
-  }
-
-  function hasCore(){
-    return !!(dataEngine() && typeof dataEngine().listStudents === "function");
-  }
-
-  function hasBL2Repo(){
-    return !!(bl2Repo() && typeof bl2Repo().buscar === "function");
-  }
-
-  function source(){
-    return hasCore() ? "BL2DataEngine" : (hasBL2Repo() ? "BL2" : "ExcelLocalRepo");
-  }
-
-  function clearCache(){
-    cache = {
-      baseKey:"",
-      baseRows:[],
-      filterKey:"",
-      filterRows:[],
-      optionsKey:"",
-      options:null,
-      periodsKey:"",
-      periods:[]
-    };
-  }
-
-  function keyPart(value){
-    return encodeURIComponent(text(value));
-  }
-
-  function makeBaseKey(opts){
-    opts = opts || {};
-    return [
-      source(),
-      keyPart(opts.periodId),
-      keyPart(opts.division),
-      keyPart(opts.matricula == null ? "ACTIVO" : opts.matricula),
-      keyPart(opts.search),
-      opts.force === true ? "force" : ""
-    ].join("|");
-  }
-
-  function makeFilterKey(opts){
-    opts = opts || {};
-    return [
-      makeBaseKey(opts),
-      keyPart(opts.career),
-      keyPart(opts.status)
-    ].join("|");
-  }
-
-  function makeOptionsKey(opts){
-    opts = opts || {};
-    return [
-      source(),
-      keyPart(opts.periodId),
-      keyPart(opts.matricula == null ? "ACTIVO" : opts.matricula),
-      keyPart(opts.division)
-    ].join("|");
-  }
-
-  function estadoMatricula(value){
-    return norm(value || "ACTIVO") === "retirado" ? "RETIRADO" : "ACTIVO";
-  }
-
-  function pick(row, aliases, fallback){
-    row = row || {};
-    aliases = aliases || [];
-    var keys = Object.keys(row);
-    var i;
-    var j;
-    var value;
-
-    for(i = 0; i < aliases.length; i += 1){
-      if(Object.prototype.hasOwnProperty.call(row, aliases[i])){
-        value = row[aliases[i]];
-        if(value != null && text(value) !== ""){return value;}
-      }
-    }
-
-    for(i = 0; i < aliases.length; i += 1){
-      for(j = 0; j < keys.length; j += 1){
-        if(compact(keys[j]) === compact(aliases[i])){
-          value = row[keys[j]];
-          if(value != null && text(value) !== ""){return value;}
-        }
-      }
-    }
-
-    return fallback;
-  }
-
-  function telegramInfo(row){
-    row = row || {};
-    var user = cleanTelegramUser(pick(row, TELEGRAM_USER_ALIASES, ""));
-    var chatId = text(pick(row, TELEGRAM_CHAT_ID_ALIASES, ""));
-
-    return {
-      user:user,
-      chatId:chatId,
-      hasTelegram:!!(user || chatId),
-      canSendByBot:!!chatId
-    };
-  }
-
-  function telegramUrl(row){
-    var info = telegramInfo(row);
-    if(info.user){return "https://t.me/" + encodeURIComponent(info.user);}
-    if(info.chatId){return "tg://user?id=" + encodeURIComponent(info.chatId);}
-    return "";
-  }
-
-  function valueOf(row, key){
-    row = row || {};
-
-    try{
-      if(reqEngine() && typeof reqEngine().valueOf === "function"){
-        return reqEngine().valueOf(row, key);
-      }
-    }catch(error){}
-
-    try{
-      if(normalizer() && typeof normalizer().value === "function"){
-        return normalizer().value(row, key);
-      }
-    }catch(error){}
-
-    if(Object.prototype.hasOwnProperty.call(row, key)){return row[key];}
-    return "";
-  }
-
-  function estadoCelda(value){
-    try{
-      if(reqEngine() && typeof reqEngine().cellStatus === "function"){
-        return reqEngine().cellStatus(value);
-      }
-    }catch(error){}
-
-    var key = norm(value);
-    if([
-      "si",
-      "sí",
-      "s",
-      "ok",
-      "cumple",
-      "aprobado",
-      "aprobada",
-      "1",
-      "true",
-      "x",
-      "validado",
-      "validada",
-      "completo",
-      "completa"
-    ].indexOf(key) >= 0){
-      return "cumple";
-    }
-
-    if(!key){return "pendiente";}
-    return "no_cumple";
-  }
-
-  function applicableRequirements(row){
-    try{
-      if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){
-        var list = reqEngine().requirementsForStudent(row || {});
-        if(Array.isArray(list)){return list;}
-      }
-    }catch(error){}
-
-    return BASE_REQUIREMENTS.slice();
-  }
-
-  function estadoEstudiante(row){
-    row = row || {};
-
-    try{
-      if(reqEngine() && typeof reqEngine().studentApproval === "function"){
-        var approval = reqEngine().studentApproval(row);
-        var applicable = Array.isArray(approval && approval.applicableRequirements) ? approval.applicableRequirements : [];
-        var missing = Array.isArray(approval && approval.missingRequirements) ? approval.missingRequirements : [];
-        var pending = Array.isArray(approval && approval.pendingRequirements) ? approval.pendingRequirements : [];
-        var okCount = Math.max(0, applicable.length - missing.length - pending.length);
-        var id = approval && approval.approved ? "cumple" : (pending.length ? "pendiente" : "no_cumple");
-
-        return {
-          id:id,
-          label:id === "cumple" ? "Cumple todo" : (id === "pendiente" ? "Con pendientes" : "No cumple"),
-          ok:okCount,
-          no:missing.length,
-          pend:pending.length,
-          approved:!!(approval && approval.approved),
-          missingRequirements:missing,
-          pendingRequirements:pending,
-          applicableRequirements:applicable
-        };
-      }
-    }catch(error){}
-
-    var ok = 0;
-    var no = 0;
-    var pend = 0;
-
-    applicableRequirements(row).forEach(function(req){
-      var state = estadoCelda(valueOf(row, req.key));
-      if(state === "cumple"){ok += 1;}
-      else if(state === "pendiente"){pend += 1;}
-      else{no += 1;}
-    });
-
-    var finalId = no ? "no_cumple" : (pend ? "pendiente" : "cumple");
-
-    return {
-      id:finalId,
-      label:finalId === "cumple" ? "Cumple todo" : (finalId === "pendiente" ? "Con pendientes" : "No cumple"),
-      ok:ok,
-      no:no,
-      pend:pend,
-      approved:finalId === "cumple",
-      missingRequirements:[],
-      pendingRequirements:[],
-      applicableRequirements:applicableRequirements(row)
-    };
-  }
-
-  function snapshot(){
-    return repo().getSnapshot ? repo().getSnapshot() : {periods:[], students:[]};
-  }
-
-  function periodId(item){
-    item = item || {};
-    if(typeof item !== "object"){return text(item);}
-    return text(item.id || item.periodoId || item.periodId || item.value || item.key || item.codigo || item.label || item.periodoLabel || item.nombre || item.name);
-  }
-
-  function periodLabel(item){
-    item = item || {};
-    if(typeof item !== "object"){return text(item);}
-    return text(item.label || item.periodoLabel || item.nombre || item.name || item.descripcion || item.id || item.periodoId || item.periodId || item.value || item.key);
-  }
-
-  function normalizePeriod(item){
-    var id = periodId(item);
-    var label = periodLabel(item) || id;
-    if(!id && !label){return null;}
-    return {
-      id:id || label,
-      value:id || label,
-      label:label || id,
-      raw:item
-    };
-  }
-
-  function rawPeriods(){
-    try{
-      if(dataEngine() && typeof dataEngine().listPeriods === "function"){
-        return dataEngine().listPeriods() || [];
-      }
-    }catch(error){}
-
-    try{
-      if(hasBL2Repo() && typeof bl2Repo().listPeriods === "function"){
-        return bl2Repo().listPeriods() || [];
-      }
-    }catch(error){}
-
-    try{
-      if(repo().listPeriods){return repo().listPeriods() || [];}
-      return snapshot().periods || [];
-    }catch(error){
-      return [];
-    }
-  }
-
-  function periods(){
-    var raw = rawPeriods();
-    var key = source() + "|" + safeJson(raw);
-    var map = Object.create(null);
-    var out = [];
-
-    if(cache.periodsKey === key && Array.isArray(cache.periods)){
-      return cache.periods.slice();
-    }
-
-    raw.forEach(function(item){
-      var p = normalizePeriod(item);
-      var k;
-      if(!p){return;}
-      k = compact(p.id || p.label);
-      if(!k){return;}
-      if(!map[k]){
-        map[k] = true;
-        out.push(p);
-      }
-    });
-
-    out.sort(function(a, b){
-      return text(a.label || a.id).localeCompare(text(b.label || b.id), "es");
-    });
-
-    cache.periodsKey = key;
-    cache.periods = out.slice();
-    return out;
-  }
-
-  function periodTokens(value){
-    var out = [];
-
-    function add(v){
-      v = text(v);
-      if(v){out.push(v);}
-    }
-
-    if(value && typeof value === "object"){
-      add(value.id);
-      add(value.periodoId);
-      add(value.periodId);
-      add(value.value);
-      add(value.key);
-      add(value.codigo);
-      add(value.label);
-      add(value.periodoLabel);
-      add(value.nombre);
-      add(value.name);
-      add(value.descripcion);
-      add(value.raw);
-    }else{
-      add(value);
-    }
-
-    return out;
-  }
-
-  function sameToken(a, b){
-    if(!text(a) || !text(b)){return false;}
-    return text(a) === text(b) || norm(a) === norm(b) || compact(a) === compact(b);
-  }
-
-  function samePeriod(a, b){
-    if(!text(b)){return true;}
-    if(!text(a)){return false;}
-
-    try{
-      if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.samePeriod === "function"){
-        if(window.BLPeriodosCanon.samePeriod(a, b)){return true;}
-      }
-    }catch(error){}
-
-    var aTokens = periodTokens(a);
-    var bTokens = periodTokens(b);
-    var i;
-    var j;
-
-    for(i = 0; i < aTokens.length; i += 1){
-      for(j = 0; j < bTokens.length; j += 1){
-        if(sameToken(aTokens[i], bTokens[j])){return true;}
-      }
-    }
-
-    return false;
-  }
-
-  function rowPeriodId(row){
-    row = row || {};
-    return text(row._bl2PeriodoId || row.periodoId || row.ultimoPeriodoId || row.periodId || row.idPeriodo || row._periodoId);
-  }
-
-  function rowPeriodLabel(row){
-    row = row || {};
-    return text(row._bl2Periodo || row.periodoLabel || row.periodo || row.Periodo || row._periodo || rowPeriodId(row));
-  }
-
-  function rowPeriodTokens(row){
-    row = row || {};
-    return [
-      row._periodoId,
-      row._periodo,
-      row._bl2PeriodoId,
-      row._bl2Periodo,
-      row.periodoId,
-      row.periodId,
-      row.idPeriodo,
-      row.ultimoPeriodoId,
-      row.periodoLabel,
-      row.periodo,
-      row.Periodo
-    ].filter(function(value){return text(value);});
-  }
-
-  function rowMatchesPeriod(row, wanted){
-    if(!text(wanted)){return true;}
-    return rowPeriodTokens(row).some(function(value){
-      return samePeriod(value, wanted);
-    });
-  }
-
-  function divisionOf(row){
-    row = row || {};
-
-    if(row._bl2Division){return row._bl2Division;}
-
-    try{
-      if(window.BLDivisionesService && typeof window.BLDivisionesService.studentDivision === "function"){
-        return window.BLDivisionesService.studentDivision(row);
-      }
-    }catch(error){}
-
-    var list = Array.isArray(row.divisiones) ? row.divisiones : [];
-    return text(list[0] || row.division || row.Division || row["División"] || row.divisionPrincipal || "Sin división") || "Sin división";
-  }
-
-  function hasDivision(row, division){
-    if(!text(division)){return true;}
-
-    try{
-      if(window.BLDivisionesService && typeof window.BLDivisionesService.hasDivision === "function"){
-        return window.BLDivisionesService.hasDivision(row, division);
-      }
-    }catch(error){}
-
-    if(row && row._bl2Division){return norm(row._bl2Division) === norm(division);}
-    return norm(divisionOf(row)) === norm(division);
-  }
-
-  function normalizeRow(row){
-    if(normalizer() && typeof normalizer().normalize === "function"){
-      try{return normalizer().normalize(row || {}, {clone:false});}catch(error){}
-    }
-    return Object.assign({}, row || {});
-  }
-
-  function buildSearchText(row){
-    return norm([
-      row._cedula,
-      row._nombres,
-      row._carrera,
-      row._division,
-      row._correo,
-      row._correoPersonal,
-      row._correoInstitucional,
-      row._celular,
-      row._telegramUser,
-      row._telegramChatId,
-      row._periodo,
-      row._periodoId,
-      row.periodoLabel,
-      row.periodoId,
-      row.periodo,
-      row._estadoMatricula,
-      row._estadoGeneral && row._estadoGeneral.label
-    ].join(" "));
-  }
-
-  function decorate(row){
-    var r = normalizeRow(row);
-    var tg = telegramInfo(r);
-
-    r._estadoGeneral = estadoEstudiante(r);
-    r._estadoMatricula = estadoMatricula(r._bl2EstadoMatricula || r.estadoMatricula || r.EstadoMatricula || r.matricula);
-    r._cedula = text(r._bl2Id || r.cedula || r.Cedula || r.numeroIdentificacion || r.NumeroIdentificacion || r.identificacion || r.Identificacion);
-    r._nombres = text(r._bl2Nombre || r.nombres || r.Nombres || r.nombre || r.Nombre || r.estudiante || r.Estudiante);
-    r._carrera = text(r._bl2Carrera || r.nombrecarrera || r.nombreCarrera || r.NombreCarrera || r.carrera || r.Carrera) || "SIN CARRERA";
-    r._division = divisionOf(r);
-    r._celular = text(r._bl2Celular || r.celular || r.Celular || r.telefono || r.Telefono || r.whatsapp || r.Whatsapp);
-    r._correoPersonal = text(r._bl2CorreoPersonal || r.correopersonal || r.CorreoPersonal || r.correoPersonal);
-    r._correoInstitucional = text(r._bl2CorreoInstitucional || r.correoinstitucional || r.CorreoInstitucional || r.correoInstitucional);
-    r._correo = text(r._correoPersonal || r._correoInstitucional || r.correo || r.Correo || r.email || r.Email);
-    r._periodoId = rowPeriodId(r);
-    r._periodo = rowPeriodLabel(r) || r._periodoId || "SIN PERÍODO";
-    r._telegramUser = tg.user;
-    r._telegramChatId = tg.chatId;
-    r._telegramTiene = tg.hasTelegram;
-    r._telegramBot = tg.canSendByBot;
-    r._searchText = buildSearchText(r);
-
-    return r;
-  }
-
-  function rowsFromCore(opts){
-    var result = dataEngine().listStudents({
-      periodId:opts.periodId || "",
-      division:opts.division || "",
-      matricula:opts.matricula == null ? "ACTIVO" : opts.matricula,
-      search:opts.search || "",
-      limit:0,
-      force:opts.force === true
-    }) || {};
-
-    return (result.rows || []).map(decorate);
-  }
-
-  function rowsFromRepo(opts){
-    var result = bl2Repo().buscar({
-      periodId:opts.periodId || "",
-      division:opts.division || "",
-      matricula:opts.matricula == null ? "ACTIVO" : opts.matricula,
-      search:opts.search || "",
-      limit:0
-    }) || {};
-
-    return (result.rows || []).map(decorate);
-  }
-
-  function rowsFromExcel(opts){
-    var matricula = opts.matricula == null ? "ACTIVO" : text(opts.matricula);
-    var rows = [];
-
-    try{
-      if(repo().filterStudents){
-        rows = repo().filterStudents({
-          periodoId:opts.periodId || "",
-          periodId:opts.periodId || "",
-          estadoMatricula:matricula,
-          matricula:matricula,
-          division:opts.division || ""
-        });
-      }else if(repo().listStudentsByStatus && matricula !== undefined){
-        rows = repo().listStudentsByStatus(matricula || "");
-      }else if(repo().listAllStudents){
-        rows = repo().listAllStudents();
-      }else{
-        rows = snapshot().students || [];
-      }
-    }catch(error){
-      rows = [];
-    }
-
-    return (rows || []).map(decorate);
-  }
-
-  function baseRows(opts){
-    opts = opts || {};
-    var key = makeBaseKey(opts);
-    var rows = [];
-
-    if(cache.baseKey === key && Array.isArray(cache.baseRows)){
-      return cache.baseRows;
-    }
-
-    try{
-      if(hasCore()){
-        rows = rowsFromCore(opts);
-        cache.baseKey = key;
-        cache.baseRows = rows;
-        return rows;
-      }
-    }catch(error){
-      console.warn("[TablaCore] BL2DataEngine falló", error);
-    }
-
-    try{
-      if(hasBL2Repo()){
-        rows = rowsFromRepo(opts);
-        cache.baseKey = key;
-        cache.baseRows = rows;
-        return rows;
-      }
-    }catch(error2){
-      console.warn("[TablaCore] BL2EstudiantesRepo falló", error2);
-    }
-
-    rows = rowsFromExcel(opts);
-    cache.baseKey = key;
-    cache.baseRows = rows;
-    return rows;
-  }
-
-  function normalizeStatusFilter(status){
-    status = text(status);
-    if(status === "pendiente"){return "pendiente";}
-    return status;
-  }
-
-  function filterAll(opts){
-    opts = opts || {};
-
-    var key = makeFilterKey(opts);
-    var q = norm(opts.search);
-    var periodIdValue = text(opts.periodId);
-    var division = text(opts.division);
-    var career = text(opts.career || opts.carrera);
-    var status = normalizeStatusFilter(opts.status || opts.estado);
-    var matricula = opts.matricula == null ? "ACTIVO" : text(opts.matricula);
-    var rows;
-
-    if(cache.filterKey === key && Array.isArray(cache.filterRows)){
-      return cache.filterRows;
-    }
-
-    rows = baseRows(opts).filter(function(row){
-      if(matricula && row._estadoMatricula !== matricula){return false;}
-      if(periodIdValue && !rowMatchesPeriod(row, periodIdValue)){return false;}
-      if(division && !hasDivision(row, division)){return false;}
-      if(career && row._carrera !== career){return false;}
-      if(status && (!row._estadoGeneral || row._estadoGeneral.id !== status)){return false;}
-      if(q && String(row._searchText || "").indexOf(q) < 0){return false;}
-      return true;
-    });
-
-    cache.filterKey = key;
-    cache.filterRows = rows;
-    return rows;
-  }
-
-  function filter(opts){
-    return filterAll(opts);
-  }
-
-  function listOptions(values){
-    var map = Object.create(null);
-
-    (values || []).forEach(function(value){
-      value = text(value);
-      if(value){map[value] = true;}
-    });
-
-    return Object.keys(map).sort(function(a, b){
-      return a.localeCompare(b, "es");
-    });
-  }
-
-  function careers(list){
-    return listOptions((list || baseRows({matricula:"ACTIVO", limit:0})).map(function(row){
-      return row._carrera || "SIN CARRERA";
-    }));
-  }
-
-  function divisions(list, opts){
-    opts = opts || {};
-
-    if(!list && hasBL2Repo() && typeof bl2Repo().listDivisions === "function"){
-      try{
-        return bl2Repo().listDivisions({
-          periodId:opts.periodId || "",
-          matricula:opts.matricula == null ? "ACTIVO" : opts.matricula
-        }) || [];
-      }catch(error){}
-    }
-
-    var rows = list || baseRows({
-      periodId:opts.periodId || "",
-      matricula:opts.matricula == null ? "ACTIVO" : opts.matricula,
-      limit:0
-    });
-
-    try{
-      if(window.BLDivisionesService && typeof window.BLDivisionesService.listDivisionsWithEmpty === "function"){
-        return window.BLDivisionesService.listDivisionsWithEmpty(rows, "");
-      }
-    }catch(error){}
-
-    return listOptions(rows.map(function(row){return divisionOf(row);}));
-  }
-
-  function options(opts){
-    opts = opts || {};
-    var key = makeOptionsKey(opts);
-    var rows;
-    var divisionMap = Object.create(null);
-    var careerMap = Object.create(null);
-
-    if(cache.optionsKey === key && cache.options){
-      return {
-        divisions:(cache.options.divisions || []).slice(),
-        careers:(cache.options.careers || []).slice()
-      };
-    }
-
-    rows = baseRows({
-      periodId:opts.periodId || "",
-      matricula:opts.matricula == null ? "ACTIVO" : opts.matricula,
-      division:"",
-      search:""
-    });
-
-    rows.forEach(function(row){
-      var div = text(row._division || divisionOf(row)) || "Sin división";
-      divisionMap[div] = true;
-
-      if(!text(opts.division) || hasDivision(row, opts.division)){
-        careerMap[text(row._carrera) || "SIN CARRERA"] = true;
-      }
-    });
-
-    cache.optionsKey = key;
-    cache.options = {
-      divisions:Object.keys(divisionMap).sort(function(a, b){return a.localeCompare(b, "es");}),
-      careers:Object.keys(careerMap).sort(function(a, b){return a.localeCompare(b, "es");})
-    };
-
-    return {
-      divisions:cache.options.divisions.slice(),
-      careers:cache.options.careers.slice()
-    };
-  }
-
-  function buildPager(total, opts){
-    opts = opts || {};
-    var size = Number(opts.pageSize || 100) || 100;
-    var pages = Math.max(1, Math.ceil(total / size));
-    var page = Math.min(Math.max(1, Number(opts.page || 1) || 1), pages);
-    var offset = (page - 1) * size;
-    var p;
-
-    if(pager() && typeof pager().build === "function"){
-      try{
-        p = pager().build(total, {page:page, pageSize:size});
-        p.page = page;
-        p.pageSize = size;
-        p.offset = offset;
-        p.pages = pages;
-        p.total = total;
-        p.hasPrev = page > 1;
-        p.hasNext = page < pages;
-        p.label = total + " registros";
-        return p;
-      }catch(error){}
-    }
-
-    return {
-      page:page,
-      pageSize:size,
-      offset:offset,
-      total:total,
-      pages:pages,
-      hasPrev:page > 1,
-      hasNext:page < pages,
-      label:total + " registros"
-    };
-  }
-
-  function page(opts){
-    opts = opts || {};
-    var rows = filterAll(opts);
-    var pageInfo = buildPager(rows.length, opts);
-    var pageRows = rows.slice(pageInfo.offset, pageInfo.offset + pageInfo.pageSize);
-
-    return {
-      rows:pageRows,
-      allRows:rows,
-      total:rows.length,
-      pagination:pageInfo,
-      summary:summary(rows),
-      source:source()
-    };
-  }
-
-  function summary(list){
-    list = Array.isArray(list) ? list : [];
-    var careerMap = Object.create(null);
-    var counters = {
-      total:list.length,
-      cumple:0,
-      pendiente:0,
-      no_cumple:0,
-      carreras:0
-    };
-
-    list.forEach(function(row){
-      var id = row._estadoGeneral && row._estadoGeneral.id ? row._estadoGeneral.id : "no_cumple";
-      if(!Object.prototype.hasOwnProperty.call(counters, id)){counters[id] = 0;}
-      counters[id] += 1;
-      careerMap[text(row._carrera) || "SIN CARRERA"] = true;
-    });
-
-    counters.carreras = Object.keys(careerMap).length;
-    return counters;
-  }
-
-  function whatsappUrl(row){
-    var phone = text(row && row._celular).replace(/[^0-9]/g, "");
-    var msg;
-
-    if(!phone){return "";}
-
-    if(phone.length === 10 && phone.charAt(0) === "0"){
-      phone = "593" + phone.slice(1);
-    }
-
-    msg = "Estimado/a " + ((row && row._nombres) || "estudiante") + ", le escribimos sobre sus requisitos de titulación.";
-    return "https://wa.me/" + phone + "?text=" + encodeURIComponent(msg);
-  }
-
-  window.TablaCore = {
-    version:VERSION,
-    estadoEstudiante:estadoEstudiante,
-    estadoMatricula:estadoMatricula,
-    periods:periods,
-    students:function(matricula){
-      return baseRows({matricula:matricula == null ? "ACTIVO" : matricula});
-    },
-    careers:careers,
-    divisions:divisions,
-    options:options,
-    filter:filter,
-    page:page,
-    summary:summary,
-    whatsappUrl:whatsappUrl,
-    telegramInfo:telegramInfo,
-    telegramUrl:telegramUrl,
-    decorate:decorate,
-    divisionOf:divisionOf,
-    samePeriod:samePeriod,
-    source:source,
-    clearCache:clearCache
-  };
+  var ALIAS={falta:"falta",faltan:"falta",in:"falta",incompleto:"falta",aca:"academico",academico:"academico",doc:"documentacion",docs:"documentacion",documentacion:"documentacion",fin:"financiero",financiero:"financiero",pago:"financiero",pagos:"financiero",tit:"titulacion",titulacion:"titulacion",pp:"practicasvinculacion",practicas:"practicasvinculacion",practicasvinculacion:"practicasvinculacion",vinc:"vinculacion",vinculacion:"vinculacion",grad:"seguimientograduados",graduados:"seguimientograduados",seguimientograduados:"seguimientograduados",ing:"ingles",ingles:"ingles",datos:"actualizaciondatos",actualizaciondatos:"actualizaciondatos",nart:"nota_articulo",notaarticulo:"nota_articulo",nota_articulo:"nota_articulo",ndef:"nota_defensa",notadefensa:"nota_defensa",nota_defensa:"nota_defensa",sinarticulo:"sin_articulo",sin_articulo:"sin_articulo",noaprueba:"no_aprueba",no_aprueba:"no_aprueba"};
+  var NOTE={nota_articulo:true,nota_defensa:true,sin_articulo:true,no_aprueba:true};
+  var TG_USER=["_telegramUser","telegramUser","TelegramUser","usuarioTelegram","UsuarioTelegram","telegram","Telegram"];
+  var TG_ID=["_telegramChatId","telegramChatId","TelegramChatId","chatIdTelegram","ChatIdTelegram","chatId","ChatId"];
+  var cache={baseKey:"",baseRows:[],filterKey:"",filterRows:[],optionsKey:"",options:null,periodsKey:"",periods:[]};
+
+  function text(v){return String(v==null?"":v).trim();}
+  function norm(v){return text(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();}
+  function compact(v){return norm(v).replace(/[^a-z0-9]/g,"");}
+  function enc(v){return encodeURIComponent(text(v));}
+  function json(v){try{return JSON.stringify(v||"");}catch(e){return String(v||"");}}
+  function dataEngine(){return window.BL2DataEngine||null;}
+  function normalizer(){return window.BL2StudentNormalizer||null;}
+  function reqEngine(){return window.BL2RequirementsEngine||window.StatsRules||null;}
+  function bl2Repo(){return window.BL2EstudiantesRepo||null;}
+  function pager(){return window.BL2PaginationService||null;}
+  function repo(){if(!window.ExcelLocalRepo)throw new Error("ExcelLocalRepo no disponible. Primero carga Base Local.");return window.ExcelLocalRepo;}
+  function hasCore(){return !!(dataEngine()&&typeof dataEngine().listStudents==="function");}
+  function hasBL2Repo(){return !!(bl2Repo()&&typeof bl2Repo().buscar==="function");}
+  function source(){return hasCore()?"BL2DataEngine":(hasBL2Repo()?"BL2":"ExcelLocalRepo");}
+  function clearCache(){cache={baseKey:"",baseRows:[],filterKey:"",filterRows:[],optionsKey:"",options:null,periodsKey:"",periods:[]};}
+  function reqKey(v){return ALIAS[compact(v)]||compact(v);}
+  function reqFilters(v){var out=[],m={};function add(x){var k=reqKey(x);if(k&&!m[k]&&k!=="todos"&&k!=="all"){m[k]=true;out.push(k);}}if(Array.isArray(v))v.forEach(add);else if(v&&typeof v==="object")Object.keys(v).forEach(function(k){if(v[k])add(k);});else if(text(v))text(v).split(/[|,;\s]+/).forEach(add);return out;}
+  function reqFiltersFromOpts(o){o=o||{};return reqFilters(o.requirements||o.activeRequirements||o.requirementFilters||o.reqFilters||o.filtrosRequisitos||o.requisitosActivos||"");}
+  function makeBaseKey(o){o=o||{};return [source(),enc(o.periodId),enc(o.division),enc(o.matricula==null?"ACTIVO":o.matricula),enc(o.search),o.force===true?"force":""].join("|");}
+  function makeFilterKey(o){o=o||{};return [makeBaseKey(o),enc(o.career||o.carrera),enc(o.status||o.estado),enc(reqFiltersFromOpts(o).join(","))].join("|");}
+  function makeOptionsKey(o){o=o||{};return [source(),enc(o.periodId),enc(o.matricula==null?"ACTIVO":o.matricula),enc(o.division)].join("|");}
+  function estadoMatricula(v){return norm(v||"ACTIVO")==="retirado"?"RETIRADO":"ACTIVO";}
+
+  function pick(row,aliases,fallback){row=row||{};aliases=aliases||[];var keys=Object.keys(row),i,j,val;for(i=0;i<aliases.length;i++){if(Object.prototype.hasOwnProperty.call(row,aliases[i])){val=row[aliases[i]];if(val!=null&&text(val)!=="")return val;}}for(i=0;i<aliases.length;i++){for(j=0;j<keys.length;j++){if(compact(keys[j])===compact(aliases[i])){val=row[keys[j]];if(val!=null&&text(val)!=="")return val;}}}return fallback;}
+  function reqDef(k){k=reqKey(k);for(var i=0;i<REQS.length;i++){if(REQS[i].key===k)return REQS[i];}return {key:k,short:k,label:k,aliases:[k]};}
+  function telegramInfo(row){row=row||{};var user=text(pick(row,TG_USER,"")).replace(/^@+/,""),id=text(pick(row,TG_ID,""));return {user:user,chatId:id,hasTelegram:!!(user||id),canSendByBot:!!id};}
+  function telegramUrl(row){var t=telegramInfo(row);if(t.user)return "https://t.me/"+encodeURIComponent(t.user);if(t.chatId)return "tg://user?id="+encodeURIComponent(t.chatId);return "";}
+
+  function valueOf(row,k){row=row||{};k=reqKey(k);var d=reqDef(k),v;try{if(reqEngine()&&typeof reqEngine().valueOf==="function"){v=reqEngine().valueOf(row,k);if(v!=null&&text(v)!=="")return v;}}catch(e){}try{if(normalizer()&&typeof normalizer().value==="function"){v=normalizer().value(row,k);if(v!=null&&text(v)!=="")return v;}}catch(e2){}if(Object.prototype.hasOwnProperty.call(row,k))return row[k];return pick(row,d.aliases||[k],"");}
+  function estadoCelda(v){try{if(reqEngine()&&typeof reqEngine().cellStatus==="function"){var s=reqEngine().cellStatus(v);if(s)return s;}}catch(e){}var k=norm(v);if(["si","sí","s","ok","cumple","aprobado","aprobada","1","true","x","validado","validada","completo","completa"].indexOf(k)>=0)return "cumple";if(!k||k==="pendiente"||k==="por revisar"||k==="sin registrar")return "pendiente";return "no_cumple";}
+  function estadoLabel(s){return s==="cumple"?"Cumple":(s==="pendiente"?"Pendiente":"No cumple");}
+  function applicableRequirements(row){var list=[];try{if(reqEngine()&&typeof reqEngine().requirementsForStudent==="function")list=reqEngine().requirementsForStudent(row||{})||[];}catch(e){list=[];}if(!Array.isArray(list)||!list.length)list=REQS.slice();var m={};return list.map(function(r){if(typeof r==="string")r=reqDef(r);else r=Object.assign({},reqDef(r.key||r.id||r.field||r.campo||r.label),r);r.key=reqKey(r.key||r.id||r.field||r.campo||r.label);return r;}).filter(function(r){if(!r||!r.key||NOTE[r.key]||m[r.key])return false;m[r.key]=true;return true;});}
+  function requirementInfo(row,k){var d=reqDef(k),raw=valueOf(row,d.key),s=estadoCelda(raw);return {key:d.key,short:d.short,label:d.label,value:text(raw),estado:s,estadoLabel:estadoLabel(s),missing:s!=="cumple"};}
+  function requirementStatusMap(row){var out={};applicableRequirements(row).forEach(function(r){out[r.key]=requirementInfo(row,r.key);});return out;}
+  function missingRequirements(row){var map=row&&row._reqStatusMap?row._reqStatusMap:requirementStatusMap(row||{});return Object.keys(map).map(function(k){return map[k];}).filter(function(x){return x&&x.missing;});}
+  function hasAnyMissing(row){return missingRequirements(row).length>0;}
+  function num(v){var r=text(v).replace(",",".").replace(/[^0-9.\-]/g,"");if(!r)return null;var n=Number(r);return isNaN(n)?null:n;}
+  function firstNum(row,a){return num(pick(row||{},a||[],""));}
+  function noteInfo(row){row=row||{};var art=firstNum(row,["_notart","notart","Notart","N-Art","NART","notaArticulo","nota_articulo","articulo","Artículo","Articulo"]),def=firstNum(row,["_notdef","notdef","Notdef","N-Def","NDEF","notaDefensa","nota_defensa","defensa","Defensa"]),fin=firstNum(row,["_notafinal","notafinal","Notafinal","N-Fin","NFIN","notaFinal","nota_final","final"]);if(fin==null&&art!=null&&def!=null)fin=Number((art*.7+def*.3).toFixed(2));return {articulo:art,defensa:def,final:fin,faltaArticulo:art==null||art<7,faltaDefensa:def==null||def<7,sinArticulo:art==null,noAprueba:art==null||art<7||def==null||def<7||(fin!=null&&fin<7)};}
+  function noteFilterMatches(row,k){var i=row&&row._notasInfo?row._notasInfo:noteInfo(row||{});if(k==="nota_articulo")return !!i.faltaArticulo;if(k==="nota_defensa")return !!i.faltaDefensa;if(k==="sin_articulo")return !!i.sinArticulo;if(k==="no_aprueba")return !!i.noAprueba;return false;}
+  function hasRequirementMissing(row,k){k=reqKey(k);if(k==="falta")return hasAnyMissing(row);if(NOTE[k])return noteFilterMatches(row,k);var map=row&&row._reqStatusMap?row._reqStatusMap:requirementStatusMap(row||{});if(!map[k])map[k]=requirementInfo(row||{},k);return !!(map[k]&&map[k].missing);}
+  function matchesRequirementFilters(row,filters){filters=reqFilters(filters);if(!filters.length)return true;var specific=filters.filter(function(k){return k!=="falta";});if(!specific.length)return hasAnyMissing(row);return specific.every(function(k){return hasRequirementMissing(row,k);});}
+  function estadoEstudiante(row){row=row||{};var reqs=applicableRequirements(row),map=requirementStatusMap(row),miss=Object.keys(map).map(function(k){return map[k];}).filter(function(x){return x&&x.missing;}),no=miss.filter(function(x){return x.estado==="no_cumple";}).length,pend=miss.filter(function(x){return x.estado==="pendiente";}).length,ok=Math.max(0,reqs.length-miss.length),id=no?"no_cumple":(pend?"pendiente":"cumple");return {id:id,label:id==="cumple"?"Cumple todo":(id==="pendiente"?"Con pendientes":"No cumple"),ok:ok,no:no,pend:pend,approved:id==="cumple",missingRequirements:miss,pendingRequirements:miss.filter(function(x){return x.estado==="pendiente";}),applicableRequirements:reqs};}
+
+  function snapshot(){return repo().getSnapshot?repo().getSnapshot():{periods:[],students:[]};}
+  function periodId(i){i=i||{};if(typeof i!=="object")return text(i);return text(i.id||i.periodoId||i.periodId||i.value||i.key||i.codigo||i.label||i.periodoLabel||i.nombre||i.name);}
+  function periodLabel(i){i=i||{};if(typeof i!=="object")return text(i);return text(i.label||i.periodoLabel||i.nombre||i.name||i.descripcion||i.id||i.periodoId||i.periodId||i.value||i.key);}
+  function normalizePeriod(i){var id=periodId(i),label=periodLabel(i)||id;if(!id&&!label)return null;return {id:id||label,value:id||label,label:label||id,raw:i};}
+  function rawPeriods(){try{if(dataEngine()&&typeof dataEngine().listPeriods==="function")return dataEngine().listPeriods()||[];}catch(e){}try{if(hasBL2Repo()&&typeof bl2Repo().listPeriods==="function")return bl2Repo().listPeriods()||[];}catch(e2){}try{if(repo().listPeriods)return repo().listPeriods()||[];return snapshot().periods||[];}catch(e3){return [];}}
+  function periods(){var raw=rawPeriods(),key=source()+"|"+json(raw),map={},out=[];if(cache.periodsKey===key&&Array.isArray(cache.periods))return cache.periods.slice();raw.forEach(function(i){var p=normalizePeriod(i),k;if(!p)return;k=compact(p.id||p.label);if(!k||map[k])return;map[k]=true;out.push(p);});out.sort(function(a,b){return text(a.label||a.id).localeCompare(text(b.label||b.id),"es");});cache.periodsKey=key;cache.periods=out.slice();return out;}
+  function periodTokens(v){var out=[];function add(x){x=text(x);if(x)out.push(x);}if(v&&typeof v==="object"){["id","periodoId","periodId","value","key","codigo","label","periodoLabel","nombre","name","descripcion","raw"].forEach(function(k){add(v[k]);});}else add(v);return out;}
+  function sameToken(a,b){return !!(text(a)&&text(b)&&(text(a)===text(b)||norm(a)===norm(b)||compact(a)===compact(b)));}
+  function samePeriod(a,b){if(!text(b))return true;if(!text(a))return false;try{if(window.BLPeriodosCanon&&typeof window.BLPeriodosCanon.samePeriod==="function"&&window.BLPeriodosCanon.samePeriod(a,b))return true;}catch(e){}var A=periodTokens(a),B=periodTokens(b);for(var i=0;i<A.length;i++){for(var j=0;j<B.length;j++){if(sameToken(A[i],B[j]))return true;}}return false;}
+  function rowPeriodId(r){r=r||{};return text(r._bl2PeriodoId||r.periodoId||r.ultimoPeriodoId||r.periodId||r.idPeriodo||r._periodoId);}
+  function rowPeriodLabel(r){r=r||{};return text(r._bl2Periodo||r.periodoLabel||r.periodo||r.Periodo||r._periodo||rowPeriodId(r));}
+  function rowPeriodTokens(r){r=r||{};return [r._periodoId,r._periodo,r._bl2PeriodoId,r._bl2Periodo,r.periodoId,r.periodId,r.idPeriodo,r.ultimoPeriodoId,r.periodoLabel,r.periodo,r.Periodo].filter(function(v){return text(v);});}
+  function rowMatchesPeriod(r,w){return !text(w)||rowPeriodTokens(r).some(function(v){return samePeriod(v,w);});}
+  function divisionOf(r){r=r||{};if(r._bl2Division)return r._bl2Division;try{if(window.BLDivisionesService&&typeof window.BLDivisionesService.studentDivision==="function")return window.BLDivisionesService.studentDivision(r);}catch(e){}var list=Array.isArray(r.divisiones)?r.divisiones:[];return text(list[0]||r.division||r.Division||r["División"]||r.divisionPrincipal||"Sin división")||"Sin división";}
+  function hasDivision(r,d){if(!text(d))return true;try{if(window.BLDivisionesService&&typeof window.BLDivisionesService.hasDivision==="function")return window.BLDivisionesService.hasDivision(r,d);}catch(e){}if(r&&r._bl2Division)return norm(r._bl2Division)===norm(d);return norm(divisionOf(r))===norm(d);}
+  function normalizeRow(r){if(normalizer()&&typeof normalizer().normalize==="function"){try{return normalizer().normalize(r||{},{clone:false});}catch(e){}}return Object.assign({},r||{});}
+  function abreviarCarrera(v){var o=text(v)||"SIN CARRERA",k=norm(o),p=k.indexOf("universitaria")>=0||k.indexOf("universitario")>=0||k.indexOf("licenciatura")>=0?"U.":"T.";if(k.indexOf("administr")>=0)return p+" Admin";if(k.indexOf("enfermer")>=0)return p+" Enf";if(k.indexOf("software")>=0||k.indexOf("desarrollo")>=0)return p+" Software";if(k.indexOf("marketing")>=0||k.indexOf("mercad")>=0)return p+" Mkt";if(k.indexOf("alimento")>=0)return p+" Alimentos";if(k.indexOf("talento")>=0||k.indexOf("humano")>=0)return p+" Tal. Hum";if(k.indexOf("redes")>=0||k.indexOf("fibra")>=0)return p+" Redes";if(k.indexOf("electron")>=0)return p+" Electr";if(o.length<=18)return o;return o.split(/\s+/).filter(function(w){return w.length>3;}).slice(0,2).join(" ")||o.slice(0,18);}
+  function buildSearchText(r){return norm([r._cedula,r._nombres,r._carrera,r._carreraCorta,r._division,r._correo,r._correoPersonal,r._correoInstitucional,r._celular,r._telegramUser,r._telegramChatId,r._periodo,r._periodoId,r.periodoLabel,r.periodoId,r.periodo,r._estadoMatricula,r._estadoGeneral&&r._estadoGeneral.label].join(" "));}
+  function decorate(row){var r=normalizeRow(row),tg=telegramInfo(r);r._estadoMatricula=estadoMatricula(r._bl2EstadoMatricula||r.estadoMatricula||r.EstadoMatricula||r.matricula);r._cedula=text(r._bl2Id||r.cedula||r.Cedula||r.numeroIdentificacion||r.NumeroIdentificacion||r.identificacion||r.Identificacion);r._nombres=text(r._bl2Nombre||r.nombres||r.Nombres||r.nombre||r.Nombre||r.estudiante||r.Estudiante);r._carrera=text(r._bl2Carrera||r.nombrecarrera||r.nombreCarrera||r.NombreCarrera||r.carrera||r.Carrera)||"SIN CARRERA";r._carreraCorta=abreviarCarrera(r._carrera);r._division=divisionOf(r);r._celular=text(r._bl2Celular||r.celular||r.Celular||r.telefono||r.Telefono||r.whatsapp||r.Whatsapp);r._correoPersonal=text(r._bl2CorreoPersonal||r.correopersonal||r.CorreoPersonal||r.correoPersonal);r._correoInstitucional=text(r._bl2CorreoInstitucional||r.correoinstitucional||r.CorreoInstitucional||r.correoInstitucional);r._correo=text(r._correoPersonal||r._correoInstitucional||r.correo||r.Correo||r.email||r.Email);r._periodoId=rowPeriodId(r);r._periodo=rowPeriodLabel(r)||r._periodoId||"SIN PERÍODO";r._telegramUser=tg.user;r._telegramChatId=tg.chatId;r._telegramTiene=tg.hasTelegram;r._telegramBot=tg.canSendByBot;r._reqStatusMap=requirementStatusMap(r);r._requisitosFaltantes=missingRequirements(r);r._estadoGeneral=estadoEstudiante(r);r._notasInfo=noteInfo(r);r._searchText=buildSearchText(r);return r;}
+
+  function rowsFromCore(o){var r=dataEngine().listStudents({periodId:o.periodId||"",division:o.division||"",matricula:o.matricula==null?"ACTIVO":o.matricula,search:o.search||"",limit:0,force:o.force===true})||{};return (r.rows||[]).map(decorate);}
+  function rowsFromRepo(o){var r=bl2Repo().buscar({periodId:o.periodId||"",division:o.division||"",matricula:o.matricula==null?"ACTIVO":o.matricula,search:o.search||"",limit:0})||{};return (r.rows||[]).map(decorate);}
+  function rowsFromExcel(o){var m=o.matricula==null?"ACTIVO":text(o.matricula),rows=[];try{if(repo().filterStudents)rows=repo().filterStudents({periodoId:o.periodId||"",periodId:o.periodId||"",estadoMatricula:m,matricula:m,division:o.division||""});else if(repo().listStudentsByStatus&&m!==undefined)rows=repo().listStudentsByStatus(m||"");else if(repo().listAllStudents)rows=repo().listAllStudents();else rows=snapshot().students||[];}catch(e){rows=[];}return (rows||[]).map(decorate);}
+  function baseRows(o){o=o||{};var key=makeBaseKey(o),rows=[];if(cache.baseKey===key&&Array.isArray(cache.baseRows))return cache.baseRows;try{if(hasCore()){rows=rowsFromCore(o);cache.baseKey=key;cache.baseRows=rows;return rows;}}catch(e){console.warn("[TablaCore] BL2DataEngine falló",e);}try{if(hasBL2Repo()){rows=rowsFromRepo(o);cache.baseKey=key;cache.baseRows=rows;return rows;}}catch(e2){console.warn("[TablaCore] BL2EstudiantesRepo falló",e2);}rows=rowsFromExcel(o);cache.baseKey=key;cache.baseRows=rows;return rows;}
+  function normalizeStatusFilter(s){s=text(s);return s==="pendiente"?"pendiente":s;}
+  function filterAll(o){o=o||{};var key=makeFilterKey(o),q=norm(o.search),p=text(o.periodId),d=text(o.division),c=text(o.career||o.carrera),st=normalizeStatusFilter(o.status||o.estado),m=o.matricula==null?"ACTIVO":text(o.matricula),rf=reqFiltersFromOpts(o),rows;if(cache.filterKey===key&&Array.isArray(cache.filterRows))return cache.filterRows;rows=baseRows(o).filter(function(r){if(m&&r._estadoMatricula!==m)return false;if(p&&!rowMatchesPeriod(r,p))return false;if(d&&!hasDivision(r,d))return false;if(c&&r._carrera!==c)return false;if(st&&(!r._estadoGeneral||r._estadoGeneral.id!==st))return false;if(q&&String(r._searchText||"").indexOf(q)<0)return false;if(rf.length&&!matchesRequirementFilters(r,rf))return false;return true;});cache.filterKey=key;cache.filterRows=rows;return rows;}
+  function filter(o){return filterAll(o);}
+  function listOptions(values){var m={};(values||[]).forEach(function(v){v=text(v);if(v)m[v]=true;});return Object.keys(m).sort(function(a,b){return a.localeCompare(b,"es");});}
+  function careers(list){return listOptions((list||baseRows({matricula:"ACTIVO",limit:0})).map(function(r){return r._carrera||"SIN CARRERA";}));}
+  function divisions(list,o){o=o||{};if(!list&&hasBL2Repo()&&typeof bl2Repo().listDivisions==="function"){try{return bl2Repo().listDivisions({periodId:o.periodId||"",matricula:o.matricula==null?"ACTIVO":o.matricula})||[];}catch(e){}}var rows=list||baseRows({periodId:o.periodId||"",matricula:o.matricula==null?"ACTIVO":o.matricula,limit:0});try{if(window.BLDivisionesService&&typeof window.BLDivisionesService.listDivisionsWithEmpty==="function")return window.BLDivisionesService.listDivisionsWithEmpty(rows,"");}catch(e2){}return listOptions(rows.map(function(r){return divisionOf(r);}));}
+  function options(o){o=o||{};var key=makeOptionsKey(o),rows,dm={},cm={};if(cache.optionsKey===key&&cache.options)return {divisions:(cache.options.divisions||[]).slice(),careers:(cache.options.careers||[]).slice()};rows=baseRows({periodId:o.periodId||"",matricula:o.matricula==null?"ACTIVO":o.matricula,division:"",search:""});rows.forEach(function(r){var div=text(r._division||divisionOf(r))||"Sin división";dm[div]=true;if(!text(o.division)||hasDivision(r,o.division))cm[text(r._carrera)||"SIN CARRERA"]=true;});cache.optionsKey=key;cache.options={divisions:Object.keys(dm).sort(function(a,b){return a.localeCompare(b,"es");}),careers:Object.keys(cm).sort(function(a,b){return a.localeCompare(b,"es");})};return {divisions:cache.options.divisions.slice(),careers:cache.options.careers.slice()};}
+  function buildPager(total,o){o=o||{};var size=Number(o.pageSize||100)||100,pages=Math.max(1,Math.ceil(total/size)),page=Math.min(Math.max(1,Number(o.page||1)||1),pages),offset=(page-1)*size,p;if(pager()&&typeof pager().build==="function"){try{p=pager().build(total,{page:page,pageSize:size});p.page=page;p.pageSize=size;p.offset=offset;p.pages=pages;p.total=total;p.hasPrev=page>1;p.hasNext=page<pages;p.label=total+" registros";return p;}catch(e){}}return {page:page,pageSize:size,offset:offset,total:total,pages:pages,hasPrev:page>1,hasNext:page<pages,label:total+" registros"};}
+  function page(o){o=o||{};var rows=filterAll(o),pi=buildPager(rows.length,o),pr=rows.slice(pi.offset,pi.offset+pi.pageSize);return {rows:pr,allRows:rows,total:rows.length,pagination:pi,summary:summary(rows),source:source()};}
+  function summary(list){list=Array.isArray(list)?list:[];var cm={},c={total:list.length,cumple:0,pendiente:0,no_cumple:0,carreras:0,faltan:0};list.forEach(function(r){var id=r._estadoGeneral&&r._estadoGeneral.id?r._estadoGeneral.id:"no_cumple";if(!Object.prototype.hasOwnProperty.call(c,id))c[id]=0;c[id]+=1;if(hasAnyMissing(r))c.faltan+=1;cm[text(r._carrera)||"SIN CARRERA"]=true;});c.carreras=Object.keys(cm).length;return c;}
+  function requirementSummary(list){var out={};REQS.forEach(function(r){out[r.key]={key:r.key,short:r.short,label:r.label,total:0};});(Array.isArray(list)?list:[]).forEach(function(row){Object.keys(out).forEach(function(k){if(hasRequirementMissing(row,k))out[k].total+=1;});});return out;}
+  function whatsappUrl(row){var phone=text(row&&row._celular).replace(/[^0-9]/g,""),msg;if(!phone)return "";if(phone.length===10&&phone.charAt(0)==="0")phone="593"+phone.slice(1);msg="Saludos, "+((row&&row._nombres)||"estudiante")+". Desde el área de Titulación se informa que existen novedades en su proceso.";return "https://wa.me/"+phone+"?text="+encodeURIComponent(msg);}
+
+  window.TablaCore={version:VERSION,REQUIREMENT_DEFS:REQS.slice(),estadoEstudiante:estadoEstudiante,estadoMatricula:estadoMatricula,estadoCelda:estadoCelda,periods:periods,students:function(m){return baseRows({matricula:m==null?"ACTIVO":m});},careers:careers,divisions:divisions,options:options,filter:filter,page:page,summary:summary,requirementSummary:requirementSummary,requirementInfo:requirementInfo,missingRequirements:missingRequirements,hasAnyMissing:hasAnyMissing,hasRequirementMissing:hasRequirementMissing,matchesRequirementFilters:matchesRequirementFilters,normalizeRequirementFilters:reqFilters,normalizeRequirementKey:reqKey,noteInfo:noteInfo,abreviarCarrera:abreviarCarrera,whatsappUrl:whatsappUrl,telegramInfo:telegramInfo,telegramUrl:telegramUrl,decorate:decorate,divisionOf:divisionOf,samePeriod:samePeriod,source:source,clearCache:clearCache};
 })(window);
