@@ -3,7 +3,7 @@ Archivo: bdl-smoke-test.ps1
 Ruta: /tools/bdl-smoke-test.ps1
 Función:
 - Prueba local rápida después de git pull.
-- Verifica archivos críticos de BDLocal, DefArt, migración y sincronización.
+- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización y visor bruto.
 - Revisa conexiones básicas por texto sin modificar datos.
 Uso:
   powershell -ExecutionPolicy Bypass -File .\tools\bdl-smoke-test.ps1
@@ -40,6 +40,7 @@ Write-Host "Ruta: $root`n"
 $criticalFiles = @(
   "BDLocal/bl2.config.v2.js",
   "BDLocal/bl2.db.js",
+  "BDLocal/bl2.raw-view.js",
   "BDLocal/diagnostics/bdl.diagnostics.general.js",
   "BDLocal/diagnostics/bdl.diagnostics.ui-bridge.js",
   "BDLocal/repositories/bdl.repo.personas.js",
@@ -84,6 +85,12 @@ Test-Contains "BDLocal/sync/bdl.sync.outbox.js" "DEFAULT_MAX_ATTEMPTS" "Outbox c
 Test-Contains "BDLocal/sync/bdl.sync.outbox.js" "blocked" "Outbox controla bloqueo por errores"
 Test-Contains "BDLocal/sync/bdl.sync.ui-bridge.js" "esperando" "UI muestra cambios esperando reintento"
 Test-Contains "BDLocal/sync/bdl.sync.ui-bridge.js" "bloqueado" "UI muestra cambios bloqueados"
+
+Test-Contains "BDLocal/bl2.raw-view.js" "Visualizador bruto BDLocal" "Visor bruto creado"
+Test-Contains "BDLocal/bl2.raw-view.js" "BL2DB.getAll" "Visor bruto lee tablas con getAll"
+Test-Contains "BDLocal/bl2.raw-view.js" "cambios_pendientes" "Visor bruto incluye cambios_pendientes"
+Test-Contains "BDLocal/bl2.raw-view.js" "notas_titulacion" "Visor bruto incluye notas_titulacion"
+Test-Contains "BDLocal/bl2.html" "bl2.raw-view.js" "BL2 carga visualizador bruto"
 
 Test-Contains "defart/defart.html" "defart.service-bridge.js" "DefArt carga service bridge"
 Test-Contains "defart/defart.html" "defart.save-service-bridge.js" "DefArt carga save bridge"
