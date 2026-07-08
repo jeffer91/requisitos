@@ -7,16 +7,19 @@ Función o funciones:
 - Preparar filtro principal por período.
 - Preparar buscador inteligente y filtros internos de trabajo.
 - Preparar tarjetas de resumen, alertas y tabla base.
-- Servir como contenedor para los siguientes bloques: reglas, cache, BDLocal, generador y exportación.
+- Conectar configuración, reglas, plantillas, BDLocal y cache rápida.
 Con qué se conecta:
 - cr-def.css
+- ../BDLocal/bl2.config.js
+- ../BDLocal/bl2.config.v2.js
+- ../BDLocal/bl2.db.js
 - cr-def.config.js
 - cr-def.rules.js
 - cr-def.templates.js
+- cr-def.cache.js
+- cr-def.data.js
 - cr-def.js
 Pendiente para siguientes bloques:
-- cr-def.data.js
-- cr-def.cache.js
 - cr-def.scheduler.js
 - cr-def.render.js
 - cr-def.export.js
@@ -45,15 +48,14 @@ Pendiente para siguientes bloques:
         <select id="crPeriodo" class="cr-control" data-cr-periodo>
           <option value="">Seleccione período</option>
         </select>
-        <small data-cr-periodo-help>El período será cargado desde BDLocal en los siguientes bloques.</small>
+        <small data-cr-periodo-help>El período se carga desde BDLocal.</small>
       </section>
     </header>
 
     <section class="cr-status-panel" aria-live="polite">
       <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Bloque 2 activo.</strong>
-        Ya están cargadas la configuración, reglas de aptitud y plantillas quemadas.
-        En el siguiente bloque se conectará BDLocal y cache.
+        <strong>Bloque 3 activo.</strong>
+        BDLocal y cache rápida de Cr-def están conectadas. Selecciona un período y presiona Actualizar aptos.
       </article>
     </section>
 
@@ -107,7 +109,7 @@ Pendiente para siguientes bloques:
       <button type="button" class="cr-btn" data-cr-exportar disabled>
         Exportar
       </button>
-      <span class="cr-actions__hint">Los botones se activarán cuando se conecte BDLocal.</span>
+      <span class="cr-actions__hint" data-cr-actions-hint>Esperando período.</span>
     </section>
 
     <section class="cr-summary-grid" aria-label="Resumen del cronograma">
@@ -159,7 +161,7 @@ Pendiente para siguientes bloques:
           <tbody data-cr-tabla-body>
             <tr class="cr-empty-row">
               <td colspan="12">
-                Selecciona un período. En los siguientes bloques se cargarán estudiantes desde BDLocal.
+                Selecciona un período y presiona Actualizar aptos.
               </td>
             </tr>
           </tbody>
@@ -168,9 +170,15 @@ Pendiente para siguientes bloques:
     </section>
   </main>
 
+  <script src="../BDLocal/bl2.config.js"></script>
+  <script src="../BDLocal/bl2.config.v2.js"></script>
+  <script src="../BDLocal/bl2.db.js"></script>
+
   <script src="cr-def.config.js"></script>
   <script src="cr-def.rules.js"></script>
   <script src="cr-def.templates.js"></script>
+  <script src="cr-def.cache.js"></script>
+  <script src="cr-def.data.js"></script>
   <script src="cr-def.js"></script>
 </body>
 </html>
