@@ -29,10 +29,10 @@
       return U.normalizeCedula(row.cedula || row.numeroIdentificacion) === cedula;
     })[0] || null;
   }
-  function refresh(){ return HUB.refreshCache({ source:"cone.tabla.refresh" }); }
+  function refresh(){ return HUB.refreshCache({ source:"cone.tabla.refresh", full:true }); }
 
   var api = {
-    version:"1.0.0",
+    version:"1.0.1",
     source:"BDLocal/conexiones/cone.tabla.js",
     ready:HUB.ready,
     refresh:refresh,
