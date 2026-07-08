@@ -2,41 +2,49 @@
 Nombre completo: cr-def.js
 Ruta o ubicación: /Requisitos/Cr-def/cr-def.js
 Función o funciones:
-- Inicializar la pantalla base Cr-def.
-- Preparar referencias DOM.
-- Preparar estado mínimo de interfaz.
-- Dejar listo el buscador inteligente y filtros internos para los siguientes bloques.
+- Inicializar la pantalla Cr-def.
+- Cargar períodos desde BDLocal.
+- Cargar estudiantes aptos desde cache rápida o BDLocal.
+- Actualizar cache propia de Cr-def.
+- Manejar buscador inteligente, filtros internos y resumen.
 Con qué se conecta:
-- cr-def.html
-- cr-def.css
+- ../BDLocal/bl2.config.js
+- ../BDLocal/bl2.config.v2.js
+- ../BDLocal/bl2.db.js
+- cr-def.config.js
+- cr-def.rules.js
+- cr-def.templates.js
+- cr-def.cache.js
+- cr-def.data.js
 Pendiente para siguientes bloques:
-- Conexión real con BDLocal.
-- Cache propia de Cr-def.
-- Reglas de aptitud para defensa.
-- Plantillas quemadas y generación automática.
+- Generador automático de cronograma.
+- Render avanzado y edición por fila.
+- Exportación Excel, PDF, WhatsApp y correo.
 ========================================================= */
 (function(window, document){
   "use strict";
 
   var APP_NAME = "Cr-def";
-  var VERSION = "bloque-1";
+  var VERSION = "bloque-3";
 
   var state = {
     periodo: "",
+    periodos: [],
     busqueda: "",
     filtros: {
       carrera: "",
       sede: "",
       estado: ""
     },
-    rows: []
+    rows: [],
+    loading: false,
+    cacheStatus: null,
+    firmaActual: null
   };
 
   var els = {};
 
-  function $(selector){
-    return document.querySelector(selector);
-  }
+  function $(selector){ return document.querySelector(selector); }
 
   function text(value){
     return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
@@ -51,6 +59,15 @@ Pendiente para siguientes bloques:
 
   function safeSetText(el, value){
     if(el){ el.textContent = value; }
+  }
+
+  function escapeHtml(value){
+    return text(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   function bindDom(){
@@ -71,21 +88,13 @@ Pendiente para siguientes bloques:
     els.btnActualizar = $("[data-cr-actualizar]");
     els.btnGenerar = $("[data-cr-generar]");
     els.btnExportar = $("[data-cr-exportar]");
+    els.actionsHint = $("[data-cr-actions-hint]");
   }
 
   function setAlert(kind, title, message){
     if(!els.alertaPrincipal){ return; }
     els.alertaPrincipal.className = "cr-alert cr-alert--" + (kind || "info");
     els.alertaPrincipal.innerHTML = "<strong>" + escapeHtml(title || "Aviso") + "</strong> " + escapeHtml(message || "");
-  }
-
-  function escapeHtml(value){
-    return text(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#039;");
   }
 
   function createOption(value, label){
@@ -95,48 +104,81 @@ Pendiente para siguientes bloques:
     return option;
   }
 
-  function loadTemporaryPeriods(){
-    if(!els.periodo){ return; }
+  function setSelectOptions(select, values, firstLabel){
+    if(!select){ return; }
+    var current = select.value;
+    select.innerHTML = "";
+    select.appendChild(createOption("", firstLabel || "Todas"));
 
-    var currentValue = els.periodo.value;
-    var periods = [
-      "Febrero 2025 - Agosto 2026",
-      "Abril 2026 - Septiembre 2026",
-      "Noviembre 2025 - Mayo 2026"
-    ];
-
-    periods.forEach(function(periodo){
-      els.periodo.appendChild(createOption(periodo, periodo));
+    (Array.isArray(values) ? values : []).forEach(function(item){
+      var value = typeof item === "string" ? item : item.value;
+      var label = typeof item === "string" ? item : item.label;
+      if(text(value)){ select.appendChild(createOption(value, label || value)); }
     });
 
-    els.periodo.value = currentValue;
-
-    safeSetText(
-      els.periodoHelp,
-      "Temporal: estos períodos son de apoyo visual. En el bloque de BDLocal se cargarán automáticamente."
-    );
+    select.value = current;
+    if(select.value !== current){ select.value = ""; }
   }
 
-  function loadInternalFilterSeeds(){
-    fillSelect(els.filtroCarrera, [
-      "UNIVERSITARIA EN ADMINISTRACIÓN DE EMPRESAS",
-      "UNIVERSITARIA EN ADMINISTRACIÓN DE TALENTO HUMANO",
-      "UNIVERSITARIA EN CONTABILIDAD Y TRIBUTARIA",
-      "UNIVERSITARIA EN REDES Y TELECOMUNICACIONES",
-      "UNIVERSITARIA EN MARKETING DIGITAL",
-      "UNIVERSITARIA EN PEDAGOGÍA",
-      "UNIVERSITARIA EN EDUCACIÓN INICIAL",
-      "MECÁNICA AUTOMOTRIZ",
-      "PROCESAMIENTO EN ALIMENTOS"
-    ]);
-
-    fillSelect(els.filtroSede, ["Matriz", "Sur", "Virtual"]);
+  function setLoading(loading, message){
+    state.loading = !!loading;
+    updateButtons();
+    safeSetText(els.actionsHint, message || (loading ? "Cargando..." : "Listo."));
   }
 
-  function fillSelect(select, values){
-    if(!select){ return; }
-    values.forEach(function(value){
-      select.appendChild(createOption(value, value));
+  function updateButtons(){
+    var hasPeriodo = !!state.periodo;
+    var hasData = !!(window.CR_DEF_DATA && window.CR_DEF_DATA.dbAvailable && window.CR_DEF_DATA.dbAvailable());
+
+    if(els.btnActualizar){ els.btnActualizar.disabled = state.loading || !hasPeriodo || !hasData; }
+    if(els.btnGenerar){ els.btnGenerar.disabled = true; }
+    if(els.btnExportar){ els.btnExportar.disabled = true; }
+
+    if(!hasData){
+      safeSetText(els.actionsHint, "BDLocal no disponible en esta pantalla.");
+    }else if(!hasPeriodo){
+      safeSetText(els.actionsHint, "Selecciona un período.");
+    }else if(!state.loading){
+      safeSetText(els.actionsHint, "Puedes actualizar estudiantes aptos desde BDLocal.");
+    }
+  }
+
+  function loadPeriods(){
+    if(!window.CR_DEF_DATA || typeof window.CR_DEF_DATA.listarPeriodos !== "function"){
+      setAlert("danger", "BDLocal no disponible.", "No se encontró el lector de datos Cr-def.");
+      updateButtons();
+      return Promise.resolve([]);
+    }
+
+    return window.CR_DEF_DATA.listarPeriodos().then(function(periodos){
+      state.periodos = Array.isArray(periodos) ? periodos : [];
+
+      if(els.periodo){
+        els.periodo.innerHTML = "";
+        els.periodo.appendChild(createOption("", "Seleccione período"));
+        state.periodos.forEach(function(periodo){
+          els.periodo.appendChild(createOption(periodo.id, periodo.label || periodo.id));
+        });
+      }
+
+      var last = window.CR_DEF_CACHE && typeof window.CR_DEF_CACHE.getLastPeriod === "function"
+        ? window.CR_DEF_CACHE.getLastPeriod()
+        : "";
+
+      if(last && state.periodos.some(function(periodo){ return periodo.id === last; })){
+        state.periodo = last;
+        if(els.periodo){ els.periodo.value = last; }
+        loadCacheForPeriod(last);
+        checkCacheFreshness(last);
+      }
+
+      safeSetText(els.periodoHelp, state.periodos.length ? "Períodos cargados desde BDLocal." : "No hay períodos registrados en BDLocal.");
+      updateButtons();
+      return state.periodos;
+    }).catch(function(error){
+      setAlert("danger", "Error al cargar períodos.", error && error.message ? error.message : String(error));
+      updateButtons();
+      return [];
     });
   }
 
@@ -144,7 +186,14 @@ Pendiente para siguientes bloques:
     if(els.periodo){
       els.periodo.addEventListener("change", function(){
         state.periodo = text(els.periodo.value);
-        renderEmptyState();
+        state.rows = [];
+        state.firmaActual = null;
+        if(window.CR_DEF_CACHE && typeof window.CR_DEF_CACHE.setLastPeriod === "function"){
+          window.CR_DEF_CACHE.setLastPeriod(state.periodo);
+        }
+        loadCacheForPeriod(state.periodo);
+        checkCacheFreshness(state.periodo);
+        updateButtons();
       });
     }
 
@@ -175,6 +224,139 @@ Pendiente para siguientes bloques:
         renderTable();
       });
     }
+
+    if(els.btnActualizar){
+      els.btnActualizar.addEventListener("click", function(){
+        actualizarAptos();
+      });
+    }
+  }
+
+  function loadCacheForPeriod(periodoId){
+    periodoId = text(periodoId);
+    if(!periodoId){
+      state.rows = [];
+      setCacheStatus("Cache pendiente");
+      renderTable();
+      setAlert("info", "Seleccione período.", "Elige un período para cargar estudiantes aptos desde cache o BDLocal.");
+      return;
+    }
+
+    var cache = window.CR_DEF_CACHE && typeof window.CR_DEF_CACHE.getPeriodCache === "function"
+      ? window.CR_DEF_CACHE.getPeriodCache(periodoId)
+      : null;
+
+    if(cache && Array.isArray(cache.rows)){
+      state.rows = cache.rows;
+      state.cacheStatus = cache;
+      setCacheStatus("Cache cargada");
+      updateFiltersFromRows(state.rows);
+      renderTable();
+      setAlert("info", "Cache cargada.", "Se muestran datos guardados localmente. Presiona Actualizar aptos para refrescar desde BDLocal.");
+      return;
+    }
+
+    state.rows = [];
+    setCacheStatus("Sin cache");
+    updateFiltersFromRows([]);
+    renderTable();
+    setAlert("warn", "Sin cache para este período.", "Presiona Actualizar aptos para leer BDLocal y crear la cache rápida de Cr-def.");
+  }
+
+  function setCacheStatus(message){
+    safeSetText(els.cacheStatus, message || "Cache pendiente");
+  }
+
+  function checkCacheFreshness(periodoId){
+    periodoId = text(periodoId);
+    if(!periodoId || !window.CR_DEF_DATA || typeof window.CR_DEF_DATA.calcularFirma !== "function"){
+      return Promise.resolve(null);
+    }
+
+    return window.CR_DEF_DATA.calcularFirma(periodoId).then(function(firma){
+      state.firmaActual = firma;
+      var status = window.CR_DEF_CACHE && typeof window.CR_DEF_CACHE.status === "function"
+        ? window.CR_DEF_CACHE.status(periodoId, firma)
+        : null;
+
+      if(status && status.hasCache && status.stale){
+        setCacheStatus("Cache desactualizada");
+        setAlert("warn", "BDLocal cambió.", "La cache de Cr-def puede estar desactualizada. Presiona Actualizar aptos antes de generar cronograma.");
+      }else if(status && status.hasCache){
+        setCacheStatus("Cache actualizada");
+      }
+
+      return firma;
+    }).catch(function(){
+      return null;
+    });
+  }
+
+  function actualizarAptos(){
+    if(!state.periodo){ return; }
+    if(!window.CR_DEF_DATA || typeof window.CR_DEF_DATA.cargarAptos !== "function"){
+      setAlert("danger", "No se puede actualizar.", "El lector de BDLocal para Cr-def no está disponible.");
+      return;
+    }
+
+    setLoading(true, "Leyendo BDLocal y aplicando reglas...");
+    setAlert("info", "Actualizando aptos.", "Se están revisando requisitos, nota de artículo y nota de defensa.");
+
+    window.CR_DEF_DATA.cargarAptos(state.periodo).then(function(result){
+      result = result || {};
+      state.rows = Array.isArray(result.rows) ? result.rows : [];
+      state.firmaActual = result.firma || null;
+
+      var saved = false;
+      if(window.CR_DEF_CACHE && typeof window.CR_DEF_CACHE.savePeriodCache === "function"){
+        saved = window.CR_DEF_CACHE.savePeriodCache(state.periodo, {
+          rows: state.rows,
+          firma: result.firma,
+          resumen: result.resumen || {},
+          source: "BDLocal"
+        });
+        if(result.firma && typeof window.CR_DEF_CACHE.saveFirma === "function"){
+          window.CR_DEF_CACHE.saveFirma(state.periodo, result.firma);
+        }
+      }
+
+      updateFiltersFromRows(state.rows);
+      renderTable();
+      setCacheStatus(saved ? "Cache actualizada" : "Cache no disponible");
+
+      var resumen = result.resumen || {};
+      setAlert(
+        "info",
+        "Aptos actualizados.",
+        "Aptos: " + state.rows.length + ". Bloqueados por requisitos/notas: " + (resumen.bloqueados || 0) + ". Defensa aprobada: " + (resumen.defensaAprobada || 0) + "."
+      );
+    }).catch(function(error){
+      setAlert("danger", "Error al actualizar aptos.", error && error.message ? error.message : String(error));
+    }).finally(function(){
+      setLoading(false, "Puedes actualizar estudiantes aptos desde BDLocal.");
+    });
+  }
+
+  function updateFiltersFromRows(rows){
+    rows = Array.isArray(rows) ? rows : [];
+    var carreras = unique(rows.map(function(row){ return row.carrera; })).sort(function(a, b){ return a.localeCompare(b, "es"); });
+    var sedes = unique(rows.map(function(row){ return row.sede; })).sort(function(a, b){ return a.localeCompare(b, "es"); });
+
+    setSelectOptions(els.filtroCarrera, carreras, "Todas");
+    setSelectOptions(els.filtroSede, sedes, "Todas");
+  }
+
+  function unique(values){
+    var map = Object.create(null);
+    var out = [];
+    (Array.isArray(values) ? values : []).forEach(function(value){
+      value = text(value);
+      if(value && !map[value]){
+        map[value] = true;
+        out.push(value);
+      }
+    });
+    return out;
   }
 
   function rowMatches(row){
@@ -190,69 +372,40 @@ Pendiente para siguientes bloques:
       row.tribunal1,
       row.tribunal2,
       row.tribunal3,
-      row.estado
+      row.estado,
+      (row.alertas || []).join(" ")
     ].join(" "));
 
-    if(state.busqueda && haystack.indexOf(norm(state.busqueda)) === -1){
-      return false;
+    if(state.busqueda && haystack.indexOf(norm(state.busqueda)) === -1){ return false; }
+    if(state.filtros.carrera && norm(row.carrera) !== norm(state.filtros.carrera)){ return false; }
+    if(state.filtros.sede && norm(row.sede) !== norm(state.filtros.sede)){ return false; }
+    if(state.filtros.estado){
+      if(state.filtros.estado === "sin-cupo"){
+        return !text(row.dia) || !text(row.hora);
+      }
+      return norm(row.estadoClave) === norm(state.filtros.estado);
     }
-
-    if(state.filtros.carrera && norm(row.carrera) !== norm(state.filtros.carrera)){
-      return false;
-    }
-
-    if(state.filtros.sede && norm(row.sede) !== norm(state.filtros.sede)){
-      return false;
-    }
-
-    if(state.filtros.estado && norm(row.estadoClave) !== norm(state.filtros.estado)){
-      return false;
-    }
-
     return true;
-  }
-
-  function renderEmptyState(){
-    state.rows = [];
-    renderTable();
-
-    if(state.periodo){
-      setAlert(
-        "warn",
-        "Período seleccionado.",
-        "Aún falta conectar BDLocal. En el siguiente bloque se cargarán estudiantes aptos del período seleccionado."
-      );
-    }else{
-      setAlert(
-        "info",
-        "Bloque 1 activo.",
-        "La pantalla base ya está preparada. En los siguientes bloques se conectará BDLocal, cache, reglas, plantillas y generación automática."
-      );
-    }
   }
 
   function renderTable(){
     if(!els.tablaBody){ return; }
-
     var filteredRows = state.rows.filter(rowMatches);
     els.tablaBody.innerHTML = "";
 
     if(!state.periodo){
-      els.tablaBody.appendChild(emptyRow("Selecciona un período. En los siguientes bloques se cargarán estudiantes desde BDLocal."));
+      els.tablaBody.appendChild(emptyRow("Selecciona un período y presiona Actualizar aptos."));
       updateSummary(filteredRows);
       return;
     }
 
     if(!filteredRows.length){
-      els.tablaBody.appendChild(emptyRow("No hay registros para mostrar todavía. Falta conectar BDLocal y reglas de aptitud."));
+      els.tablaBody.appendChild(emptyRow(state.rows.length ? "No hay resultados con los filtros actuales." : "No hay estudiantes aptos cargados. Presiona Actualizar aptos."));
       updateSummary(filteredRows);
       return;
     }
 
-    filteredRows.forEach(function(row){
-      els.tablaBody.appendChild(renderRow(row));
-    });
-
+    filteredRows.forEach(function(row){ els.tablaBody.appendChild(renderRow(row)); });
     updateSummary(filteredRows);
   }
 
@@ -270,7 +423,7 @@ Pendiente para siguientes bloques:
     var tr = document.createElement("tr");
     if(row.estadoClave === "conflicto"){
       tr.className = "cr-row--danger";
-    }else if(row.estadoClave === "sin-cupo"){
+    }else if(!text(row.dia) || !text(row.hora)){
       tr.className = "cr-row--warn";
     }
 
@@ -293,13 +446,18 @@ Pendiente para siguientes bloques:
       tr.appendChild(td);
     });
 
+    if(row.alertas && row.alertas.length){
+      tr.title = row.alertas.join("\n");
+    }
+
     return tr;
   }
 
   function updateSummary(rows){
-    var aptos = rows.filter(function(row){ return row.estadoClave === "apto"; }).length;
+    rows = Array.isArray(rows) ? rows : [];
+    var aptos = rows.filter(function(row){ return row.estadoClave === "apto" || row.estadoClave === "supletorio"; }).length;
     var programados = rows.filter(function(row){ return row.estadoClave === "programado"; }).length;
-    var sinDefensa = rows.filter(function(row){ return row.estadoClave === "sin-cupo"; }).length;
+    var sinDefensa = rows.filter(function(row){ return !text(row.dia) || !text(row.hora); }).length;
     var conflictos = rows.filter(function(row){ return row.estadoClave === "conflicto"; }).length;
 
     safeSetText(els.totalAptos, aptos);
@@ -314,8 +472,10 @@ Pendiente para siguientes bloques:
       version: VERSION,
       state: state,
       render: renderTable,
+      actualizarAptos: actualizarAptos,
       setRows: function(rows){
         state.rows = Array.isArray(rows) ? rows : [];
+        updateFiltersFromRows(state.rows);
         renderTable();
       }
     };
@@ -323,15 +483,24 @@ Pendiente para siguientes bloques:
 
   function init(){
     bindDom();
-    loadTemporaryPeriods();
-    loadInternalFilterSeeds();
     bindEvents();
-    renderEmptyState();
     exposeDebugApi();
 
-    if(els.cacheStatus){
-      els.cacheStatus.textContent = "Cache pendiente";
+    if(!window.BL2DB){
+      setAlert("danger", "BDLocal no cargó.", "No se encontró BL2DB. Revisa las rutas de scripts de BDLocal.");
+      setCacheStatus("BDLocal no disponible");
+      updateButtons();
+      renderTable();
+      return;
     }
+
+    setCacheStatus(window.CR_DEF_CACHE && window.CR_DEF_CACHE.isAvailable && window.CR_DEF_CACHE.isAvailable() ? "Cache lista" : "Cache no disponible");
+    loadPeriods().then(function(){
+      if(!state.periodo){
+        renderTable();
+        setAlert("info", "Cr-def listo.", "Selecciona un período y presiona Actualizar aptos para leer BDLocal.");
+      }
+    });
   }
 
   if(document.readyState === "loading"){
