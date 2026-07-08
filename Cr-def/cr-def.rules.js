@@ -7,6 +7,7 @@ Función o funciones:
 - Validar nota de artículo mínima 7.
 - Bloquear estudiantes con nota de defensa aprobada 7 o más.
 - Separar casos de supletorio / segunda defensa cuando nota defensa sea menor a 7.
+- Leer campos aunque vengan con espacios, guiones, tildes o camelCase.
 Con qué se conecta:
 - cr-def.config.js
 - cr-def.data.js
@@ -21,42 +22,42 @@ Con qué se conecta:
     {
       id: "academico",
       label: "Académico",
-      aliases: ["academico", "académico", "requisito academico", "requisito académico"]
+      aliases: ["academico", "académico", "requisito academico", "requisito académico", "Academico", "Académico"]
     },
     {
       id: "documentacion",
       label: "Documentación",
-      aliases: ["documentacion", "documentación", "docs", "documentos"]
+      aliases: ["documentacion", "documentación", "docs", "documentos", "Documentacion", "Documentación"]
     },
     {
       id: "financiero",
       label: "Financiero",
-      aliases: ["financiero", "finanzas", "pago", "pagos"]
+      aliases: ["financiero", "finanzas", "pago", "pagos", "Financiero"]
     },
     {
       id: "practicas",
       label: "Prácticas",
-      aliases: ["practicas", "prácticas", "practica", "práctica"]
+      aliases: ["practicas", "prácticas", "practica", "práctica", "Practicas", "Prácticas"]
     },
     {
       id: "vinculacion",
       label: "Vinculación",
-      aliases: ["vinculacion", "vinculación"]
+      aliases: ["vinculacion", "vinculación", "Vinculacion", "Vinculación"]
     },
     {
       id: "seguimientoGraduados",
       label: "Seguimiento graduados",
-      aliases: ["seguimiento graduados", "seguimiento de graduados", "seguimiento"]
+      aliases: ["seguimiento graduados", "seguimiento de graduados", "seguimiento", "SeguimientoGraduados"]
     },
     {
       id: "ingles",
       label: "Inglés",
-      aliases: ["ingles", "inglés"]
+      aliases: ["ingles", "inglés", "Ingles", "Inglés"]
     },
     {
       id: "actualizacionDatos",
       label: "Actualización de datos",
-      aliases: ["actualizacion de datos", "actualización de datos", "actualizacion datos", "actualización datos"]
+      aliases: ["actualizacion de datos", "actualización de datos", "actualizacion datos", "actualización datos", "ActualizacionDatos", "ActualizaciónDatos"]
     }
   ];
 
@@ -70,7 +71,9 @@ Con qué se conecta:
     return text(value)
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "")
+      .trim();
   }
 
   function toNumber(value){
@@ -98,7 +101,9 @@ Con qué se conecta:
 
     for(var j = 0; j < aliases.length; j += 1){
       var partial = norm(aliases[j]);
-      var partialFound = normalizedKeys.find(function(item){ return item.normalized.indexOf(partial) !== -1; });
+      var partialFound = normalizedKeys.find(function(item){
+        return item.normalized.indexOf(partial) !== -1 || partial.indexOf(item.normalized) !== -1;
+      });
       if(partialFound){ return record[partialFound.raw]; }
     }
 
@@ -118,10 +123,14 @@ Con qué se conecta:
 
   function leerNotaArticulo(record){
     return toNumber(readByAliases(record, [
+      "notaArticulo",
+      "nota_articulo",
       "nota articulo",
       "nota artículo",
       "articulo",
       "artículo",
+      "promedioArticulo",
+      "notaFinalArticulo",
       "nota final articulo",
       "nota final artículo"
     ]));
@@ -129,11 +138,14 @@ Con qué se conecta:
 
   function leerNotaDefensa(record){
     return toNumber(readByAliases(record, [
+      "notaDefensa",
+      "nota_defensa",
       "nota defensa",
       "defensa",
       "nota de defensa",
+      "notaFinalDefensa",
       "nota final defensa",
-      "calificacion defensa",
+      "calificacionDefensa",
       "calificación defensa"
     ]));
   }
