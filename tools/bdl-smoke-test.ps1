@@ -3,7 +3,7 @@ Archivo: bdl-smoke-test.ps1
 Ruta: /tools/bdl-smoke-test.ps1
 Función:
 - Prueba local rápida después de git pull.
-- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto, backup V2 y auditor legacy.
+- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto, backup V2, auditor legacy y rendimiento.
 - Revisa conexiones básicas por texto sin modificar datos.
 Uso:
   powershell -ExecutionPolicy Bypass -File .\tools\bdl-smoke-test.ps1
@@ -43,6 +43,7 @@ $criticalFiles = @(
   "BDLocal/bl2.backup.v2.js",
   "BDLocal/bl2.raw-view.js",
   "BDLocal/maintenance/bdl.legacy.cleanup.js",
+  "BDLocal/diagnostics/bdl.performance.audit.js",
   "BDLocal/diagnostics/bdl.diagnostics.general.js",
   "BDLocal/diagnostics/bdl.diagnostics.ui-bridge.js",
   "BDLocal/repositories/bdl.repo.personas.js",
@@ -107,6 +108,12 @@ Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "safeToClean" "Auditor
 Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "No se borró ningún dato" "Auditor legacy no borra automáticamente"
 Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "estudiantesToMatriculas" "Auditor compara estudiantes legacy contra matriculas_periodo"
 Test-Contains "BDLocal/bl2.html" "maintenance/bdl.legacy.cleanup.js" "BL2 carga auditor legacy"
+
+Test-Contains "BDLocal/diagnostics/bdl.performance.audit.js" "Rendimiento e índices" "Auditor rendimiento creado"
+Test-Contains "BDLocal/diagnostics/bdl.performance.audit.js" "queryByIndex" "Auditor rendimiento prueba índices"
+Test-Contains "BDLocal/diagnostics/bdl.performance.audit.js" "BDLServiceDefensas" "Auditor rendimiento prueba servicio Defensas"
+Test-Contains "BDLocal/diagnostics/bdl.performance.audit.js" "matriculas_periodo" "Auditor rendimiento revisa matriculas_periodo"
+Test-Contains "BDLocal/bl2.html" "diagnostics/bdl.performance.audit.js" "BL2 carga auditor rendimiento"
 
 Test-Contains "defart/defart.html" "defart.service-bridge.js" "DefArt carga service bridge"
 Test-Contains "defart/defart.html" "defart.save-service-bridge.js" "DefArt carga save bridge"
