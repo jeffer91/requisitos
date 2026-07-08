@@ -4,6 +4,7 @@ Ruta o ubicacion: /Requisitos/BDLocal/conexiones/cone.carga.js
 Funcion:
 - Conectar la pantalla Carga con BDLocal/BL2.
 - Exponer metodos de guardado compatibles con CargaSave.
+- Forzar cache completo solo despues de guardar datos reales.
 ========================================================= */
 (function(window){
   "use strict";
@@ -34,7 +35,7 @@ Funcion:
     return ready().then(function(){
       if(core() && typeof core().savePeriod === "function"){
         return core().savePeriod(period).then(function(saved){
-          return HUB.refreshCache({ source:"cone.carga.savePeriod" }).then(function(){ return saved || period; });
+          return HUB.refreshCache({ source:"cone.carga.savePeriod", light:true }).then(function(){ return saved || period; });
         });
       }
       return period;
@@ -77,7 +78,7 @@ Funcion:
       }
 
       return core().saveStudents(rows, options).then(function(result){
-        return HUB.refreshCache({ source:"cone.carga.saveStudents" }).then(function(){
+        return HUB.refreshCache({ source:"cone.carga.saveStudents", full:true }).then(function(){
           U.emit("bdlocal:con-carga-saved", {
             ok:result && result.ok !== false,
             periodoId:options.periodoId,
@@ -106,7 +107,7 @@ Funcion:
   }
 
   var api = {
-    version:"1.0.0",
+    version:"1.0.1",
     source:"BDLocal/conexiones/cone.carga.js",
     ready:ready,
     getPeriods:getPeriods,
