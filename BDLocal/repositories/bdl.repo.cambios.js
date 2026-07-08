@@ -1,10 +1,11 @@
 /* =========================================================
 Archivo: bdl.repo.cambios.js
 Ruta: /BDLocal/repositories/bdl.repo.cambios.js
-Función:
+Funcion:
 - Repositorio real de cambios_pendientes.
-- Lee primero cambios_pendientes y usa cambios legacy solo como fallback.
+- Lee cambios_pendientes y cambios legacy, unificando sin duplicar.
 - Guarda siempre en cambios_pendientes.
+- Evita que cambios antiguos queden invisibles para la sincronizacion nueva.
 ========================================================= */
 (function(window){
   "use strict";
@@ -12,6 +13,7 @@ Función:
   if(!Repos){ return; }
 
   function text(v){ return String(v == null ? "" : v).trim(); }
+  function nowISO(){ return new Date().toISOString(); }
   function store(){ return Repos.storeName("cambiosPendientes", "cambios_pendientes"); }
   function legacyStore(){ return Repos.storeName("cambios", "cambios"); }
   function fallbackId(row){
@@ -27,9 +29,41 @@ Función:
     }
     row.id = text(row.id || row.cambioId || fallbackId(row));
     row.cambioId = row.cambioId || row.id;
-    row.updatedAt = text(row.updatedAt) || new Date().toISOString();
+    row.updatedAt = text(row.updatedAt) || nowISO();
     row.createdAt = text(row.createdAt) || row.updatedAt;
     return row;
+  }
+
+  function keyOf(row){
+    row = row || {};
+    return text(row.id || row.cambioId || [
+      row.tabla || row.tipo || "registro",
+      row.accion || row.action || "UPSERT",
+      row.periodoId || "global",
+      row.cedula || row.registroId || row.idEstudiantePeriodo || row.studentId || "sin_id",
+      row.createdAt || ""
+    ].join("__"));
+  }
+
+  function mergeRows(outboxRows, legacyRows){
+    var map = Object.create(null);
+    var merged = [];
+
+    function push(row, source){
+      row = Object.assign({}, row || {});
+      var key = keyOf(row);
+      if(!key){ return; }
+      if(map[key]){ return; }
+      row._repoCambiosSource = row._repoCambiosSource || source;
+      map[key] = true;
+      merged.push(row);
+    }
+
+    (Array.isArray(outboxRows) ? outboxRows : []).forEach(function(row){ push(row, "cambios_pendientes"); });
+    (Array.isArray(legacyRows) ? legacyRows : []).forEach(function(row){ push(row, "cambios_legacy"); });
+
+    merged.sort(function(a, b){ return text(a.createdAt).localeCompare(text(b.createdAt)); });
+    return merged;
   }
 
   function applyFilters(rows, options){
@@ -42,10 +76,11 @@ Función:
 
   function list(options){
     options = options || {};
-    return Repos.safeGetAll(store()).then(function(rows){
-      rows = applyFilters(rows, options);
-      if(rows.length){ return rows; }
-      return Repos.safeGetAll(legacyStore()).then(function(legacyRows){ return applyFilters(legacyRows, options); });
+    return Promise.all([
+      Repos.safeGetAll(store()).catch(function(){ return []; }),
+      Repos.safeGetAll(legacyStore()).catch(function(){ return []; })
+    ]).then(function(values){
+      return applyFilters(mergeRows(values[0], values[1]), options);
     });
   }
 
@@ -64,7 +99,7 @@ Función:
   function save(row, options){ var item = normalize(row || {}, options || {}); if(!item.id){ return Promise.reject(new Error("Cambio sin id.")); } return Repos.safePut(store(), item); }
   function saveMany(rows, options){ return Repos.bulkPut(store(), (rows || []).map(function(row){ return normalize(row, options || {}); }).filter(function(row){ return !!row.id; })); }
 
-  var api = { list:list, pending:pending, save:save, saveMany:saveMany, normalize:normalize };
+  var api = { list:list, pending:pending, save:save, saveMany:saveMany, normalize:normalize, mergeRows:mergeRows };
   Repos.register("cambios", api);
   Repos.register("cambios_pendientes", api);
   window.BDLRepoCambios = api;
