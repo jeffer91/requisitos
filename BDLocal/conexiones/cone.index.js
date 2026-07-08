@@ -33,6 +33,7 @@
     if(!window.BL2Config){files.push("../bl2.config.js");}
     if(!window.BL2DB&&needsConfigV2()){files.push("../bl2.config.v2.js");}
     if(!window.BL2DB){files.push("../bl2.db.js");}
+    if(!window.BDLOutboxBridge){files.push("../patches/bdl.changes.outbox-bridge.js");}
     if(!window.BL2Backup){files.push("../bl2.backup.js");}
     if(!window.BL2Import){files.push("../bl2.import.js");}
     if(!window.BL2Sync){files.push("../bl2.sync.js");}
@@ -46,6 +47,9 @@
       var bd=window.BDLocal||null;
       if(window.BL2DB&&window.BL2Config&&Number(window.BL2Config.dbVersion||1)<2){
         state.errors.push({file:"../bl2.config.v2.js",message:"BL2DB ya estaba cargado antes de aplicar configuracion v2. Recargue la pantalla para completar la migracion.",at:U.nowISO()});
+      }
+      if(window.BDLOutboxBridge&&typeof window.BDLOutboxBridge.install==="function"){
+        try{window.BDLOutboxBridge.install();}catch(error){}
       }
       if(bd&&typeof bd.ready==="function"){return bd.ready().then(function(){return c||bd;}).catch(function(){return c||bd;});}
       if(c&&typeof c.getState==="function"){try{var st=c.getState()||{};if(st.initialized){return c;}}catch(e){}}
@@ -61,10 +65,10 @@
       var p=typeof c.getPeriods==="function"?c.getPeriods().catch(function(){return [];}):Promise.resolve([]);
       var s=typeof c.getStudents==="function"?c.getStudents({}).catch(function(){return [];}):Promise.resolve([]);
       var r=typeof c.getRequirements==="function"?c.getRequirements({}).catch(function(){return [];}):Promise.resolve([]);
-      return Promise.all([p,s,r]).then(function(v){return U.writeCache({meta:{app:"Requisitos",module:"BDLocalConexiones",version:"1.0.4",source:options.source||"cone.index",updatedAt:U.nowISO(),schemaVersion:(window.BL2Config&&window.BL2Config.schemaVersion)||""},periods:v[0]||[],students:v[1]||[],requirements:v[2]||[],summaries:{},diagnostics:state.errors});});
+      return Promise.all([p,s,r]).then(function(v){return U.writeCache({meta:{app:"Requisitos",module:"BDLocalConexiones",version:"1.0.5",source:options.source||"cone.index",updatedAt:U.nowISO(),schemaVersion:(window.BL2Config&&window.BL2Config.schemaVersion)||""},periods:v[0]||[],students:v[1]||[],requirements:v[2]||[],summaries:{},diagnostics:state.errors});});
     });
   }
-  function status(){var c=U.readCache();return {ok:state.errors.length===0,ready:state.ready,connectors:Object.keys(state.connectors),periods:c.periods.length,students:c.students.length,errors:state.errors};}
+  function status(){var c=U.readCache();return {ok:state.errors.length===0,ready:state.ready,connectors:Object.keys(state.connectors),periods:c.periods.length,students:c.students.length,outboxBridge:!!window.BDLOutboxBridge,errors:state.errors};}
   function loadConnectors(){return seq(["cone.carga.js","cone.tabla.js","cone.ficha.js","cone.stats.js","cone.coordi.js","cone.reportes.js","cone.global.js"]);}
   function ready(options){
     options=options||{};
@@ -74,6 +78,6 @@
     return state.loading;
   }
   window.BDLocalConexiones=window.BDLocalConexiones||{};
-  Object.assign(window.BDLocalConexiones,{version:"1.0.4",ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,register:register,get:get,status:status,utils:U});
+  Object.assign(window.BDLocalConexiones,{version:"1.0.5",ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,register:register,get:get,status:status,utils:U});
   ready({force:false});
 })(window,document);
