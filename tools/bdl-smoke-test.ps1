@@ -3,7 +3,7 @@ Archivo: bdl-smoke-test.ps1
 Ruta: /tools/bdl-smoke-test.ps1
 Función:
 - Prueba local rápida después de git pull.
-- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto y backup V2.
+- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto, backup V2 y auditor legacy.
 - Revisa conexiones básicas por texto sin modificar datos.
 Uso:
   powershell -ExecutionPolicy Bypass -File .\tools\bdl-smoke-test.ps1
@@ -42,6 +42,7 @@ $criticalFiles = @(
   "BDLocal/bl2.db.js",
   "BDLocal/bl2.backup.v2.js",
   "BDLocal/bl2.raw-view.js",
+  "BDLocal/maintenance/bdl.legacy.cleanup.js",
   "BDLocal/diagnostics/bdl.diagnostics.general.js",
   "BDLocal/diagnostics/bdl.diagnostics.ui-bridge.js",
   "BDLocal/repositories/bdl.repo.personas.js",
@@ -100,6 +101,12 @@ Test-Contains "BDLocal/bl2.backup.v2.js" "matriculas_periodo" "Backup V2 incluye
 Test-Contains "BDLocal/bl2.backup.v2.js" "notas_titulacion" "Backup V2 incluye notas_titulacion"
 Test-Contains "BDLocal/bl2.backup.v2.js" "cambios_pendientes" "Backup V2 incluye cambios_pendientes"
 Test-Contains "BDLocal/bl2.html" "bl2.backup.v2.js" "BL2 carga backup V2"
+
+Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "Limpieza legacy segura" "Auditor legacy creado"
+Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "safeToClean" "Auditor legacy calcula si es seguro limpiar"
+Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "No se borró ningún dato" "Auditor legacy no borra automáticamente"
+Test-Contains "BDLocal/maintenance/bdl.legacy.cleanup.js" "estudiantesToMatriculas" "Auditor compara estudiantes legacy contra matriculas_periodo"
+Test-Contains "BDLocal/bl2.html" "maintenance/bdl.legacy.cleanup.js" "BL2 carga auditor legacy"
 
 Test-Contains "defart/defart.html" "defart.service-bridge.js" "DefArt carga service bridge"
 Test-Contains "defart/defart.html" "defart.save-service-bridge.js" "DefArt carga save bridge"
