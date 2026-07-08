@@ -3,7 +3,7 @@ Archivo: bdl-smoke-test.ps1
 Ruta: /tools/bdl-smoke-test.ps1
 Función:
 - Prueba local rápida después de git pull.
-- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización y visor bruto.
+- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto y backup V2.
 - Revisa conexiones básicas por texto sin modificar datos.
 Uso:
   powershell -ExecutionPolicy Bypass -File .\tools\bdl-smoke-test.ps1
@@ -40,6 +40,7 @@ Write-Host "Ruta: $root`n"
 $criticalFiles = @(
   "BDLocal/bl2.config.v2.js",
   "BDLocal/bl2.db.js",
+  "BDLocal/bl2.backup.v2.js",
   "BDLocal/bl2.raw-view.js",
   "BDLocal/diagnostics/bdl.diagnostics.general.js",
   "BDLocal/diagnostics/bdl.diagnostics.ui-bridge.js",
@@ -91,6 +92,14 @@ Test-Contains "BDLocal/bl2.raw-view.js" "BL2DB.getAll" "Visor bruto lee tablas c
 Test-Contains "BDLocal/bl2.raw-view.js" "cambios_pendientes" "Visor bruto incluye cambios_pendientes"
 Test-Contains "BDLocal/bl2.raw-view.js" "notas_titulacion" "Visor bruto incluye notas_titulacion"
 Test-Contains "BDLocal/bl2.html" "bl2.raw-view.js" "BL2 carga visualizador bruto"
+
+Test-Contains "BDLocal/bl2.backup.v2.js" "BL2_BACKUP_V2" "Backup V2 identifica formato propio"
+Test-Contains "BDLocal/bl2.backup.v2.js" "restorePayload" "Backup V2 permite restauración desde payload"
+Test-Contains "BDLocal/bl2.backup.v2.js" "clearBeforeImport" "Backup V2 permite restaurar limpiando con confirmación"
+Test-Contains "BDLocal/bl2.backup.v2.js" "matriculas_periodo" "Backup V2 incluye matriculas_periodo"
+Test-Contains "BDLocal/bl2.backup.v2.js" "notas_titulacion" "Backup V2 incluye notas_titulacion"
+Test-Contains "BDLocal/bl2.backup.v2.js" "cambios_pendientes" "Backup V2 incluye cambios_pendientes"
+Test-Contains "BDLocal/bl2.html" "bl2.backup.v2.js" "BL2 carga backup V2"
 
 Test-Contains "defart/defart.html" "defart.service-bridge.js" "DefArt carga service bridge"
 Test-Contains "defart/defart.html" "defart.save-service-bridge.js" "DefArt carga save bridge"
