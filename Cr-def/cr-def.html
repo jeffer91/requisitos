@@ -1,0 +1,173 @@
+<!doctype html>
+<!-- =========================================================
+Nombre completo: cr-def.html
+Ruta o ubicación: /Requisitos/Cr-def/cr-def.html
+Función o funciones:
+- Pantalla base del módulo Cr-def para cronogramas de defensas.
+- Preparar filtro principal por período.
+- Preparar buscador inteligente y filtros internos de trabajo.
+- Preparar tarjetas de resumen, alertas y tabla base.
+- Servir como contenedor para los siguientes bloques: reglas, cache, BDLocal, generador y exportación.
+Con qué se conecta:
+- cr-def.css
+- cr-def.js
+Pendiente para siguientes bloques:
+- cr-def.config.js
+- cr-def.rules.js
+- cr-def.templates.js
+- cr-def.data.js
+- cr-def.cache.js
+- cr-def.scheduler.js
+- cr-def.render.js
+- cr-def.export.js
+========================================================= -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cr-def · Cronograma de defensas</title>
+  <link rel="stylesheet" href="cr-def.css" />
+</head>
+<body>
+  <main class="cr-shell" data-cr-def-app>
+    <header class="cr-hero">
+      <section class="cr-hero__text">
+        <p class="cr-eyebrow">Cr-def</p>
+        <h1>Cronograma de defensas</h1>
+        <p class="cr-subtitle">
+          Pantalla para preparar defensas de estudiantes aptos: requisitos en CUMPLE,
+          nota de artículo mayor o igual a 7 y sin defensa aprobada.
+        </p>
+      </section>
+
+      <section class="cr-period-card" aria-label="Filtro principal por período">
+        <label for="crPeriodo">Período</label>
+        <select id="crPeriodo" class="cr-control" data-cr-periodo>
+          <option value="">Seleccione período</option>
+        </select>
+        <small data-cr-periodo-help>El período será cargado desde BDLocal en los siguientes bloques.</small>
+      </section>
+    </header>
+
+    <section class="cr-status-panel" aria-live="polite">
+      <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
+        <strong>Bloque 1 activo.</strong>
+        La pantalla base ya está preparada. En los siguientes bloques se conectará BDLocal,
+        cache, reglas, plantillas y generación automática.
+      </article>
+    </section>
+
+    <section class="cr-toolbar" aria-label="Herramientas internas">
+      <div class="cr-search-box">
+        <label for="crBusqueda">Buscador inteligente</label>
+        <input
+          id="crBusqueda"
+          class="cr-control"
+          type="search"
+          placeholder="Buscar por cédula, nombre, carrera, sede, aula o tribunal"
+          autocomplete="off"
+          data-cr-busqueda
+        />
+      </div>
+
+      <div class="cr-filter-box" aria-label="Filtros internos de tabla">
+        <label for="crFiltroCarrera">Carrera</label>
+        <select id="crFiltroCarrera" class="cr-control" data-cr-filtro-carrera>
+          <option value="">Todas</option>
+        </select>
+      </div>
+
+      <div class="cr-filter-box">
+        <label for="crFiltroSede">Sede</label>
+        <select id="crFiltroSede" class="cr-control" data-cr-filtro-sede>
+          <option value="">Todas</option>
+        </select>
+      </div>
+
+      <div class="cr-filter-box">
+        <label for="crFiltroEstado">Estado</label>
+        <select id="crFiltroEstado" class="cr-control" data-cr-filtro-estado>
+          <option value="">Todos</option>
+          <option value="apto">Apto para agendar</option>
+          <option value="programado">Defensa programada</option>
+          <option value="supletorio">Supletorio / segunda defensa</option>
+          <option value="sin-cupo">Sin defensa asignada</option>
+          <option value="conflicto">Con conflicto</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="cr-actions" aria-label="Acciones principales">
+      <button type="button" class="cr-btn cr-btn--primary" data-cr-actualizar disabled>
+        Actualizar aptos
+      </button>
+      <button type="button" class="cr-btn" data-cr-generar disabled>
+        Generar cronograma
+      </button>
+      <button type="button" class="cr-btn" data-cr-exportar disabled>
+        Exportar
+      </button>
+      <span class="cr-actions__hint">Los botones se activarán cuando se conecte BDLocal.</span>
+    </section>
+
+    <section class="cr-summary-grid" aria-label="Resumen del cronograma">
+      <article class="cr-summary-card">
+        <span class="cr-summary-card__label">Aptos para agendar</span>
+        <strong data-cr-total-aptos>0</strong>
+      </article>
+      <article class="cr-summary-card">
+        <span class="cr-summary-card__label">Defensas programadas</span>
+        <strong data-cr-total-programados>0</strong>
+      </article>
+      <article class="cr-summary-card cr-summary-card--warn">
+        <span class="cr-summary-card__label">Sin defensa asignada</span>
+        <strong data-cr-total-sin-defensa>0</strong>
+      </article>
+      <article class="cr-summary-card cr-summary-card--danger">
+        <span class="cr-summary-card__label">Conflictos</span>
+        <strong data-cr-total-conflictos>0</strong>
+      </article>
+    </section>
+
+    <section class="cr-table-card">
+      <div class="cr-table-card__head">
+        <div>
+          <h2>Estudiantes aptos</h2>
+          <p>La tabla final mostrará solo estudiantes aptos según período y filtros activos.</p>
+        </div>
+        <span class="cr-pill" data-cr-cache-status>Cache pendiente</span>
+      </div>
+
+      <div class="cr-table-wrap">
+        <table class="cr-table" aria-label="Tabla base de cronograma de defensas">
+          <thead>
+            <tr>
+              <th>Aula</th>
+              <th>Día</th>
+              <th>Hora</th>
+              <th>Sede</th>
+              <th>Cédula</th>
+              <th>Nombre</th>
+              <th>Carrera</th>
+              <th>Nota artículo</th>
+              <th>Tribunal 1</th>
+              <th>Tribunal 2</th>
+              <th>Tribunal 3</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody data-cr-tabla-body>
+            <tr class="cr-empty-row">
+              <td colspan="12">
+                Selecciona un período. En los siguientes bloques se cargarán estudiantes desde BDLocal.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="cr-def.js"></script>
+</body>
+</html>
