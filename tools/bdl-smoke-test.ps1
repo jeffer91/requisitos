@@ -3,7 +3,7 @@ Archivo: bdl-smoke-test.ps1
 Ruta: /tools/bdl-smoke-test.ps1
 Función:
 - Prueba local rápida después de git pull.
-- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto, backup V2, auditor legacy y rendimiento.
+- Verifica archivos críticos de BDLocal, DefArt, migración, sincronización, visor bruto, backup V2, auditor legacy, rendimiento y manual técnico.
 - Revisa conexiones básicas por texto sin modificar datos.
 Uso:
   powershell -ExecutionPolicy Bypass -File .\tools\bdl-smoke-test.ps1
@@ -38,6 +38,7 @@ Write-Host "`n=== BDLocal Smoke Test ===" -ForegroundColor Cyan
 Write-Host "Ruta: $root`n"
 
 $criticalFiles = @(
+  "docs/MANUAL_TECNICO_BDLOCAL_SYNC.md",
   "BDLocal/bl2.config.v2.js",
   "BDLocal/bl2.db.js",
   "BDLocal/bl2.backup.v2.js",
@@ -66,6 +67,10 @@ $criticalFiles = @(
 )
 
 foreach($file in $criticalFiles){ Test-FileExists $file }
+
+Test-Contains "docs/MANUAL_TECNICO_BDLOCAL_SYNC.md" "Manual técnico final" "Manual técnico final creado"
+Test-Contains "docs/MANUAL_TECNICO_BDLOCAL_SYNC.md" "Entrada -> Reglas -> Repositorios -> IndexedDB -> Cola -> Sync externa" "Manual documenta flujo principal"
+Test-Contains "docs/MANUAL_TECNICO_BDLOCAL_SYNC.md" "Bloque 30" "Manual documenta cierre de bloques"
 
 Test-Contains "BDLocal/bl2.config.v2.js" "matriculas_periodo" "DB_VERSION 2 incluye matriculas_periodo"
 Test-Contains "BDLocal/bl2.config.v2.js" "notas_titulacion" "DB_VERSION 2 incluye notas_titulacion"
