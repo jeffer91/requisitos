@@ -23,9 +23,15 @@
   function seq(files){var p=Promise.resolve();files.forEach(function(f){p=p.then(function(){return add(f);});});return p;}
   function register(name,api){name=U.text(name);if(!name||!api){return false;}state.connectors[name]=api;window.BDLocalConexiones[name]=api;return true;}
   function get(name){return state.connectors[U.text(name)]||null;}
+  function needsConfigV2(){
+    var cfg=window.BL2Config||{};
+    var stores=cfg.stores||{};
+    return !window.BL2Config||Number(cfg.dbVersion||1)<2||!stores.matriculasPeriodo||!stores.requisitosEstudiante||!stores.cambiosPendientes;
+  }
   function ensureCoreScripts(){
     var files=[];
     if(!window.BL2Config){files.push("../bl2.config.js");}
+    if(!window.BL2DB&&needsConfigV2()){files.push("../bl2.config.v2.js");}
     if(!window.BL2DB){files.push("../bl2.db.js");}
     if(!window.BL2Backup){files.push("../bl2.backup.js");}
     if(!window.BL2Import){files.push("../bl2.import.js");}
@@ -38,6 +44,9 @@
     return ensureCoreScripts().then(function(){
       var c=window.BL2Core||null;
       var bd=window.BDLocal||null;
+      if(window.BL2DB&&window.BL2Config&&Number(window.BL2Config.dbVersion||1)<2){
+        state.errors.push({file:"../bl2.config.v2.js",message:"BL2DB ya estaba cargado antes de aplicar configuracion v2. Recargue la pantalla para completar la migracion.",at:U.nowISO()});
+      }
       if(bd&&typeof bd.ready==="function"){return bd.ready().then(function(){return c||bd;}).catch(function(){return c||bd;});}
       if(c&&typeof c.getState==="function"){try{var st=c.getState()||{};if(st.initialized){return c;}}catch(e){}}
       if(c&&typeof c.init==="function"){return c.init().then(function(){return c;}).catch(function(){return c;});}
@@ -52,7 +61,7 @@
       var p=typeof c.getPeriods==="function"?c.getPeriods().catch(function(){return [];}):Promise.resolve([]);
       var s=typeof c.getStudents==="function"?c.getStudents({}).catch(function(){return [];}):Promise.resolve([]);
       var r=typeof c.getRequirements==="function"?c.getRequirements({}).catch(function(){return [];}):Promise.resolve([]);
-      return Promise.all([p,s,r]).then(function(v){return U.writeCache({meta:{app:"Requisitos",module:"BDLocalConexiones",version:"1.0.3",source:options.source||"cone.index",updatedAt:U.nowISO()},periods:v[0]||[],students:v[1]||[],requirements:v[2]||[],summaries:{},diagnostics:state.errors});});
+      return Promise.all([p,s,r]).then(function(v){return U.writeCache({meta:{app:"Requisitos",module:"BDLocalConexiones",version:"1.0.4",source:options.source||"cone.index",updatedAt:U.nowISO(),schemaVersion:(window.BL2Config&&window.BL2Config.schemaVersion)||""},periods:v[0]||[],students:v[1]||[],requirements:v[2]||[],summaries:{},diagnostics:state.errors});});
     });
   }
   function status(){var c=U.readCache();return {ok:state.errors.length===0,ready:state.ready,connectors:Object.keys(state.connectors),periods:c.periods.length,students:c.students.length,errors:state.errors};}
@@ -65,6 +74,6 @@
     return state.loading;
   }
   window.BDLocalConexiones=window.BDLocalConexiones||{};
-  Object.assign(window.BDLocalConexiones,{version:"1.0.3",ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,register:register,get:get,status:status,utils:U});
+  Object.assign(window.BDLocalConexiones,{version:"1.0.4",ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,register:register,get:get,status:status,utils:U});
   ready({force:false});
 })(window,document);
