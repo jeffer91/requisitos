@@ -48,7 +48,7 @@
     return HUB.ensureCoreReady().then(function(){
       if(window.BL2Core && typeof window.BL2Core.updateStudent === "function"){
         return window.BL2Core.updateStudent(id, changes || {}, options || {}).then(function(saved){
-          return HUB.refreshCache({ source:"cone.ficha.updateStudent" }).then(function(){ return saved; });
+          return HUB.refreshCache({ source:"cone.ficha.updateStudent", full:true }).then(function(){ return saved; });
         });
       }
       return Promise.reject(new Error("BL2Core.updateStudent no esta disponible."));
@@ -60,10 +60,10 @@
   }
 
   var api = {
-    version:"1.0.0",
+    version:"1.0.1",
     source:"BDLocal/conexiones/cone.ficha.js",
     ready:HUB.ready,
-    refresh:function(){ return HUB.refreshCache({ source:"cone.ficha.refresh" }); },
+    refresh:function(){ return HUB.refreshCache({ source:"cone.ficha.refresh", full:true }); },
     periods:periods,
     listPeriods:periods,
     getPeriods:periods,
