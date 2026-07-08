@@ -75,168 +75,55 @@
         </div>
 
         <div class="bl2-actions">
-          <button id="bl2-btn-load" class="bl2-btn bl2-btn-primary" type="button">
-            Cargar Excel / CSV / TXT
-          </button>
-
-          <button id="bl2-btn-fetch-firebase-config" class="bl2-btn bl2-btn-light" type="button">
-            Traer config Firebase
-          </button>
-
-          <button id="bl2-btn-pull-sheets" class="bl2-btn bl2-btn-light" type="button">
-            Traer Sheets → BL
-          </button>
-
-          <button id="bl2-btn-clean-sheets-duplicates" class="bl2-btn bl2-btn-light" type="button">
-            Limpiar duplicados Sheets
-          </button>
-
-          <button id="bl2-btn-sync-google" class="bl2-btn bl2-btn-light" type="button">
-            Sincronizar Google
-          </button>
-
-          <button id="bl2-btn-sync-firebase" class="bl2-btn bl2-btn-light" type="button">
-            Sincronizar Firebase
-          </button>
-
-          <button id="bl2-btn-sync-queue" class="bl2-btn bl2-btn-light" type="button">
-            Sincronizar cola
-          </button>
-
-          <button id="bl2-btn-test" class="bl2-btn bl2-btn-light" type="button">
-            Probar
-          </button>
-
-          <button id="bl2-btn-export" class="bl2-btn bl2-btn-light" type="button">
-            Exportar
-          </button>
+          <button id="bl2-btn-load" class="bl2-btn bl2-btn-primary" type="button">Cargar Excel / CSV / TXT</button>
+          <button id="bl2-btn-fetch-firebase-config" class="bl2-btn bl2-btn-light" type="button">Traer config Firebase</button>
+          <button id="bl2-btn-pull-sheets" class="bl2-btn bl2-btn-light" type="button">Traer Sheets → BL</button>
+          <button id="bl2-btn-clean-sheets-duplicates" class="bl2-btn bl2-btn-light" type="button">Limpiar duplicados Sheets</button>
+          <button id="bl2-btn-sync-google" class="bl2-btn bl2-btn-light" type="button">Sincronizar Google</button>
+          <button id="bl2-btn-sync-firebase" class="bl2-btn bl2-btn-light" type="button">Sincronizar Firebase</button>
+          <button id="bl2-btn-sync-queue" class="bl2-btn bl2-btn-light" type="button">Sincronizar cola</button>
+          <button id="bl2-btn-test" class="bl2-btn bl2-btn-light" type="button">Probar</button>
+          <button id="bl2-btn-export" class="bl2-btn bl2-btn-light" type="button">Exportar</button>
         </div>
 
-        <input
-          id="bl2-file-input"
-          type="file"
-          accept=".xlsx,.xls,.csv,.txt,.json,.html"
-          hidden
-        />
+        <input id="bl2-file-input" type="file" accept=".xlsx,.xls,.csv,.txt,.json,.html" hidden />
       </section>
 
       <section class="bl2-kpis">
-        <article class="bl2-kpi">
-          <span>Período activo</span>
-          <strong id="bl2-kpi-period">—</strong>
-          <small id="bl2-kpi-period-id">Sin seleccionar</small>
-        </article>
-
-        <article class="bl2-kpi">
-          <span>Estudiantes</span>
-          <strong id="bl2-kpi-students">0</strong>
-          <small id="bl2-kpi-students-sub">En BL2</small>
-        </article>
-
-        <article class="bl2-kpi">
-          <span>Pendientes Google</span>
-          <strong id="bl2-kpi-google">0</strong>
-          <small>Cola frecuente</small>
-        </article>
-
-        <article class="bl2-kpi">
-          <span>Pendientes Firebase</span>
-          <strong id="bl2-kpi-firebase">0</strong>
-          <small>Una vez al día</small>
-        </article>
-
-        <article class="bl2-kpi">
-          <span>Advertencias</span>
-          <strong id="bl2-kpi-warnings">0</strong>
-          <small>Última carga</small>
-        </article>
+        <article class="bl2-kpi"><span>Período activo</span><strong id="bl2-kpi-period">—</strong><small id="bl2-kpi-period-id">Sin seleccionar</small></article>
+        <article class="bl2-kpi"><span>Estudiantes</span><strong id="bl2-kpi-students">0</strong><small id="bl2-kpi-students-sub">En BL2</small></article>
+        <article class="bl2-kpi"><span>Pendientes Google</span><strong id="bl2-kpi-google">0</strong><small>Cola frecuente</small></article>
+        <article class="bl2-kpi"><span>Pendientes Firebase</span><strong id="bl2-kpi-firebase">0</strong><small>Una vez al día</small></article>
+        <article class="bl2-kpi"><span>Advertencias</span><strong id="bl2-kpi-warnings">0</strong><small>Última carga</small></article>
       </section>
 
       <section class="bl2-layout">
-
         <article class="bl2-card">
-          <div class="bl2-card-head">
-            <div>
-              <h2>Resumen de carga</h2>
-              <p>Después de cargar un archivo o traer datos desde Google Sheets, aquí aparecerá el resumen corto.</p>
-            </div>
-          </div>
-
-          <div id="bl2-import-summary" class="bl2-summary">
-            <div class="bl2-empty">
-              Todavía no se ha cargado ningún archivo en esta sesión.
-            </div>
-          </div>
+          <div class="bl2-card-head"><div><h2>Resumen de carga</h2><p>Después de cargar un archivo o traer datos desde Google Sheets, aquí aparecerá el resumen corto.</p></div></div>
+          <div id="bl2-import-summary" class="bl2-summary"><div class="bl2-empty">Todavía no se ha cargado ningún archivo en esta sesión.</div></div>
         </article>
 
         <article class="bl2-card">
-          <div class="bl2-card-head">
-            <div>
-              <h2>Estado de sincronización</h2>
-              <p>Google trabaja frecuente en segundo plano. Firebase solo una vez al día por período.</p>
-            </div>
-          </div>
-
+          <div class="bl2-card-head"><div><h2>Estado de sincronización</h2><p>Google trabaja frecuente en segundo plano. Firebase solo una vez al día por período.</p></div></div>
           <div class="bl2-sync-status-list">
-            <div class="bl2-sync-status">
-              <span class="bl2-dot bl2-dot-warn"></span>
-              <div>
-                <strong>Google Sheets</strong>
-                <p id="bl2-google-status">Pendiente de configuración.</p>
-              </div>
-            </div>
-
-            <div class="bl2-sync-status">
-              <span class="bl2-dot bl2-dot-warn"></span>
-              <div>
-                <strong>Firebase</strong>
-                <p id="bl2-firebase-status">Pendiente de revisión diaria.</p>
-              </div>
-            </div>
-
-            <div class="bl2-sync-status">
-              <span class="bl2-dot bl2-dot-ok"></span>
-              <div>
-                <strong>Respaldo local JSON</strong>
-                <p id="bl2-backup-status">Activo: después de cada carga y una vez al día.</p>
-              </div>
-            </div>
+            <div class="bl2-sync-status"><span class="bl2-dot bl2-dot-warn"></span><div><strong>Google Sheets</strong><p id="bl2-google-status">Pendiente de configuración.</p></div></div>
+            <div class="bl2-sync-status"><span class="bl2-dot bl2-dot-warn"></span><div><strong>Firebase</strong><p id="bl2-firebase-status">Pendiente de revisión diaria.</p></div></div>
+            <div class="bl2-sync-status"><span class="bl2-dot bl2-dot-ok"></span><div><strong>Respaldo local JSON</strong><p id="bl2-backup-status">Activo: después de cada carga y una vez al día.</p></div></div>
           </div>
         </article>
-
       </section>
 
       <section class="bl2-card">
         <div class="bl2-card-head bl2-card-head-row">
-          <div>
-            <h2>Períodos disponibles</h2>
-            <p>Stats debe iniciar mostrando los períodos. Luego se analiza el período elegido.</p>
-          </div>
-
-          <button id="bl2-btn-refresh" class="bl2-btn bl2-btn-light" type="button">
-            Refrescar
-          </button>
+          <div><h2>Períodos disponibles</h2><p>Stats debe iniciar mostrando los períodos. Luego se analiza el período elegido.</p></div>
+          <button id="bl2-btn-refresh" class="bl2-btn bl2-btn-light" type="button">Refrescar</button>
         </div>
-
-        <div id="bl2-period-list" class="bl2-period-list">
-          <div class="bl2-empty">No hay períodos cargados todavía.</div>
-        </div>
+        <div id="bl2-period-list" class="bl2-period-list"><div class="bl2-empty">No hay períodos cargados todavía.</div></div>
       </section>
 
       <section class="bl2-card">
-        <div class="bl2-card-head">
-          <div>
-            <h2>Registro</h2>
-            <p>Eventos importantes de BL2.</p>
-          </div>
-        </div>
-
-        <div id="bl2-log" class="bl2-log" aria-live="polite">
-          <div class="bl2-log-item">
-            <strong>BL2</strong>
-            <span>Esperando inicialización...</span>
-          </div>
-        </div>
+        <div class="bl2-card-head"><div><h2>Registro</h2><p>Eventos importantes de BL2.</p></div></div>
+        <div id="bl2-log" class="bl2-log" aria-live="polite"><div class="bl2-log-item"><strong>BL2</strong><span>Esperando inicialización...</span></div></div>
       </section>
 
     </main>
@@ -298,6 +185,7 @@
   <script src="diagnostics/bdl.diagnostics.ui-bridge.js"></script>
 
   <script src="bl2.backup.js"></script>
+  <script src="bl2.backup.v2.js"></script>
   <script src="bl2.import.js"></script>
   <script src="bl2.sync.js"></script>
   <script src="bl2.core.js"></script>
