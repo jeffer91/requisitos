@@ -10,11 +10,11 @@ Función o funciones:
 - Servir como contenedor para los siguientes bloques: reglas, cache, BDLocal, generador y exportación.
 Con qué se conecta:
 - cr-def.css
-- cr-def.js
-Pendiente para siguientes bloques:
 - cr-def.config.js
 - cr-def.rules.js
 - cr-def.templates.js
+- cr-def.js
+Pendiente para siguientes bloques:
 - cr-def.data.js
 - cr-def.cache.js
 - cr-def.scheduler.js
@@ -51,9 +51,9 @@ Pendiente para siguientes bloques:
 
     <section class="cr-status-panel" aria-live="polite">
       <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Bloque 1 activo.</strong>
-        La pantalla base ya está preparada. En los siguientes bloques se conectará BDLocal,
-        cache, reglas, plantillas y generación automática.
+        <strong>Bloque 2 activo.</strong>
+        Ya están cargadas la configuración, reglas de aptitud y plantillas quemadas.
+        En el siguiente bloque se conectará BDLocal y cache.
       </article>
     </section>
 
@@ -168,6 +168,9 @@ Pendiente para siguientes bloques:
     </section>
   </main>
 
+  <script src="cr-def.config.js"></script>
+  <script src="cr-def.rules.js"></script>
+  <script src="cr-def.templates.js"></script>
   <script src="cr-def.js"></script>
 </body>
 </html>
