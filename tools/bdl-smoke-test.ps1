@@ -52,6 +52,7 @@ $criticalFiles = @(
   "BDLocal/sync/bdl.sync.outbox.js",
   "BDLocal/sync/bdl.sync.orchestrator.js",
   "BDLocal/sync/bdl.sync.index.js",
+  "BDLocal/sync/bdl.sync.ui-bridge.js",
   "BDLocal/sync/targets/bdl.sync.targets.index.js",
   "BDLocal/sync/targets/bdl.sync.target.firebase.js",
   "defart/defart.service-bridge.js",
@@ -77,6 +78,12 @@ Test-Contains "BDLocal/sync/targets/bdl.sync.targets.index.js" "register(`"supab
 Test-Contains "BDLocal/sync/targets/bdl.sync.target.firebase.js" "register(`"firebase`"" "Target Firebase registrado"
 Test-Contains "BDLocal/sync/bdl.sync.index.js" "bdl.sync.target.firebase.js" "Sync index autocarga Firebase target"
 Test-Contains "BDLocal/diagnostics/bdl.diagnostics.general.js" "queueSummary" "Diagnóstico incluye queueSummary"
+
+Test-Contains "BDLocal/sync/bdl.sync.outbox.js" "nextRetryAt" "Outbox controla próxima fecha de reintento"
+Test-Contains "BDLocal/sync/bdl.sync.outbox.js" "DEFAULT_MAX_ATTEMPTS" "Outbox controla máximo de intentos"
+Test-Contains "BDLocal/sync/bdl.sync.outbox.js" "blocked" "Outbox controla bloqueo por errores"
+Test-Contains "BDLocal/sync/bdl.sync.ui-bridge.js" "esperando" "UI muestra cambios esperando reintento"
+Test-Contains "BDLocal/sync/bdl.sync.ui-bridge.js" "bloqueado" "UI muestra cambios bloqueados"
 
 Test-Contains "defart/defart.html" "defart.service-bridge.js" "DefArt carga service bridge"
 Test-Contains "defart/defart.html" "defart.save-service-bridge.js" "DefArt carga save bridge"
