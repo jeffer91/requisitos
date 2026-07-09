@@ -7,7 +7,7 @@ Función o funciones:
 - Preparar filtro principal por período.
 - Preparar buscador inteligente y filtros internos de trabajo.
 - Preparar tarjetas de resumen, alertas y tabla base.
-- Conectar configuración, reglas, plantillas, BDLocal y cache rápida.
+- Conectar configuración, reglas, plantillas, BDLocal, cache rápida y generador automático.
 Con qué se conecta:
 - cr-def.css
 - ../BDLocal/bl2.config.js
@@ -18,9 +18,9 @@ Con qué se conecta:
 - cr-def.templates.js
 - cr-def.cache.js
 - cr-def.data.js
+- cr-def.scheduler.js
 - cr-def.js
 Pendiente para siguientes bloques:
-- cr-def.scheduler.js
 - cr-def.render.js
 - cr-def.export.js
 ========================================================= -->
@@ -54,8 +54,8 @@ Pendiente para siguientes bloques:
 
     <section class="cr-status-panel" aria-live="polite">
       <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Bloque 3 activo.</strong>
-        BDLocal y cache rápida de Cr-def están conectadas. Selecciona un período y presiona Actualizar aptos.
+        <strong>Bloque 4 activo.</strong>
+        BDLocal, cache y generador automático están conectados. Selecciona período, actualiza aptos y genera cronograma.
       </article>
     </section>
 
@@ -96,6 +96,41 @@ Pendiente para siguientes bloques:
           <option value="sin-cupo">Sin defensa asignada</option>
           <option value="conflicto">Con conflicto</option>
         </select>
+      </div>
+    </section>
+
+    <section class="cr-plan-panel" aria-label="Días para generación automática">
+      <div class="cr-plan-head">
+        <div>
+          <h2>Días para defensa</h2>
+          <p>Cr-def no inventa fechas. Escribe los días que se pueden usar antes de generar.</p>
+        </div>
+        <span class="cr-plan-badge">Bloques de 30 minutos</span>
+      </div>
+      <div class="cr-plan-grid">
+        <label class="cr-plan-field" for="crDiasGlobales">
+          <span>Días generales</span>
+          <input
+            id="crDiasGlobales"
+            class="cr-control"
+            type="text"
+            placeholder="Ej: 10/07/2026, 11/07/2026"
+            autocomplete="off"
+            data-cr-dias-globales
+          />
+          <small>Se aplican a todas las carreras que no tengan días propios.</small>
+        </label>
+        <label class="cr-plan-field" for="crDiasCarrera">
+          <span>Días por carrera</span>
+          <textarea
+            id="crDiasCarrera"
+            class="cr-control cr-textarea"
+            rows="3"
+            placeholder="Ej: Redes=10/07/2026,11/07/2026&#10;Administración=12/07/2026"
+            data-cr-dias-carrera
+          ></textarea>
+          <small>Formato: Carrera=fecha1,fecha2. También acepta Carrera|fecha1,fecha2.</small>
+        </label>
       </div>
     </section>
 
@@ -179,6 +214,7 @@ Pendiente para siguientes bloques:
   <script src="cr-def.templates.js"></script>
   <script src="cr-def.cache.js"></script>
   <script src="cr-def.data.js"></script>
+  <script src="cr-def.scheduler.js"></script>
   <script src="cr-def.js"></script>
 </body>
 </html>
