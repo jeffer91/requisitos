@@ -7,10 +7,11 @@ Función o funciones:
 - Preparar filtro principal por período.
 - Preparar buscador inteligente y filtros internos de trabajo.
 - Preparar tarjetas de resumen, alertas y tabla base.
-- Conectar configuración, reglas, plantillas, BDLocal, cache rápida y generador automático.
+- Conectar configuración, reglas, plantillas, BDLocal, cache rápida, generador automático, render avanzado y exportaciones.
 Con qué se conecta:
 - cr-def.css
 - cr-def.scheduler.css
+- cr-def.render.css
 - ../BDLocal/bl2.config.js
 - ../BDLocal/bl2.config.v2.js
 - ../BDLocal/bl2.db.js
@@ -22,9 +23,11 @@ Con qué se conecta:
 - cr-def.scheduler.js
 - cr-def.js
 - cr-def.scheduler.bridge.js
-Pendiente para siguientes bloques:
 - cr-def.render.js
 - cr-def.export.js
+Pendiente para siguientes bloques:
+- Conexión al menú Maqueta.
+- Eliminación de sn-sacar-n.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -33,6 +36,7 @@ Pendiente para siguientes bloques:
   <title>Cr-def · Cronograma de defensas</title>
   <link rel="stylesheet" href="cr-def.css" />
   <link rel="stylesheet" href="cr-def.scheduler.css" />
+  <link rel="stylesheet" href="cr-def.render.css" />
 </head>
 <body>
   <main class="cr-shell" data-cr-def-app>
@@ -57,8 +61,8 @@ Pendiente para siguientes bloques:
 
     <section class="cr-status-panel" aria-live="polite">
       <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Bloque 4 activo.</strong>
-        BDLocal, cache y generador automático están conectados. Selecciona período, actualiza aptos y genera cronograma.
+        <strong>Bloque 5 activo.</strong>
+        Render visual avanzado y exportaciones están conectados. La exportación usa los filtros activos.
       </article>
     </section>
 
@@ -220,5 +224,7 @@ Pendiente para siguientes bloques:
   <script src="cr-def.scheduler.js"></script>
   <script src="cr-def.js"></script>
   <script src="cr-def.scheduler.bridge.js"></script>
+  <script src="cr-def.render.js"></script>
+  <script src="cr-def.export.js"></script>
 </body>
 </html>
