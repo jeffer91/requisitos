@@ -6,7 +6,7 @@ Función o funciones:
 - Cargar períodos desde BDLocal.
 - Cargar estudiantes aptos desde cache rápida o BDLocal.
 - Actualizar cache propia de Cr-def.
-- Manejar buscador inteligente, filtros internos y resumen.
+- Manejar buscador inteligente, filtros internos, resumen y botones principales.
 Con qué se conecta:
 - ../BDLocal/bl2.config.js
 - ../BDLocal/bl2.config.v2.js
@@ -16,16 +16,16 @@ Con qué se conecta:
 - cr-def.templates.js
 - cr-def.cache.js
 - cr-def.data.js
-Pendiente para siguientes bloques:
-- Generador automático de cronograma.
-- Render avanzado y edición por fila.
-- Exportación Excel, PDF, WhatsApp y correo.
+- cr-def.scheduler.js
+- cr-def.scheduler.bridge.js
+- cr-def.render.js
+- cr-def.export.js
 ========================================================= */
 (function(window, document){
   "use strict";
 
   var APP_NAME = "Cr-def";
-  var VERSION = "bloque-3";
+  var VERSION = "bloque-6-audit-1";
 
   var state = {
     periodo: "",
@@ -126,20 +126,27 @@ Pendiente para siguientes bloques:
     safeSetText(els.actionsHint, message || (loading ? "Cargando..." : "Listo."));
   }
 
+  function hasRowsForAction(){
+    return Array.isArray(state.rows) && state.rows.length > 0;
+  }
+
   function updateButtons(){
     var hasPeriodo = !!state.periodo;
     var hasData = !!(window.CR_DEF_DATA && window.CR_DEF_DATA.dbAvailable && window.CR_DEF_DATA.dbAvailable());
+    var hasScheduler = !!(window.CR_DEF_SCHEDULER && typeof window.CR_DEF_SCHEDULER.generar === "function");
 
     if(els.btnActualizar){ els.btnActualizar.disabled = state.loading || !hasPeriodo || !hasData; }
-    if(els.btnGenerar){ els.btnGenerar.disabled = true; }
-    if(els.btnExportar){ els.btnExportar.disabled = true; }
+    if(els.btnGenerar){ els.btnGenerar.disabled = state.loading || !hasPeriodo || !hasRowsForAction() || !hasScheduler; }
+    if(els.btnExportar){ els.btnExportar.disabled = state.loading || !hasRowsForAction(); }
 
     if(!hasData){
       safeSetText(els.actionsHint, "BDLocal no disponible en esta pantalla.");
     }else if(!hasPeriodo){
       safeSetText(els.actionsHint, "Selecciona un período.");
+    }else if(!hasRowsForAction() && !state.loading){
+      safeSetText(els.actionsHint, "Actualiza estudiantes aptos desde BDLocal.");
     }else if(!state.loading){
-      safeSetText(els.actionsHint, "Puedes actualizar estudiantes aptos desde BDLocal.");
+      safeSetText(els.actionsHint, "Listo para generar cronograma o exportar según filtros activos.");
     }
   }
 
@@ -201,6 +208,7 @@ Pendiente para siguientes bloques:
       els.busqueda.addEventListener("input", function(){
         state.busqueda = text(els.busqueda.value);
         renderTable();
+        updateButtons();
       });
     }
 
@@ -208,6 +216,7 @@ Pendiente para siguientes bloques:
       els.filtroCarrera.addEventListener("change", function(){
         state.filtros.carrera = text(els.filtroCarrera.value);
         renderTable();
+        updateButtons();
       });
     }
 
@@ -215,6 +224,7 @@ Pendiente para siguientes bloques:
       els.filtroSede.addEventListener("change", function(){
         state.filtros.sede = text(els.filtroSede.value);
         renderTable();
+        updateButtons();
       });
     }
 
@@ -222,6 +232,7 @@ Pendiente para siguientes bloques:
       els.filtroEstado.addEventListener("change", function(){
         state.filtros.estado = text(els.filtroEstado.value);
         renderTable();
+        updateButtons();
       });
     }
 
@@ -238,6 +249,7 @@ Pendiente para siguientes bloques:
       state.rows = [];
       setCacheStatus("Cache pendiente");
       renderTable();
+      updateButtons();
       setAlert("info", "Seleccione período.", "Elige un período para cargar estudiantes aptos desde cache o BDLocal.");
       return;
     }
@@ -252,6 +264,7 @@ Pendiente para siguientes bloques:
       setCacheStatus("Cache cargada");
       updateFiltersFromRows(state.rows);
       renderTable();
+      updateButtons();
       setAlert("info", "Cache cargada.", "Se muestran datos guardados localmente. Presiona Actualizar aptos para refrescar desde BDLocal.");
       return;
     }
@@ -260,6 +273,7 @@ Pendiente para siguientes bloques:
     setCacheStatus("Sin cache");
     updateFiltersFromRows([]);
     renderTable();
+    updateButtons();
     setAlert("warn", "Sin cache para este período.", "Presiona Actualizar aptos para leer BDLocal y crear la cache rápida de Cr-def.");
   }
 
@@ -286,8 +300,10 @@ Pendiente para siguientes bloques:
         setCacheStatus("Cache actualizada");
       }
 
+      updateButtons();
       return firma;
     }).catch(function(){
+      updateButtons();
       return null;
     });
   }
@@ -322,6 +338,7 @@ Pendiente para siguientes bloques:
 
       updateFiltersFromRows(state.rows);
       renderTable();
+      updateButtons();
       setCacheStatus(saved ? "Cache actualizada" : "Cache no disponible");
 
       var resumen = result.resumen || {};
@@ -333,7 +350,7 @@ Pendiente para siguientes bloques:
     }).catch(function(error){
       setAlert("danger", "Error al actualizar aptos.", error && error.message ? error.message : String(error));
     }).finally(function(){
-      setLoading(false, "Puedes actualizar estudiantes aptos desde BDLocal.");
+      setLoading(false, "Listo para generar cronograma o exportar según filtros activos.");
     });
   }
 
@@ -396,17 +413,20 @@ Pendiente para siguientes bloques:
     if(!state.periodo){
       els.tablaBody.appendChild(emptyRow("Selecciona un período y presiona Actualizar aptos."));
       updateSummary(filteredRows);
+      updateButtons();
       return;
     }
 
     if(!filteredRows.length){
       els.tablaBody.appendChild(emptyRow(state.rows.length ? "No hay resultados con los filtros actuales." : "No hay estudiantes aptos cargados. Presiona Actualizar aptos."));
       updateSummary(filteredRows);
+      updateButtons();
       return;
     }
 
     filteredRows.forEach(function(row){ els.tablaBody.appendChild(renderRow(row)); });
     updateSummary(filteredRows);
+    updateButtons();
   }
 
   function emptyRow(message){
@@ -473,10 +493,12 @@ Pendiente para siguientes bloques:
       state: state,
       render: renderTable,
       actualizarAptos: actualizarAptos,
+      updateButtons: updateButtons,
       setRows: function(rows){
         state.rows = Array.isArray(rows) ? rows : [];
         updateFiltersFromRows(state.rows);
         renderTable();
+        updateButtons();
       }
     };
   }
@@ -500,6 +522,7 @@ Pendiente para siguientes bloques:
         renderTable();
         setAlert("info", "Cr-def listo.", "Selecciona un período y presiona Actualizar aptos para leer BDLocal.");
       }
+      updateButtons();
     });
   }
 
