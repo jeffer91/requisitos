@@ -4,9 +4,9 @@ Ruta o ubicación: /Requisitos/Maqueta/maq-modulos-registry.js
 Función o funciones:
 - Definir rutas internas reales del menú de Requisitos.
 - Enviar Carga a la pantalla funcional Carga/carga.html.
-- Enviar BL a la nueva pantalla BDLocal/bl2.html.
+- Enviar BL a la pantalla BDLocal/bl2.html.
 - Registrar Global como módulo activo para análisis histórico multiperíodo.
-- Registrar Sacar N como módulo activo para extracción controlada de notas.
+- Registrar Cr-def como módulo activo para cronogramas de defensas.
 - Marcar como pendientes las pantallas que aún no existen para evitar iframe roto.
 Con qué se conecta:
 - maq-config-service.js
@@ -82,10 +82,10 @@ Con qué se conecta:
       estado: "activo"
     },
 
-    sacar_n: {
-      id: "sacar_n",
-      nombre: "Sacar N",
-      ruta: base + "/sn-sacar-n/sn-sacar-n.html",
+    cr_def: {
+      id: "cr_def",
+      nombre: "Cr-def",
+      ruta: base + "/Cr-def/cr-def.html",
       estado: "activo"
     },
 
@@ -160,8 +160,13 @@ Con qué se conecta:
     defensa: "defart",
     defart: "defart",
 
-    "sacar n": "sacar_n",
-    sacarn: "sacar_n",
+    "cr-def": "cr_def",
+    "cr def": "cr_def",
+    crdef: "cr_def",
+    "cronograma defensas": "cr_def",
+    "cronograma de defensas": "cr_def",
+    "sacar n": "cr_def",
+    sacarn: "cr_def",
 
     "titulos estudiante": "titulos_estudiante",
     "títulos estudiante": "titulos_estudiante",
