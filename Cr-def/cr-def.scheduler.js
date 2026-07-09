@@ -6,11 +6,14 @@ Función o funciones:
 - Usar bloques de 30 minutos y plantillas quemadas.
 - No inventar días: usa únicamente los días escritos en la pantalla.
 - Marcar sin cupo si faltan días, aulas u horarios.
+- Evitar doble asignación de la misma aula en el mismo día y hora.
+- Conservar defensas ya programadas para no duplicarlas.
 - Detectar cruces de aula y tribunal.
 Con qué se conecta:
 - cr-def.config.js
 - cr-def.templates.js
 - cr-def.js
+- cr-def.scheduler.bridge.js
 ========================================================= */
 (function(window){
   "use strict";
@@ -21,6 +24,7 @@ Con qué se conecta:
 
   function txt(v){ return String(v == null ? "" : v).replace(/\s+/g, " ").trim(); }
   function norm(v){ return txt(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
+  function compact(v){ return norm(v).replace(/_/g, ""); }
   function clone(v){ try{ return JSON.parse(JSON.stringify(v)); }catch(e){ return v; } }
   function pad(n){ n = Number(n || 0); return n < 10 ? "0" + n : String(n); }
 
@@ -76,7 +80,22 @@ Con qué se conecta:
 
   function diasDe(row, opt){
     var byCareer = opt.porCarrera || {};
-    return byCareer[norm(row.carrera)] || byCareer[norm(carreraKey(row.carrera))] || opt.globales || [];
+    var candidates = [
+      norm(row.carrera),
+      compact(row.carrera),
+      norm(carreraKey(row.carrera)),
+      compact(carreraKey(row.carrera))
+    ].filter(Boolean);
+
+    var keys = Object.keys(byCareer);
+    for(var i = 0; i < keys.length; i += 1){
+      var key = keys[i];
+      if(candidates.indexOf(norm(key)) >= 0 || candidates.indexOf(compact(key)) >= 0){
+        return byCareer[key];
+      }
+    }
+
+    return opt.globales || [];
   }
 
   function tribunal(id, carrera){
@@ -101,7 +120,8 @@ Con qué se conecta:
     var out = [];
     plantillas(row).forEach(function(p){
       (p.bloques || []).forEach(function(b){
-        var diasBloque = fecha(b.dia) ? [fecha(b.dia)] : dias;
+        var fixedDate = fecha(b.dia);
+        var diasBloque = fixedDate ? [fixedDate] : dias;
         var ini = parseHora(b.inicio);
         var fin = parseHora(b.fin);
         var dur = Number(p.duracionMinutos || DURACION);
@@ -129,6 +149,17 @@ Con qué se conecta:
     });
     out.sort(function(a, b){ return [a.diaISO, pad(a.inicio), a.aula || "ZZZ", a.templateId].join("|").localeCompare([b.diaISO, pad(b.inicio), b.aula || "ZZZ", b.templateId].join("|"), "es"); });
     return out;
+  }
+
+  function ocupacionSlot(s){
+    var extraSinAula = txt(s.aula) ? "" : [s.templateId, s.tribunalId].join("|");
+    return [s.dia, s.hora, s.sede, s.aula || "SIN_AULA", extraSinAula].map(norm).join("|");
+  }
+
+  function ocupacionRow(r){
+    var cr = r && r.cronograma ? r.cronograma : {};
+    var extraSinAula = txt(r.aula) ? "" : [cr.templateId || "", cr.tribunalId || ""].join("|");
+    return [r.dia, r.hora, r.sede, r.aula || "SIN_AULA", extraSinAula].map(norm).join("|");
   }
 
   function conSlot(row, s){
@@ -200,13 +231,21 @@ Con qué se conecta:
     var sinDias = !opt.globales.length && !Object.keys(opt.porCarrera).length;
     var usados = {};
 
+    (Array.isArray(rows) ? rows : []).forEach(function(row){
+      if(programable(row) && tieneHorario(row)){
+        usados[ocupacionRow(row)] = true;
+      }
+    });
+
     var out = (Array.isArray(rows) ? rows : []).map(function(row){
       if(!programable(row)){ return clone(row); }
+      if(tieneHorario(row)){ return clone(row); }
       if(sinDias){ return sinCupo(row); }
       var lista = slots(row, opt);
       for(var i = 0; i < lista.length; i += 1){
-        if(!usados[lista[i].key]){
-          usados[lista[i].key] = true;
+        var key = ocupacionSlot(lista[i]);
+        if(!usados[key]){
+          usados[key] = true;
           return conSlot(row, lista[i]);
         }
       }
