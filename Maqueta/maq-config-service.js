@@ -5,7 +5,7 @@ Función o funciones:
 - Construir el menú superior de Requisitos en el orden definido.
 - Mantener Carga como pantalla inicial.
 - Mantener BL como pantalla de control de BDLocal y Firebase.
-- Incluir Sacar N como módulo activo del menú principal.
+- Incluir Cr-def como módulo activo del menú principal.
 Con qué se conecta:
 - maq-menu.js
 - maq-modulos-registry.js
@@ -22,7 +22,7 @@ Con qué se conecta:
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
     {tipo:"modulo",moduloId:"modulo_reporte",etiqueta:"Repor"},
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
-    {tipo:"modulo",moduloId:"sacar_n",etiqueta:"Sacar N"},
+    {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"},
     {tipo:"grupo",id:"titulos",etiqueta:"Titulos",hijos:[
       {tipo:"modulo",moduloId:"titulos_estudiante",etiqueta:"Estudiante"},
       {tipo:"modulo",moduloId:"titulos_admin",etiqueta:"Administrador"},
