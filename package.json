@@ -1,18 +1,22 @@
 {
   "name": "requisitos-desktop",
-  "version": "1.1.0",
-  "description": "Aplicación local de Requisitos con certificación integral de BDLocal.",
+  "version": "1.2.0",
+  "description": "Aplicación local de Requisitos con auditoría integral de BDLocal.",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
-    "start": "npx --yes electron .",
-    "dev": "npx --yes electron .",
+    "start": "electron .",
+    "dev": "electron .",
     "start:local": "electron .",
-    "test": "node scripts/verify-bdlocal.js",
+    "test": "node scripts/verify-bdlocal.js && node scripts/audit-repository.js",
     "test:bdlocal": "node scripts/verify-bdlocal.js",
-    "verify": "node scripts/verify-bdlocal.js"
+    "audit:repo": "node scripts/audit-repository.js",
+    "verify": "npm test"
+  },
+  "dependencies": {
+    "xlsx": "0.18.5"
   },
   "devDependencies": {
-    "electron": "latest"
+    "electron": "36.9.5"
   }
 }
