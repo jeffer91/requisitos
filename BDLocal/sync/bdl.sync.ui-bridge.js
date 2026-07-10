@@ -1,72 +1,56 @@
 /* =========================================================
-Archivo: bdl.sync.ui-bridge.js
-Ruta: /BDLocal/sync/bdl.sync.ui-bridge.js
-Función:
-- Conectar botones visuales de BL2 con BDLSyncV2 / BDLSyncOrchestrator.
-- Ejecutar sincronización manual por destino: Google Sheets, Firebase y Supabase.
-- Mostrar pendientes, errores, bloqueados y espera de reintento por base.
-- Pintar botones en rojo cuando hay pendientes y en verde cuando están al día.
-- Mantener Carga separada: Carga solo guarda local; BDLocal sube a nubes bajo demanda.
-Con qué se conecta:
-- BDLocal/sync/bdl.sync.index.js
-- BDLocal/sync/bdl.sync.orchestrator.js
-- BDLocal/sync/bdl.sync.outbox.js
-- BDLocal/bl2.html
+Nombre completo: bdl.sync.ui-bridge.js
+Ruta o ubicación: /BDLocal/sync/bdl.sync.ui-bridge.js
+Función o funciones:
+- Conectar el Centro de Control con BDLSyncV2 y BDLSyncOrchestrator.
+- Leer la cola real cambios_pendientes.
+- Sincronizar manualmente Google Sheets, Firebase o Supabase.
+- Actualizar indicadores, estados y botones sin crear otra interfaz.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "0.4.0-manual-target-buttons";
+  var VERSION = "0.5.0-control-center";
+  var eventsBound = false;
+  var lastCounts = null;
 
   var TARGETS = {
-    google: {
-      id:"google",
-      label:"Google Sheets",
-      shortLabel:"Google",
-      buttonId:"bl2-btn-push-google",
-      legacyButtonId:"bl2-btn-sync-google",
-      kpiId:"bl2-kpi-google",
-      statusId:"bl2-google-status",
-      dotId:"bl2-dot-google"
-    },
-    firebase: {
-      id:"firebase",
-      label:"Firebase",
-      shortLabel:"Firebase",
-      buttonId:"bl2-btn-push-firebase",
-      legacyButtonId:"bl2-btn-sync-firebase",
-      kpiId:"bl2-kpi-firebase",
-      statusId:"bl2-firebase-status",
-      dotId:"bl2-dot-firebase"
-    },
-    supabase: {
-      id:"supabase",
-      label:"Supabase",
-      shortLabel:"Supabase",
-      buttonId:"bl2-btn-push-supabase",
-      legacyButtonId:"",
-      kpiId:"bl2-kpi-supabase",
-      statusId:"bl2-supabase-status",
-      dotId:"bl2-dot-supabase"
-    }
+    google:{ label:"Google Sheets", shortLabel:"Google", buttonId:"bl2-btn-push-google", legacyButtonId:"bl2-btn-sync-google", kpiId:"bl2-kpi-google", statusId:"bl2-google-status", dotId:"bl2-dot-google" },
+    firebase:{ label:"Firebase", shortLabel:"Firebase", buttonId:"bl2-btn-push-firebase", legacyButtonId:"bl2-btn-sync-firebase", kpiId:"bl2-kpi-firebase", statusId:"bl2-firebase-status", dotId:"bl2-dot-firebase" },
+    supabase:{ label:"Supabase", shortLabel:"Supabase", buttonId:"bl2-btn-push-supabase", legacyButtonId:"", kpiId:"bl2-kpi-supabase", statusId:"bl2-supabase-status", dotId:"bl2-dot-supabase" }
   };
 
   function byId(id){ return id ? document.getElementById(id) : null; }
   function text(value){ return String(value == null ? "" : value).trim(); }
-  function n(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
+  function number(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
+  function esc(value){ return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
+  function setText(id, value){ var el = byId(id); if(el){ el.textContent = value; } }
 
-  function setText(id, value){
-    var el = byId(id);
-    if(el){ el.textContent = value; }
+  function log(message, level){
+    var box = byId("bl2-log");
+    if(box){
+      var item = document.createElement("div");
+      item.className = "bl2-log-item " + (level ? "is-" + level : "");
+      item.innerHTML = "<strong>Sincronización</strong><span>" + esc(message) + "</span>";
+      box.insertBefore(item, box.firstChild);
+    }
+    try{
+      if(window.BL2Core && typeof window.BL2Core.log === "function"){
+        window.BL2Core.log(level === "error" ? "ERROR" : level === "warn" ? "WARN" : "INFO", message).catch(function(){});
+      }
+    }catch(error){}
   }
 
-  function log(message){
-    var box = byId("bl2-log");
-    if(!box){ return; }
-    var item = document.createElement("div");
-    item.className = "bl2-log-item";
-    item.innerHTML = "<strong>Sync manual</strong><span>" + text(message) + "</span>";
-    box.insertBefore(item, box.firstChild);
+  function selectedPeriod(){
+    if(window.BL2App && typeof window.BL2App.getSelectedPeriod === "function"){
+      var period = window.BL2App.getSelectedPeriod();
+      if(period && text(period.id)){ return { id:text(period.id), label:text(period.label || period.id) }; }
+    }
+    var select = byId("bl2-period-select");
+    var id = text(select && select.value);
+    var label = id;
+    if(select && select.selectedOptions && select.selectedOptions[0]){ label = text(select.selectedOptions[0].textContent) || id; }
+    return { id:id, label:label };
   }
 
   function countsFrom(status){
@@ -93,25 +77,14 @@ Con qué se conecta:
     return { pending:0, synced:0, error:0, blocked:0, waitingRetry:0 };
   }
 
-  function line(label, detail){
+  function pendingTotal(detail){
     detail = detail || {};
-    return label + ": " +
-      n(detail.pending) + " pendiente(s), " +
-      n(detail.waitingRetry) + " esperando, " +
-      n(detail.blocked) + " bloqueado(s), " +
-      n(detail.error) + " error(es).";
+    return number(detail.pending) + number(detail.waitingRetry) + number(detail.error) + number(detail.blocked);
   }
 
-  function setDot(target, detail){
-    var cfg = TARGETS[target];
-    var dot = cfg ? byId(cfg.dotId) : null;
-    if(!dot){ return; }
-
-    dot.className = "bl2-dot " + (
-      n(detail.error) || n(detail.blocked) ? "bl2-dot-bad" :
-      n(detail.pending) || n(detail.waitingRetry) ? "bl2-dot-warn" :
-      "bl2-dot-ok"
-    );
+  function statusLine(label, detail){
+    detail = detail || {};
+    return label + ": " + number(detail.pending) + " pendiente(s), " + number(detail.waitingRetry) + " esperando, " + number(detail.blocked) + " bloqueado(s), " + number(detail.error) + " error(es).";
   }
 
   function buttonFor(target){
@@ -119,80 +92,83 @@ Con qué se conecta:
     return byId(cfg.buttonId) || byId(cfg.legacyButtonId);
   }
 
+  function setDot(target, detail){
+    var cfg = TARGETS[target];
+    var dot = cfg ? byId(cfg.dotId) : null;
+    if(!dot){ return; }
+    dot.className = "bl2-dot " + (number(detail.error) || number(detail.blocked) ? "bl2-dot-bad" : number(detail.pending) || number(detail.waitingRetry) ? "bl2-dot-warn" : "bl2-dot-ok");
+  }
+
   function styleButton(target, detail, running){
     var cfg = TARGETS[target];
     var button = buttonFor(target);
     if(!cfg || !button){ return; }
-
-    var pending = n(detail.pending) + n(detail.waitingRetry) + n(detail.error) + n(detail.blocked);
+    var total = pendingTotal(detail);
     button.disabled = !!running;
-    button.style.borderColor = "";
-    button.style.background = "";
-    button.style.color = "";
-    button.style.boxShadow = "";
-
+    button.classList.remove("success","warning","danger");
     if(running){
       button.textContent = "Subiendo " + cfg.shortLabel + "...";
-      button.style.borderColor = "#f59e0b";
-      button.style.background = "#fffbeb";
-      button.style.color = "#92400e";
+      button.classList.add("warning");
       return;
     }
-
-    if(pending > 0){
-      button.textContent = "Subir " + cfg.shortLabel + " (" + pending + ")";
-      button.style.borderColor = "#fecaca";
-      button.style.background = "#fee2e2";
-      button.style.color = "#991b1b";
-      button.style.boxShadow = "0 0 0 3px rgba(239, 68, 68, 0.08)";
+    if(total > 0){
+      button.textContent = "Subir " + cfg.shortLabel + " (" + total + ")";
+      button.classList.add("danger");
       return;
     }
-
     button.textContent = cfg.shortLabel + " actualizado";
-    button.style.borderColor = "#bbf7d0";
-    button.style.background = "#dcfce7";
-    button.style.color = "#166534";
+    button.classList.add("success");
   }
 
   function updateTarget(target, detail){
     var cfg = TARGETS[target];
     if(!cfg){ return; }
     detail = detail || {};
-
-    setText(cfg.kpiId, String(n(detail.pending)));
-    setText(cfg.statusId, line("Cola " + cfg.label, detail));
+    setText(cfg.kpiId, String(pendingTotal(detail)));
+    setText(cfg.statusId, statusLine("Cola " + cfg.label, detail));
     setDot(target, detail);
     styleButton(target, detail, false);
   }
 
+  function emptyCounts(){
+    return {
+      detail:{
+        google:{ pending:0, synced:0, error:0, blocked:0, waitingRetry:0 },
+        firebase:{ pending:0, synced:0, error:0, blocked:0, waitingRetry:0 },
+        supabase:{ pending:0, synced:0, error:0, blocked:0, waitingRetry:0 }
+      }
+    };
+  }
+
+  function publish(counts){
+    lastCounts = counts || emptyCounts();
+    try{ window.dispatchEvent(new CustomEvent("bdlocal:sync-ui-updated",{ detail:{ counts:lastCounts, at:new Date().toISOString() } })); }catch(error){}
+    return lastCounts;
+  }
+
   function refreshCounts(){
     if(!window.BDLSyncV2 || typeof window.BDLSyncV2.status !== "function"){
-      log("BDLSyncV2 no disponible para leer pendientes.");
-      return Promise.resolve(null);
+      var fallback = emptyCounts();
+      Object.keys(TARGETS).forEach(function(target){ updateTarget(target, detailFor(fallback, target)); });
+      return Promise.resolve(publish(fallback));
     }
-
     return Promise.resolve(window.BDLSyncV2.status()).then(function(status){
-      var counts = countsFrom(status);
-      if(!counts){ return null; }
-
-      updateTarget("google", detailFor(counts, "google"));
-      updateTarget("firebase", detailFor(counts, "firebase"));
-      updateTarget("supabase", detailFor(counts, "supabase"));
-
-      return counts;
+      var counts = countsFrom(status) || emptyCounts();
+      Object.keys(TARGETS).forEach(function(target){ updateTarget(target, detailFor(counts, target)); });
+      return publish(counts);
     }).catch(function(error){
-      log("No se pudieron actualizar conteos de cola: " + (error.message || String(error)));
-      return null;
+      log("No se pudieron leer los pendientes: " + (error.message || String(error)), "warn");
+      return publish(lastCounts || emptyCounts());
     });
   }
 
   function summarizeTarget(item){
     item = item || {};
     var target = text(item.target || "destino");
-    if(item.pending === 0){ return target + ": sin pendientes."; }
-    if(item.skipped){ return target + ": omitido, " + n(item.pending) + " siguen pendientes. " + text(item.message); }
-    if(item.ok === false){ return target + ": error, " + n(item.marked) + " marcado(s) con error. " + text(item.message); }
-    return target + ": " + n(item.marked || item.confirmed) + " sincronizado(s).";
+    if(number(item.pending) === 0){ return target + ": sin pendientes."; }
+    if(item.skipped){ return target + ": omitido; " + number(item.pending) + " pendiente(s). " + text(item.message); }
+    if(item.ok === false){ return target + ": error; " + number(item.marked) + " registro(s) con error. " + text(item.message); }
+    return target + ": " + number(item.marked || item.confirmed) + " sincronizado(s).";
   }
 
   function summarizeResult(result){
@@ -200,99 +176,108 @@ Con qué se conecta:
     var results = Array.isArray(result.results) ? result.results : [];
     if(results.length){ return results.map(summarizeTarget).join(" | "); }
     if(result.target){ return summarizeTarget(result); }
-    if(result.ok){ return "Cola procesada correctamente."; }
-    return "Cola procesada con alertas: " + (result.message || "revisar diagnóstico");
+    if(result.ok !== false){ return result.message || "Cola procesada correctamente."; }
+    return result.message || "Cola procesada con alertas.";
   }
 
-  function selectedPeriod(){
-    var select = byId("bl2-period-select");
-    var id = select ? text(select.value) : "";
-    var label = "";
-    if(select && select.selectedOptions && select.selectedOptions[0]){ label = text(select.selectedOptions[0].textContent); }
-    return { id:id, label:label || id };
+  function syncRunner(target, options){
+    if(window.BDLSyncOrchestrator && typeof window.BDLSyncOrchestrator.syncTarget === "function"){
+      return window.BDLSyncOrchestrator.syncTarget(target, options);
+    }
+    if(window.BDLSyncV2 && typeof window.BDLSyncV2.request === "function"){
+      return window.BDLSyncV2.request(options);
+    }
+    return Promise.reject(new Error("No existe un motor de sincronización disponible."));
   }
 
-  function runTarget(target){
-    target = text(target || "").toLowerCase();
+  function runTarget(target, options){
+    options = options || {};
+    target = text(target).toLowerCase();
     var cfg = TARGETS[target];
-    if(!cfg){ return; }
+    if(!cfg){ return Promise.reject(new Error("Destino no reconocido: " + target)); }
+    var period = selectedPeriod();
+    if(!period.id){ return Promise.reject(new Error("Seleccione un período antes de sincronizar.")); }
+    if(options.confirm !== false && !window.confirm("Subir los cambios pendientes del período " + period.label + " a " + cfg.label + ". ¿Continuar?")){
+      return Promise.resolve({ ok:true, cancelled:true, target:target, message:"Sincronización cancelada." });
+    }
 
     var button = buttonFor(target);
-    var period = selectedPeriod();
-    var options = {
+    var request = {
       source:"BDLSyncUIBridge.manual." + target,
       manual:true,
       targets:[target],
       periodoId:period.id,
       periodoLabel:period.label,
-      limit:25,
-      batchSize:25
+      limit:number(options.limit || 25),
+      batchSize:number(options.batchSize || 25)
     };
 
     styleButton(target, { pending:1 }, true);
-    log("Subida manual a " + cfg.label + " solicitada desde BDLocal...");
+    log("Subida manual a " + cfg.label + " solicitada para " + period.label + ".", "info");
 
-    var runner = null;
-    if(window.BDLSyncOrchestrator && typeof window.BDLSyncOrchestrator.syncTarget === "function"){
-      runner = window.BDLSyncOrchestrator.syncTarget(target, options);
-    }else if(window.BDLSyncV2 && typeof window.BDLSyncV2.request === "function"){
-      runner = window.BDLSyncV2.request(options);
-    }else{
-      log("No hay motor de sincronización disponible para " + cfg.label + ".");
-      if(button){ button.disabled = false; }
-      return;
-    }
-
-    Promise.resolve(runner).then(function(result){
-      log(summarizeResult(result));
-      return refreshCounts();
+    return Promise.resolve(syncRunner(target, request)).then(function(result){
+      log(summarizeResult(result), result && result.ok === false ? "warn" : "ok");
+      return refreshCounts().then(function(){ return result; });
     }).catch(function(error){
-      log("Error subiendo " + cfg.label + ": " + (error.message || String(error)));
-      return refreshCounts();
-    }).finally(function(){
-      if(button){ button.disabled = false; }
-    });
+      log("Error subiendo " + cfg.label + ": " + (error.message || String(error)), "error");
+      return refreshCounts().then(function(){ throw error; });
+    }).finally(function(){ if(button){ button.disabled = false; } });
   }
 
-  function runQueue(){
-    var button = byId("bl2-btn-sync-queue");
-    if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){
-      log("BDLSyncV2 no disponible.");
-      return;
+  function runQueue(options){
+    options = options || {};
+    var period = selectedPeriod();
+    if(!period.id){ return Promise.reject(new Error("Seleccione un período antes de procesar la cola.")); }
+    if(options.confirm !== false && !window.confirm("Procesar todos los pendientes del período " + period.label + " para Google Sheets, Firebase y Supabase. ¿Continuar?")){
+      return Promise.resolve({ ok:true, cancelled:true, message:"Sincronización cancelada." });
     }
-
+    var button = byId("bl2-btn-sync-queue");
     if(button){ button.disabled = true; }
     Object.keys(TARGETS).forEach(function(target){ styleButton(target, { pending:1 }, true); });
-    log("Procesando pendientes de Google Sheets, Firebase y Supabase por solicitud manual...");
-
-    Promise.resolve(window.BDLSyncV2.request({ source:"BL2ManualAllButton", manual:true, targets:["google", "firebase", "supabase"], limit:25, batchSize:25 })).then(function(result){
-      log(summarizeResult(result));
-      return refreshCounts();
-    }).catch(function(error){
-      log("Error procesando cola: " + (error.message || String(error)));
-      return refreshCounts();
-    }).finally(function(){
+    var request = {
+      source:"BDLSyncUIBridge.manual.all",
+      manual:true,
+      targets:["google","firebase","supabase"],
+      periodoId:period.id,
+      periodoLabel:period.label,
+      limit:number(options.limit || 25),
+      batchSize:number(options.batchSize || 25)
+    };
+    log("Procesando todos los pendientes del período " + period.label + ".", "info");
+    if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){
       if(button){ button.disabled = false; }
-    });
+      return Promise.reject(new Error("BDLSyncV2 no está disponible."));
+    }
+    return Promise.resolve(window.BDLSyncV2.request(request)).then(function(result){
+      log(summarizeResult(result), result && result.ok === false ? "warn" : "ok");
+      return refreshCounts().then(function(){ return result; });
+    }).catch(function(error){
+      log("Error procesando la cola: " + (error.message || String(error)), "error");
+      return refreshCounts().then(function(){ throw error; });
+    }).finally(function(){ if(button){ button.disabled = false; } });
   }
 
   function bindButton(id, handler, flag){
     var button = byId(id);
-    if(button && !button[flag]){
-      button[flag] = true;
-      button.addEventListener("click", handler);
-    }
+    if(!button || button.getAttribute("data-bdlc-owned") === "ui" || button[flag]){ return; }
+    button[flag] = true;
+    button.addEventListener("click", handler);
   }
 
   function bind(){
-    bindButton("bl2-btn-push-google", function(){ runTarget("google"); }, "__bdlSyncGoogleBound");
-    bindButton("bl2-btn-push-firebase", function(){ runTarget("firebase"); }, "__bdlSyncFirebaseBound");
-    bindButton("bl2-btn-push-supabase", function(){ runTarget("supabase"); }, "__bdlSyncSupabaseBound");
-    bindButton("bl2-btn-sync-queue", runQueue, "__bdlSyncQueueBound");
+    bindButton("bl2-btn-push-google", function(){ runTarget("google",{ confirm:true }).catch(function(error){ log(error.message,"error"); }); }, "__bdlSyncGoogleBound");
+    bindButton("bl2-btn-push-firebase", function(){ runTarget("firebase",{ confirm:true }).catch(function(error){ log(error.message,"error"); }); }, "__bdlSyncFirebaseBound");
+    bindButton("bl2-btn-push-supabase", function(){ runTarget("supabase",{ confirm:true }).catch(function(error){ log(error.message,"error"); }); }, "__bdlSyncSupabaseBound");
+    bindButton("bl2-btn-sync-queue", function(){ runQueue({ confirm:true }).catch(function(error){ log(error.message,"error"); }); }, "__bdlSyncQueueBound");
 
-    window.addEventListener("bdlocal:changes-created", refreshCounts);
-    window.addEventListener("bdlocal:sync-v2-finished", refreshCounts);
-    refreshCounts();
+    if(!eventsBound){
+      eventsBound = true;
+      window.addEventListener("bdlocal:changes-created", refreshCounts);
+      window.addEventListener("bdlocal:sync-v2-finished", refreshCounts);
+      window.addEventListener("bl2:period-changed", refreshCounts);
+      window.addEventListener("bl2:app-refreshed", refreshCounts);
+    }
+    return refreshCounts();
   }
 
   window.BDLSyncUIBridge = {
@@ -301,7 +286,9 @@ Con qué se conecta:
     refreshCounts:refreshCounts,
     runTarget:runTarget,
     runQueue:runQueue,
-    summarizeResult:summarizeResult
+    summarizeResult:summarizeResult,
+    getSnapshot:function(){ return lastCounts || emptyCounts(); },
+    getTargetState:function(target){ return detailFor(lastCounts || emptyCounts(), text(target).toLowerCase()); }
   };
 
   if(document.readyState === "loading"){
