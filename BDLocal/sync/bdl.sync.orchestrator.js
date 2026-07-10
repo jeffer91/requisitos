@@ -3,15 +3,15 @@ Nombre completo: bdl.sync.orchestrator.js
 Ruta o ubicación: /BDLocal/sync/bdl.sync.orchestrator.js
 Función o funciones:
 - Procesar cambios únicamente por solicitud manual.
-- Exigir período activo.
-- Bloquear sincronizaciones paralelas.
+- Exigir período activo y bloquear procesos paralelos.
 - Aplicar un máximo de 25 cambios por lote.
-- Marcar solo los registros confirmados por el destino.
+- Marcar únicamente los registros confirmados por el destino.
+- Mantener pendientes sin consumir intentos ante cuota o configuración faltante.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.5.0-manual-lock";
+  var VERSION = "0.6.0-deferred-safe";
   var MAX_BATCH_SIZE = 25;
   var TARGETS = ["google","firebase","supabase"];
   var state = { running:false,queueRunning:false,currentTarget:"",lockId:"",startedAt:"",lastRunAt:"",lastResult:null,lastError:null,blockedRequests:0 };
@@ -66,7 +66,11 @@ Función o funciones:
     return true;
   }
 
-  function releaseTarget(){ state.running = false; state.currentTarget = ""; if(!state.queueRunning){ state.lockId = ""; state.startedAt = ""; } }
+  function releaseTarget(){
+    state.running = false;
+    state.currentTarget = "";
+    if(!state.queueRunning){ state.lockId = ""; state.startedAt = ""; }
+  }
 
   function adapter(target){
     target = targetKey(target);
@@ -97,11 +101,16 @@ Función o funciones:
   }
 
   function push(adapterApi,target,rows,options){
-    if(!adapterApi){ return Promise.resolve({ ok:false,skipped:true,message:"No hay adaptador configurado para " + target + ".",processedIds:[] }); }
+    if(!adapterApi){ return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,message:"No hay adaptador configurado para " + target + ".",processedIds:[] }); }
     if(typeof adapterApi.push === "function"){ return Promise.resolve(adapterApi.push(rows,Object.assign({},options,{ target:target }))); }
     if(typeof adapterApi.sync === "function"){ return Promise.resolve(adapterApi.sync(rows,Object.assign({},options,{ target:target }))); }
     if(typeof adapterApi.upload === "function"){ return Promise.resolve(adapterApi.upload(rows,Object.assign({},options,{ target:target }))); }
-    return Promise.resolve({ ok:false,skipped:true,message:"El adaptador de " + target + " no tiene método de subida.",processedIds:[] });
+    return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,message:"El adaptador de " + target + " no tiene método de subida.",processedIds:[] });
+  }
+
+  function shouldDefer(result){
+    result = result || {};
+    return result.deferWithoutAttempt === true || result.quotaBlocked === true || result.configurationBlocked === true;
   }
 
   function processTarget(target,options){
@@ -116,17 +125,29 @@ Función o funciones:
     return ob.pending(target,options).then(function(pendingRows){
       pendingRows = Array.isArray(pendingRows) ? pendingRows.slice(0,MAX_BATCH_SIZE) : [];
       if(!pendingRows.length){ return { ok:true,target:target,pending:0,processedIds:[],marked:0,message:target + ": no hay pendientes." }; }
+
       return push(adapter(target),target,pendingRows,options).then(function(result){
         result = result || {};
+        if(result.ok === false && shouldDefer(result)){
+          return Object.assign({},result,{
+            ok:false,
+            target:target,
+            pending:pendingRows.length,
+            deferred:true,
+            marked:0,
+            processedIds:[]
+          });
+        }
         if(result.ok === false){
           return ob.markError(pendingRows,target,{ error:result.message || result.error || "Error de subida.",maxAttempts:options.maxAttempts }).then(function(marked){
             return Object.assign({},result,{ ok:false,target:target,pending:pendingRows.length,marked:marked.updated || 0,processedIds:[] });
           });
         }
-        var rows = rowsByIds(pendingRows,confirmedIds(result,pendingRows));
-        if(!rows.length && result.ok){ rows = pendingRows; }
-        return ob.markSynced(rows,target,{ syncedAt:now(),response:result }).then(function(marked){
-          return Object.assign({},result,{ ok:true,target:target,pending:pendingRows.length,confirmed:rows.length,processedIds:rows.map(rowId),marked:marked.updated || 0 });
+
+        var confirmedRows = rowsByIds(pendingRows,confirmedIds(result,pendingRows));
+        if(!confirmedRows.length && result.ok){ confirmedRows = pendingRows; }
+        return ob.markSynced(confirmedRows,target,{ syncedAt:now(),response:result }).then(function(marked){
+          return Object.assign({},result,{ ok:true,target:target,pending:pendingRows.length,confirmed:confirmedRows.length,processedIds:confirmedRows.map(rowId),marked:marked.updated || 0 });
         });
       });
     }).then(function(result){
@@ -189,13 +210,46 @@ Función o funciones:
       state.lastError = error.message || String(error);
       state.lastResult = { ok:false,targets:targets,results:results,message:state.lastError,at:now() };
       return state.lastResult;
-    }).finally(function(){ state.running = false; state.queueRunning = false; state.currentTarget = ""; state.lockId = ""; state.startedAt = ""; });
+    }).finally(function(){
+      state.running = false;
+      state.queueRunning = false;
+      state.currentTarget = "";
+      state.lockId = "";
+      state.startedAt = "";
+    });
   }
 
   function status(){
-    var base = { version:VERSION,manualOnly:true,running:state.running || state.queueRunning,lockId:state.lockId,currentTarget:state.currentTarget,startedAt:state.startedAt,lastRunAt:state.lastRunAt,lastResult:state.lastResult,lastError:state.lastError,blockedRequests:state.blockedRequests,maxBatchSize:MAX_BATCH_SIZE,targets:TARGETS.slice() };
-    return outbox() && outbox().counts ? outbox().counts({}).then(function(counts){ return Object.assign(base,{ outbox:true,counts:counts }); }) : Promise.resolve(Object.assign(base,{ outbox:false }));
+    var base = {
+      version:VERSION,
+      manualOnly:true,
+      running:state.running || state.queueRunning,
+      lockId:state.lockId,
+      currentTarget:state.currentTarget,
+      startedAt:state.startedAt,
+      lastRunAt:state.lastRunAt,
+      lastResult:state.lastResult,
+      lastError:state.lastError,
+      blockedRequests:state.blockedRequests,
+      maxBatchSize:MAX_BATCH_SIZE,
+      targets:TARGETS.slice()
+    };
+    return outbox() && outbox().counts
+      ? outbox().counts({}).then(function(counts){ return Object.assign(base,{ outbox:true,counts:counts }); })
+      : Promise.resolve(Object.assign(base,{ outbox:false }));
   }
 
-  window.BDLSyncOrchestrator = { version:VERSION,manualOnly:true,maxBatchSize:MAX_BATCH_SIZE,syncTarget:syncTarget,syncQueue:syncQueue,request:syncQueue,status:status,isRunning:function(){ return state.running || state.queueRunning; },safeLimit:safeLimit,normalizeTarget:targetKey,supportedTarget:function(target){ return TARGETS.indexOf(targetKey(target)) >= 0; } };
+  window.BDLSyncOrchestrator = {
+    version:VERSION,
+    manualOnly:true,
+    maxBatchSize:MAX_BATCH_SIZE,
+    syncTarget:syncTarget,
+    syncQueue:syncQueue,
+    request:syncQueue,
+    status:status,
+    isRunning:function(){ return state.running || state.queueRunning; },
+    safeLimit:safeLimit,
+    normalizeTarget:targetKey,
+    supportedTarget:function(target){ return TARGETS.indexOf(targetKey(target)) >= 0; }
+  };
 })(window);
