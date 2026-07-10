@@ -5,12 +5,13 @@ Función o funciones:
 - Conectar Stats con la caché consolidada de BDLocal.
 - Filtrar estudiantes y requisitos por período y cédula.
 - Ejecutar un refresco real de la caché cuando Stats lo solicita.
+- Enlazar el adaptador legacy usado por el botón Actualizar.
 - Entregar resúmenes coherentes con el período seleccionado.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-filtered-refresh";
+  var VERSION = "1.1.1-refresh-bridge";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
   if(!HUB || !U){ return; }
@@ -86,4 +87,10 @@ Función o funciones:
   HUB.register("stats",api);
   window.BDLocalStats = api;
   window.ConStats = api;
+  window.BDLLegacyAdapter = Object.assign({},window.BDLLegacyAdapter || {},{
+    version:VERSION,
+    source:"BDLocalConStats",
+    refresh:refresh,
+    getSnapshot:function(){ return cache(); }
+  });
 })(window);
