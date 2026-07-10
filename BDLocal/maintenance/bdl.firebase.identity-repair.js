@@ -8,12 +8,13 @@ Función o funciones:
 - Crear respaldo local del documento remoto antes de corregirlo.
 - Renombrar o ajustar máximo diez documentos por confirmación.
 - Revalidar destinos dentro de una transacción Firebase.
+- Bloquear documentos cuyo ID y campos internos no coincidan.
 - Respetar la cuota Firebase y no crear cambios_pendientes.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-transaction-safe";
+  var VERSION="1.1.1-conflict-safe";
   var TARGET="firebase_identity_repair";
   var SCAN_LIMIT=15;
   var MAX_DESTINATION_CHECKS=10;
@@ -64,7 +65,14 @@ Función o funciones:
     var canonical="",action="NONE",reason="Sin corrección segura.";
 
     if(docAnalysis.missingLeadingZero&&docAnalysis.safeAutoCorrection){
-      canonical=docAnalysis.canonical;action="RENAME";reason="El ID del documento perdió el cero inicial de una cédula ecuatoriana válida.";
+      canonical=docAnalysis.canonical;
+      if(fieldValue&&fieldAnalysis.canonical!==canonical){
+        action="CONFLICT";
+        reason="El ID puede completar su cero, pero los campos internos contienen otra identificación.";
+      }else{
+        action="RENAME";
+        reason="El ID del documento perdió el cero inicial de una cédula ecuatoriana válida.";
+      }
     }else if(docAnalysis.validEcuadorian){
       canonical=docAnalysis.canonical;
       if(!fieldValue||(fieldAnalysis.canonical===canonical&&fieldValue!==canonical)){action="PATCH_FIELDS";reason="El ID es correcto, pero los campos internos requieren normalización.";}
