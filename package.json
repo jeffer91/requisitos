@@ -1,13 +1,16 @@
 {
   "name": "requisitos-desktop",
-  "version": "1.0.0",
-  "description": "Aplicacion local de Requisitos para abrir la maqueta principal con Electron.",
+  "version": "1.1.0",
+  "description": "Aplicación local de Requisitos con certificación integral de BDLocal.",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
     "start": "npx --yes electron .",
     "dev": "npx --yes electron .",
-    "start:local": "electron ."
+    "start:local": "electron .",
+    "test": "node scripts/verify-bdlocal.js",
+    "test:bdlocal": "node scripts/verify-bdlocal.js",
+    "verify": "node scripts/verify-bdlocal.js"
   },
   "devDependencies": {
     "electron": "latest"
