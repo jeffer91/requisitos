@@ -15,6 +15,7 @@
     "test:bdlocal": "node scripts/verify-bdlocal.js",
     "test:electron": "electron electron/smoke-main.js",
     "diagnostico:bdlocal": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1",
+    "diagnostico:bloqueo": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bloqueo.ps1",
     "audit:repo": "node scripts/audit-repository.js",
     "verify": "npm test"
   },
