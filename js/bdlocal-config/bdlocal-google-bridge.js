@@ -1,141 +1,102 @@
-/*
-  Archivo: bdlocal-google-bridge.js
-  Ruta: js/bdlocal-config/bdlocal-google-bridge.js
-
-  Función:
-  - Evitar dos rutas distintas de Google Sheets.
-  - Hacer que el botón antiguo de BL2 y la sincronización automática usen BDLocalSyncManager.
-  - BDLocalSyncManager sí envía token, spreadsheetId y payload multi-tabla al Apps Script.
-*/
-(function (window, document) {
-  'use strict';
+/* =========================================================
+Nombre completo: bdlocal-google-bridge.js
+Ruta o ubicación: /js/bdlocal-config/bdlocal-google-bridge.js
+Función o funciones:
+- Mantener compatibilidad con llamadas antiguas de BL2Sync.
+- Permitir Google Sheets únicamente con una orden manual explícita.
+- Desactivar sincronización automática por inactividad.
+- Desactivar toda sincronización externa al cerrar la aplicación.
+- Evitar que una ruta legacy active Firebase automáticamente.
+========================================================= */
+(function(window,document){
+  "use strict";
 
   var installed = false;
   var attempts = 0;
-  var maxAttempts = 40;
+  var MAX_ATTEMPTS = 40;
 
-  function manager() {
-    return window.BDLocalSyncManager || null;
-  }
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function manager(){ return window.BDLocalSyncManager || null; }
+  function sync(){ return window.BL2Sync || null; }
 
-  function sync() {
-    return window.BL2Sync || null;
-  }
-
-  function isIdle() {
-    var s = sync();
-
-    if (s && typeof s.isIdle === 'function') {
-      return s.isIdle();
-    }
-
-    return true;
-  }
-
-  function log(message, data) {
-    try {
-      if (window.BDLocalConfigStore && typeof window.BDLocalConfigStore.addLog === 'function') {
-        window.BDLocalConfigStore.addLog('sheets', message, 'success', data || {});
+  function log(message,level,data){
+    try{
+      if(window.BDLocalConfigStore && typeof window.BDLocalConfigStore.addLog === "function"){
+        window.BDLocalConfigStore.addLog("external_sync_bridge",message,level === "error" ? "error" : level === "warn" ? "warning" : "success",data || {});
       }
-    } catch (error) {}
+    }catch(error){}
   }
 
-  function install() {
-    var s = sync();
-    var m = manager();
+  function skipped(message,source){
+    var result = {
+      ok:true,
+      skipped:true,
+      manualOnly:true,
+      source:text(source || "legacy"),
+      message:message
+    };
+    log(message,"warn",result);
+    return Promise.resolve(result);
+  }
 
+  function install(){
+    var currentSync = sync();
+    var currentManager = manager();
     attempts += 1;
 
-    if (!s || !m || typeof m.pushLocalToSheets !== 'function') {
+    if(!currentSync || !currentManager || typeof currentManager.pushLocalToSheets !== "function"){
       return false;
     }
+    if(installed || currentSync.__bdlocalManualBridgeInstalled){ return true; }
 
-    if (installed || s.__bdlocalGoogleBridgeInstalled) {
-      return true;
-    }
-
-    s.__bdlocalOriginalSyncGoogle = s.syncGoogle;
-    s.__bdlocalOriginalMaybeSyncGoogleIdle = s.maybeSyncGoogleIdle;
-    s.__bdlocalOriginalSyncBeforeClose = s.syncBeforeClose;
-
-    s.syncGoogle = function (options) {
-      return m.pushLocalToSheets(Object.assign({}, options || {}, {
-        source: 'BL2Sync.bridge.manual'
-      }));
-    };
-
-    s.maybeSyncGoogleIdle = function (options) {
+    currentSync.syncGoogle = function(options){
       options = options || {};
-
-      if (!options.force && !isIdle()) {
-        return Promise.resolve({
-          ok: true,
-          skipped: true,
-          reason: 'La app todavía está en uso.'
-        });
+      if(options.manual !== true){
+        return skipped("La sincronización automática de Google Sheets está desactivada.",options.source);
       }
-
-      return m.pushLocalToSheets(Object.assign({}, options, {
-        source: 'BL2Sync.bridge.idle'
+      return currentManager.pushLocalToSheets(Object.assign({},options,{
+        manual:true,
+        source:text(options.source || "BL2Sync.bridge.manual")
       }));
     };
 
-    s.syncBeforeClose = function (options) {
-      options = options || {};
+    currentSync.maybeSyncGoogleIdle = function(options){
+      return skipped("La sincronización por inactividad está desactivada. Use el botón Subir.",options && options.source);
+    };
 
-      return m.pushLocalToSheets(Object.assign({}, options, {
-        force: true,
-        source: 'BL2Sync.bridge.close'
-      })).then(function (googleResult) {
-        if (typeof s.maybeSyncFirebaseDaily !== 'function') {
-          return {
-            ok: true,
-            google: googleResult,
-            firebase: {
-              ok: true,
-              skipped: true,
-              reason: 'Firebase no disponible en cierre.'
-            }
-          };
-        }
-
-        return s.maybeSyncFirebaseDaily(Object.assign({}, options, {
-          force: false
-        })).then(function (firebaseResult) {
-          return {
-            ok: true,
-            google: googleResult,
-            firebase: firebaseResult
-          };
-        });
+    currentSync.syncBeforeClose = function(){
+      return Promise.resolve({
+        ok:true,
+        skipped:true,
+        manualOnly:true,
+        google:{ ok:true,skipped:true },
+        firebase:{ ok:true,skipped:true },
+        message:"No se sincronizó al cerrar. Los cambios permanecen guardados en la cola local."
       });
     };
 
-    s.__bdlocalGoogleBridgeInstalled = true;
+    currentSync.__bdlocalManualBridgeInstalled = true;
     installed = true;
-
-    log('Google Sheets quedó unificado con BDLocalSyncManager.', {
-      source: 'bdlocal-google-bridge'
+    log("Puente legacy configurado en modo exclusivamente manual.","info",{
+      googleAutomatic:false,
+      firebaseAutomatic:false,
+      syncBeforeClose:false
     });
-
     return true;
   }
 
-  function start() {
-    if (install()) return;
-
-    var timer = window.setInterval(function () {
-      if (install() || attempts >= maxAttempts) {
-        window.clearInterval(timer);
-      }
-    }, 250);
+  function start(){
+    if(install()){ return; }
+    var timer = window.setInterval(function(){
+      if(install() || attempts >= MAX_ATTEMPTS){ window.clearInterval(timer); }
+    },250);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded",start);
+  }else{
     start();
   }
 
-  window.addEventListener('bl2:ready', start);
-})(window, document);
+  window.addEventListener("bl2:ready",start);
+})(window,document);
