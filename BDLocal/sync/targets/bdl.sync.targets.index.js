@@ -7,12 +7,13 @@ Función o funciones:
 - Leer la configuración protegida desde BDLocalConfigStore.
 - Consolidar una versión completa del estudiante para Google Sheets.
 - Enviar Supabase a la tabla app_records mediante upsert estable.
+- Mantener pendientes sin consumir intentos cuando falta configuración.
 - Procesar exclusivamente órdenes manuales y máximo 25 cambios.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.6.0-config-safe";
+  var VERSION = "0.6.1-config-deferred";
   var MAX_BATCH_SIZE = 25;
   var targets = Object.create(null);
 
@@ -89,7 +90,7 @@ Función o funciones:
     var config = current.getSheetsConfig({ includeSecret:true }) || {};
     if(!config.enabled){ throw new Error("Google Sheets está desactivado en la configuración."); }
     if(!text(config.appsScriptUrl)){ throw new Error("Falta la URL de Apps Script."); }
-    if(!text(config.token)){ throw new Error("Falta el token de Apps Script."); }
+    if(!text(config.token)){ throw new Error("Falta la credencial de Apps Script."); }
     if(!text(config.spreadsheetId)){ throw new Error("Falta el ID de Google Sheets."); }
     return {
       url:text(config.appsScriptUrl),
@@ -107,11 +108,23 @@ Función o funciones:
     var config = current.getSupabaseConfig({ includeSecret:true }) || {};
     if(!config.enabled){ throw new Error("Supabase está desactivado en la configuración."); }
     if(!text(config.url)){ throw new Error("Falta la URL de Supabase."); }
-    if(!text(config.anonKey)){ throw new Error("Falta la anon key de Supabase."); }
+    if(!text(config.anonKey)){ throw new Error("Falta la clave de acceso de Supabase."); }
     return {
       url:text(config.url).replace(/\/+$/, ""),
       anonKey:text(config.anonKey),
       tableName:text(config.tableName || "app_records") || "app_records"
+    };
+  }
+
+  function configurationResult(target,error){
+    return {
+      ok:false,
+      blocked:true,
+      configurationBlocked:true,
+      deferWithoutAttempt:true,
+      target:target,
+      processedIds:[],
+      message:error && error.message ? error.message : String(error)
     };
   }
 
@@ -190,14 +203,14 @@ Función o funciones:
 
   function pushGoogleRows(pendingRows,options){
     options = Object.assign({},options || {});
-    if(options.manual !== true){ return Promise.resolve({ ok:false,blocked:true,target:"google",processedIds:[],message:"Google Sheets solo admite subida manual." }); }
+    if(options.manual !== true){ return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,target:"google",processedIds:[],message:"Google Sheets solo admite subida manual." }); }
     var rows = safeRows(pendingRows,options);
     if(!rows.length){ return Promise.resolve({ ok:true,target:"google",processedIds:[],message:"Google Sheets: no hay cambios para enviar." }); }
-    if(!text(options.periodoId)){ return Promise.resolve({ ok:false,blocked:true,target:"google",processedIds:[],message:"Seleccione un período antes de subir a Google Sheets." }); }
+    if(!text(options.periodoId)){ return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,target:"google",processedIds:[],message:"Seleccione un período antes de subir a Google Sheets." }); }
 
     var cfg;
     try{ cfg = sheetsConfig(); }
-    catch(error){ return Promise.resolve({ ok:false,target:"google",processedIds:[],message:error.message || String(error) }); }
+    catch(error){ return Promise.resolve(configurationResult("google",error)); }
 
     return buildGoogleTables(rows,options).then(function(tables){
       var changes = rows.map(normalizeGoogleChange);
@@ -266,14 +279,14 @@ Función o funciones:
 
   function pushSupabaseRows(pendingRows,options){
     options = Object.assign({},options || {});
-    if(options.manual !== true){ return Promise.resolve({ ok:false,blocked:true,target:"supabase",processedIds:[],message:"Supabase solo admite subida manual." }); }
+    if(options.manual !== true){ return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,target:"supabase",processedIds:[],message:"Supabase solo admite subida manual." }); }
     var rows = safeRows(pendingRows,options);
     if(!rows.length){ return Promise.resolve({ ok:true,target:"supabase",processedIds:[],message:"Supabase: no hay cambios para enviar." }); }
-    if(!text(options.periodoId)){ return Promise.resolve({ ok:false,blocked:true,target:"supabase",processedIds:[],message:"Seleccione un período antes de subir a Supabase." }); }
+    if(!text(options.periodoId)){ return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,target:"supabase",processedIds:[],message:"Seleccione un período antes de subir a Supabase." }); }
 
     var cfg;
     try{ cfg = supabaseConfig(); }
-    catch(error){ return Promise.resolve({ ok:false,target:"supabase",processedIds:[],message:error.message || String(error) }); }
+    catch(error){ return Promise.resolve(configurationResult("supabase",error)); }
 
     var records = rows.map(function(row){ return supabaseRecord(row,options); }).filter(function(record){ return !!text(record.id); });
     if(!records.length){ return Promise.resolve({ ok:false,target:"supabase",processedIds:[],message:"No existen registros válidos para Supabase." }); }
@@ -321,6 +334,6 @@ Función o funciones:
     rowId:rowId,
     safeRows:safeRows,
     fetchJson:fetchJson,
-    diagnostics:{ sheetsConfig:sheetsConfig,supabaseConfig:supabaseConfig,buildGoogleTables:buildGoogleTables,supabaseRecord:supabaseRecord }
+    diagnostics:{ sheetsConfig:sheetsConfig,supabaseConfig:supabaseConfig,buildGoogleTables:buildGoogleTables,supabaseRecord:supabaseRecord,configurationResult:configurationResult }
   };
 })(window);
