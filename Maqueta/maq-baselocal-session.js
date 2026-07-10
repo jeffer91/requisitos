@@ -84,13 +84,11 @@ Función o funciones:
     return array(snapshot.students).length*1000000+array(snapshot.periods).length*1000+array(snapshot.requirements).length;
   }
 
-  function preferredSnapshot(a,b){
-    a=normalizeSnapshot(a||emptySnapshot());
-    b=normalizeSnapshot(b||emptySnapshot());
-    var at=snapshotTime(a);
-    var bt=snapshotTime(b);
-    if(at!==bt){return at>bt?a:b;}
-    return snapshotWeight(a)>=snapshotWeight(b)?a:b;
+  function incomingWins(incoming,current){
+    var incomingAt=snapshotTime(incoming);
+    var currentAt=snapshotTime(current);
+    if(incomingAt!==currentAt){return incomingAt>currentAt;}
+    return snapshotWeight(incoming)>=snapshotWeight(current);
   }
 
   function mergeSnapshots(incoming,current,options){
@@ -100,8 +98,9 @@ Función o funciones:
 
     if(options.replace===true){return incoming;}
 
-    var preferred=preferredSnapshot(incoming,current);
-    var fallback=preferred===incoming?current:incoming;
+    var useIncoming=incomingWins(incoming,current);
+    var preferred=useIncoming?incoming:current;
+    var fallback=useIncoming?current:incoming;
     var result=normalizeSnapshot(preferred);
     var allowEmpty=options.allowEmpty===true;
 
