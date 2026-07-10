@@ -3,9 +3,10 @@
 # Ruta o ubicación: /.github/workflows/bdlocal-integrity.yml
 # Función o funciones:
 # - Ejecutar certificación y auditoría estática en cada cambio de main.
+# - Generar temporalmente el package-lock correcto durante esta auditoría.
 # - Instalar dependencias fijadas y abrir Electron en entorno aislado.
 # - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
-# - Guardar el reporte Electron como artefacto incluso si la prueba falla.
+# - Guardar los reportes como artefactos incluso si una prueba falla.
 # =========================================================
 name: BDLocal Integrity
 
@@ -33,6 +34,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
+
+      - name: Regenerate dependency lock for audit
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Upload regenerated lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 2
 
       - name: Run complete static audit
         run: npm test
