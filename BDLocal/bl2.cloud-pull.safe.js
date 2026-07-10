@@ -7,12 +7,13 @@ Función o funciones:
 - Ignorar tablas técnicas y usar identificadores estables.
 - Proteger estudiantes con cambios locales pendientes o más recientes.
 - Combinar filas remotas parciales sin borrar campos completos.
+- Evitar duplicados de contactos cuando cambia su valor.
 - Cerrar los cambios creados por la propia importación.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "3.1.0-local-first-pull";
+  var VERSION = "3.1.1-stable-contact-identity";
   var FETCH_TIMEOUT_MS = 120000;
   var PAUSE_KEY = "REQ_BDLOCAL_PAUSE_GOOGLE_PUSH";
   var LS_DIVISIONES = "carga.periodos.divisiones";
@@ -397,8 +398,8 @@ Función o funciones:
     }
     if(table === "contactos"){
       var kind = key(first(row,["tipoKey","tipo","Tipo","campo"]) || "contacto");
-      var contactValue = text(first(row,["valor","correo","email","telefono","celular"]) || hash(row));
-      return (cedula || "sin_cedula") + "__" + periodoId + "__" + kind + "__" + hash(contactValue);
+      /* El valor no forma parte del ID: cambiar correo o teléfono actualiza la misma fila. */
+      return (cedula || "sin_cedula") + "__" + periodoId + "__" + kind;
     }
     return table + "__" + periodoId + "__" + (cedula || hash(row));
   }
