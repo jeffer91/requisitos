@@ -1,57 +1,47 @@
 /* =========================================================
-Archivo: cone.defensas.js
-Ruta: /BDLocal/conexiones/cone.defensas.js
-Función:
-- Conectar Defensas con BDLocal/services sin romper DefartCore.
-- Precargar estudiantes y períodos desde IndexedDB mediante servicios.
-- Exponer un adaptador síncrono compatible con BL2DataEngine y ExcelLocalRepo.
-- Forzar re-render de Defensas cuando los datos reales de BDLocal estén listos.
-Con qué se conecta:
-- BDLocal/services/bdl.service.estudiantes.js
-- BDLocal/services/bdl.service.periodos.js
-- defart/defart.core.js
-- defart/defart.app.js
+Nombre completo: cone.defensas.js
+Ruta o ubicación: /BDLocal/conexiones/cone.defensas.js
+Función o funciones:
+- Conectar Defensas directamente con los servicios de BDLocal.
+- Precargar estudiantes y períodos desde IndexedDB.
+- Exponer adaptadores síncronos compatibles con DefartCore.
+- Registrar Defensas en BDLocalConexiones.
+- Recargar datos cuando Carga, Ficha u otra pantalla modifica BDLocal.
+- Forzar un solo render después de cada recarga confirmada.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.1.0-block6";
+  var VERSION = "0.2.0-registered-live";
+  var HUB = window.BDLocalConexiones || null;
   var state = {
-    ready: false,
-    loading: false,
-    loadedAt: "",
-    source: "BDLocal/services",
-    error: "",
-    students: [],
-    periods: []
+    ready:false,
+    loading:false,
+    promise:null,
+    loadedAt:"",
+    source:"BDLocal/services",
+    error:"",
+    students:[],
+    periods:[],
+    refreshTimer:null,
+    eventsBound:false
   };
 
   function text(value){ return String(value == null ? "" : value).trim(); }
-
-  function norm(value){
-    return text(value)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
-  }
-
+  function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
   function canonicalPeriodId(value){
     value = text(value);
     var match = value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
-    return match ? match[1] + "-" + match[2] + "__" + match[3] + "-" + match[4] : value.replace(/_+/g, "__");
+    return match ? match[1] + "-" + match[2] + "__" + match[3] + "-" + match[4] : value.replace(/_+/g,"__");
   }
-
   function normalizeCedula(value){
-    var raw = text(value).replace(/[^0-9A-Za-z]/g, "");
+    var raw = text(value).replace(/[^0-9A-Za-z]/g,"");
     return /^\d{9}$/.test(raw) ? "0" + raw : raw;
   }
-
-  function samePeriod(a, b){
+  function samePeriod(a,b){
     a = canonicalPeriodId(a);
     b = canonicalPeriodId(b);
-    return !b || !!a && (a === b || norm(a).replace(/[^a-z0-9]+/g, "") === norm(b).replace(/[^a-z0-9]+/g, ""));
+    return !b || !!a && (a === b || norm(a).replace(/[^a-z0-9]+/g,"") === norm(b).replace(/[^a-z0-9]+/g,""));
   }
 
   function normalizePeriod(period){
@@ -59,19 +49,14 @@ Con qué se conecta:
     var id = canonicalPeriodId(period.id || period.periodoId || period.periodId || period.value || period.key || "");
     if(!id){ return null; }
     var label = text(period.label || period.periodoLabel || period.nombre || period.name || id);
-    return Object.assign({}, period, {
-      id: id,
-      value: id,
-      key: id,
-      label: label,
-      nombre: label,
-      periodoId: id,
-      periodoLabel: label
+    return Object.assign({},period,{
+      id:id,value:id,key:id,label:label,nombre:label,
+      periodoId:id,periodoLabel:label
     });
   }
 
   function normalizeStudent(row){
-    row = Object.assign({}, row || {});
+    row = Object.assign({},row || {});
     var cedula = normalizeCedula(row.cedula || row.numeroIdentificacion || row.NumeroIdentificacion || row.Cedula || row["Cédula"] || "");
     var periodoId = canonicalPeriodId(row.periodoId || row.periodId || row.ultimoPeriodoId || row._periodoId || row._bl2PeriodoId || "");
     var periodoLabel = text(row.periodoLabel || row.periodo || row.Periodo || row._periodo || row._bl2Periodo || periodoId);
@@ -112,7 +97,6 @@ Con qué se conecta:
     row.divisiones = Array.isArray(row.divisiones) && row.divisiones.length ? row.divisiones : (row.division ? [row.division] : []);
     row.estadoMatricula = text(row.estadoMatricula || row.EstadoMatricula || row.estado || row.Estado || "ACTIVO").toUpperCase() === "RETIRADO" ? "RETIRADO" : "ACTIVO";
     row._estadoMatricula = row._estadoMatricula || row.estadoMatricula;
-
     return row;
   }
 
@@ -120,10 +104,9 @@ Con qué se conecta:
     return window.BDLServices && typeof window.BDLServices.get === "function" ? window.BDLServices.get(name) : null;
   }
 
-  function filterStudents(rows, options){
+  function filterStudents(rows,options){
     options = options || {};
     rows = Array.isArray(rows) ? rows.map(normalizeStudent) : [];
-
     var periodoId = canonicalPeriodId(options.periodoId || options.periodId || options.period || "");
     var matricula = text(options.matricula || options.estadoMatricula || "");
     var division = norm(options.division || "");
@@ -131,104 +114,103 @@ Con qué se conecta:
     var limit = Number(options.limit || 0);
 
     rows = rows.filter(function(row){
-      if(periodoId && !samePeriod(row.periodoId || row._periodoId || row.ultimoPeriodoId, periodoId)){ return false; }
+      if(periodoId && !samePeriod(row.periodoId || row._periodoId || row.ultimoPeriodoId,periodoId)){ return false; }
       if(matricula && text(row.estadoMatricula || row._estadoMatricula).toUpperCase() !== matricula.toUpperCase()){ return false; }
       if(division && norm(row.division || row._division) !== division){ return false; }
       if(search){
         var hay = norm([
-          row.cedula,
-          row.numeroIdentificacion,
-          row.Nombres,
-          row.nombres,
-          row.NombreCarrera,
-          row.CodigoCarrera,
-          row.division,
-          row.Sede,
-          row.CorreoPersonal,
-          row.CorreoInstitucional,
-          row.Celular
+          row.cedula,row.numeroIdentificacion,row.Nombres,row.nombres,row.NombreCarrera,
+          row.CodigoCarrera,row.division,row.Sede,row.CorreoPersonal,
+          row.CorreoInstitucional,row.Celular
         ].join(" "));
         if(hay.indexOf(search) < 0){ return false; }
       }
       return true;
     });
 
-    return limit > 0 ? rows.slice(0, limit) : rows;
+    return limit > 0 ? rows.slice(0,limit) : rows;
   }
 
-  function listPeriodsSync(){
-    return state.periods.slice();
-  }
-
-  function getStudentsSync(options){
-    return filterStudents(state.students, options || {});
-  }
-
+  function listPeriodsSync(){ return state.periods.slice(); }
+  function getStudentsSync(options){ return filterStudents(state.students,options || {}); }
   function listStudentsSync(options){
     var rows = getStudentsSync(options || {});
     return {
-      ok: true,
-      rows: rows,
-      total: rows.length,
-      periodList: listPeriodsSync(),
-      source: state.source,
-      ready: state.ready,
-      loadedAt: state.loadedAt
+      ok:true,rows:rows,total:rows.length,periodList:listPeriodsSync(),
+      source:state.source,ready:state.ready,loadedAt:state.loadedAt
     };
   }
-
-  function getStudentByCedulaSync(cedula, periodoId){
+  function getStudentByCedulaSync(cedula,periodoId){
     cedula = normalizeCedula(cedula);
-    return getStudentsSync({ periodoId: periodoId || "", matricula: "" }).filter(function(row){
+    return getStudentsSync({ periodoId:periodoId || "",matricula:"" }).filter(function(row){
       return normalizeCedula(row.cedula || row.numeroIdentificacion) === cedula;
     })[0] || null;
   }
-
-  function getStudentByIdSync(id, options){
+  function getStudentByIdSync(id,options){
     id = text(id);
-    return getStudentsSync(Object.assign({}, options || {}, { matricula: "" })).filter(function(row){
+    return getStudentsSync(Object.assign({},options || {},{ matricula:"" })).filter(function(row){
       return text(row.id) === id || text(row._id) === id || text(row.cedula) === id || text(row.numeroIdentificacion) === id;
     })[0] || null;
   }
 
+  function snapshot(){
+    return {
+      meta:{
+        source:state.source,updatedAt:state.loadedAt,
+        totalStudents:state.students.length,totalPeriods:state.periods.length
+      },
+      periods:state.periods.slice(),
+      students:state.students.slice(),
+      history:[],diagnostics:state.error ? [{ message:state.error }] : []
+    };
+  }
+
   function patchAdapters(){
     var adapter = {
-      ready: function(){ return window.BDLocalConeDefensas.ready(); },
-      source: state.source,
-      getSnapshot: function(){
-        return { meta: { source: state.source, updatedAt: state.loadedAt, totalStudents: state.students.length, totalPeriods: state.periods.length }, periods: state.periods, students: state.students, history: [], diagnostics: [] };
-      },
-      listPeriods: listPeriodsSync,
-      getPeriods: listPeriodsSync,
-      periods: listPeriodsSync,
-      listStudents: listStudentsSync,
-      getStudents: getStudentsSync,
-      getRows: getStudentsSync,
-      rows: getStudentsSync,
-      all: getStudentsSync,
-      listar: getStudentsSync,
-      listAllStudents: function(){ return getStudentsSync({ matricula: "" }); },
-      filterStudents: getStudentsSync,
-      listStudentsByStatus: function(status, periodoId){ return getStudentsSync({ matricula: status || "", periodoId: periodoId || "" }); },
-      byCedula: getStudentByCedulaSync,
-      getStudentByCedula: getStudentByCedulaSync,
-      getStudentById: getStudentByIdSync,
-      search: function(q, options){ return listStudentsSync(Object.assign({}, options || {}, { search: q || "" })); }
+      ready:ready,
+      refresh:reload,
+      source:state.source,
+      getSnapshot:snapshot,
+      listPeriods:listPeriodsSync,
+      getPeriods:listPeriodsSync,
+      periods:listPeriodsSync,
+      listStudents:listStudentsSync,
+      getStudents:getStudentsSync,
+      getRows:getStudentsSync,
+      rows:getStudentsSync,
+      all:getStudentsSync,
+      listar:getStudentsSync,
+      listAllStudents:function(){ return getStudentsSync({ matricula:"" }); },
+      filterStudents:getStudentsSync,
+      listStudentsByStatus:function(statusValue,periodoId){ return getStudentsSync({ matricula:statusValue || "",periodoId:periodoId || "" }); },
+      byCedula:getStudentByCedulaSync,
+      getStudentByCedula:getStudentByCedulaSync,
+      getStudentById:getStudentByIdSync,
+      search:function(query,options){ return listStudentsSync(Object.assign({},options || {},{ search:query || "" })); }
     };
 
-    window.ExcelLocalRepo = Object.assign({}, window.ExcelLocalRepo || {}, adapter);
-    window.BL2DataEngine = Object.assign({}, window.BL2DataEngine || {}, adapter, {
-      search: function(options){ return listStudentsSync(options || {}); },
-      stats: function(periodoId){
+    window.ExcelLocalRepo = Object.assign({},window.ExcelLocalRepo || {},adapter);
+    window.BL2DataEngine = Object.assign({},window.BL2DataEngine || {},adapter,{
+      search:function(options){ return listStudentsSync(options || {}); },
+      stats:function(periodoId){
+        var students = getStudentsSync({ periodoId:periodoId,matricula:"" });
         return {
-          periodoId: periodoId,
-          estudiantes: getStudentsSync({ periodoId: periodoId, matricula: "" }),
-          requisitos: [],
-          resumen: { totalEstudiantes: getStudentsSync({ periodoId: periodoId, matricula: "" }).length },
-          source: state.source
+          periodoId:periodoId,estudiantes:students,requisitos:[],
+          resumen:{ totalEstudiantes:students.length },source:state.source
         };
       }
     });
+  }
+
+  function renderDefensas(){
+    try{
+      if(window.DefartCore && typeof window.DefartCore.clearSummaryCache === "function"){
+        window.DefartCore.clearSummaryCache();
+      }
+      if(window.DefartApp && typeof window.DefartApp.render === "function"){
+        window.DefartApp.render();
+      }
+    }catch(error){}
   }
 
   function reload(){
@@ -239,7 +221,6 @@ Con qué se conecta:
 
     var estudiantes = service("estudiantes");
     var periodos = service("periodos");
-
     if(!estudiantes || typeof estudiantes.list !== "function"){
       state.loading = false;
       state.ready = false;
@@ -248,77 +229,102 @@ Con qué se conecta:
     }
 
     state.promise = Promise.all([
-      estudiantes.list({ matricula: "" }),
+      estudiantes.list({ matricula:"" }),
       periodos && typeof periodos.list === "function" ? periodos.list() : Promise.resolve([])
     ]).then(function(result){
       state.students = (result[0] || []).map(normalizeStudent);
       state.periods = (result[1] || []).map(normalizePeriod).filter(Boolean);
       state.loadedAt = new Date().toISOString();
       state.ready = true;
-      state.loading = false;
+      state.error = "";
       patchAdapters();
 
-      try{
-        window.dispatchEvent(new CustomEvent("bdlocal:defensas-ready", { detail: status() }));
-      }catch(error){}
-
-      setTimeout(function(){
-        try{
-          if(window.DefartCore && typeof window.DefartCore.clearSummaryCache === "function"){
-            window.DefartCore.clearSummaryCache();
-          }
-          if(window.DefartApp && typeof window.DefartApp.render === "function"){
-            window.DefartApp.render();
-          }
-        }catch(error){}
-      }, 0);
-
+      try{ window.dispatchEvent(new CustomEvent("bdlocal:defensas-ready",{ detail:status() })); }catch(error){}
+      window.setTimeout(renderDefensas,0);
       return status();
     }).catch(function(error){
       state.ready = false;
-      state.loading = false;
       state.error = error && error.message ? error.message : String(error);
       patchAdapters();
       return status();
+    }).finally(function(){
+      state.loading = false;
+      state.promise = null;
     });
 
     return state.promise;
   }
 
-  function ready(){
-    return state.ready ? Promise.resolve(status()) : reload();
+  function scheduleReload(){
+    if(state.refreshTimer){ window.clearTimeout(state.refreshTimer); }
+    state.refreshTimer = window.setTimeout(function(){
+      state.refreshTimer = null;
+      reload();
+    },180);
   }
 
+  function bindEvents(){
+    if(state.eventsBound){ return; }
+    state.eventsBound = true;
+    [
+      "bdlocal:screen-data-updated",
+      "bdlocal:legacy-snapshot",
+      "requisitos:bl:snapshot-changed",
+      "bl2:students-saved",
+      "bl2:student-updated"
+    ].forEach(function(name){ window.addEventListener(name,scheduleReload); });
+
+    window.addEventListener("storage",function(event){
+      if(event && [
+        "REQ_BDLOCAL_CONEXIONES_CACHE_V1",
+        "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1",
+        "REQ_EXCEL_LOCAL_V1:snapshot"
+      ].indexOf(event.key) >= 0){ scheduleReload(); }
+    });
+  }
+
+  function ready(){ return state.ready ? Promise.resolve(status()) : reload(); }
   function status(){
     return {
-      ok: state.ready && !state.error,
-      ready: state.ready,
-      loading: state.loading,
-      version: VERSION,
-      source: state.source,
-      students: state.students.length,
-      periods: state.periods.length,
-      loadedAt: state.loadedAt,
-      error: state.error
+      ok:state.ready && !state.error,
+      ready:state.ready,
+      loading:state.loading,
+      version:VERSION,
+      source:state.source,
+      students:state.students.length,
+      periods:state.periods.length,
+      loadedAt:state.loadedAt,
+      error:state.error
     };
   }
 
-  window.BDLocalConeDefensas = {
-    version: VERSION,
-    ready: ready,
-    reload: reload,
-    status: status,
-    listStudents: listStudentsSync,
-    getStudents: getStudentsSync,
-    listPeriods: listPeriodsSync,
-    filterStudents: getStudentsSync,
-    patchAdapters: patchAdapters
+  var api = {
+    version:VERSION,
+    source:"BDLocal/conexiones/cone.defensas.js",
+    ready:ready,
+    refresh:reload,
+    reload:reload,
+    status:status,
+    snapshot:snapshot,
+    getSnapshot:snapshot,
+    listStudents:listStudentsSync,
+    getStudents:getStudentsSync,
+    listPeriods:listPeriodsSync,
+    getPeriods:listPeriodsSync,
+    filterStudents:getStudentsSync,
+    patchAdapters:patchAdapters
   };
 
+  window.BDLocalConeDefensas = api;
+  window.BDLocalDefensas = api;
+  window.ConDefensas = api;
+  if(HUB && typeof HUB.register === "function"){ HUB.register("defensas",api); }
+
   patchAdapters();
+  bindEvents();
 
   if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", function(){ reload(); });
+    document.addEventListener("DOMContentLoaded",function(){ reload(); });
   }else{
     reload();
   }
