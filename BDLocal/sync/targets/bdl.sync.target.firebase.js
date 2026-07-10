@@ -7,16 +7,18 @@ Función o funciones:
 - Consolidar varios cambios del mismo estudiante en una sola escritura.
 - Leer la versión completa más reciente desde Base Local.
 - Rechazar documentos parciales y enviar máximo 25 cambios.
+- Comprobar la cuota manual antes de ejecutar el batch Firebase.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.4.1-student-period-upsert";
+  var VERSION = "0.5.0-quota-safe";
   var MAX_BATCH_SIZE = 25;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function now(){ return new Date().toISOString(); }
   function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
+  function configStore(){ return window.BDLocalConfigStore || null; }
 
   function normalizeCedula(value){
     var raw = text(value).replace(/[^0-9A-Za-z]/g,"");
@@ -165,12 +167,34 @@ Función o funciones:
     });
   }
 
+  function quotaFor(writes){
+    var current = configStore();
+    if(!current || typeof current.getFirebaseQuotaStatus !== "function"){
+      return { allowed:true,level:"sin_control",estimatedOps:Number(writes || 0),message:"Control de cuota no disponible." };
+    }
+    var quota = current.getFirebaseQuotaStatus(Number(writes || 0)) || {};
+    quota.message = quota.allowed
+      ? (quota.level === "advertencia" ? "Firebase se aproxima al límite manual." : "Cuota Firebase disponible.")
+      : "Firebase bloqueado por cuota manual: " + Number(quota.used || 0) + " / " + Number(quota.limit || 0) + ".";
+    return quota;
+  }
+
   function registerUsage(writes){
     try{
-      if(window.BDLocalConfigStore && typeof window.BDLocalConfigStore.registerFirebaseUsage === "function"){
-        window.BDLocalConfigStore.registerFirebaseUsage({ writes:Number(writes || 0),label:"Subida segura BDLocal → Firebase." });
+      var current = configStore();
+      if(current && typeof current.registerFirebaseUsage === "function"){
+        current.registerFirebaseUsage({ writes:Number(writes || 0),label:"Subida segura BDLocal → Firebase." });
       }
     }catch(error){}
+  }
+
+  function setConnection(ok,error){
+    try{
+      var current = configStore();
+      if(current && typeof current.updateConnectionStatus === "function"){
+        current.updateConnectionStatus("firebase",{ connected:!!ok,status:ok ? "ok" : "error",lastError:ok ? "" : text(error) });
+      }
+    }catch(innerError){}
   }
 
   function push(pendingRows,options){
@@ -190,6 +214,20 @@ Función o funciones:
         return { ok:false,target:"firebase",processedIds:[],skipped:prepared.skipped,message:"No existen documentos completos para enviar." };
       }
 
+      var quota = quotaFor(prepared.documents.length);
+      if(quota.allowed === false){
+        return {
+          ok:false,
+          blocked:true,
+          quotaBlocked:true,
+          target:"firebase",
+          processedIds:[],
+          skipped:prepared.skipped,
+          quota:quota,
+          message:quota.message
+        };
+      }
+
       return window.BL2Sync.ensureFirebase().then(function(firestore){
         var batch = firestore.batch();
         var collection = firestore.collection(collectionName());
@@ -201,6 +239,7 @@ Función o funciones:
         var processedIds = [];
         prepared.documents.forEach(function(item){ processedIds = processedIds.concat(item.changeIds); });
         registerUsage(prepared.documents.length);
+        setConnection(true,"");
         return {
           ok:true,
           target:"firebase",
@@ -208,11 +247,13 @@ Función o funciones:
           documents:prepared.documents.length,
           processedIds:processedIds,
           skipped:prepared.skipped,
+          quota:quota,
           response:response || {},
-          message:"Firebase actualizado: " + prepared.documents.length + " estudiante(s), " + processedIds.length + " cambio(s) confirmado(s)."
+          message:"Firebase actualizado: " + prepared.documents.length + " estudiante(s), " + processedIds.length + " cambio(s) confirmado(s)." + (quota.level === "advertencia" ? " Advertencia: cuota cercana al límite." : "")
         };
       });
     }).catch(function(error){
+      setConnection(false,error.message || String(error));
       return { ok:false,target:"firebase",processedIds:[],message:error.message || String(error) };
     });
   }
@@ -227,6 +268,7 @@ Función o funciones:
     safeRows:safeRows,
     groupChanges:groupChanges,
     prepareDocuments:prepareDocuments,
-    documentId:documentId
+    documentId:documentId,
+    quotaFor:quotaFor
   };
 })(window);
