@@ -1,16 +1,16 @@
 /* =========================================================
-Archivo: bdl.changes.outbox-bridge.js
-Ruta: /BDLocal/patches/bdl.changes.outbox-bridge.js
-Funcion:
-- Mantener una sola cola real de sincronizacion: cambios_pendientes.
-- Si codigo legacy guarda en cambios, se conserva ese guardado y se espeja a cambios_pendientes.
-- No rompe pantallas antiguas que todavia leen cambios.
-- No bloquea la app si el espejo falla; solo deja advertencia en consola.
+Nombre completo: bdl.changes.outbox-bridge.js
+Ruta o ubicación: /BDLocal/patches/bdl.changes.outbox-bridge.js
+Función o funciones:
+- Mantener una sola cola real: cambios_pendientes.
+- Espejar cambios legacy mediante el repositorio idempotente.
+- Actualizar el pendiente lógico existente en vez de crear otro.
+- Evitar duplicados por IDs aleatorios de código antiguo.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0";
+  var VERSION = "2.0.0-idempotent";
   var FLAG = "__bdlOutboxBridgeInstalled";
 
   if(window[FLAG]){ return; }
@@ -18,66 +18,67 @@ Funcion:
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function nowISO(){ return new Date().toISOString(); }
-  function clone(value){
-    if(value === undefined){ return undefined; }
-    try{ return JSON.parse(JSON.stringify(value)); }
-    catch(error){ return value; }
-  }
 
   function cfgStores(){
     var cfg = window.BL2Config || {};
     var stores = cfg.stores || {};
     return {
-      legacy: stores.cambios || "cambios",
-      outbox: stores.cambiosPendientes || "cambios_pendientes"
+      legacy:text(stores.cambios || "cambios"),
+      outbox:text(stores.cambiosPendientes || "cambios_pendientes")
     };
   }
 
-  function fallbackId(row){
-    row = row || {};
-    return [
-      text(row.tabla || row.tipo || "registro"),
-      text(row.accion || row.action || "UPSERT"),
-      text(row.periodoId || "global"),
-      text(row.cedula || row.registroId || row.idEstudiantePeriodo || row.studentId || "sin_id"),
-      Date.now(),
-      Math.random().toString(16).slice(2)
-    ].join("__");
+  function repository(){
+    if(window.BDLRepoCambios){ return window.BDLRepoCambios; }
+    if(window.BDLRepositories && typeof window.BDLRepositories.get === "function"){
+      return window.BDLRepositories.get("cambios_pendientes") || window.BDLRepositories.get("cambios");
+    }
+    return null;
   }
 
-  function normalizeForOutbox(row, options){
-    row = Object.assign({}, clone(row || {}));
-    options = options || {};
-
-    try{
-      if(window.BDLRulesSync && typeof window.BDLRulesSync.build === "function"){
-        row = window.BDLRulesSync.build(row, Object.assign({ source:"outbox_bridge" }, options));
+  function mirrorOne(row,mode){
+    var repo = repository();
+    if(!repo || typeof repo.save !== "function"){
+      return Promise.resolve(null);
+    }
+    return repo.save(row || {},{
+      source:"outbox_bridge",
+      mode:mode || "put"
+    }).then(function(saved){
+      if(saved){
+        try{
+          window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridged",{
+            detail:{
+              id:saved.id,
+              logicalKey:saved.logicalKey || "",
+              changedAt:saved.lastContentChangedAt || saved.updatedAt || nowISO(),
+              store:cfgStores().outbox,
+              at:nowISO()
+            }
+          }));
+        }catch(error){}
       }
-    }catch(error){}
+      return saved;
+    }).catch(function(error){
+      try{ console.warn("[BDLOutboxBridge] No se pudo consolidar el cambio en cambios_pendientes",error); }catch(innerError){}
+      return null;
+    });
+  }
 
-    row.id = text(row.id || row.cambioId || fallbackId(row));
-    row.cambioId = text(row.cambioId || row.id);
-    row.createdAt = text(row.createdAt) || nowISO();
-    row.updatedAt = text(row.updatedAt) || nowISO();
-
-    if(!text(row.estadoSheets || row.statusGoogle)){
-      row.estadoSheets = "PENDIENTE";
-      row.statusGoogle = "PENDIENTE";
+  function mirrorMany(rows,mode){
+    var repo = repository();
+    rows = Array.isArray(rows) ? rows : [];
+    if(!rows.length){ return Promise.resolve([]); }
+    if(repo && typeof repo.saveMany === "function"){
+      return repo.saveMany(rows,{ source:"outbox_bridge",mode:mode || "bulkPut" }).catch(function(error){
+        try{ console.warn("[BDLOutboxBridge] No se pudo consolidar el lote",error); }catch(innerError){}
+        return [];
+      });
     }
-
-    if(!text(row.estadoFirebase || row.statusFirebase)){
-      row.estadoFirebase = "PENDIENTE";
-      row.statusFirebase = "PENDIENTE";
-    }
-
-    if(!text(row.estadoSupabase || row.statusSupabase)){
-      row.estadoSupabase = "PENDIENTE";
-      row.statusSupabase = "PENDIENTE";
-    }
-
-    row.outboxBridge = true;
-    row.outboxBridgeVersion = VERSION;
-    return row;
+    var result = [];
+    var chain = Promise.resolve();
+    rows.forEach(function(row){ chain = chain.then(function(){ return mirrorOne(row,mode).then(function(saved){ if(saved){ result.push(saved); } }); }); });
+    return chain.then(function(){ return result; });
   }
 
   function install(){
@@ -85,48 +86,30 @@ Funcion:
     if(!db || typeof db.put !== "function" || typeof db.bulkPut !== "function"){
       return false;
     }
-
     if(db.__outboxBridgeInstalled){ return true; }
 
     var originalPut = db.put.bind(db);
     var originalBulkPut = db.bulkPut.bind(db);
 
-    db.put = function(storeName, value){
+    db.put = function(storeName,value){
       var stores = cfgStores();
       if(text(storeName) !== stores.legacy){
-        return originalPut(storeName, value);
+        return originalPut(storeName,value);
       }
-
-      return originalPut(storeName, value).then(function(saved){
-        var outboxRow = normalizeForOutbox(saved || value, { mode:"put" });
-        return originalPut(stores.outbox, outboxRow).catch(function(error){
-          try{ console.warn("[BDLOutboxBridge] No se pudo espejar cambio a cambios_pendientes", error); }catch(innerError){}
-          return null;
-        }).then(function(){
-          try{
-            window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridged", {
-              detail:{ id:outboxRow.id, store:stores.outbox, at:nowISO() }
-            }));
-          }catch(eventError){}
-          return saved;
-        });
+      return originalPut(storeName,value).then(function(saved){
+        return mirrorOne(saved || value,"put").then(function(){ return saved; });
       });
     };
 
-    db.bulkPut = function(storeName, rows){
+    db.bulkPut = function(storeName,rows){
       var stores = cfgStores();
       rows = Array.isArray(rows) ? rows : [];
       if(text(storeName) !== stores.legacy || !rows.length){
-        return originalBulkPut(storeName, rows);
+        return originalBulkPut(storeName,rows);
       }
-
-      return originalBulkPut(storeName, rows).then(function(saved){
+      return originalBulkPut(storeName,rows).then(function(saved){
         var sourceRows = Array.isArray(saved) && saved.length ? saved : rows;
-        var outboxRows = sourceRows.map(function(row){ return normalizeForOutbox(row, { mode:"bulkPut" }); });
-        return originalBulkPut(stores.outbox, outboxRows).catch(function(error){
-          try{ console.warn("[BDLOutboxBridge] No se pudo espejar lote a cambios_pendientes", error); }catch(innerError){}
-          return [];
-        }).then(function(){ return saved; });
+        return mirrorMany(sourceRows,"bulkPut").then(function(){ return saved; });
       });
     };
 
@@ -134,8 +117,14 @@ Funcion:
     db.outboxBridgeVersion = VERSION;
 
     try{
-      window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridge-ready", {
-        detail:{ version:VERSION, legacy:cfgStores().legacy, outbox:cfgStores().outbox, at:nowISO() }
+      window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridge-ready",{
+        detail:{
+          version:VERSION,
+          legacy:cfgStores().legacy,
+          outbox:cfgStores().outbox,
+          idempotent:true,
+          at:nowISO()
+        }
       }));
     }catch(error){}
 
@@ -143,9 +132,10 @@ Funcion:
   }
 
   window.BDLOutboxBridge = {
-    version: VERSION,
-    install: install,
-    normalizeForOutbox: normalizeForOutbox
+    version:VERSION,
+    install:install,
+    mirrorOne:mirrorOne,
+    mirrorMany:mirrorMany
   };
 
   install();
