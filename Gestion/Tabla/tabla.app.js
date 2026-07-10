@@ -361,7 +361,7 @@ Función o funciones:
     connectionReady().then(function(){
       state.dataRevision=connectorRevision();
       var info=connectorStatus();
-      if(Number(info.students||0)>0||Number(info.periods||0)>0){
+      if(Number(info.students||0)>0){
         clearVisualCaches();
         render();
         return null;
