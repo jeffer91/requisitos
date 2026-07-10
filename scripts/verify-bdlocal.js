@@ -52,6 +52,7 @@ console.log("No abre Electron, IndexedDB, Firebase ni Google Sheets.\n");
   "package.json",
   "electron/main.js",
   "electron/preload.js",
+  "electron/smoke-main.js",
   "Maqueta/maq-index.html",
   "BDLocal/bl2.html",
   "BDLocal/bl2.config.js",
@@ -113,13 +114,17 @@ contains("BDLocal/bl2.import.js","safeKey(key)","Importador bloquea claves pelig
 contains("BDLocal/bl2.import.js","missingLeadingZero&&identity.safeAutoCorrection","Cero inicial solo con validación");
 notContains("BDLocal/bl2.import.js","cdn.jsdelivr.net","Importador sin CDN antiguo");
 contains("Carga/readers/carga.reader.xlsx.js","node_modules/xlsx/dist/xlsx.full.min.js","Carga usa dependencia local");
+contains("Carga/readers/carga.reader.xlsx.js","sheetjs@0.20.3","Carga declara SheetJS corregido");
 contains("defart/defart.html","node_modules/xlsx/dist/xlsx.full.min.js","Defensas usa dependencia local");
+contains("defart/defart.html","sheetjs@0.20.3","Defensas declara SheetJS corregido");
 
-contains("package.json",'"electron": "36.9.5"',"Electron fijado");
+contains("package.json",'"node": ">=22.12.0"',"Motor Node mínimo fijado");
+contains("package.json",'"electron": "43.1.0"',"Electron fijado");
 contains("package.json","xlsx-0.20.3.tgz","SheetJS corregido y fijado");
 notContains("package.json",'"latest"',"Sin dependencias latest");
 notContains("package.json","npx --yes","Inicio sin descarga dinámica");
 contains("package.json",'"test": "node scripts/verify-bdlocal.js && node scripts/audit-repository.js"',"npm test ejecuta certificación y auditoría");
+contains("package.json",'"test:electron": "electron electron/smoke-main.js"',"Existe prueba real de Electron");
 
 notContains("BDLocal/bl2.html","bdlocal-modal.js","No se carga modal legacy");
 notContains("BDLocal/bl2.html","bdl.migration.legacy-v2.ui.js","No se carga interfaz de migración duplicada");
