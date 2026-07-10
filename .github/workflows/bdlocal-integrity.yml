@@ -4,7 +4,7 @@
 # Función o funciones:
 # - Ejecutar certificación y auditoría estática.
 # - Ejecutar Electron e IndexedDB en entorno aislado.
-# - Publicar temporalmente el reporte de auditoría en el PR para diagnosticar un fallo de artefactos.
+# - Publicar temporalmente la consola y el reporte en el PR de auditoría.
 # =========================================================
 name: BDLocal Integrity
 
@@ -51,18 +51,26 @@ jobs:
       - name: Run isolated Electron test
         id: smoke
         continue-on-error: true
-        run: xvfb-run --auto-servernum npm run test:electron
-      - name: Publish isolated report in audit PR
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          xvfb-run --auto-servernum npm run test:electron > artifacts/smoke-console.log 2>&1
+      - name: Publish isolated diagnostics in audit PR
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const path = 'artifacts/bdlocal-electron-smoke.json';
-            const content = fs.existsSync(path)
-              ? fs.readFileSync(path, 'utf8')
+            const reportPath = 'artifacts/bdlocal-electron-smoke.json';
+            const consolePath = 'artifacts/smoke-console.log';
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, 'utf8')
               : JSON.stringify({ok:false,message:'No se generó el reporte JSON.'}, null, 2);
-            const body = `<!-- bdlocal-smoke-report -->\n### Reporte aislado BDLocal\n\n\`\`\`json\n${content.slice(0,60000)}\n\`\`\``;
+            const consoleText = fs.existsSync(consolePath)
+              ? fs.readFileSync(consolePath, 'utf8')
+              : 'No se generó la salida de consola.';
+            const body = `<!-- bdlocal-smoke-report -->\n### Diagnóstico aislado BDLocal\n\n#### Reporte JSON\n\`\`\`json\n${report.slice(0,50000)}\n\`\`\`\n\n#### Consola Electron\n\`\`\`text\n${consoleText.slice(-50000)}\n\`\`\``;
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
