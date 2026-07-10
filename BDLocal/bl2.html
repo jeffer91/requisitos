@@ -11,8 +11,9 @@
   Función o funciones:
   - Crear la estructura principal del Centro de Control BDLocal.
   - Mantener el selector global de período y los identificadores existentes.
-  - Preparar las secciones aprobadas sin modificar IndexedDB.
-  - Cargar los módulos actuales en su orden seguro.
+  - Cargar primero los registros centrales y después sus módulos dependientes.
+  - Verificar reglas, repositorios, servicios y conectores antes de declarar lista la pantalla.
+  - Excluir las interfaces antiguas de migración y diagnóstico que duplicaban funciones.
   ========================================================= -->
 
   <link rel="stylesheet" href="./bl2.css" />
@@ -67,8 +68,6 @@
 
       <button id="bl2-sidebar-backdrop" class="bl2-sidebar-backdrop" type="button" aria-label="Cerrar menú" tabindex="-1"></button>
 
-      <!-- La interfaz central definitiva se conectará en el Bloque 2. Se usa
-           un id temporal para impedir que el panel MVP anterior se inyecte. -->
       <div id="bdlocal-control-center-root" class="bdlc-shell bdlc-shell-static">
         <aside id="bl2-sidebar" class="bdlc-sidebar" aria-label="Menú de Base Local">
           <div class="bdlc-sidebar-head">
@@ -106,7 +105,7 @@
         <main class="bdlc-main">
           <div class="bdlc-topbar">
             <div><small>Ubicación actual</small><div id="bl2-breadcrumb" class="bdlc-breadcrumb">Base Local / Resumen</div></div>
-            <div id="bl2-view-status" class="bdlc-view-status" aria-live="polite">Estructura visual preparada</div>
+            <div id="bl2-view-status" class="bdlc-view-status" aria-live="polite">Comprobando módulos...</div>
           </div>
           <div id="bl2-global-alert" class="bdlc-alert info" hidden aria-live="polite"></div>
 
@@ -121,7 +120,7 @@
               <article class="bdlc-card bdlc-kpi-card"><span>Advertencias</span><strong id="bl2-kpi-warnings">0</strong><small>Última operación</small></article>
             </div>
             <div class="bdlc-card-grid two">
-              <article class="bdlc-card"><h3>Estado de Base Local</h3><p>IndexedDB, servicios y módulos se comprobarán desde el resumen funcional del Bloque 2.</p></article>
+              <article class="bdlc-card"><h3>Estado de Base Local</h3><p>El arranque valida los registros centrales antes de habilitar los procesos.</p></article>
               <article class="bdlc-card"><h3>Respaldo local</h3><p id="bl2-backup-status">Comprobando respaldo automático...</p></article>
             </div>
           </section>
@@ -147,18 +146,16 @@
             </div>
           </section>
 
-          <section id="bl2-section-pantallas" class="bdlc-section" data-bl2-section="pantallas"><div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Pantallas</h2><p class="bdlc-description">Módulos que leen o guardan información en BDLocal.</p></div></div><div class="bdlc-placeholder"><strong>Contenedor preparado</strong><span>Se conectará en el Bloque 2.</span></div></section>
-          <section id="bl2-section-tablas" class="bdlc-section" data-bl2-section="tablas"><div class="bdlc-header"><div><span class="bdlc-overline">IndexedDB</span><h2 class="bdlc-title">Tablas</h2><p class="bdlc-description">Visualización de tablas y registros guardados.</p></div></div><div id="bl2-tables-slot" class="bdlc-placeholder"><strong>Visualizador preparado</strong><span>Se integrará en el Bloque 3.</span></div></section>
-          <section id="bl2-section-estudiante" class="bdlc-section" data-bl2-section="estudiante"><div class="bdlc-header"><div><span class="bdlc-overline">Consulta integral</span><h2 class="bdlc-title">Consulta de estudiante</h2><p class="bdlc-description">Búsqueda por cédula y período con resultado en texto bruto.</p></div></div><div class="bdlc-placeholder"><strong>Consulta preparada</strong><span>Se integrará en el Bloque 3.</span></div></section>
-          <section id="bl2-section-respaldos" class="bdlc-section" data-bl2-section="respaldos"><div class="bdlc-header"><div><span class="bdlc-overline">Protección de datos</span><h2 class="bdlc-title">Respaldos y restauración</h2><p class="bdlc-description">Creación, descarga y restauración segura.</p></div><button id="bl2-btn-export" class="bdlc-button" type="button">Exportar respaldo</button></div><div id="bl2-backups-slot" class="bdlc-placeholder"><strong>Módulo preparado</strong><span>Se integrará en el Bloque 4.</span></div></section>
-          <section id="bl2-section-cola" class="bdlc-section" data-bl2-section="cola"><div class="bdlc-header"><div><span class="bdlc-overline">Cambios pendientes</span><h2 class="bdlc-title">Cola de sincronización</h2><p class="bdlc-description">Pendientes para Google Sheets, Firebase y Supabase.</p></div><button id="bl2-btn-sync-queue" class="bdlc-button" type="button">Sincronizar pendientes</button></div><div id="bl2-queue-slot" class="bdlc-placeholder"><strong>Cola preparada</strong><span>Se integrará en el Bloque 4.</span></div></section>
-          <section id="bl2-section-mantenimiento" class="bdlc-section" data-bl2-section="mantenimiento"><div class="bdlc-header"><div><span class="bdlc-overline">Operaciones controladas</span><h2 class="bdlc-title">Mantenimiento seguro</h2><p class="bdlc-description">Auditoría, migración, duplicados y relaciones rotas.</p></div></div><div id="bl2-maintenance-slot" class="bdlc-placeholder"><strong>Área preparada</strong><span>Se integrará en el Bloque 5.</span></div></section>
-          <section id="bl2-section-diagnostico" class="bdlc-section" data-bl2-section="diagnostico"><div class="bdlc-header"><div><span class="bdlc-overline">Revisión técnica</span><h2 class="bdlc-title">Diagnóstico y salud</h2><p class="bdlc-description">Estado de IndexedDB, tablas, índices, servicios y conexiones.</p></div><button id="bl2-btn-test" class="bdlc-button" type="button">Ejecutar prueba</button></div><div id="bl2-diagnostics-slot" class="bdlc-placeholder"><strong>Diagnóstico preparado</strong><span>Se integrará en el Bloque 5.</span></div></section>
+          <section id="bl2-section-pantallas" class="bdlc-section" data-bl2-section="pantallas"><div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Pantallas</h2><p class="bdlc-description">Módulos que leen o guardan información en BDLocal.</p></div></div><div class="bdlc-placeholder"><strong>Comprobando conectores</strong><span>Los conectores se registran después de crear su centro común.</span></div></section>
+          <section id="bl2-section-tablas" class="bdlc-section" data-bl2-section="tablas"><div class="bdlc-header"><div><span class="bdlc-overline">IndexedDB</span><h2 class="bdlc-title">Tablas</h2><p class="bdlc-description">Visualización de tablas y registros guardados.</p></div></div><div id="bl2-tables-slot" class="bdlc-placeholder"><strong>Visualizador preparado</strong><span>Cargando tablas...</span></div></section>
+          <section id="bl2-section-estudiante" class="bdlc-section" data-bl2-section="estudiante"><div class="bdlc-header"><div><span class="bdlc-overline">Consulta integral</span><h2 class="bdlc-title">Consulta de estudiante</h2><p class="bdlc-description">Búsqueda por cédula y período con resultado en texto bruto.</p></div></div><div class="bdlc-placeholder"><strong>Consulta preparada</strong><span>Cargando servicio de estudiantes...</span></div></section>
+          <section id="bl2-section-respaldos" class="bdlc-section" data-bl2-section="respaldos"><div class="bdlc-header"><div><span class="bdlc-overline">Protección de datos</span><h2 class="bdlc-title">Respaldos y restauración</h2><p class="bdlc-description">Creación, descarga y restauración segura.</p></div><button id="bl2-btn-export" class="bdlc-button" type="button">Exportar respaldo</button></div><div id="bl2-backups-slot" class="bdlc-placeholder"><strong>Módulo preparado</strong><span>Cargando respaldos...</span></div></section>
+          <section id="bl2-section-cola" class="bdlc-section" data-bl2-section="cola"><div class="bdlc-header"><div><span class="bdlc-overline">Cambios pendientes</span><h2 class="bdlc-title">Cola de sincronización</h2><p class="bdlc-description">Pendientes para Google Sheets, Firebase y Supabase.</p></div><button id="bl2-btn-sync-queue" class="bdlc-button" type="button">Sincronizar pendientes</button></div><div id="bl2-queue-slot" class="bdlc-placeholder"><strong>Cola preparada</strong><span>Cargando cambios_pendientes...</span></div></section>
+          <section id="bl2-section-mantenimiento" class="bdlc-section" data-bl2-section="mantenimiento"><div class="bdlc-header"><div><span class="bdlc-overline">Operaciones controladas</span><h2 class="bdlc-title">Mantenimiento seguro</h2><p class="bdlc-description">Auditoría, migración, duplicados y relaciones rotas.</p></div></div><div id="bl2-maintenance-slot" class="bdlc-placeholder"><strong>Área preparada</strong><span>Cargando mantenimiento...</span></div></section>
+          <section id="bl2-section-diagnostico" class="bdlc-section" data-bl2-section="diagnostico"><div class="bdlc-header"><div><span class="bdlc-overline">Revisión técnica</span><h2 class="bdlc-title">Diagnóstico y salud</h2><p class="bdlc-description">Estado de IndexedDB, tablas, índices, servicios y conexiones.</p></div><button id="bl2-btn-test" class="bdlc-button" type="button">Ejecutar prueba</button></div><div id="bl2-diagnostics-slot" class="bdlc-placeholder"><strong>Diagnóstico preparado</strong><span>Cargando motor de salud...</span></div></section>
         </main>
       </div>
 
-      <!-- Los módulos actuales que todavía crean tarjetas se concentran aquí
-           para evitar que se dispersen al final del body. -->
       <details id="bl2-legacy-tools" class="bl2-legacy-tools">
         <summary>Herramientas técnicas actuales <small>Compatibilidad temporal</small></summary>
         <div id="bl2-legacy-module-host" class="bl2-main">
@@ -170,7 +167,6 @@
     </div>
   </div>
 
-  <!-- Compatibilidad temporal con bl2.app.js. -->
   <div class="bl2-compatibility-layer" hidden aria-hidden="true">
     <button id="bl2-btn-load" type="button">Cargar</button>
     <button id="bl2-btn-sync-google" type="button">Google</button>
@@ -203,6 +199,11 @@
         if(pill){ pill.textContent = message; pill.className = "bl2-pill " + (className || "bl2-pill-soft"); }
       }
 
+      function setViewStatus(message){
+        var node = byId("bl2-view-status");
+        if(node){ node.textContent = message; }
+      }
+
       function setRuntime(){
         var pill = byId("bl2-runtime-pill");
         if(pill){ pill.textContent = window.electronAPI ? "Electron" : "Navegador"; }
@@ -217,7 +218,6 @@
         if(!root){ return; }
 
         function closeMenu(){ document.body.classList.remove("bl2-sidebar-open"); if(toggle){ toggle.setAttribute("aria-expanded", "false"); } }
-
         function activate(id, label){
           id = text(id || "resumen");
           var section = root.querySelector('[data-bl2-section="' + id + '"]');
@@ -236,7 +236,6 @@
         Array.prototype.slice.call(root.querySelectorAll("[data-bl2-section-target]")).forEach(function(button){
           button.addEventListener("click", function(){ activate(button.getAttribute("data-bl2-section-target"), button.getAttribute("data-bl2-section-label") || button.textContent); });
         });
-
         Array.prototype.slice.call(root.querySelectorAll("[data-bl2-menu-toggle]")).forEach(function(button){
           button.addEventListener("click", function(){
             var group = root.querySelector('[data-bl2-nav-group="' + button.getAttribute("data-bl2-menu-toggle") + '"]');
@@ -257,7 +256,12 @@
         activate(initial, button ? button.getAttribute("data-bl2-section-label") : "Resumen");
       }
 
-      function exists(src){ return Array.prototype.slice.call(document.scripts || []).some(function(script){ return script.getAttribute("src") === src || script.getAttribute("data-bl2-loader-src") === src; }); }
+      function exists(src){
+        return Array.prototype.slice.call(document.scripts || []).some(function(script){
+          var declared = script.getAttribute("src") || script.getAttribute("data-bl2-loader-src") || "";
+          return declared === src || text(script.src).slice(-src.length) === src;
+        });
+      }
 
       function loadOne(item){
         return new Promise(function(resolve, reject){
@@ -268,54 +272,175 @@
             if(!src){ if(required){ reject(new Error("No se pudo cargar un script requerido.")); }else{ resolve(false); } return; }
             if(exists(src)){ resolve(true); return; }
             var script = document.createElement("script");
-            script.src = src; script.defer = false; script.async = false; script.setAttribute("data-bl2-loader-src", src);
+            script.src = src;
+            script.defer = false;
+            script.async = false;
+            script.setAttribute("data-bl2-loader-src", src);
             script.onload = function(){ resolve(true); };
-            script.onerror = function(){ if(sources.length){ next(); }else if(required){ reject(new Error("No se pudo cargar: " + src)); }else{ log("Script opcional no cargado: " + src, "warn"); resolve(false); } };
+            script.onerror = function(){
+              if(sources.length){ next(); }
+              else if(required){ reject(new Error("No se pudo cargar: " + src)); }
+              else{ log("Script opcional no cargado: " + src, "warn"); resolve(false); }
+            };
             document.body.appendChild(script);
           }
           next();
         });
       }
 
-      function loadSequence(items){ var chain = Promise.resolve(); items.forEach(function(item){ chain = chain.then(function(){ return loadOne(item); }); }); return chain; }
+      function loadSequence(items){
+        return items.reduce(function(chain, item){
+          return chain.then(function(){ return loadOne(item); });
+        }, Promise.resolve());
+      }
+
+      function missingFromRegistry(registry, expected){
+        var existing = [];
+        try{ existing = registry && typeof registry.list === "function" ? registry.list() : []; }catch(error){ existing = []; }
+        return expected.filter(function(name){ return existing.indexOf(name) < 0; });
+      }
+
+      function verifyRuntime(){
+        var failures = [];
+        if(!window.BL2DB){ failures.push("BL2DB"); }
+        if(!window.BL2Core){ failures.push("BL2Core"); }
+        if(!window.BDLSyncOutbox){ failures.push("BDLSyncOutbox"); }
+        if(!window.BDLSyncOrchestrator){ failures.push("BDLSyncOrchestrator"); }
+        if(!window.BDLSyncV2){ failures.push("BDLSyncV2"); }
+        if(!window.BDLDiagnostics){ failures.push("BDLDiagnostics"); }
+
+        var missingRules = missingFromRegistry(window.BDLRules, ["periodo.require","persona.normalize","matricula.normalize","requisitos.extract","notas.normalize","duplicados.merge","retirados.detect","sync.change","errors.collect","pipeline.import.rows","pipeline.sync.changes"]);
+        var missingRepos = missingFromRegistry(window.BDLRepositories, ["periodos","estudiantes","personas","matriculas","requisitos","notas","contactos","cambios","logs","backups"]);
+        var missingServices = missingFromRegistry(window.BDLServices, ["periodos","estudiantes","ficha","defensas","tabla","stats","reportes","coordi"]);
+        if(missingRules.length){ failures.push("reglas: " + missingRules.join(", ")); }
+        if(missingRepos.length){ failures.push("repositorios: " + missingRepos.join(", ")); }
+        if(missingServices.length){ failures.push("servicios: " + missingServices.join(", ")); }
+
+        var ready = window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"
+          ? window.BDLocalConexiones.ready()
+          : Promise.resolve(null);
+
+        return Promise.resolve(ready).then(function(){
+          var missingConnectors = missingFromRegistry(window.BDLocalConexiones, ["carga","tabla","ficha","stats","coordi","reportes","defensas","global"]);
+          if(missingConnectors.length){ failures.push("conectores: " + missingConnectors.join(", ")); }
+          if(failures.length){ throw new Error("Arranque incompleto: " + failures.join(" | ")); }
+          return {
+            ok:true,
+            rules:window.BDLRules.list(),
+            repositories:window.BDLRepositories.list(),
+            services:window.BDLServices.list(),
+            connectors:window.BDLocalConexiones.list ? window.BDLocalConexiones.list() : (window.BDLocalConexiones.status ? window.BDLocalConexiones.status().connectors : [])
+          };
+        });
+      }
 
       var scripts = [
-        {src:"bl2.config.js",required:REQUIRED},{src:"bl2.config.v2.js",required:REQUIRED},{src:"bl2.db.js",required:REQUIRED},
-        {src:"rules/bdl.rules.persona.js",required:REQUIRED},{src:"rules/bdl.rules.periodo.js",required:REQUIRED},{src:"rules/bdl.rules.requisitos.js",required:REQUIRED},{src:"rules/bdl.rules.notas.js",required:REQUIRED},{src:"rules/bdl.rules.matricula.js",required:REQUIRED},{src:"rules/bdl.rules.duplicados.js",required:REQUIRED},{src:"rules/bdl.rules.errors.js",required:REQUIRED},{src:"rules/bdl.rules.retirados.js",required:REQUIRED},{src:"rules/bdl.rules.sync.js",required:REQUIRED},{src:"rules/bdl.rules.pipeline.js",required:REQUIRED},{src:"rules/bdl.rules.index.js",required:REQUIRED},
-        {src:"repositories/bdl.repo.logs.js",required:REQUIRED},{src:"repositories/bdl.repo.periodos.js",required:REQUIRED},{src:"repositories/bdl.repo.personas.js",required:REQUIRED},{src:"repositories/bdl.repo.matriculas.js",required:REQUIRED},{src:"repositories/bdl.repo.requisitos.js",required:REQUIRED},{src:"repositories/bdl.repo.notas.js",required:REQUIRED},{src:"repositories/bdl.repo.contactos.js",required:REQUIRED},{src:"repositories/bdl.repo.cambios.js",required:REQUIRED},{src:"repositories/bdl.repo.backups.js",required:REQUIRED},{src:"repositories/bdl.repo.estudiantes.js",required:REQUIRED},{src:"repositories/bdl.repo.index.js",required:REQUIRED},
-        {src:"migrations/bdl.migration.v2.schema.js",required:REQUIRED},{src:"migrations/bdl.migration.legacy-v2.js",required:REQUIRED},{src:"migrations/bdl.migration.legacy-v2.ui.js",required:REQUIRED},{src:"migrations/bdl.migration.index.js",required:REQUIRED},
-        {src:"patches/bdl.v2.mirror.js",required:REQUIRED},{src:"patches/bdl.changes.outbox-bridge.js",required:REQUIRED},
-        {src:"adapters/bdl.divisiones.service.js",required:REQUIRED},{src:"adapters/bdl.divisiones.fast-cache.js",required:REQUIRED},{src:"adapters/bdl.screen-deps.js",required:REQUIRED},
-        {src:"conexiones/cone.utils.js",required:REQUIRED},{src:"conexiones/cone.carga.js",required:REQUIRED},{src:"conexiones/cone.ficha.js",required:REQUIRED},{src:"conexiones/cone.tabla.js",required:REQUIRED},{src:"conexiones/cone.stats.js",required:REQUIRED},{src:"conexiones/cone.reportes.js",required:REQUIRED},{src:"conexiones/cone.coordi.js",required:REQUIRED},{src:"conexiones/cone.defensas.js",required:REQUIRED},{src:"conexiones/cone.global.js",required:REQUIRED},{src:"conexiones/cone.index.js",required:REQUIRED},
-        {src:"services/bdl.service.periodos.js",required:REQUIRED},{src:"services/bdl.service.estudiantes.js",required:REQUIRED},{src:"services/bdl.service.ficha.js",required:REQUIRED},{src:"services/bdl.service.tabla.js",required:REQUIRED},{src:"services/bdl.service.stats.js",required:REQUIRED},{src:"services/bdl.service.reportes.js",required:REQUIRED},{src:"services/bdl.service.coordi.js",required:REQUIRED},{src:"services/bdl.service.defensas.js",required:REQUIRED},{src:"services/bdl.service.index.js",required:REQUIRED},
+        {src:"bl2.config.js",required:REQUIRED},
+        {src:"bl2.config.v2.js",required:REQUIRED},
+        {src:"bl2.db.js",required:REQUIRED},
+
+        {src:"rules/bdl.rules.index.js",required:REQUIRED},
+        {src:"rules/bdl.rules.persona.js",required:REQUIRED},
+        {src:"rules/bdl.rules.periodo.js",required:REQUIRED},
+        {src:"rules/bdl.rules.requisitos.js",required:REQUIRED},
+        {src:"rules/bdl.rules.notas.js",required:REQUIRED},
+        {src:"rules/bdl.rules.matricula.js",required:REQUIRED},
+        {src:"rules/bdl.rules.duplicados.js",required:REQUIRED},
+        {src:"rules/bdl.rules.errors.js",required:REQUIRED},
+        {src:"rules/bdl.rules.retirados.js",required:REQUIRED},
+        {src:"rules/bdl.rules.sync.js",required:REQUIRED},
+        {src:"rules/bdl.rules.pipeline.js",required:REQUIRED},
+
+        {src:"repositories/bdl.repo.index.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.logs.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.periodos.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.personas.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.matriculas.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.requisitos.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.notas.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.contactos.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.cambios.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.backups.js",required:REQUIRED},
+        {src:"repositories/bdl.repo.estudiantes.js",required:REQUIRED},
+
+        {src:"migrations/bdl.migration.index.js",required:REQUIRED},
+        {src:"migrations/bdl.migration.v2.schema.js",required:REQUIRED},
+        {src:"migrations/bdl.migration.legacy-v2.js",required:REQUIRED},
+
+        {src:"services/bdl.service.index.js",required:REQUIRED},
+        {src:"services/bdl.service.periodos.js",required:REQUIRED},
+        {src:"services/bdl.service.estudiantes.js",required:REQUIRED},
+        {src:"services/bdl.service.ficha.js",required:REQUIRED},
+        {src:"services/bdl.service.tabla.js",required:REQUIRED},
+        {src:"services/bdl.service.stats.js",required:REQUIRED},
+        {src:"services/bdl.service.reportes.js",required:REQUIRED},
+        {src:"services/bdl.service.coordi.js",required:REQUIRED},
+        {src:"services/bdl.service.defensas.js",required:REQUIRED},
         {src:"views/bdl.view.index.js",required:REQUIRED},
-        {src:"sync/targets/bdl.sync.targets.index.js",required:REQUIRED},{src:"sync/bdl.sync.outbox.js",required:REQUIRED},{src:"sync/bdl.sync.orchestrator.js",required:REQUIRED},{src:"sync/bdl.sync.index.js",required:REQUIRED},
-        {src:"diagnostics/bdl.diagnostics.general.js",required:REQUIRED},{src:"diagnostics/bdl.diagnostics.ui-bridge.js",required:REQUIRED},{src:"diagnostics/bdl.final.health.js",required:REQUIRED},
-        {src:"bl2.backup.js",required:REQUIRED},{src:"bl2.backup.v2.js",required:REQUIRED},{src:"bl2.import.js",required:REQUIRED},{src:"bl2.sync.js",required:REQUIRED},{src:"bl2.core.js",required:REQUIRED},{src:"bl2.compat.js",required:REQUIRED},{src:"bl2.test.js",required:OPTIONAL},
+
+        {src:"bl2.backup.js",required:REQUIRED},
+        {src:"bl2.import.js",required:REQUIRED},
+        {src:"bl2.sync.js",required:REQUIRED},
+        {src:"bl2.core.js",required:REQUIRED},
+        {src:"bl2.compat.js",required:REQUIRED},
+
+        {src:"patches/bdl.v2.mirror.js",required:REQUIRED},
+        {src:"patches/bdl.changes.outbox-bridge.js",required:REQUIRED},
+
+        {src:"sync/targets/bdl.sync.targets.index.js",required:REQUIRED},
+        {src:"sync/bdl.sync.outbox.js",required:REQUIRED},
+        {src:"sync/bdl.sync.orchestrator.js",required:REQUIRED},
+        {src:"sync/bdl.sync.index.js",required:REQUIRED},
+
+        {src:"adapters/bdl.divisiones.service.js",required:REQUIRED},
+        {src:"adapters/bdl.divisiones.fast-cache.js",required:REQUIRED},
+        {src:"conexiones/cone.utils.js",required:REQUIRED},
+        {src:"conexiones/cone.index.js",required:REQUIRED},
+        {src:"adapters/bdl.screen-deps.js",required:REQUIRED},
+
         {src:["../js/bdlocal-config/bdlocal-config.store.js","./js/bdlocal-config/bdlocal-config.store.js"],required:OPTIONAL},
         {src:["../js/bdlocal-config/bdlocal-config.ui.js","./js/bdlocal-config/bdlocal-config.ui.js"],required:OPTIONAL},
         {src:["../js/bdlocal-config/bdlocal-sync.manager.js","./js/bdlocal-config/bdlocal-sync.manager.js"],required:OPTIONAL},
-        {src:"sync/bdl.sync.ui-bridge.js",required:OPTIONAL},
         {src:["../js/bdlocal-config/bdlocal-google-bridge.js","./js/bdlocal-config/bdlocal-google-bridge.js"],required:OPTIONAL},
-        {src:["../js/bdlocal-config/bdlocal-modal.js","./js/bdlocal-config/bdlocal-modal.js"],required:OPTIONAL},
         {src:["../js/bdlocal-config/bdlocal-sync-fixups.js","./js/bdlocal-config/bdlocal-sync-fixups.js"],required:OPTIONAL},
-        {src:"bl2.cloud-pull.js",required:OPTIONAL},{src:"bl2.app.js",required:REQUIRED},{src:"bl2.raw-view.js",required:OPTIONAL},{src:"maintenance/bdl.legacy.cleanup.js",required:OPTIONAL},{src:"diagnostics/bdl.performance.audit.js",required:OPTIONAL},{src:"bl2.cloud-pull.safe.js",required:OPTIONAL},{src:"bl2.google-push.guard.js",required:OPTIONAL}
+
+        {src:"bl2.backup.v2.js",required:REQUIRED},
+        {src:"bl2.app.js",required:REQUIRED},
+        {src:"bl2.raw-view.js",required:OPTIONAL},
+        {src:"sync/bdl.sync.ui-bridge.js",required:OPTIONAL},
+        {src:"maintenance/bdl.legacy.cleanup.js",required:OPTIONAL},
+        {src:"diagnostics/bdl.performance.audit.js",required:OPTIONAL},
+        {src:"diagnostics/bdl.diagnostics.index.js",required:REQUIRED},
+        {src:"diagnostics/bdl.diagnostics.general.js",required:REQUIRED},
+        {src:"diagnostics/bdl.final.health.js",required:REQUIRED},
+        {src:"diagnostics/bdl.diagnostics.ui-bridge.js",required:REQUIRED},
+
+        {src:"bl2.cloud-pull.js",required:OPTIONAL},
+        {src:"bl2.cloud-pull.safe.js",required:OPTIONAL},
+        {src:"bl2.google-push.guard.js",required:OPTIONAL},
+        {src:"bl2.test.js",required:OPTIONAL}
       ];
 
       setupNavigation();
       setRuntime();
       setDbPill("Cargando scripts", "bl2-pill-warn");
+      setViewStatus("Registrando módulos...");
 
-      loadSequence(scripts).then(function(){
-        setDbPill("Scripts cargados", "bl2-pill-ok");
-        log("Scripts de BDLocal cargados en orden seguro.", "ok");
-        try{ window.dispatchEvent(new CustomEvent("bdlocal:bl2-html-scripts-loaded",{detail:{ok:true,total:scripts.length}})); }catch(error){}
-        try{ if(window.BDLFinalHealth && typeof window.BDLFinalHealth.reportToConsole === "function"){ window.BDLFinalHealth.reportToConsole(); } }catch(error2){}
-      }).catch(function(error){
-        setDbPill("Error de carga", "bl2-pill-bad");
-        log(error && error.message ? error.message : String(error), "error");
-        try{ window.dispatchEvent(new CustomEvent("bdlocal:bl2-html-scripts-error",{detail:{ok:false,error:error && error.message ? error.message : String(error)}})); }catch(error3){}
-      });
+      loadSequence(scripts)
+        .then(verifyRuntime)
+        .then(function(report){
+          setDbPill("BDLocal lista", "bl2-pill-ok");
+          setViewStatus("Módulos verificados");
+          log("Scripts y registros de BDLocal cargados en orden seguro.", "ok");
+          try{ window.dispatchEvent(new CustomEvent("bdlocal:bl2-html-scripts-loaded",{detail:{ok:true,total:scripts.length,verification:report}})); }catch(error){}
+          try{ if(window.BDLFinalHealth && typeof window.BDLFinalHealth.reportToConsole === "function"){ window.BDLFinalHealth.reportToConsole(); } }catch(error2){}
+        })
+        .catch(function(error){
+          setDbPill("Error de arranque", "bl2-pill-bad");
+          setViewStatus("Arranque incompleto");
+          log(error && error.message ? error.message : String(error), "error");
+          try{ window.dispatchEvent(new CustomEvent("bdlocal:bl2-html-scripts-error",{detail:{ok:false,error:error && error.message ? error.message : String(error)}})); }catch(error3){}
+        });
     })(window, document);
   </script>
 </body>
