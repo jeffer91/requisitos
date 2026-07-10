@@ -4,9 +4,9 @@
 # Función o funciones:
 # - Ejecutar certificación y auditoría estática en cada cambio de main.
 # - Generar temporalmente el package-lock correcto durante esta auditoría.
+# - Guardar el registro estático completo antes de detenerse por un fallo.
 # - Instalar dependencias fijadas y abrir Electron en entorno aislado.
 # - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
-# - Guardar los reportes como artefactos incluso si una prueba falla.
 # =========================================================
 name: BDLocal Integrity
 
@@ -47,7 +47,26 @@ jobs:
           retention-days: 2
 
       - name: Run complete static audit
-        run: npm test
+        id: audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          npm test 2>&1 | tee artifacts/static-audit.log
+
+      - name: Upload static audit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdlocal-static-audit-log
+          path: artifacts/static-audit.log
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Fail when static audit fails
+        if: steps.audit.outcome == 'failure'
+        run: exit 1
 
   electron-smoke:
     name: Electron and IndexedDB smoke test
