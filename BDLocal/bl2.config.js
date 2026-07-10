@@ -5,14 +5,14 @@ Función o funciones:
 - Configurar Base Local, tablas, períodos y campos protegidos.
 - Declarar todas las sincronizaciones externas como manuales.
 - Limitar Firebase y las colas externas a 25 cambios por ejecución.
-- Separar Firebase personal y académico mediante configuración V2.
+- Separar desde el arranque Firebase personal y académico.
 - Normalizar identificaciones sin alterar documentos extranjeros.
 - Completar el cero solo cuando forma una cédula ecuatoriana válida.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.2.0-identity-safe";
+  var VERSION = "1.3.0-firebase-split-initial";
   var DB_NAME = "REQUISITOS_BL2";
   var DB_VERSION = 1;
 
@@ -86,8 +86,22 @@ Función o funciones:
     enabled:true,
     manualOnly:true,
     automatic:false,
-    collection:"Estudiantes",
+    collection:"EstudiantesPeriodo",
+    academicCollection:"EstudiantesPeriodo",
+    personCollection:"Estudiantes",
+    telegramCollection:"Estudiantes",
     documentIdStrategy:"periodoId__cedula",
+    academicDocumentIdStrategy:"periodoId__cedula",
+    personDocumentIdStrategy:"cedula",
+    excludeTelegramFromAcademic:true,
+    telegramAutoPull:true,
+    telegramMaxReads:25,
+    telegramRecheckDays:7,
+    identityRepairManualOnly:true,
+    identityRepairScanLimit:15,
+    identityRepairMaxCorrections:10,
+    localIdentityRepairManualOnly:true,
+    localIdentityRepairMaxIdentities:25,
     batchSize:25,
     maxBatchSize:25,
     mergeWrites:true,
