@@ -1,38 +1,43 @@
 /* =========================================================
-Archivo: defart.save-service-bridge.js
-Ruta: /defart/defart.save-service-bridge.js
-Función:
+Nombre completo: defart.save-service-bridge.js
+Ruta o ubicación: /defart/defart.save-service-bridge.js
+Función o funciones:
 - Priorizar guardado DB_VERSION 2 para Defensas.
 - Guardar notas_titulacion y cambios_pendientes.
+- Reconstruir la caché compartida después de guardar notas.
+- Notificar a Ficha, Stats, Reportes, Global y demás pantallas.
 - Usar guardado legacy solo como fallback.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.1.0-block17";
+  var VERSION = "0.2.0-shared-cache";
   var previousSave = null;
 
-  function text(v){ return String(v == null ? "" : v).trim(); }
-  function num(v){
-    var raw = text(v).replace(",", ".");
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function num(value){
+    var raw = text(value).replace(",", ".");
     if(!raw){ return null; }
-    var n = Number(raw);
-    return Number.isFinite(n) ? Math.max(0, Math.min(10, Math.round(n * 100) / 100)) : null;
+    var number = Number(raw);
+    return Number.isFinite(number) ? Math.max(0,Math.min(10,Math.round(number * 100) / 100)) : null;
   }
-  function nfin(a,b){
-    a = num(a); b = num(b);
-    if(a == null || b == null || a < 7){ return null; }
-    return Math.round(((a * 0.70) + (b * 0.30)) * 100) / 100;
+  function nfin(article,defense){
+    article = num(article);
+    defense = num(defense);
+    if(article == null || defense == null || article < 7){ return null; }
+    return Math.round(((article * 0.70) + (defense * 0.30)) * 100) / 100;
   }
-  function svc(){ return window.BDLServices && window.BDLServices.get ? window.BDLServices.get("defensas") : null; }
-  function cambios(){ return window.BDLRepositories && window.BDLRepositories.get ? window.BDLRepositories.get("cambios") : null; }
+  function service(){ return window.BDLServices && window.BDLServices.get ? window.BDLServices.get("defensas") : null; }
+  function changesRepo(){ return window.BDLRepositories && window.BDLRepositories.get ? window.BDLRepositories.get("cambios") : null; }
+
   function stateRows(){
     try{
-      var s = window.DefartApp && window.DefartApp.getState ? window.DefartApp.getState() : {};
-      var d = s.data || {};
-      return Array.isArray(d.exportRows) && d.exportRows.length ? d.exportRows : (Array.isArray(d.rows) ? d.rows : []);
+      var state = window.DefartApp && window.DefartApp.getState ? window.DefartApp.getState() : {};
+      var data = state.data || {};
+      return Array.isArray(data.exportRows) && data.exportRows.length ? data.exportRows : (Array.isArray(data.rows) ? data.rows : []);
     }catch(error){ return []; }
   }
+
   function rowId(row){ return text(row && (row._defId || row.idEstudiantePeriodo || row.studentId || row._docId || row.id || row.cedula)); }
   function findRow(change){
     var id = text(change && change.id);
@@ -40,10 +45,11 @@ Función:
   }
   function splitId(id){
     id = text(id);
-    if(id.indexOf("__") < 0){ return { periodoId:"", cedula:"" }; }
+    if(id.indexOf("__") < 0){ return { periodoId:"",cedula:"" }; }
     var parts = id.split("__");
-    return { periodoId:parts[0], cedula:parts.slice(1).join("__") };
+    return { periodoId:parts[0],cedula:parts.slice(1).join("__") };
   }
+
   function notaFromChange(change){
     change = change || {};
     var row = findRow(change) || {};
@@ -51,28 +57,30 @@ Función:
     var parts = splitId(id);
     var periodoId = text(row._periodoId || row.periodoId || row.periodId || parts.periodoId);
     var cedula = text(row._cedula || row.cedula || parts.cedula);
-    var a = Object.prototype.hasOwnProperty.call(change, "nart") ? num(change.nart) : num(row._nart || row.Notart || row.notart);
-    var b = Object.prototype.hasOwnProperty.call(change, "ndef") ? num(change.ndef) : num(row._ndef || row.Notdef || row.notdef);
-    var f = nfin(a,b);
+    var article = Object.prototype.hasOwnProperty.call(change,"nart") ? num(change.nart) : num(row._nart || row.Notart || row.notart);
+    var defense = Object.prototype.hasOwnProperty.call(change,"ndef") ? num(change.ndef) : num(row._ndef || row.Notdef || row.notdef);
+    var finalGrade = nfin(article,defense);
+
     return {
       idEstudiantePeriodo:id,
       studentId:id,
       periodoId:periodoId,
       cedula:cedula,
-      Notart:a,
-      Notdef:b,
-      Notafinal:f,
-      Nart:a,
-      Ndef:b,
-      Nfinal:f,
-      notart:a,
-      notdef:b,
-      notafinal:f,
-      estadoNota:f == null ? "PENDIENTE" : (f >= 7 ? "APROBADO" : "NO_APROBADO"),
+      Notart:article,
+      Notdef:defense,
+      Notafinal:finalGrade,
+      Nart:article,
+      Ndef:defense,
+      Nfinal:finalGrade,
+      notart:article,
+      notdef:defense,
+      notafinal:finalGrade,
+      estadoNota:finalGrade == null ? "PENDIENTE" : (finalGrade >= 7 ? "APROBADO" : "NO_APROBADO"),
       origen:"defensas",
       updatedAt:new Date().toISOString()
     };
   }
+
   function cambioFromNota(nota){
     return {
       periodoId:nota.periodoId,
@@ -90,36 +98,79 @@ Función:
       origen:"defensas"
     };
   }
+
+  function refreshSharedCache(periodoId){
+    var hub = window.BDLocalConexiones;
+    if(!hub || typeof hub.refreshCache !== "function"){ return Promise.resolve(null); }
+    return hub.refreshCache({
+      source:"defart.save-service-bridge",
+      periodoId:periodoId || "",
+      full:true,
+      immediate:true
+    }).catch(function(error){
+      console.warn("[DefartSaveServiceBridge] No se pudo refrescar la caché compartida",error);
+      return null;
+    });
+  }
+
   function saveDirect(changesList){
     changesList = Array.isArray(changesList) ? changesList : [];
-    if(!changesList.length){ return Promise.resolve({ ok:true, saved:0, total:0, errors:[], message:"No hay cambios pendientes." }); }
-    var service = svc();
-    if(!service || typeof service.saveNota !== "function"){ return Promise.reject(new Error("BDLServiceDefensas.saveNota no disponible.")); }
-    var repoCambios = cambios();
-    var notes = changesList.map(notaFromChange).filter(function(n){ return n.idEstudiantePeriodo && n.periodoId && n.cedula; });
+    if(!changesList.length){
+      return Promise.resolve({ ok:true,saved:0,total:0,errors:[],message:"No hay cambios pendientes." });
+    }
+
+    var currentService = service();
+    if(!currentService || typeof currentService.saveNota !== "function"){
+      return Promise.reject(new Error("BDLServiceDefensas.saveNota no disponible."));
+    }
+
+    var repoCambios = changesRepo();
+    var notes = changesList.map(notaFromChange).filter(function(note){
+      return note.idEstudiantePeriodo && note.periodoId && note.cedula;
+    });
     if(!notes.length){ return Promise.reject(new Error("No se pudo construir notas completas.")); }
+
     var saved = 0;
     var errors = [];
     var chain = Promise.resolve();
-    notes.forEach(function(nota){
+
+    notes.forEach(function(note){
       chain = chain.then(function(){
-        return service.saveNota(nota).then(function(){
+        return currentService.saveNota(note).then(function(){
           saved += 1;
           if(repoCambios && typeof repoCambios.save === "function"){
-            return repoCambios.save(cambioFromNota(nota)).catch(function(e){ errors.push(e.message || String(e)); });
+            return repoCambios.save(cambioFromNota(note)).catch(function(error){ errors.push(error.message || String(error)); });
           }
           errors.push("BDLRepoCambios no disponible.");
           return null;
-        }).catch(function(e){ errors.push(e.message || String(e)); });
+        }).catch(function(error){ errors.push(error.message || String(error)); });
       });
     });
+
     return chain.then(function(){
-      var result = { ok:errors.length === 0, saved:saved, total:changesList.length, errors:errors, direct:true, source:"notas_titulacion", message:saved + " cambio(s) guardado(s) en notas_titulacion." };
-      try{ window.dispatchEvent(new CustomEvent("bdlocal:defensas-notas-direct-saved", { detail:result })); }catch(error){}
-      try{ if(window.DefartServiceBridge && window.DefartServiceBridge.refresh){ window.DefartServiceBridge.refresh(); } }catch(error){}
-      return result;
+      var result = {
+        ok:errors.length === 0,
+        saved:saved,
+        total:changesList.length,
+        errors:errors,
+        direct:true,
+        source:"notas_titulacion",
+        message:saved + " cambio(s) guardado(s) en notas_titulacion."
+      };
+
+      var periodoId = notes[0] && notes[0].periodoId || "";
+      return refreshSharedCache(periodoId).then(function(){
+        try{ window.dispatchEvent(new CustomEvent("bdlocal:defensas-notas-direct-saved",{ detail:result })); }catch(error){}
+        try{
+          if(window.DefartServiceBridge && window.DefartServiceBridge.refresh){
+            window.DefartServiceBridge.refresh();
+          }
+        }catch(error2){}
+        return result;
+      });
     });
   }
+
   function install(){
     if(!window.DefartCore || typeof window.DefartCore.saveNotes !== "function"){ return false; }
     if(window.DefartCore.__saveServiceBridge){ return true; }
@@ -129,13 +180,22 @@ Función:
         if(result.ok || result.saved > 0){ return result; }
         throw new Error(result.errors && result.errors.join(" | ") || "Guardado directo incompleto.");
       }).catch(function(error){
-        console.warn("[DefartSaveServiceBridge] fallback legacy", error);
-        return previousSave.call(window.DefartCore, changesList);
+        console.warn("[DefartSaveServiceBridge] fallback legacy",error);
+        return previousSave.call(window.DefartCore,changesList);
       });
     };
     window.DefartCore.__saveServiceBridge = true;
     return true;
   }
-  window.DefartSaveServiceBridge = { version:VERSION, install:install, saveDirect:saveDirect, notaFromChange:notaFromChange, cambioFromNota:cambioFromNota };
+
+  window.DefartSaveServiceBridge = {
+    version:VERSION,
+    install:install,
+    saveDirect:saveDirect,
+    notaFromChange:notaFromChange,
+    cambioFromNota:cambioFromNota,
+    refreshSharedCache:refreshSharedCache
+  };
+
   install();
 })(window);
