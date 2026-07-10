@@ -5,12 +5,13 @@ Función o funciones:
 - Mantener Firebase en modo exclusivamente manual.
 - Leer datos académicos desde EstudiantesPeriodo.
 - Excluir todos los campos Telegram de la descarga académica.
-- Proteger cambios locales, crear respaldo y controlar cuota.
+- Proteger únicamente cambios locales todavía abiertos.
+- Crear respaldo y controlar la cuota de lectura.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="4.2.0-academic-collection";
+  var VERSION="4.2.1-academic-collection";
   var pulling=false;
   var installed=false;
   var TELEGRAM=["telegram","telegramUser","telegramUsername","usuarioTelegram","telegramChatId","chatIdTelegram","chatId","telegramUpdatedAt","telegramSource","telegramCheckedAt","telegramVerifiedAt","_telegramUser","_telegramChatId"];
@@ -84,7 +85,17 @@ Función o funciones:
 
   function pendingMap(periodoId){
     if(!outbox()||!outbox().list){return Promise.resolve({});}
-    return outbox().list({periodoId:periodoId}).then(function(rows){var map={};(rows||[]).forEach(function(r){var p=r.payload||{};var c=cedula(r.cedula||p.cedula||p.numeroIdentificacion);if(c){map[c]=true;}});return map;}).catch(function(){return {};});
+    return outbox().list({periodoId:periodoId}).then(function(rows){
+      var map={};
+      (rows||[]).forEach(function(row){
+        var payload=row.payload||row.data||row.registro||{};
+        var c=cedula(row.cedula||row.numeroIdentificacion||payload.cedula||payload.numeroIdentificacion);
+        if(!c){return;}
+        var open=["google","firebase","supabase"].some(function(target){return !outbox().isDone||!outbox().isDone(row,target);});
+        if(open){map[c]=true;}
+      });
+      return map;
+    }).catch(function(){return {};});
   }
 
   function compare(local,remote){
