@@ -1,301 +1,188 @@
-/*
-  Archivo: bdlocal-sync-fixups.js
-  Ruta: js/bdlocal-config/bdlocal-sync-fixups.js
+/* =========================================================
+Nombre completo: bdlocal-sync-fixups.js
+Ruta o ubicación: /js/bdlocal-config/bdlocal-sync-fixups.js
+Función o funciones:
+- Mantener compatibilidad con llamadas antiguas de sincronización.
+- Redirigir Google, Firebase y Supabase únicamente a BDLSyncV2.
+- Impedir cargas completas paralelas fuera de cambios_pendientes.
+- Reemplazar la ejecución individual de la interfaz por la puerta segura.
+- No usar intervalos, no registrar sincronización automática y no subir al iniciar.
+========================================================= */
+(function(window){
+  "use strict";
 
-  Función:
-  - Revisar conexiones de la pantalla BDLocal al cargar.
-  - Evitar que errores silenciosos queden ocultos.
-  - Corregir la ruta Supabase para no usar el postJson de Google Sheets.
-*/
-(function (window, document) {
-  'use strict';
+  var VERSION = "3.0.0-single-sync-gate";
+  var MAX_BATCH_SIZE = 25;
+  var installed = false;
 
-  function text(value) {
-    return String(value === null || value === undefined ? '' : value).trim();
-  }
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function now(){ return new Date().toISOString(); }
+  function safeBatch(value){ value = Math.floor(Number(value || MAX_BATCH_SIZE)); return Math.min(MAX_BATCH_SIZE,Math.max(1,value || MAX_BATCH_SIZE)); }
+  function outbox(){ return window.BDLSyncOutbox || null; }
 
-  function nowIso() {
-    return new Date().toISOString();
-  }
-
-  function modal(level, title, message, data) {
-    if (window.BDLocalModal && typeof window.BDLocalModal.add === 'function') {
-      window.BDLocalModal.add(level || 'info', title || 'BDLocal', message || '', data || {});
-    }
-  }
-
-  function store() {
-    return window.BDLocalConfigStore || null;
-  }
-
-  function core() {
-    return window.BL2Core || null;
-  }
-
-  function manager() {
-    return window.BDLocalSyncManager || null;
-  }
-
-  function getActivePeriod() {
-    if (window.BL2App && typeof window.BL2App.getState === 'function') {
-      var state = window.BL2App.getState() || {};
-      if (state.activePeriod && text(state.activePeriod.id)) {
-        return Promise.resolve({
-          id: text(state.activePeriod.id),
-          label: text(state.activePeriod.label || state.activePeriod.id)
-        });
+  function selectedPeriod(){
+    try{
+      if(window.BL2App && typeof window.BL2App.getSelectedPeriod === "function"){
+        var selected = window.BL2App.getSelectedPeriod();
+        if(selected && text(selected.id)){ return Promise.resolve({ id:text(selected.id),label:text(selected.label || selected.id) }); }
       }
-    }
-
-    if (core() && typeof core().getActivePeriod === 'function') {
-      return core().getActivePeriod().then(function (period) {
-        if (!period || !text(period.id)) return null;
-        return {
-          id: text(period.id),
-          label: text(period.label || period.periodoLabel || period.id)
-        };
+      if(window.BL2App && typeof window.BL2App.getState === "function"){
+        var state = window.BL2App.getState() || {};
+        if(state.activePeriod && text(state.activePeriod.id)){ return Promise.resolve({ id:text(state.activePeriod.id),label:text(state.activePeriod.label || state.activePeriod.id) }); }
+      }
+    }catch(error){}
+    if(window.BL2Core && typeof window.BL2Core.getActivePeriod === "function"){
+      return window.BL2Core.getActivePeriod().then(function(period){
+        return period && text(period.id) ? { id:text(period.id),label:text(period.label || period.periodoLabel || period.id) } : null;
       });
     }
-
     return Promise.resolve(null);
   }
 
-  function getStudents(periodoId) {
-    if (!core() || typeof core().getStudents !== 'function') return Promise.resolve([]);
+  function blocked(target,message,extra){
+    return Promise.resolve(Object.assign({ ok:false,blocked:true,target:target,message:message,at:now() },extra || {}));
+  }
 
-    return core().getStudents({ periodoId: periodoId, matricula: '' }).then(function (rows) {
-      return Array.isArray(rows) ? rows : [];
-    }).catch(function () {
-      return [];
+  function requestTarget(target,options){
+    target = text(target).toLowerCase();
+    options = Object.assign({},options || {});
+    if(options.manual !== true){ return blocked(target,"Solicitud automática bloqueada. La sincronización es exclusivamente manual."); }
+    if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){
+      return Promise.reject(new Error("BDLSyncV2 no está disponible."));
+    }
+
+    var periodPromise = text(options.periodoId)
+      ? Promise.resolve({ id:text(options.periodoId),label:text(options.periodoLabel || options.periodoId) })
+      : selectedPeriod();
+
+    return periodPromise.then(function(period){
+      if(!period || !period.id){ throw new Error("Seleccione un período antes de sincronizar."); }
+      return window.BDLSyncV2.request({
+        manual:true,
+        automatic:false,
+        source:text(options.source || "BDLocalSyncFixups.manual." + target),
+        targets:[target],
+        periodoId:period.id,
+        periodoLabel:period.label,
+        cedula:text(options.cedula),
+        tabla:text(options.tabla),
+        forceRetry:options.forceRetry === true,
+        ignoreRetry:options.ignoreRetry === true || options.forceRetry === true,
+        limit:safeBatch(options.limit || options.batchSize),
+        batchSize:safeBatch(options.limit || options.batchSize)
+      });
     });
   }
 
-  function dispatchProgress(target, percent, detail) {
-    try {
-      window.dispatchEvent(new CustomEvent('bl2:sync-progress', {
-        detail: {
-          target: target,
-          percent: Math.max(0, Math.min(100, Number(percent || 0))),
-          detail: detail || '',
-          at: nowIso()
+  function openCount(target,periodoId){
+    if(!outbox() || typeof outbox().counts !== "function"){ return Promise.resolve(0); }
+    return outbox().counts({ periodoId:periodoId }).then(function(counts){
+      var detail = counts && counts.detail && counts.detail[target] || {};
+      return Number(detail.pending || 0) + Number(detail.error || 0) + Number(detail.blocked || 0) + Number(detail.waitingRetry || 0);
+    }).catch(function(){ return 0; });
+  }
+
+  function confirmedTarget(target,options){
+    options = Object.assign({},options || {});
+    return selectedPeriod().then(function(period){
+      if(!period){ throw new Error("Seleccione un período antes de sincronizar."); }
+      return openCount(target,period.id).then(function(total){
+        if(!total && options.forceRetry !== true){
+          return { ok:true,skipped:true,target:target,message:"No existen pendientes para " + target + " en el período activo." };
         }
-      }));
-    } catch (error) {}
-  }
-
-  function supabaseHeaders(key, extra) {
-    return Object.assign({
-      apikey: key,
-      Authorization: 'Bearer ' + key,
-      'Content-Type': 'application/json'
-    }, extra || {});
-  }
-
-  function requestJson(url, options, timeoutMs) {
-    timeoutMs = Number(timeoutMs || 60000);
-
-    var controller = window.AbortController ? new AbortController() : null;
-    var timer = null;
-
-    if (controller) {
-      timer = window.setTimeout(function () {
-        controller.abort();
-      }, timeoutMs);
-    }
-
-    options = options || {};
-    if (controller) options.signal = controller.signal;
-
-    return fetch(url, options).then(function (response) {
-      return response.text().then(function (raw) {
-        var data = null;
-        try { data = raw ? JSON.parse(raw) : null; } catch (error) { data = raw; }
-        if (!response.ok) throw new Error('HTTP ' + response.status + (raw ? ' · ' + raw.slice(0, 300) : ''));
-        return data;
+        var limit = safeBatch(options.limit || options.batchSize);
+        if(options.confirm !== false){
+          var approved = window.confirm(
+            "Sincronización manual\n\n" +
+            "Destino: " + target + "\n" +
+            "Período: " + period.label + "\n" +
+            "Pendientes abiertos: " + total + "\n" +
+            "Máximo en esta ejecución: " + Math.min(limit,total || limit) +
+            (total > limit ? "\nLos restantes seguirán en la cola local." : "") +
+            "\n\n¿Continuar?"
+          );
+          if(!approved){ return { ok:true,cancelled:true,target:target }; }
+        }
+        return requestTarget(target,Object.assign({},options,{ manual:true,periodoId:period.id,periodoLabel:period.label,limit:limit,batchSize:limit }));
       });
-    }).catch(function (error) {
-      if (error && error.name === 'AbortError') {
-        throw new Error('Tiempo agotado al comunicarse con Supabase.');
+    }).then(function(result){
+      if(window.BDLSyncUIBridge && typeof window.BDLSyncUIBridge.refreshAll === "function"){
+        return window.BDLSyncUIBridge.refreshAll().catch(function(){ return null; }).then(function(){ return result; });
       }
-      throw error;
-    }).finally(function () {
-      if (timer) window.clearTimeout(timer);
+      return result;
     });
   }
 
-  function getSupabaseTable(config) {
-    var table = text(config.tableName || 'app_records');
-    return table === 'requisitos_estudiantes' ? 'app_records' : table;
-  }
+  function patchManager(){
+    var manager = window.BDLocalSyncManager;
+    if(!manager || manager.__singleSyncGateInstalled){ return false; }
 
-  function toAppRecord(row, period) {
-    row = row || {};
-    var studentId = text(row.id || ((row.cedula || row.numeroIdentificacion || '') + '__' + period.id));
-
-    return {
-      id: 'estudiantes__' + studentId,
-      module_key: 'requisitos',
-      table_key: 'estudiantes',
-      record_key: studentId,
-      periodo_id: text(row.periodoId || period.id),
-      estudiante_id: studentId,
-      source: 'bdlocal',
-      sync_status: 'sincronizado',
-      schema_version: '1',
-      payload: Object.assign({}, row, {
-        id: studentId,
-        cedula: text(row.cedula || row.numeroIdentificacion || ''),
-        periodoId: text(row.periodoId || period.id),
-        periodoLabel: text(row.periodoLabel || period.label),
-        updatedAt: text(row.updatedAt || nowIso()),
-        syncSource: 'BDLocal'
-      })
-    };
-  }
-
-  function runBatches(items, size, handler) {
-    items = Array.isArray(items) ? items : [];
-    size = Math.max(1, Number(size || 25));
-    var done = 0;
-    var chain = Promise.resolve();
-
-    for (var i = 0; i < items.length; i += size) {
-      (function (batch) {
-        chain = chain.then(function () {
-          return handler(batch).then(function () {
-            done += batch.length;
-            dispatchProgress('supabase', items.length ? Math.round((done * 90) / items.length) + 5 : 100, 'Supabase: ' + done + ' de ' + items.length);
-          });
-        });
-      })(items.slice(i, i + size));
-    }
-
-    return chain.then(function () {
-      return { done: done, total: items.length };
-    });
-  }
-
-  function installSupabaseFix() {
-    var m = manager();
-    var s = store();
-    if (!m || !s || m.__bdlocalSupabaseFixInstalled) return false;
-
-    m.testSupabase = function () {
-      var config = s.getSupabaseConfig({ includeSecret: true });
-      var url = text(config.url).replace(/\/$/, '');
-      var key = text(config.anonKey);
-      var table = getSupabaseTable(config);
-
-      if (!url || !key || !table) {
-        s.updateConnectionStatus('supabase', { connected: false, status: 'sin_configurar', lastError: 'Faltan URL, anon key o tabla.' });
-        modal('warning', 'Supabase incompleto', 'Faltan URL, anon key o tabla.', {});
-        return Promise.resolve({ ok: false, message: 'Faltan datos de Supabase: URL, anon key o tabla.' });
-      }
-
-      dispatchProgress('supabase', 15, 'Probando Supabase...');
-
-      return requestJson(url + '/rest/v1/' + encodeURIComponent(table) + '?select=id&limit=1', {
-        method: 'GET',
-        mode: 'cors',
-        headers: supabaseHeaders(key)
-      }, 30000).then(function () {
-        s.patchConfig({ supabase: { tableName: table } });
-        s.updateConnectionStatus('supabase', { connected: true, status: 'ok', lastError: '' });
-        dispatchProgress('supabase', 100, 'Supabase conectado.');
-        modal('success', 'Supabase conectado', 'La tabla ' + table + ' respondió correctamente.', {});
-        return { ok: true, message: 'Supabase respondió correctamente.' };
-      }).catch(function (error) {
-        s.updateConnectionStatus('supabase', { connected: false, status: 'error', lastError: error.message || String(error) });
-        dispatchProgress('supabase', 0, 'Supabase con error.');
-        modal('error', 'Supabase falló', error.message || String(error), {});
-        return { ok: false, message: 'Supabase falló: ' + (error.message || String(error)) };
+    manager.pushLocalToSheets = function(options){ return requestTarget("google",Object.assign({},options || {},{ source:"BDLocalSyncManager.manual.google" })); };
+    manager.pushLocalToFirebase = function(options){ return requestTarget("firebase",Object.assign({},options || {},{ source:"BDLocalSyncManager.manual.firebase" })); };
+    manager.pushLocalToSupabase = function(options){ return requestTarget("supabase",Object.assign({},options || {},{ source:"BDLocalSyncManager.manual.supabase" })); };
+    manager.syncQueue = function(options){
+      options = Object.assign({},options || {});
+      if(options.manual !== true){ return blocked("all","Cola automática bloqueada."); }
+      if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){ return Promise.reject(new Error("BDLSyncV2 no está disponible.")); }
+      return selectedPeriod().then(function(period){
+        if(!period){ throw new Error("Seleccione un período."); }
+        return window.BDLSyncV2.request({ manual:true,automatic:false,source:"BDLocalSyncManager.manual.queue",targets:options.targets || ["google","firebase","supabase"],periodoId:period.id,periodoLabel:period.label,limit:safeBatch(options.limit || options.batchSize),batchSize:safeBatch(options.limit || options.batchSize) });
       });
     };
-
-    m.pushLocalToSupabase = function () {
-      var config = s.getSupabaseConfig({ includeSecret: true });
-      var url = text(config.url).replace(/\/$/, '');
-      var key = text(config.anonKey);
-      var table = getSupabaseTable(config);
-      var batchSize = Math.max(1, Number((s.loadConfig().sheets || {}).batchSize || 25));
-
-      if (!config.enabled) return Promise.resolve({ ok: false, message: 'Supabase está desactivado en la configuración.' });
-      if (!url || !key || !table) return Promise.resolve({ ok: false, message: 'Faltan datos de Supabase: URL, anon key o tabla.' });
-
-      dispatchProgress('supabase', 10, 'Preparando Supabase...');
-
-      return getActivePeriod().then(function (period) {
-        if (!period || !period.id) throw new Error('Seleccione un período activo.');
-        return getStudents(period.id).then(function (students) {
-          var rows = students.map(function (row) { return toAppRecord(row, period); });
-          if (!rows.length) return { ok: true, message: 'No hay estudiantes para subir a Supabase.' };
-
-          return runBatches(rows, batchSize, function (batch) {
-            return requestJson(url + '/rest/v1/' + encodeURIComponent(table) + '?on_conflict=id', {
-              method: 'POST',
-              mode: 'cors',
-              headers: supabaseHeaders(key, { Prefer: 'resolution=merge-duplicates,return=minimal' }),
-              body: JSON.stringify(batch)
-            }, 60000);
-          }).then(function (result) {
-            s.patchConfig({ supabase: { tableName: table, connected: true, status: 'ok', lastSyncAt: nowIso(), lastError: '' } });
-            dispatchProgress('supabase', 100, 'Supabase actualizado.');
-            modal('success', 'Supabase sincronizado', 'Registros enviados: ' + result.done, result);
-            return { ok: true, message: 'BDLocal → Supabase completado. Subidos: ' + result.done };
-          });
-        });
-      }).catch(function (error) {
-        s.updateConnectionStatus('supabase', { connected: false, status: 'error', lastError: error.message || String(error) });
-        dispatchProgress('supabase', 0, 'Supabase con error.');
-        modal('error', 'No se pudo subir a Supabase', error.message || String(error), {});
-        return { ok: false, message: 'No se pudo subir a Supabase: ' + (error.message || String(error)) };
-      });
-    };
-
-    m.__bdlocalSupabaseFixInstalled = true;
-    modal('success', 'Correcciones BDLocal activas', 'La pantalla tiene diagnóstico y rutas de sincronización corregidas.', {});
+    manager.syncAll = manager.syncQueue;
+    manager.__singleSyncGateInstalled = true;
     return true;
   }
 
-  function healthCheck() {
-    var missing = [];
-    if (!window.BL2DB) missing.push('BL2DB');
-    if (!window.BL2Core) missing.push('BL2Core');
-    if (!window.BL2Sync) missing.push('BL2Sync');
-    if (!window.BDLocalConfigStore) missing.push('BDLocalConfigStore');
-    if (!window.BDLocalConfigUI) missing.push('BDLocalConfigUI');
-    if (!window.BDLocalSyncManager) missing.push('BDLocalSyncManager');
+  function patchLegacySync(){
+    var sync = window.BL2Sync;
+    if(!sync || sync.__singleSyncGateInstalled){ return false; }
+    var firebasePull = sync.syncFirebase;
 
-    if (missing.length) {
-      modal('warning', 'Módulos pendientes', 'Todavía faltan módulos por cargar: ' + missing.join(', '), { missing: missing });
-      return false;
-    }
-
-    modal('success', 'Pantalla BDLocal conectada', 'Los módulos principales están cargados.', {});
+    sync.syncGoogle = function(options){ return requestTarget("google",Object.assign({},options || {},{ source:"BL2Sync.manual.google" })); };
+    sync.syncFirebase = function(options){
+      options = options || {};
+      var action = text(options.action || "upload").toLowerCase();
+      if(action === "compare" || action === "download"){
+        return typeof firebasePull === "function" ? firebasePull.call(sync,options) : Promise.reject(new Error("La descarga Firebase no está disponible."));
+      }
+      return requestTarget("firebase",Object.assign({},options,{ source:"BL2Sync.manual.firebase" }));
+    };
+    sync.maybeSyncGoogleIdle = function(){ return blocked("google","Sincronización por inactividad desactivada."); };
+    sync.maybeSyncFirebaseDaily = function(){ return blocked("firebase","Sincronización diaria desactivada."); };
+    sync.syncBeforeClose = function(){ return Promise.resolve({ ok:true,skipped:true,manualOnly:true,message:"No se sincronizó al cerrar; la cola permanece guardada." }); };
+    sync.__singleSyncGateInstalled = true;
     return true;
   }
 
-  function start() {
-    var attempts = 0;
-    var timer = window.setInterval(function () {
-      attempts += 1;
-      var ok = healthCheck();
-      var fixed = installSupabaseFix();
-
-      if ((ok && fixed) || attempts >= 30) {
-        window.clearInterval(timer);
-      }
-    }, 300);
+  function patchUI(){
+    var ui = window.BDLSyncUIBridge;
+    if(!ui || ui.__singleSyncGateInstalled){ return false; }
+    ui.runTarget = function(target,options){ return confirmedTarget(text(target).toLowerCase(),options || {}); };
+    ui.__singleSyncGateInstalled = true;
+    return true;
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
-    start();
+  function install(){
+    var managerReady = patchManager();
+    var syncReady = patchLegacySync();
+    var uiReady = patchUI();
+    installed = managerReady || syncReady || uiReady || installed;
+    return { ok:installed,manager:!!(window.BDLocalSyncManager && window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync && window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge && window.BDLSyncUIBridge.__singleSyncGateInstalled) };
   }
 
-  window.addEventListener('bl2:ready', function () {
-    healthCheck();
-    installSupabaseFix();
-  });
-})(window, document);
+  window.BDLocalSyncFixups = {
+    version:VERSION,
+    compatibilityOnly:true,
+    manualOnly:true,
+    maxBatchSize:MAX_BATCH_SIZE,
+    install:install,
+    requestTarget:requestTarget,
+    confirmedTarget:confirmedTarget,
+    status:function(){ return { version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager && window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync && window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge && window.BDLSyncUIBridge.__singleSyncGateInstalled) }; }
+  };
+
+  window.addEventListener("bdlocal:bl2-html-scripts-loaded",install);
+  window.addEventListener("bl2:ready",install);
+  window.setTimeout(install,0);
+})(window);
