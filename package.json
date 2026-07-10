@@ -4,6 +4,9 @@
   "description": "Aplicación local de Requisitos con auditoría integral de BDLocal.",
   "private": true,
   "main": "electron/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
@@ -18,6 +21,6 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "electron": "36.9.5"
+    "electron": "43.1.0"
   }
 }
