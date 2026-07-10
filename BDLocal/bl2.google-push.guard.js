@@ -7,20 +7,18 @@ Función o funciones:
 - Traer Firebase por período con comparación previa.
 - No sobrescribir cambios locales pendientes o más recientes.
 - Crear respaldo antes de aplicar datos remotos.
-- Marcar una importación remota como procesada para evitar ciclos.
+- Mantener la comparación Firebase en modo de solo lectura.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-external-sync-guard";
+  var VERSION = "3.1.0-external-sync-guard";
   var PAUSE_KEY = "REQ_BDLOCAL_PAUSE_GOOGLE_PUSH";
   var googleRunning = false;
   var firebasePulling = false;
-  var installed = false;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function now(){ return new Date().toISOString(); }
-  function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
   function store(){ return window.BDLocalConfigStore || null; }
   function core(){ return window.BL2Core || null; }
   function sync(){ return window.BL2Sync || null; }
@@ -84,7 +82,9 @@ Función o funciones:
       }
     }catch(error){}
     if(core() && typeof core().getActivePeriod === "function"){
-      return core().getActivePeriod().then(function(period){ return period && text(period.id) ? { id:normalizePeriod(period.id),label:text(period.label || period.periodoLabel || period.id) } : null; });
+      return core().getActivePeriod().then(function(period){
+        return period && text(period.id) ? { id:normalizePeriod(period.id),label:text(period.label || period.periodoLabel || period.id) } : null;
+      });
     }
     return Promise.resolve(null);
   }
@@ -104,8 +104,7 @@ Función o funciones:
   function periodHasFullUpload(periodoId){
     var config = store() && typeof store().loadConfig === "function" ? store().loadConfig() || {} : {};
     var sheets = config.sheets || {};
-    var map = periodUploadMap(config);
-    return !!map[periodoId] || text(sheets.lastFullUploadPeriodId) === text(periodoId);
+    return !!periodUploadMap(config)[periodoId] || text(sheets.lastFullUploadPeriodId) === text(periodoId);
   }
 
   function markPeriodFullUpload(periodoId,result){
@@ -117,12 +116,10 @@ Función o funciones:
   }
 
   function pendingGoogle(periodoId){
-    if(outbox() && typeof outbox().list === "function"){
-      return outbox().list({ periodoId:periodoId }).then(function(rows){
-        return (rows || []).filter(function(row){ return !outbox().isDone(row,"google"); });
-      }).catch(function(){ return []; });
-    }
-    return Promise.resolve([]);
+    if(!outbox() || typeof outbox().list !== "function"){ return Promise.resolve([]); }
+    return outbox().list({ periodoId:periodoId }).then(function(rows){
+      return (rows || []).filter(function(row){ return !outbox().isDone(row,"google"); });
+    }).catch(function(){ return []; });
   }
 
   function installGoogleGuard(m){
@@ -134,18 +131,16 @@ Función o funciones:
     m.pushLocalToSheets = function(options){
       options = options || {};
       if(options.manual !== true){ return skipped("google","Solicitud automática de Google Sheets bloqueada.",{ source:options.source || "legacy" }); }
-      if(googlePaused()){ return skipped("google","Google Sheets está pausado mientras se traen datos.",{ reason:"pull_in_progress" }); }
-      if(googleRunning){ return skipped("google","Ya existe una subida a Google Sheets en curso.",{ reason:"already_running" }); }
+      if(googlePaused()){ return skipped("google","Google Sheets está pausado mientras se traen datos.",{}); }
+      if(googleRunning){ return skipped("google","Ya existe una subida a Google Sheets en curso.",{}); }
 
       return getActivePeriod().then(function(period){
         if(!period){ throw new Error("Seleccione un período antes de sincronizar Google Sheets."); }
         return pendingGoogle(period.id).then(function(changes){
-          var forcedFull = options.forceFull === true || options.manualFull === true;
+          var forceFull = options.forceFull === true || options.manualFull === true;
           var hasFull = periodHasFullUpload(period.id);
-          if(!forcedFull && !changes.length && hasFull){
-            return skipped("google","No hay cambios pendientes para este período.",{ periodoId:period.id });
-          }
-          var safeOptions = Object.assign({},options,{ manual:true,fullPeriod:forcedFull || !hasFull,mode:forcedFull || !hasFull ? "full_period" : "changes" });
+          if(!forceFull && !changes.length && hasFull){ return skipped("google","No hay cambios pendientes para este período.",{ periodoId:period.id }); }
+          var safeOptions = Object.assign({},options,{ manual:true,fullPeriod:forceFull || !hasFull,mode:forceFull || !hasFull ? "full_period" : "changes" });
           googleRunning = true;
           return originalPush.call(m,safeOptions).then(function(result){
             if(result && result.ok !== false && safeOptions.fullPeriod){ markPeriodFullUpload(period.id,result); }
@@ -193,12 +188,15 @@ Función o funciones:
     }).then(function(snapshot){
       var map = Object.create(null);
       var duplicates = 0;
+
       snapshot.forEach(function(doc){
         var data = Object.assign({},doc.data() || {});
         var documentId = text(doc.id);
-        var fallbackCedula = documentId.indexOf(period.id + "__") === 0 ? documentId.slice((period.id + "__").length) : documentId;
+        var prefix = period.id + "__";
+        var fallbackCedula = documentId.indexOf(prefix) === 0 ? documentId.slice(prefix.length) : documentId;
         var identification = normalizeCedula(data.cedula || data.numeroIdentificacion || fallbackCedula);
         if(!identification){ return; }
+
         data.cedula = identification;
         data.numeroIdentificacion = text(data.numeroIdentificacion || identification);
         data.periodoId = period.id;
@@ -206,15 +204,17 @@ Función o funciones:
         data.periodoLabel = text(data.periodoLabel || data.periodoCanonicoLabel || period.label || period.id);
         data.firebaseDocumentId = documentId;
         data.source = "firebase_pull";
+
         if(map[identification]){
           duplicates += 1;
-          var currentStable = map[identification].firebaseDocumentId === period.id + "__" + identification;
-          var incomingStable = documentId === period.id + "__" + identification;
+          var currentStable = map[identification].firebaseDocumentId === prefix + identification;
+          var incomingStable = documentId === prefix + identification;
           if(remoteTime(data) < remoteTime(map[identification])){ return; }
           if(remoteTime(data) === remoteTime(map[identification]) && currentStable && !incomingStable){ return; }
         }
         map[identification] = data;
       });
+
       return { rows:Object.keys(map).map(function(key){ return map[key]; }),rawCount:snapshot.size || 0,duplicates:duplicates };
     });
   }
@@ -226,8 +226,9 @@ Función o funciones:
       (rows || []).forEach(function(row){
         var identification = normalizeCedula(row.cedula || row.numeroIdentificacion || (row.payload || {}).cedula);
         if(!identification){ return; }
-        var open = ["google","firebase","supabase"].some(function(target){ return !outbox().isDone(row,target); });
-        if(open){ map[identification] = true; }
+        if(["google","firebase","supabase"].some(function(target){ return !outbox().isDone(row,target); })){
+          map[identification] = true;
+        }
       });
       return map;
     }).catch(function(){ return {}; });
@@ -236,6 +237,7 @@ Función o funciones:
   function buildFirebasePreview(period){
     if(!core() || typeof core().getStudents !== "function"){ return Promise.reject(new Error("BL2Core.getStudents no está disponible.")); }
     progress("firebase",15,"Leyendo Firebase del período " + period.label + "...");
+
     return Promise.all([readFirebasePeriod(period),core().getStudents({ periodoId:period.id }),localPendingMap(period.id)]).then(function(values){
       var remote = values[0];
       var localRows = values[1] || [];
@@ -254,6 +256,7 @@ Función o funciones:
         var local = localMap[identification];
         if(pending[identification]){ pendingConflict.push(identification); return; }
         if(!local){ apply.push(remoteRow); return; }
+
         var winner = core() && typeof core().compareRecords === "function" ? core().compareRecords(local,remoteRow) : "different";
         if(winner === "remote"){ apply.push(remoteRow); }
         else if(winner === "equal"){ equal.push(identification); }
@@ -280,6 +283,10 @@ Función o funciones:
     });
   }
 
+  function publicPreview(preview){
+    return Object.assign({},preview,{ rowsToApply:undefined,remoteRows:undefined,previewOnly:true,message:"Comparación Firebase finalizada sin modificar Base Local." });
+  }
+
   function createSafetyBackup(period){
     if(window.BL2Backup && typeof window.BL2Backup.createBackup === "function"){
       return window.BL2Backup.createBackup({ scope:"period",periodoId:period.id,periodoLabel:period.label,type:"pre_firebase_pull" });
@@ -299,8 +306,10 @@ Función o funciones:
 
   function applyFirebasePreview(preview){
     if(!preview.rowsToApply.length){
-      return Promise.resolve(Object.assign({},preview,{ applied:0,message:"Firebase no tiene cambios seguros para aplicar." }));
+      return Promise.resolve(Object.assign({},publicPreview(preview),{ previewOnly:false,applied:0,message:"Firebase no tiene cambios seguros para aplicar." }));
     }
+
+    var applied = preview.rowsToApply.length;
     progress("firebase",55,"Creando respaldo antes de aplicar Firebase...");
     return createSafetyBackup(preview.period).then(function(backup){
       progress("firebase",70,"Guardando cambios seguros en Base Local...");
@@ -317,13 +326,12 @@ Función o funciones:
         importResult:{ advertencias:[],errores:[],duplicados:preview.duplicateDocumentsIgnored }
       }).then(function(summary){
         return markImportedChanges(summary.changes).then(function(){
-          return Object.assign({},preview,{
-            applied:preview.rowsToApply.length,
+          return Object.assign({},publicPreview(preview),{
+            previewOnly:false,
+            applied:applied,
             summary:summary,
             safetyBackupId:backup && backup.record && backup.record.id || "",
-            rowsToApply:undefined,
-            remoteRows:undefined,
-            message:"Firebase → Base Local completado sin generar reenvíos. Aplicados: " + preview.rowsToApply.length + "."
+            message:"Firebase → Base Local completado sin generar reenvíos. Aplicados: " + applied + "."
           });
         });
       });
@@ -337,9 +345,12 @@ Función o funciones:
 
     firebasePulling = true;
     window.BL2_FIREBASE_PULLING = true;
+
     return periodPromise.then(function(current){
       if(!current){ throw new Error("Seleccione un período antes de traer Firebase."); }
       return buildFirebasePreview(current).then(function(preview){
+        if(options.previewOnly === true){ return publicPreview(preview); }
+
         var approved = true;
         if(options.confirm !== false){
           approved = window.confirm(
@@ -354,12 +365,13 @@ Función o funciones:
             "Se creará un respaldo y no se marcarán estudiantes como retirados. ¿Continuar?"
           );
         }
-        if(!approved){ return Object.assign({},preview,{ cancelled:true,rowsToApply:undefined,remoteRows:undefined,message:"Descarga cancelada." }); }
+
+        if(!approved){ return Object.assign({},publicPreview(preview),{ previewOnly:false,cancelled:true,message:"Descarga cancelada." }); }
         return applyFirebasePreview(preview);
       });
     }).then(function(result){
       if(store() && typeof store().registerFirebaseUsage === "function"){
-        store().registerFirebaseUsage({ reads:Number(result.remoteDocuments || 0),label:"Descarga segura Firebase → BDLocal." });
+        store().registerFirebaseUsage({ reads:Number(result.remoteDocuments || 0),label:result.previewOnly ? "Comparación Firebase." : "Descarga segura Firebase → BDLocal." });
       }
       if(store() && typeof store().updateConnectionStatus === "function"){
         store().updateConnectionStatus("firebase",{ connected:true,status:"ok",lastError:"" });
@@ -381,7 +393,7 @@ Función o funciones:
 
     m.pullFirebaseToLocal = function(options){
       options = options || {};
-      return pullFirebaseToLocalSafe(options.period || null,{ confirm:options.confirm !== false });
+      return pullFirebaseToLocalSafe(options.period || null,{ confirm:options.confirm !== false,previewOnly:options.previewOnly === true });
     };
 
     m.pushLocalToFirebase = function(options){
@@ -422,8 +434,12 @@ Función o funciones:
       options = options || {};
       var action = text(options.action || "upload").toLowerCase();
       if(options.manual !== true){ return skipped("firebase","Ruta legacy automática de Firebase bloqueada.",{ action:action }); }
-      if(action === "download" || action === "compare"){
-        return pullFirebaseToLocalSafe({ id:options.periodoId,label:options.periodoLabel || options.periodoId },{ confirm:action !== "compare" });
+
+      if(action === "compare"){
+        return pullFirebaseToLocalSafe({ id:options.periodoId,label:options.periodoLabel || options.periodoId },{ confirm:false,previewOnly:true });
+      }
+      if(action === "download"){
+        return pullFirebaseToLocalSafe({ id:options.periodoId,label:options.periodoLabel || options.periodoId },{ confirm:options.confirm !== false,previewOnly:false });
       }
       if(!window.BDLSyncOrchestrator || typeof window.BDLSyncOrchestrator.syncTarget !== "function"){
         return Promise.reject(new Error("El orquestador seguro no está disponible."));
@@ -439,12 +455,7 @@ Función o funciones:
     };
 
     current.syncBeforeClose = function(){
-      return Promise.resolve({
-        ok:true,
-        skipped:true,
-        manualOnly:true,
-        message:"Sincronización externa al cerrar desactivada. Los pendientes permanecen guardados."
-      });
+      return Promise.resolve({ ok:true,skipped:true,manualOnly:true,message:"Sincronización externa al cerrar desactivada. Los pendientes permanecen guardados." });
     };
 
     current.__externalSyncGuardInstalled = true;
@@ -452,15 +463,11 @@ Función o funciones:
 
   function install(){
     var m = manager();
-    if(m){
-      installGoogleGuard(m);
-      installFirebaseGuard(m);
-    }
+    if(m){ installGoogleGuard(m); installFirebaseGuard(m); }
     installLegacySyncGuard();
     if(window.BL2CloudPull){ window.BL2CloudPull.pullFirebaseToLocal = pullFirebaseToLocalSafe; }
     if(window.BL2CloudPullSafe){ window.BL2CloudPullSafe.pullFirebaseToLocal = pullFirebaseToLocalSafe; }
-    installed = !!m && !!sync();
-    return installed;
+    return !!m && !!sync();
   }
 
   function boot(){
@@ -484,7 +491,7 @@ Función o funciones:
     version:VERSION,
     install:install,
     pullFirebaseToLocal:pullFirebaseToLocalSafe,
-    previewFirebase:function(period){ return (period && period.id ? Promise.resolve(period) : getActivePeriod()).then(function(current){ if(!current){ throw new Error("Seleccione un período."); } return buildFirebasePreview(current); }); },
+    previewFirebase:function(period){ return pullFirebaseToLocalSafe(period || null,{ confirm:false,previewOnly:true }); },
     documentId:function(periodoId,identification){ return normalizePeriod(periodoId) + "__" + normalizeCedula(identification); },
     isPulling:function(){ return firebasePulling; }
   };
