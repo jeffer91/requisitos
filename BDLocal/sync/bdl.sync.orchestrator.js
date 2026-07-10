@@ -7,14 +7,25 @@ Función o funciones:
 - Aplicar un máximo de 25 cambios por lote.
 - Marcar únicamente los registros confirmados por el destino.
 - Mantener pendientes sin consumir intentos ante cuota o configuración faltante.
+- Detectar respuestas legacy de configuración faltante y tratarlas como diferidas.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.6.0-deferred-safe";
+  var VERSION = "0.6.1-configuration-deferred";
   var MAX_BATCH_SIZE = 25;
   var TARGETS = ["google","firebase","supabase"];
-  var state = { running:false,queueRunning:false,currentTarget:"",lockId:"",startedAt:"",lastRunAt:"",lastResult:null,lastError:null,blockedRequests:0 };
+  var state = {
+    running:false,
+    queueRunning:false,
+    currentTarget:"",
+    lockId:"",
+    startedAt:"",
+    lastRunAt:"",
+    lastResult:null,
+    lastError:null,
+    blockedRequests:0
+  };
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function now(){ return new Date().toISOString(); }
@@ -82,12 +93,16 @@ Función o funciones:
     return target === "firebase" ? window.BDLSyncTargetFirebase || null : null;
   }
 
-  function rowId(row){ return outbox() && outbox().rowId ? outbox().rowId(row) : text(row && (row.id || row.cambioId)); }
+  function rowId(row){
+    return outbox() && outbox().rowId ? outbox().rowId(row) : text(row && (row.id || row.cambioId));
+  }
 
   function confirmedIds(result,pendingRows){
     result = result || {};
     var ids = [];
-    ["processedIds","ids","syncedIds","confirmedIds"].forEach(function(key){ if(Array.isArray(result[key])){ ids = ids.concat(result[key]); } });
+    ["processedIds","ids","syncedIds","confirmedIds"].forEach(function(key){
+      if(Array.isArray(result[key])){ ids = ids.concat(result[key]); }
+    });
     if(result.ok && !ids.length){ ids = (pendingRows || []).map(rowId).filter(Boolean); }
     var map = Object.create(null);
     ids.forEach(function(value){ if(text(value)){ map[text(value)] = true; } });
@@ -101,16 +116,71 @@ Función o funciones:
   }
 
   function push(adapterApi,target,rows,options){
-    if(!adapterApi){ return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,message:"No hay adaptador configurado para " + target + ".",processedIds:[] }); }
+    if(!adapterApi){
+      return Promise.resolve({
+        ok:false,
+        blocked:true,
+        deferWithoutAttempt:true,
+        message:"No hay adaptador configurado para " + target + ".",
+        processedIds:[]
+      });
+    }
     if(typeof adapterApi.push === "function"){ return Promise.resolve(adapterApi.push(rows,Object.assign({},options,{ target:target }))); }
     if(typeof adapterApi.sync === "function"){ return Promise.resolve(adapterApi.sync(rows,Object.assign({},options,{ target:target }))); }
     if(typeof adapterApi.upload === "function"){ return Promise.resolve(adapterApi.upload(rows,Object.assign({},options,{ target:target }))); }
-    return Promise.resolve({ ok:false,blocked:true,deferWithoutAttempt:true,message:"El adaptador de " + target + " no tiene método de subida.",processedIds:[] });
+    return Promise.resolve({
+      ok:false,
+      blocked:true,
+      deferWithoutAttempt:true,
+      message:"El adaptador de " + target + " no tiene método de subida.",
+      processedIds:[]
+    });
+  }
+
+  function looksLikeConfigurationBlock(result){
+    result = result || {};
+    var message = text(result.message || result.error).toLowerCase();
+    if(!message){ return false; }
+    return [
+      "falta la url",
+      "falta url",
+      "falta el token",
+      "falta token",
+      "falta el id",
+      "falta id",
+      "falta la anon key",
+      "falta anon key",
+      "está desactivado",
+      "esta desactivado",
+      "no está configurado",
+      "no esta configurado",
+      "configstore",
+      "configuración no está disponible",
+      "configuracion no esta disponible"
+    ].some(function(pattern){ return message.indexOf(pattern) >= 0; });
   }
 
   function shouldDefer(result){
     result = result || {};
-    return result.deferWithoutAttempt === true || result.quotaBlocked === true || result.configurationBlocked === true;
+    return result.deferWithoutAttempt === true ||
+      result.quotaBlocked === true ||
+      result.configurationBlocked === true ||
+      looksLikeConfigurationBlock(result);
+  }
+
+  function deferredResult(result,target,pendingRows){
+    return Object.assign({},result || {},{
+      ok:false,
+      blocked:true,
+      target:target,
+      pending:pendingRows.length,
+      deferred:true,
+      deferWithoutAttempt:true,
+      configurationBlocked:result && result.configurationBlocked === true || looksLikeConfigurationBlock(result),
+      marked:0,
+      processedIds:[],
+      message:text(result && (result.message || result.error) || "Destino temporalmente no disponible. Los cambios permanecen pendientes.")
+    });
   }
 
   function processTarget(target,options){
@@ -120,34 +190,52 @@ Función o funciones:
     if(!ob || typeof ob.pending !== "function"){ return Promise.resolve({ ok:false,target:target,message:"BDLSyncOutbox no disponible." }); }
 
     state.currentTarget = target;
-    emit("bdlocal:sync-v2-started",{ target:target,manual:true,periodoId:options.periodoId,batchSize:options.batchSize,lockId:state.lockId,at:now() });
+    emit("bdlocal:sync-v2-started",{
+      target:target,
+      manual:true,
+      periodoId:options.periodoId,
+      batchSize:options.batchSize,
+      lockId:state.lockId,
+      at:now()
+    });
 
     return ob.pending(target,options).then(function(pendingRows){
       pendingRows = Array.isArray(pendingRows) ? pendingRows.slice(0,MAX_BATCH_SIZE) : [];
-      if(!pendingRows.length){ return { ok:true,target:target,pending:0,processedIds:[],marked:0,message:target + ": no hay pendientes." }; }
+      if(!pendingRows.length){
+        return { ok:true,target:target,pending:0,processedIds:[],marked:0,message:target + ": no hay pendientes." };
+      }
 
       return push(adapter(target),target,pendingRows,options).then(function(result){
         result = result || {};
         if(result.ok === false && shouldDefer(result)){
-          return Object.assign({},result,{
-            ok:false,
-            target:target,
-            pending:pendingRows.length,
-            deferred:true,
-            marked:0,
-            processedIds:[]
-          });
+          return deferredResult(result,target,pendingRows);
         }
         if(result.ok === false){
-          return ob.markError(pendingRows,target,{ error:result.message || result.error || "Error de subida.",maxAttempts:options.maxAttempts }).then(function(marked){
-            return Object.assign({},result,{ ok:false,target:target,pending:pendingRows.length,marked:marked.updated || 0,processedIds:[] });
+          return ob.markError(pendingRows,target,{
+            error:result.message || result.error || "Error de subida.",
+            maxAttempts:options.maxAttempts
+          }).then(function(marked){
+            return Object.assign({},result,{
+              ok:false,
+              target:target,
+              pending:pendingRows.length,
+              marked:marked.updated || 0,
+              processedIds:[]
+            });
           });
         }
 
         var confirmedRows = rowsByIds(pendingRows,confirmedIds(result,pendingRows));
         if(!confirmedRows.length && result.ok){ confirmedRows = pendingRows; }
         return ob.markSynced(confirmedRows,target,{ syncedAt:now(),response:result }).then(function(marked){
-          return Object.assign({},result,{ ok:true,target:target,pending:pendingRows.length,confirmed:confirmedRows.length,processedIds:confirmedRows.map(rowId),marked:marked.updated || 0 });
+          return Object.assign({},result,{
+            ok:true,
+            target:target,
+            pending:pendingRows.length,
+            confirmed:confirmedRows.length,
+            processedIds:confirmedRows.map(rowId),
+            marked:marked.updated || 0
+          });
         });
       });
     }).then(function(result){
@@ -167,15 +255,24 @@ Función o funciones:
     var error = validate(options);
     if(error){ return rejectRequest(error,{ target:targetKey(target),automatic:options.manual !== true }); }
     if(!acquire(target)){
-      return rejectRequest("Ya existe una sincronización en curso.",{ busy:true,lockId:state.lockId,startedAt:state.startedAt });
+      return rejectRequest("Ya existe una sincronización en curso.",{
+        busy:true,
+        lockId:state.lockId,
+        startedAt:state.startedAt
+      });
     }
     return processTarget(target,options).finally(releaseTarget);
   }
 
   function targetList(options){
-    var list = Array.isArray(options.targets) && options.targets.length ? options.targets : text(options.target) ? [options.target] : TARGETS.slice();
+    var list = Array.isArray(options.targets) && options.targets.length
+      ? options.targets
+      : text(options.target) ? [options.target] : TARGETS.slice();
     var map = Object.create(null);
-    list.forEach(function(target){ target = targetKey(target); if(TARGETS.indexOf(target) >= 0){ map[target] = true; } });
+    list.forEach(function(target){
+      target = targetKey(target);
+      if(TARGETS.indexOf(target) >= 0){ map[target] = true; }
+    });
     return Object.keys(map);
   }
 
@@ -183,7 +280,9 @@ Función o funciones:
     options = optionsOf(options);
     var error = validate(options);
     if(error){ return rejectRequest(error,{ automatic:options.manual !== true }); }
-    if(state.running || state.queueRunning){ return rejectRequest("Ya existe una sincronización en curso.",{ busy:true,lockId:state.lockId }); }
+    if(state.running || state.queueRunning){
+      return rejectRequest("Ya existe una sincronización en curso.",{ busy:true,lockId:state.lockId });
+    }
 
     state.queueRunning = true;
     state.lockId = "queue__" + Date.now() + "__" + Math.random().toString(16).slice(2);
@@ -193,7 +292,14 @@ Función o funciones:
     var targets = targetList(options);
     var results = [];
     var chain = Promise.resolve();
-    emit("bdlocal:sync-v2-queue-started",{ targets:targets,manual:true,periodoId:options.periodoId,batchSize:options.batchSize,lockId:state.lockId,at:now() });
+    emit("bdlocal:sync-v2-queue-started",{
+      targets:targets,
+      manual:true,
+      periodoId:options.periodoId,
+      batchSize:options.batchSize,
+      lockId:state.lockId,
+      at:now()
+    });
 
     targets.forEach(function(target){
       chain = chain.then(function(){
@@ -203,7 +309,12 @@ Función o funciones:
     });
 
     return chain.then(function(){
-      state.lastResult = { ok:results.every(function(item){ return item && item.ok !== false; }),targets:targets,results:results,at:now() };
+      state.lastResult = {
+        ok:results.every(function(item){ return item && item.ok !== false; }),
+        targets:targets,
+        results:results,
+        at:now()
+      };
       emit("bdlocal:sync-v2-finished",state.lastResult);
       return state.lastResult;
     }).catch(function(error){
@@ -250,6 +361,8 @@ Función o funciones:
     isRunning:function(){ return state.running || state.queueRunning; },
     safeLimit:safeLimit,
     normalizeTarget:targetKey,
-    supportedTarget:function(target){ return TARGETS.indexOf(targetKey(target)) >= 0; }
+    supportedTarget:function(target){ return TARGETS.indexOf(targetKey(target)) >= 0; },
+    shouldDefer:shouldDefer,
+    looksLikeConfigurationBlock:looksLikeConfigurationBlock
   };
 })(window);
