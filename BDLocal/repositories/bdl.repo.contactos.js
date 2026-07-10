@@ -5,12 +5,12 @@ Función o funciones:
 - Usar contactos_estudiante como repositorio principal.
 - Mantener lectura y escritura compatible con contactos legacy.
 - Consolidar telegramUser y telegramChatId sin borrar valores válidos.
-- Actualizar Telegram localmente por cédula sin crear cola externa.
+- Propagar Telegram a todas las matrículas locales sin crear cola externa.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-v2-telegram";
+  var VERSION = "1.1.0-v2-telegram-propagation";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -34,6 +34,7 @@ Función o funciones:
   function legacyStore(){ return Repos.storeName("contactos","contactos"); }
   function personStore(){ return Repos.storeName("personas","personas"); }
   function enrollmentStore(){ return Repos.storeName("matriculasPeriodo","matriculas_periodo"); }
+  function studentStore(){ return Repos.storeName("estudiantes","estudiantes"); }
   function stableId(cedula,periodoId){ return normalizeCedula(cedula) + "__" + text(periodoId); }
 
   function mergeNonEmpty(existing,incoming){
@@ -44,9 +45,7 @@ Función o funciones:
       var value = incoming[key];
       if(value === undefined || value === null || text(value) === ""){
         if(merged[key] === undefined){ merged[key] = value; }
-      }else{
-        merged[key] = value;
-      }
+      }else{ merged[key] = value; }
     });
     merged.createdAt = existing.createdAt || incoming.createdAt || now();
     merged.updatedAt = text(incoming.updatedAt || existing.updatedAt) || now();
@@ -61,19 +60,12 @@ Función o funciones:
     var user = normalizeUser(row.telegramUser || row._telegramUser || row.usuarioTelegram || row.telegram || "");
     var chatId = normalizeChatId(row.telegramChatId || row._telegramChatId || row.chatIdTelegram || row.chatId || "");
     return Object.assign({},row,{
-      id:id,
-      idEstudiantePeriodo:text(row.idEstudiantePeriodo || id),
-      studentId:text(row.studentId || id),
-      cedula:cedula,
-      numeroIdentificacion:text(row.numeroIdentificacion || cedula),
-      periodoId:periodoId,
+      id:id,idEstudiantePeriodo:text(row.idEstudiantePeriodo || id),studentId:text(row.studentId || id),
+      cedula:cedula,numeroIdentificacion:text(row.numeroIdentificacion || cedula),periodoId:periodoId,
       correoPersonal:text(row.correoPersonal || row.CorreoPersonal || ""),
       correoInstitucional:text(row.correoInstitucional || row.CorreoInstitucional || ""),
       celular:text(row.celular || row.Celular || row.telefono || ""),
-      telegramUser:user,
-      telegramChatId:chatId,
-      _telegramUser:user,
-      _telegramChatId:chatId,
+      telegramUser:user,telegramChatId:chatId,_telegramUser:user,_telegramChatId:chatId,
       telegramUpdatedAt:text(row.telegramUpdatedAt || row.telegramActualizadoEn || ""),
       telegramSource:text(row.telegramSource || row.origenTelegram || ""),
       telegramCheckedAt:text(row.telegramCheckedAt || row.telegramRevisadoEn || ""),
@@ -84,121 +76,123 @@ Función o funciones:
 
   function combine(v2Rows,legacyRows){
     var map = Object.create(null);
-    (legacyRows || []).forEach(function(row){ var item=normalize(row);if(item.id){map[item.id]=mergeNonEmpty(map[item.id],item);} });
-    (v2Rows || []).forEach(function(row){ var item=normalize(row);if(item.id){map[item.id]=mergeNonEmpty(map[item.id],item);} });
+    (legacyRows || []).forEach(function(row){var item=normalize(row);if(item.id){map[item.id]=mergeNonEmpty(map[item.id],item);}});
+    (v2Rows || []).forEach(function(row){var item=normalize(row);if(item.id){map[item.id]=mergeNonEmpty(map[item.id],item);}});
     return Object.keys(map).map(function(key){return map[key];});
   }
 
   function list(options){
     options = options || {};
     return Promise.all([Repos.safeGetAll(v2Store()),Repos.safeGetAll(legacyStore())]).then(function(values){
-      var rows = combine(values[0],values[1]);
-      rows = Repos.byPeriodo(rows,options.periodoId);
-      if(text(options.cedula)){ rows = Repos.byCedula(rows,normalizeCedula(options.cedula)); }
+      var rows=combine(values[0],values[1]);
+      rows=Repos.byPeriodo(rows,options.periodoId);
+      if(text(options.cedula)){rows=Repos.byCedula(rows,normalizeCedula(options.cedula));}
       return rows;
     });
   }
-
-  function getByCedula(cedula,periodoId){
-    return list({cedula:cedula,periodoId:periodoId}).then(function(rows){return rows[0] || null;});
-  }
-
-  function getExisting(storeName,id){
-    var current = Repos.db();
-    if(!current || typeof current.get !== "function"){ return Promise.resolve(null); }
-    return current.get(storeName,id).catch(function(){return null;});
-  }
+  function getByCedula(cedula,periodoId){return list({cedula:cedula,periodoId:periodoId}).then(function(rows){return rows[0]||null;});}
+  function getExisting(storeName,id){var current=Repos.db();return current&&current.get?current.get(storeName,id).catch(function(){return null;}):Promise.resolve(null);}
 
   function save(row,options){
     options = options || {};
     row = normalize(row);
-    if(!row.id || !row.cedula || !row.periodoId){ return Promise.reject(new Error("El contacto requiere cédula y período.")); }
+    if(!row.id || !row.cedula || !row.periodoId){return Promise.reject(new Error("El contacto requiere cédula y período."));}
     return getExisting(v2Store(),row.id).then(function(existing){
-      var merged = normalize(mergeNonEmpty(existing,row));
+      var merged=normalize(mergeNonEmpty(existing,row));
       return Repos.safePut(v2Store(),merged).then(function(){
-        if(options.writeLegacy === false){ return merged; }
-        return getExisting(legacyStore(),row.id).then(function(old){
-          return Repos.safePut(legacyStore(),normalize(mergeNonEmpty(old,merged))).then(function(){return merged;});
-        });
+        if(options.writeLegacy===false){return merged;}
+        return getExisting(legacyStore(),row.id).then(function(old){return Repos.safePut(legacyStore(),normalize(mergeNonEmpty(old,merged))).then(function(){return merged;});});
       });
     });
   }
 
   function telegramPatch(data,options){
-    data = data || {};
-    options = options || {};
-    var user = normalizeUser(data.telegramUser || data._telegramUser || data.usuarioTelegram || "");
-    var chatId = normalizeChatId(data.telegramChatId || data._telegramChatId || data.chatId || "");
-    var timestamp = text(data.telegramUpdatedAt || options.telegramUpdatedAt || "") || now();
+    data = data || {};options = options || {};
+    var user=normalizeUser(data.telegramUser || data._telegramUser || data.usuarioTelegram || "");
+    var chatId=normalizeChatId(data.telegramChatId || data._telegramChatId || data.chatId || "");
+    var timestamp=text(data.telegramUpdatedAt || options.telegramUpdatedAt || "") || now();
     return {
-      telegramUser:user,
-      telegramChatId:chatId,
-      _telegramUser:user,
-      _telegramChatId:chatId,
-      telegramUpdatedAt:timestamp,
-      telegramSource:text(data.telegramSource || options.source || "local"),
+      telegramUser:user,telegramChatId:chatId,_telegramUser:user,_telegramChatId:chatId,
+      telegramUpdatedAt:timestamp,telegramSource:text(data.telegramSource || options.source || "local"),
       telegramCheckedAt:text(data.telegramCheckedAt || options.checkedAt || timestamp),
       telegramVerifiedAt:text(data.telegramVerifiedAt || options.verifiedAt || "")
     };
   }
 
   function saveTelegram(row,options){
-    row = Object.assign({},row || {},telegramPatch(row,options));
-    return save(row,Object.assign({writeLegacy:true},options || {}));
+    var patch=telegramPatch(row,options);
+    return save(Object.assign({},row || {},patch),Object.assign({writeLegacy:true},options || {}));
   }
 
   function savePersonTelegram(cedula,patch){
-    var current = Repos.db();
-    if(!current || typeof current.get !== "function"){ return Promise.resolve(null); }
+    var current=Repos.db();
+    if(!current||!current.get){return Promise.resolve(null);}
     return current.get(personStore(),cedula).catch(function(){return null;}).then(function(existing){
-      var person = mergeNonEmpty(existing,Object.assign({cedula:cedula,numeroIdentificacion:cedula},patch,{updatedAt:now()}));
+      var person=mergeNonEmpty(existing,Object.assign({cedula:cedula,numeroIdentificacion:cedula},patch,{updatedAt:text(existing&&existing.updatedAt)||now()}));
       return Repos.safePut(personStore(),person);
+    });
+  }
+
+  function rowsByCedula(storeName,cedula){
+    return Repos.safeQueryByIndex(storeName,"cedula",cedula).then(function(rows){
+      if(rows && rows.length){return rows;}
+      return Repos.safeGetAll(storeName).then(function(all){return (all || []).filter(function(row){return normalizeCedula(row.cedula || row.numeroIdentificacion)===cedula;});});
+    });
+  }
+
+  function updateStudentCopies(cedula,patch){
+    return rowsByCedula(studentStore(),cedula).then(function(rows){
+      if(!rows.length){return [];}
+      var updated=rows.map(function(row){
+        return Object.assign({},row,patch,{
+          _telegramUser:patch.telegramUser,
+          _telegramChatId:patch.telegramChatId,
+          /* Telegram no altera updatedAt académico ni crea cambios_pendientes. */
+          updatedAt:row.updatedAt || now()
+        });
+      });
+      return Repos.bulkPut(studentStore(),updated).then(function(){return updated;});
     });
   }
 
   function saveTelegramForCedula(cedula,data,options){
     options = options || {};
     cedula = normalizeCedula(cedula || data && data.cedula);
-    if(!cedula){ return Promise.reject(new Error("Telegram requiere cédula.")); }
-    var patch = telegramPatch(data,options);
-    return Repos.safeQueryByIndex(enrollmentStore(),"cedula",cedula).then(function(rows){
-      if(!rows.length){ return Repos.safeGetAll(enrollmentStore()).then(function(all){return (all || []).filter(function(row){return normalizeCedula(row.cedula) === cedula;});}); }
-      return rows;
-    }).then(function(enrollments){
-      var chain = savePersonTelegram(cedula,patch);
-      var saved = [];
-      (enrollments || []).forEach(function(enrollment){
-        chain = chain.then(function(){
-          return saveTelegram({
-            id:text(enrollment.idEstudiantePeriodo || enrollment.id || stableId(cedula,enrollment.periodoId)),
-            idEstudiantePeriodo:text(enrollment.idEstudiantePeriodo || enrollment.id || stableId(cedula,enrollment.periodoId)),
-            cedula:cedula,
-            periodoId:text(enrollment.periodoId),
-            periodoLabel:text(enrollment.periodoLabel)
-          },Object.assign({},options,patch)).then(function(contact){saved.push(contact);});
+    if(!cedula){return Promise.reject(new Error("Telegram requiere cédula."));}
+    var patch=telegramPatch(data,options);
+
+    return Promise.all([
+      savePersonTelegram(cedula,patch),
+      updateStudentCopies(cedula,patch),
+      rowsByCedula(enrollmentStore(),cedula)
+    ]).then(function(values){
+      var students=values[1] || [];
+      var enrollments=values[2] || [];
+      var periods={};
+      students.forEach(function(row){if(text(row.periodoId)){periods[text(row.periodoId)]={id:text(row.id || stableId(cedula,row.periodoId)),periodoId:text(row.periodoId),periodoLabel:text(row.periodoLabel)};}});
+      enrollments.forEach(function(row){if(text(row.periodoId)){periods[text(row.periodoId)]={id:text(row.idEstudiantePeriodo || row.id || stableId(cedula,row.periodoId)),periodoId:text(row.periodoId),periodoLabel:text(row.periodoLabel)};}});
+
+      var saved=[];
+      var chain=Promise.resolve();
+      Object.keys(periods).forEach(function(periodoId){
+        chain=chain.then(function(){
+          var item=periods[periodoId];
+          return saveTelegram(Object.assign({id:item.id,idEstudiantePeriodo:item.id,cedula:cedula,periodoId:item.periodoId,periodoLabel:item.periodoLabel},patch),options).then(function(contact){saved.push(contact);});
         });
       });
       return chain.then(function(){
-        try{window.dispatchEvent(new CustomEvent("bdlocal:telegram-local-updated",{detail:{cedula:cedula,periodos:saved.length,source:patch.telegramSource}}));}catch(error){}
-        return {ok:true,cedula:cedula,periodos:saved.length,contacts:saved,telegramUser:patch.telegramUser,telegramChatId:patch.telegramChatId,queued:false};
+        try{window.dispatchEvent(new CustomEvent("bdlocal:telegram-local-updated",{detail:{cedula:cedula,periodos:saved.length,source:patch.telegramSource,queued:false}}));}catch(error){}
+        return {ok:true,cedula:cedula,periodos:saved.length,students:students.length,contacts:saved,telegramUser:patch.telegramUser,telegramChatId:patch.telegramChatId,queued:false};
       });
     });
   }
 
-  var api = {
-    version:VERSION,
-    primaryStore:v2Store,
-    legacyStore:legacyStore,
-    list:list,
-    getByCedula:getByCedula,
-    save:save,
-    saveTelegram:saveTelegram,
-    saveTelegramForCedula:saveTelegramForCedula,
-    normalize:normalize,
-    telegramPatch:telegramPatch,
-    mergeNonEmpty:mergeNonEmpty
+  var api={
+    version:VERSION,primaryStore:v2Store,legacyStore:legacyStore,list:list,getByCedula:getByCedula,
+    save:save,saveTelegram:saveTelegram,saveTelegramForCedula:saveTelegramForCedula,
+    normalize:normalize,telegramPatch:telegramPatch,mergeNonEmpty:mergeNonEmpty
   };
 
   Repos.register("contactos",api);
-  window.BDLRepoContactos = api;
+  window.BDLRepoContactos=api;
 })(window);
