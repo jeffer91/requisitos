@@ -1,7 +1,7 @@
 (function(window){
   "use strict";
 
-  var VERSION="1.2.0-shared-frame-cache";
+  var VERSION="1.3.0-volatile-last-good";
   var CACHE_KEY="REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var SIGNAL_KEY="REQ_BDLOCAL_CONEXIONES_SIGNAL_V1";
   var MESSAGE={
@@ -11,13 +11,16 @@
     updated:"requisitos:bdlocal-cache:updated"
   };
 
-  var memo={raw:null,cache:null,volatile:false};
+  var memo={raw:null,cache:null,volatile:false,memoryAt:0};
   var pending=Object.create(null);
   var requestSequence=0;
 
   function text(value){return String(value==null?"":value).trim();}
   function nowISO(){return new Date().toISOString();}
   function clone(value){try{return structuredClone(value);}catch(error){try{return JSON.parse(JSON.stringify(value));}catch(inner){return value;}}}
+  function array(value){return Array.isArray(value)?value:[];}
+  function hasRows(value){return Array.isArray(value)&&value.length>0;}
+  function object(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 
   function safeParse(value,fallback){
     try{
@@ -104,13 +107,15 @@
       row.periodoLabel||row.periodo||row.Periodo||row._periodo||row._bl2Periodo||periodoId
     );
 
-    var nombres=text(row.Nombres||row.nombres||row.Nombre||row.nombre||row.Estudiante||row.estudiante||row._nombres||"");
+    var nombres=text(row.Nombres||row.nombres||row.nombreCompleto||row.Nombre||row.nombre||row.Estudiante||row.estudiante||row._nombres||"");
     var carrera=text(row.NombreCarrera||row.nombreCarrera||row.Carrera||row.carrera||row._carrera||"");
     var division=text(row._division||row.division||row.Division||row["División"]||"Sin división");
     var estado=text(row._estadoMatricula||row.estadoMatricula||row.EstadoMatricula||"ACTIVO").toUpperCase()==="RETIRADO"?"RETIRADO":"ACTIVO";
 
     row.id=row.id||row._id||(cedula&&periodoId?cedula+"__"+periodoId:cedula);
     row._id=row._id||row.id;
+    row.studentId=row.studentId||row.idEstudiantePeriodo||row.id;
+    row.idEstudiantePeriodo=row.idEstudiantePeriodo||(cedula&&periodoId?cedula+"__"+periodoId:row.studentId||row.id);
     row.cedula=cedula;
     row._cedula=row._cedula||cedula;
     row.numeroIdentificacion=row.numeroIdentificacion||cedula;
@@ -124,6 +129,7 @@
     row._periodo=row._periodo||periodoLabel;
     row.Nombres=row.Nombres||nombres;
     row.nombres=row.nombres||nombres;
+    row.nombreCompleto=row.nombreCompleto||nombres;
     row._nombres=row._nombres||nombres;
     row.NombreCarrera=row.NombreCarrera||carrera;
     row.Carrera=row.Carrera||carrera;
@@ -136,16 +142,16 @@
   }
 
   function normalizeCache(cache){
-    cache=cache&&typeof cache==="object"?cache:emptyCache();
-    cache.meta=cache.meta&&typeof cache.meta==="object"?cache.meta:{};
-    cache.periods=Array.isArray(cache.periods)?cache.periods.map(normalizePeriod).filter(Boolean):[];
-    cache.students=Array.isArray(cache.students)?cache.students.map(normalizeStudent):[];
-    cache.requirements=Array.isArray(cache.requirements)?cache.requirements:[];
-    cache.summaries=cache.summaries&&typeof cache.summaries==="object"?cache.summaries:{};
-    cache.diagnostics=Array.isArray(cache.diagnostics)?cache.diagnostics:[];
+    cache=cache&&typeof cache==="object"?clone(cache):emptyCache();
+    cache.meta=object(cache.meta);
+    cache.periods=array(cache.periods).map(normalizePeriod).filter(Boolean);
+    cache.students=array(cache.students).map(normalizeStudent);
+    cache.requirements=array(cache.requirements);
+    cache.summaries=object(cache.summaries);
+    cache.diagnostics=array(cache.diagnostics);
     cache.meta.app=cache.meta.app||"Requisitos";
     cache.meta.module=cache.meta.module||"BDLocalConexiones";
-    cache.meta.version=cache.meta.version||VERSION;
+    cache.meta.version=VERSION;
     cache.meta.source=cache.meta.source||"cache";
     cache.meta.updatedAt=cache.meta.updatedAt||nowISO();
     cache.meta.totalPeriods=cache.periods.length;
@@ -153,17 +159,77 @@
     return cache;
   }
 
+  function hasData(cache){
+    cache=cache||{};
+    return hasRows(cache.periods)||hasRows(cache.students)||hasRows(cache.requirements);
+  }
+
+  function cacheTime(cache){
+    var value=Date.parse(text(cache&&cache.meta&&cache.meta.updatedAt));
+    return Number.isFinite(value)?value:0;
+  }
+
+  function cacheWeight(cache){
+    cache=cache||{};
+    return array(cache.students).length*1000000+array(cache.periods).length*1000+array(cache.requirements).length;
+  }
+
+  function preferCache(a,b){
+    a=normalizeCache(a||emptyCache());
+    b=normalizeCache(b||emptyCache());
+    var at=cacheTime(a);
+    var bt=cacheTime(b);
+    if(at!==bt){return at>bt?a:b;}
+    return cacheWeight(a)>=cacheWeight(b)?a:b;
+  }
+
+  function mergeCache(incoming,current,options){
+    options=options||{};
+    incoming=normalizeCache(incoming||emptyCache());
+    current=normalizeCache(current||emptyCache());
+    var allowEmpty=options.allowEmpty===true;
+    var preferred=preferCache(incoming,current);
+    var fallback=preferred===incoming?current:incoming;
+    var result=normalizeCache(preferred);
+
+    if(!allowEmpty){
+      if(!hasRows(result.periods)&&hasRows(fallback.periods)){result.periods=clone(fallback.periods);}
+      if(!hasRows(result.students)&&hasRows(fallback.students)){result.students=clone(fallback.students);}
+      if(!hasRows(result.requirements)&&hasRows(fallback.requirements)){result.requirements=clone(fallback.requirements);}
+    }
+
+    result.summaries=Object.assign({},object(fallback.summaries),object(result.summaries));
+    if(!hasRows(result.diagnostics)&&hasRows(fallback.diagnostics)){result.diagnostics=clone(fallback.diagnostics);}
+    result.meta=Object.assign({},object(fallback.meta),object(result.meta),{
+      version:VERSION,
+      updatedAt:text(result.meta.updatedAt)||nowISO(),
+      totalPeriods:result.periods.length,
+      totalStudents:result.students.length,
+      volatileProtected:true
+    });
+    return normalizeCache(result);
+  }
+
   function readCache(force){
     var raw=storageGet(CACHE_KEY);
+    var stored=normalizeCache(safeParse(raw,null));
 
-    if(memo.cache&&memo.volatile&&!raw){return clone(memo.cache);}
-    if(!force&&memo.raw===raw&&memo.cache){return clone(memo.cache);}
+    if(memo.cache){
+      if(memo.volatile){
+        memo.cache=mergeCache(memo.cache,stored,{allowEmpty:false});
+        return clone(memo.cache);
+      }
+      if(!force&&memo.raw===raw){return clone(memo.cache);}
+      memo.cache=mergeCache(stored,memo.cache,{allowEmpty:false});
+      memo.raw=raw;
+      return clone(memo.cache);
+    }
 
-    var cache=normalizeCache(safeParse(raw,null));
     memo.raw=raw;
-    memo.cache=cache;
+    memo.cache=stored;
     memo.volatile=false;
-    return clone(cache);
+    memo.memoryAt=Date.now();
+    return clone(stored);
   }
 
   function postToParent(message){
@@ -178,17 +244,19 @@
 
   function writeCache(cache,options){
     options=options||{};
-    cache=normalizeCache(cache);
+    var current=memo.cache||normalizeCache(safeParse(storageGet(CACHE_KEY),null));
+    cache=mergeCache(cache,current,{allowEmpty:options.allowEmpty===true});
     cache.meta.updatedAt=nowISO();
-    cache.meta.version=cache.meta.version||VERSION;
+    cache.meta.version=VERSION;
 
     var raw="";
     try{raw=JSON.stringify(cache);}catch(error){raw=JSON.stringify(emptyCache());}
 
     var stored=storageSet(CACHE_KEY,raw);
-    memo.raw=stored?raw:"";
+    memo.raw=stored?raw:storageGet(CACHE_KEY);
     memo.cache=cache;
     memo.volatile=!stored;
+    memo.memoryAt=Date.now();
 
     emit("bdlocal:conexiones-cache-updated",{
       ok:stored,
@@ -213,10 +281,16 @@
     return clone(cache);
   }
 
-  function invalidateCache(){
+  function invalidateCache(options){
+    options=options||{};
     memo.raw=null;
-    memo.cache=null;
-    memo.volatile=false;
+    if(options.dropData===true){
+      memo.cache=null;
+      memo.volatile=false;
+      memo.memoryAt=0;
+    }else if(memo.cache){
+      memo.volatile=true;
+    }
   }
 
   function emit(name,detail){
@@ -261,7 +335,7 @@
     if(data.type!==MESSAGE.response&&data.type!==MESSAGE.updated){return;}
     if(!data.cache||typeof data.cache!=="object"){return;}
 
-    var shared=writeCache(data.cache,{broadcast:false,source:"parent-frame-cache"});
+    var shared=writeCache(data.cache,{broadcast:false,source:"parent-frame-cache",allowEmpty:data.allowEmpty===true});
 
     if(data.type===MESSAGE.response&&data.requestId&&pending[data.requestId]){
       pending[data.requestId].resolve(shared);
@@ -329,11 +403,24 @@
     filterStudents:filterStudents,
     emptyCache:emptyCache,
     normalizeCache:normalizeCache,
+    mergeCache:mergeCache,
+    hasData:hasData,
     readCache:readCache,
     writeCache:writeCache,
     invalidateCache:invalidateCache,
     requestSharedCache:requestSharedCache,
     emit:emit,
-    getGlobal:getGlobal
+    getGlobal:getGlobal,
+    status:function(){
+      var cache=readCache();
+      return {
+        version:VERSION,
+        volatile:memo.volatile,
+        periods:cache.periods.length,
+        students:cache.students.length,
+        requirements:cache.requirements.length,
+        memoryAt:memo.memoryAt
+      };
+    }
   };
 })(window);
