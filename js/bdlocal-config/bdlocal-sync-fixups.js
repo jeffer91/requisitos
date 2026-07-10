@@ -6,14 +6,16 @@ Función o funciones:
 - Redirigir Google, Firebase y Supabase únicamente a BDLSyncV2.
 - Impedir cargas completas paralelas fuera de cambios_pendientes.
 - Reemplazar la ejecución individual de la interfaz por la puerta segura.
+- Vincular el campo de acceso de Apps Script con la acción guardar actual.
 - Instalarse después de que todas las guardias hayan terminado de cargar.
 ========================================================= */
-(function(window){
+(function(window,document){
   "use strict";
 
-  var VERSION = "3.0.1-single-sync-gate";
+  var VERSION = "3.1.0-single-sync-gate";
   var MAX_BATCH_SIZE = 25;
   var installed = false;
+  var formBound = false;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function now(){ return new Date().toISOString(); }
@@ -158,12 +160,38 @@ Función o funciones:
     return true;
   }
 
+  function saveSheetsAccess(){
+    var field = document.getElementById("bdlc-sheets-token");
+    var store = window.BDLocalConfigStore;
+    if(!field || !store || typeof store.getSheetsConfig !== "function" || typeof store.setSheetsConfig !== "function"){ return false; }
+    var current = store.getSheetsConfig({ includeSecret:true }) || {};
+    store.setSheetsConfig({
+      enabled:current.enabled,
+      appsScriptUrl:current.appsScriptUrl,
+      token:text(field.value),
+      spreadsheetId:current.spreadsheetId,
+      sheetName:current.sheetName,
+      batchSize:current.batchSize
+    });
+    return true;
+  }
+
+  function bindCurrentForm(){
+    if(formBound){ return; }
+    formBound = true;
+    document.addEventListener("click",function(event){
+      var button = event.target && event.target.closest ? event.target.closest("[data-bdlc-action]") : null;
+      if(button && button.getAttribute("data-bdlc-action") === "save-sheets"){ saveSheetsAccess(); }
+    },true);
+  }
+
   function install(){
     var managerReady = patchManager();
     var syncReady = patchLegacySync();
     var uiReady = patchUI();
+    bindCurrentForm();
     installed = managerReady || syncReady || uiReady || installed;
-    return { ok:installed,manager:managerReady,legacy:syncReady,ui:uiReady };
+    return { ok:installed,manager:managerReady,legacy:syncReady,ui:uiReady,formBound:formBound };
   }
 
   window.BDLocalSyncFixups = {
@@ -174,8 +202,9 @@ Función o funciones:
     install:install,
     requestTarget:requestTarget,
     confirmedTarget:confirmedTarget,
-    status:function(){ return { version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager && window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync && window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge && window.BDLSyncUIBridge.__singleSyncGateInstalled) }; }
+    saveSheetsAccess:saveSheetsAccess,
+    status:function(){ return { version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager && window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync && window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge && window.BDLSyncUIBridge.__singleSyncGateInstalled),formBound:formBound }; }
   };
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",install);
-})(window);
+})(window,document);
