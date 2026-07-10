@@ -24,45 +24,30 @@
     <header class="bl2-header">
       <div class="bl2-header-main">
         <div class="bl2-brand">
-          <button id="bl2-btn-sidebar-toggle" class="bl2-menu-toggle" type="button" aria-label="Abrir o cerrar menú" aria-expanded="false">
-            <span></span><span></span><span></span>
-          </button>
+          <button id="bl2-btn-sidebar-toggle" class="bl2-menu-toggle" type="button" aria-label="Abrir o cerrar menú" aria-expanded="false"><span></span><span></span><span></span></button>
           <div>
             <span class="bl2-eyebrow">Base principal de la aplicación</span>
             <h1>Centro de Control BDLocal</h1>
             <p class="bl2-subtitle">Consulta, conexión, respaldo, sincronización, mantenimiento y diagnóstico de la base local.</p>
           </div>
         </div>
-
         <div class="bl2-header-status">
           <span id="bl2-runtime-pill" class="bl2-pill bl2-pill-soft">Detectando entorno...</span>
           <span id="bl2-db-pill" class="bl2-pill bl2-pill-warn" aria-live="polite">BDLocal cargando...</span>
           <button id="bl2-btn-refresh" class="bl2-btn bl2-btn-light" type="button">Actualizar</button>
         </div>
       </div>
-
       <div id="bl2-sync-bar" class="bl2-sync-bar" hidden aria-live="polite">
-        <div class="bl2-sync-info">
-          <strong id="bl2-sync-title">Procesando...</strong>
-          <span id="bl2-sync-detail">Preparando operación...</span>
-        </div>
-        <div class="bl2-sync-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-          <i id="bl2-sync-progress" style="width:0%"></i>
-        </div>
+        <div class="bl2-sync-info"><strong id="bl2-sync-title">Procesando...</strong><span id="bl2-sync-detail">Preparando operación...</span></div>
+        <div class="bl2-sync-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i id="bl2-sync-progress" style="width:0%"></i></div>
         <span id="bl2-sync-percent">0%</span>
       </div>
     </header>
 
     <div class="bl2-page">
       <section class="bl2-period-strip">
-        <div class="bl2-period-strip-copy">
-          <span>Período de trabajo</span>
-          <p>Las consultas y operaciones deben respetar el período seleccionado.</p>
-        </div>
-        <label class="bl2-field">
-          <span>Período activo</span>
-          <select id="bl2-period-select"><option value="">Seleccione un período...</option></select>
-        </label>
+        <div class="bl2-period-strip-copy"><span>Período de trabajo</span><p>Las consultas y operaciones deben respetar el período seleccionado.</p></div>
+        <label class="bl2-field"><span>Período activo</span><select id="bl2-period-select"><option value="">Seleccione un período...</option></select></label>
         <button id="bl2-btn-period-save" class="bl2-btn bl2-btn-primary" type="button">Usar período</button>
       </section>
 
@@ -70,27 +55,16 @@
 
       <div id="bdlocal-control-center-root" class="bdlc-shell bdlc-shell-static">
         <aside id="bl2-sidebar" class="bdlc-sidebar" aria-label="Menú de Base Local">
-          <div class="bdlc-sidebar-head">
-            <div class="bdlc-sidebar-mark">BL</div>
-            <div>
-              <div class="bdlc-sidebar-title">Base Local</div>
-              <div class="bdlc-sidebar-subtitle">Centro de control</div>
-            </div>
-          </div>
-
+          <div class="bdlc-sidebar-head"><div class="bdlc-sidebar-mark">BL</div><div><div class="bdlc-sidebar-title">Base Local</div><div class="bdlc-sidebar-subtitle">Centro de control</div></div></div>
           <nav class="bdlc-nav">
             <button type="button" class="bdlc-nav-button is-active" data-bl2-section-target="resumen" data-bl2-section-label="Resumen"><span class="bdlc-nav-icon">R</span><span>Resumen</span></button>
-
             <div class="bdlc-nav-group is-open" data-bl2-nav-group="conexiones">
-              <button type="button" class="bdlc-nav-group-button" data-bl2-menu-toggle="conexiones" aria-expanded="true">
-                <span class="bdlc-nav-icon">C</span><span>Conexiones</span><span class="bdlc-nav-arrow">⌄</span>
-              </button>
+              <button type="button" class="bdlc-nav-group-button" data-bl2-menu-toggle="conexiones" aria-expanded="true"><span class="bdlc-nav-icon">C</span><span>Conexiones</span><span class="bdlc-nav-arrow">⌄</span></button>
               <div class="bdlc-subnav">
                 <button type="button" class="bdlc-subnav-button" data-bl2-section-target="bases-externas" data-bl2-section-label="Conexiones / Bases externas">Bases externas</button>
                 <button type="button" class="bdlc-subnav-button" data-bl2-section-target="pantallas" data-bl2-section-label="Conexiones / Pantallas">Pantallas</button>
               </div>
             </div>
-
             <button type="button" class="bdlc-nav-button" data-bl2-section-target="tablas" data-bl2-section-label="Tablas"><span class="bdlc-nav-icon">T</span><span>Tablas</span></button>
             <button type="button" class="bdlc-nav-button" data-bl2-section-target="estudiante" data-bl2-section-label="Consulta de estudiante"><span class="bdlc-nav-icon">E</span><span>Consulta de estudiante</span></button>
             <button type="button" class="bdlc-nav-button" data-bl2-section-target="respaldos" data-bl2-section-label="Respaldos y restauración"><span class="bdlc-nav-icon">B</span><span>Respaldos y restauración</span></button>
@@ -98,15 +72,11 @@
             <button type="button" class="bdlc-nav-button" data-bl2-section-target="mantenimiento" data-bl2-section-label="Mantenimiento seguro"><span class="bdlc-nav-icon">M</span><span>Mantenimiento seguro</span></button>
             <button type="button" class="bdlc-nav-button" data-bl2-section-target="diagnostico" data-bl2-section-label="Diagnóstico y salud"><span class="bdlc-nav-icon">D</span><span>Diagnóstico y salud</span></button>
           </nav>
-
           <div class="bdlc-sidebar-footer"><span></span>BDLocal es la fuente principal</div>
         </aside>
 
         <main class="bdlc-main">
-          <div class="bdlc-topbar">
-            <div><small>Ubicación actual</small><div id="bl2-breadcrumb" class="bdlc-breadcrumb">Base Local / Resumen</div></div>
-            <div id="bl2-view-status" class="bdlc-view-status" aria-live="polite">Comprobando módulos...</div>
-          </div>
+          <div class="bdlc-topbar"><div><small>Ubicación actual</small><div id="bl2-breadcrumb" class="bdlc-breadcrumb">Base Local / Resumen</div></div><div id="bl2-view-status" class="bdlc-view-status" aria-live="polite">Comprobando módulos...</div></div>
           <div id="bl2-global-alert" class="bdlc-alert info" hidden aria-live="polite"></div>
 
           <section id="bl2-section-resumen" class="bdlc-section is-active" data-bl2-section="resumen">
@@ -119,30 +89,15 @@
               <article class="bdlc-card bdlc-kpi-card"><span>Pendientes Supabase</span><strong id="bl2-kpi-supabase">0</strong><small>Supabase</small></article>
               <article class="bdlc-card bdlc-kpi-card"><span>Advertencias</span><strong id="bl2-kpi-warnings">0</strong><small>Última operación</small></article>
             </div>
-            <div class="bdlc-card-grid two">
-              <article class="bdlc-card"><h3>Estado de Base Local</h3><p>El arranque valida los registros centrales antes de habilitar los procesos.</p></article>
-              <article class="bdlc-card"><h3>Respaldo local</h3><p id="bl2-backup-status">Comprobando respaldo automático...</p></article>
-            </div>
+            <div class="bdlc-card-grid two"><article class="bdlc-card"><h3>Estado de Base Local</h3><p>El arranque valida los registros centrales antes de habilitar los procesos.</p></article><article class="bdlc-card"><h3>Respaldo local</h3><p id="bl2-backup-status">Comprobando respaldo automático...</p></article></div>
           </section>
 
           <section id="bl2-section-bases-externas" class="bdlc-section" data-bl2-section="bases-externas">
             <div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Bases externas</h2><p class="bdlc-description">Control manual de Google Sheets, Firebase y Supabase.</p></div></div>
             <div class="bdlc-connections-grid">
-              <article class="bdlc-connection-card">
-                <div class="bdlc-connection-head"><div><h3>Google Sheets</h3><p>Base externa de consulta y respaldo.</p></div><span id="bl2-dot-google" class="bl2-dot bl2-dot-warn"></span></div>
-                <div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-google-status">Pendiente de configuración.</strong></div>
-                <div class="bdlc-actions"><button id="bl2-btn-push-google" class="bdlc-button" type="button">Subir</button><button id="bl2-btn-pull-sheets" class="bdlc-button secondary" type="button">Traer</button><button id="bl2-btn-clean-sheets-duplicates" class="bdlc-button subtle" type="button">Duplicados</button></div>
-              </article>
-              <article class="bdlc-connection-card">
-                <div class="bdlc-connection-head"><div><h3>Firebase</h3><p>Base externa y respaldo remoto.</p></div><span id="bl2-dot-firebase" class="bl2-dot bl2-dot-warn"></span></div>
-                <div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-firebase-status">Pendiente de configuración.</strong></div>
-                <div class="bdlc-actions"><button id="bl2-btn-push-firebase" class="bdlc-button" type="button">Subir</button><button id="bl2-btn-fetch-firebase-config" class="bdlc-button secondary" type="button">Traer configuración</button></div>
-              </article>
-              <article class="bdlc-connection-card">
-                <div class="bdlc-connection-head"><div><h3>Supabase</h3><p>Base paralela de respaldo.</p></div><span id="bl2-dot-supabase" class="bl2-dot bl2-dot-warn"></span></div>
-                <div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-supabase-status">Pendiente de configuración.</strong></div>
-                <div class="bdlc-actions"><button id="bl2-btn-push-supabase" class="bdlc-button" type="button">Subir</button></div>
-              </article>
+              <article class="bdlc-connection-card"><div class="bdlc-connection-head"><div><h3>Google Sheets</h3><p>Base externa de consulta y respaldo.</p></div><span id="bl2-dot-google" class="bl2-dot bl2-dot-warn"></span></div><div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-google-status">Pendiente de configuración.</strong></div><div class="bdlc-actions"><button id="bl2-btn-push-google" class="bdlc-button" type="button">Subir</button><button id="bl2-btn-pull-sheets" class="bdlc-button secondary" type="button">Traer</button><button id="bl2-btn-clean-sheets-duplicates" class="bdlc-button subtle" type="button">Duplicados</button></div></article>
+              <article class="bdlc-connection-card"><div class="bdlc-connection-head"><div><h3>Firebase</h3><p>Base externa y respaldo remoto.</p></div><span id="bl2-dot-firebase" class="bl2-dot bl2-dot-warn"></span></div><div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-firebase-status">Pendiente de configuración.</strong></div><div class="bdlc-actions"><button id="bl2-btn-push-firebase" class="bdlc-button" type="button">Subir</button><button id="bl2-btn-fetch-firebase-config" class="bdlc-button secondary" type="button">Traer configuración</button></div></article>
+              <article class="bdlc-connection-card"><div class="bdlc-connection-head"><div><h3>Supabase</h3><p>Base paralela de respaldo.</p></div><span id="bl2-dot-supabase" class="bl2-dot bl2-dot-warn"></span></div><div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-supabase-status">Pendiente de configuración.</strong></div><div class="bdlc-actions"><button id="bl2-btn-push-supabase" class="bdlc-button" type="button">Subir</button></div></article>
             </div>
           </section>
 
@@ -194,20 +149,9 @@
         box.insertBefore(item, box.firstChild);
       }
 
-      function setDbPill(message, className){
-        var pill = byId("bl2-db-pill");
-        if(pill){ pill.textContent = message; pill.className = "bl2-pill " + (className || "bl2-pill-soft"); }
-      }
-
-      function setViewStatus(message){
-        var node = byId("bl2-view-status");
-        if(node){ node.textContent = message; }
-      }
-
-      function setRuntime(){
-        var pill = byId("bl2-runtime-pill");
-        if(pill){ pill.textContent = window.electronAPI ? "Electron" : "Navegador"; }
-      }
+      function setDbPill(message, className){ var pill = byId("bl2-db-pill"); if(pill){ pill.textContent = message; pill.className = "bl2-pill " + (className || "bl2-pill-soft"); } }
+      function setViewStatus(message){ var node = byId("bl2-view-status"); if(node){ node.textContent = message; } }
+      function setRuntime(){ var pill = byId("bl2-runtime-pill"); if(pill){ pill.textContent = window.electronAPI ? "Electron" : "Navegador"; } }
 
       function setupNavigation(){
         var root = byId("bdlocal-control-center-root");
@@ -226,34 +170,23 @@
           Array.prototype.slice.call(root.querySelectorAll("[data-bl2-section-target]")).forEach(function(node){ node.classList.toggle("is-active", node.getAttribute("data-bl2-section-target") === id); });
           if(id === "bases-externas" || id === "pantallas"){
             var group = root.querySelector('[data-bl2-nav-group="conexiones"]');
-            if(group){ group.classList.add("is-open"); var btn = group.querySelector("[data-bl2-menu-toggle]"); if(btn){ btn.setAttribute("aria-expanded", "true"); } }
+            if(group){ group.classList.add("is-open"); var button = group.querySelector("[data-bl2-menu-toggle]"); if(button){ button.setAttribute("aria-expanded", "true"); } }
           }
           if(breadcrumb){ breadcrumb.textContent = "Base Local / " + text(label || "Resumen"); }
           try{ window.localStorage.setItem(storageKey, id); }catch(error){}
           closeMenu();
         }
 
-        Array.prototype.slice.call(root.querySelectorAll("[data-bl2-section-target]")).forEach(function(button){
-          button.addEventListener("click", function(){ activate(button.getAttribute("data-bl2-section-target"), button.getAttribute("data-bl2-section-label") || button.textContent); });
-        });
-        Array.prototype.slice.call(root.querySelectorAll("[data-bl2-menu-toggle]")).forEach(function(button){
-          button.addEventListener("click", function(){
-            var group = root.querySelector('[data-bl2-nav-group="' + button.getAttribute("data-bl2-menu-toggle") + '"]');
-            if(!group){ return; }
-            var open = !group.classList.contains("is-open");
-            group.classList.toggle("is-open", open);
-            button.setAttribute("aria-expanded", open ? "true" : "false");
-          });
-        });
-
+        Array.prototype.slice.call(root.querySelectorAll("[data-bl2-section-target]")).forEach(function(button){ button.addEventListener("click", function(){ activate(button.getAttribute("data-bl2-section-target"), button.getAttribute("data-bl2-section-label") || button.textContent); }); });
+        Array.prototype.slice.call(root.querySelectorAll("[data-bl2-menu-toggle]")).forEach(function(button){ button.addEventListener("click", function(){ var group = root.querySelector('[data-bl2-nav-group="' + button.getAttribute("data-bl2-menu-toggle") + '"]'); if(!group){ return; } var open = !group.classList.contains("is-open"); group.classList.toggle("is-open", open); button.setAttribute("aria-expanded", open ? "true" : "false"); }); });
         if(toggle){ toggle.addEventListener("click", function(){ var open = !document.body.classList.contains("bl2-sidebar-open"); document.body.classList.toggle("bl2-sidebar-open", open); toggle.setAttribute("aria-expanded", open ? "true" : "false"); }); }
         if(backdrop){ backdrop.addEventListener("click", closeMenu); }
         document.addEventListener("keydown", function(event){ if(event.key === "Escape"){ closeMenu(); } });
 
         var initial = "resumen";
         try{ initial = window.localStorage.getItem(storageKey) || "resumen"; }catch(error){}
-        var button = root.querySelector('[data-bl2-section-target="' + initial + '"]');
-        activate(initial, button ? button.getAttribute("data-bl2-section-label") : "Resumen");
+        var selectedButton = root.querySelector('[data-bl2-section-target="' + initial + '"]');
+        activate(initial, selectedButton ? selectedButton.getAttribute("data-bl2-section-label") : "Resumen");
       }
 
       function exists(src){
@@ -277,28 +210,33 @@
             script.async = false;
             script.setAttribute("data-bl2-loader-src", src);
             script.onload = function(){ resolve(true); };
-            script.onerror = function(){
-              if(sources.length){ next(); }
-              else if(required){ reject(new Error("No se pudo cargar: " + src)); }
-              else{ log("Script opcional no cargado: " + src, "warn"); resolve(false); }
-            };
+            script.onerror = function(){ if(sources.length){ next(); }else if(required){ reject(new Error("No se pudo cargar: " + src)); }else{ log("Script opcional no cargado: " + src, "warn"); resolve(false); } };
             document.body.appendChild(script);
           }
           next();
         });
       }
 
-      function loadSequence(items){
-        return items.reduce(function(chain, item){
-          return chain.then(function(){ return loadOne(item); });
-        }, Promise.resolve());
+      function loadSequence(items){ return items.reduce(function(chain, item){ return chain.then(function(){ return loadOne(item); }); }, Promise.resolve()); }
+
+      function registryNames(registry){
+        try{ return registry && typeof registry.list === "function" ? registry.list() : []; }
+        catch(error){ return []; }
       }
 
-      function missingFromRegistry(registry, expected){
-        var existing = [];
-        try{ existing = registry && typeof registry.list === "function" ? registry.list() : []; }catch(error){ existing = []; }
-        return expected.filter(function(name){ return existing.indexOf(name) < 0; });
+      function connectionNames(){
+        try{
+          if(!window.BDLocalConexiones){ return []; }
+          if(typeof window.BDLocalConexiones.list === "function"){ return window.BDLocalConexiones.list(); }
+          if(typeof window.BDLocalConexiones.status === "function"){
+            var status = window.BDLocalConexiones.status() || {};
+            return Array.isArray(status.connectors) ? status.connectors : [];
+          }
+        }catch(error){}
+        return [];
       }
+
+      function missingNames(existing, expected){ existing = Array.isArray(existing) ? existing : []; return expected.filter(function(name){ return existing.indexOf(name) < 0; }); }
 
       function verifyRuntime(){
         var failures = [];
@@ -309,28 +247,23 @@
         if(!window.BDLSyncV2){ failures.push("BDLSyncV2"); }
         if(!window.BDLDiagnostics){ failures.push("BDLDiagnostics"); }
 
-        var missingRules = missingFromRegistry(window.BDLRules, ["periodo.require","persona.normalize","matricula.normalize","requisitos.extract","notas.normalize","duplicados.merge","retirados.detect","sync.change","errors.collect","pipeline.import.rows","pipeline.sync.changes"]);
-        var missingRepos = missingFromRegistry(window.BDLRepositories, ["periodos","estudiantes","personas","matriculas","requisitos","notas","contactos","cambios","logs","backups"]);
-        var missingServices = missingFromRegistry(window.BDLServices, ["periodos","estudiantes","ficha","defensas","tabla","stats","reportes","coordi"]);
+        var rules = registryNames(window.BDLRules);
+        var repositories = registryNames(window.BDLRepositories);
+        var services = registryNames(window.BDLServices);
+        var missingRules = missingNames(rules, ["periodo.require","persona.normalize","matricula.normalize","requisitos.extract","notas.normalize","duplicados.merge","retirados.detect","sync.change","errors.collect","pipeline.import.rows","pipeline.sync.changes"]);
+        var missingRepositories = missingNames(repositories, ["periodos","estudiantes","personas","matriculas","requisitos","notas","contactos","cambios","logs","backups"]);
+        var missingServices = missingNames(services, ["periodos","estudiantes","ficha","defensas","tabla","stats","reportes","coordi"]);
         if(missingRules.length){ failures.push("reglas: " + missingRules.join(", ")); }
-        if(missingRepos.length){ failures.push("repositorios: " + missingRepos.join(", ")); }
+        if(missingRepositories.length){ failures.push("repositorios: " + missingRepositories.join(", ")); }
         if(missingServices.length){ failures.push("servicios: " + missingServices.join(", ")); }
 
-        var ready = window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function"
-          ? window.BDLocalConexiones.ready()
-          : Promise.resolve(null);
-
+        var ready = window.BDLocalConexiones && typeof window.BDLocalConexiones.ready === "function" ? window.BDLocalConexiones.ready() : Promise.resolve(null);
         return Promise.resolve(ready).then(function(){
-          var missingConnectors = missingFromRegistry(window.BDLocalConexiones, ["carga","tabla","ficha","stats","coordi","reportes","defensas","global"]);
+          var connectors = connectionNames();
+          var missingConnectors = missingNames(connectors, ["carga","tabla","ficha","stats","coordi","reportes","defensas","global"]);
           if(missingConnectors.length){ failures.push("conectores: " + missingConnectors.join(", ")); }
           if(failures.length){ throw new Error("Arranque incompleto: " + failures.join(" | ")); }
-          return {
-            ok:true,
-            rules:window.BDLRules.list(),
-            repositories:window.BDLRepositories.list(),
-            services:window.BDLServices.list(),
-            connectors:window.BDLocalConexiones.list ? window.BDLocalConexiones.list() : (window.BDLocalConexiones.status ? window.BDLocalConexiones.status().connectors : [])
-          };
+          return { ok:true, rules:rules, repositories:repositories, services:services, connectors:connectors };
         });
       }
 
