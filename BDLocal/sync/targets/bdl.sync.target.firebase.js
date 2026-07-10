@@ -8,12 +8,12 @@ Función o funciones:
 - Leer la versión completa más reciente desde Base Local.
 - Excluir Telegram y datos personales reservados del documento académico.
 - Rechazar documentos parciales y enviar máximo 25 cambios.
-- Comprobar la cuota manual antes de ejecutar el batch Firebase.
+- Validar identidad antes de formar el documento Firebase.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.6.0-academic-collection";
+  var VERSION = "0.6.1-identity-safe";
   var MAX_BATCH_SIZE = 25;
   var TELEGRAM_FIELDS = {
     telegram:true,
@@ -36,8 +36,11 @@ Función o funciones:
   function firebaseConfig(){ return window.BL2Config && window.BL2Config.firebase || {}; }
 
   function normalizeCedula(value){
-    var raw = text(value).replace(/[^0-9A-Za-z]/g,"");
-    return /^\d{9}$/.test(raw) ? "0" + raw : raw;
+    var rules = window.BDLRulesPersona;
+    if(rules && typeof rules.normalizeCedula === "function"){ return rules.normalizeCedula(value); }
+    var utils = window.BL2Config && window.BL2Config.utils;
+    if(utils && typeof utils.normalizeCedula === "function"){ return utils.normalizeCedula(value); }
+    return text(value).replace(/[^\dA-Za-z]/g,"").toUpperCase();
   }
 
   function normalizePeriod(value){
@@ -109,7 +112,7 @@ Función o funciones:
       var periodoId = periodOf(change,options);
       var cedula = cedulaOf(change);
       if(!periodoId || !cedula){
-        skipped.push({ id:rowId(change),reason:"Falta período o cédula." });
+        skipped.push({ id:rowId(change),reason:"Falta período o identificación." });
         return;
       }
       if(options && options.periodoId && normalizePeriod(options.periodoId) !== periodoId){
@@ -160,7 +163,7 @@ Función o funciones:
       id:id,
       firebaseDocumentId:id,
       cedula:cedula,
-      numeroIdentificacion:text(student.numeroIdentificacion || cedula),
+      numeroIdentificacion:text(student.numeroIdentificacion ? normalizeCedula(student.numeroIdentificacion) : cedula),
       Nombres:text(student.Nombres || nombres),
       nombres:text(student.nombres || nombres),
       periodoId:periodoId,
