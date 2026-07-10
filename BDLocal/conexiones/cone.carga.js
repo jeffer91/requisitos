@@ -4,15 +4,14 @@ Ruta o ubicación: /Requisitos/BDLocal/conexiones/cone.carga.js
 Función o funciones:
 - Conectar la pantalla Carga con BDLocal/BL2.
 - Guardar estudiantes exclusivamente en IndexedDB mediante BL2Core.
-- Reconstruir la caché compartida después de una carga real.
+- Reconstruir la caché compartida después de cargas y escrituras del núcleo.
 - Mantener snapshots de compatibilidad para pantallas antiguas.
-- Avisar a todas las pantallas abiertas, incluidas las cargadas en iframe.
-- Evitar que una pantalla vuelva a pintar una lista anterior de estudiantes.
+- Avisar a las pantallas abiertas y evitar refrescos consecutivos.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-screen-flow";
+  var VERSION = "1.2.0-core-write-flow";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
   var LEGACY_KEYS = ["REQ_BDLOCAL_LEGACY_SNAPSHOT_V1","REQ_EXCEL_LOCAL_V1:snapshot"];
@@ -23,6 +22,8 @@ Función o funciones:
     "requisitos:bdlocal-cambio-disponible",
     "bdlocal:screen-data-updated"
   ];
+  var lastRefreshAt = 0;
+  var coreWriteTimer = null;
 
   if(!HUB || !U){ return; }
 
@@ -50,35 +51,26 @@ Función o funciones:
   function dispatchTo(target,name,detail){
     try{
       if(target && typeof target.dispatchEvent === "function"){
-        target.dispatchEvent(new CustomEvent(name,{ detail:detail || {} }));
+        var EventCtor = target.CustomEvent || window.CustomEvent;
+        target.dispatchEvent(new EventCtor(name,{ detail:detail || {} }));
       }
     }catch(error){}
   }
 
   function broadcast(name,detail){
     dispatchTo(window,name,detail);
-
     try{
       if(window.parent && window.parent !== window){
         dispatchTo(window.parent,name,detail);
         var frames = window.parent.document && window.parent.document.querySelectorAll
           ? window.parent.document.querySelectorAll("iframe")
           : [];
-        Array.prototype.forEach.call(frames || [],function(frame){
-          try{ dispatchTo(frame.contentWindow,name,detail); }catch(error){}
-        });
+        Array.prototype.forEach.call(frames || [],function(frame){ dispatchTo(frame.contentWindow,name,detail); });
       }
+    }catch(error){}
+    try{
+      if(window.top && window.top !== window && window.top !== window.parent){ dispatchTo(window.top,name,detail); }
     }catch(error2){}
-
-    try{
-      if(window.top && window.top !== window && window.top !== window.parent){
-        dispatchTo(window.top,name,detail);
-      }
-    }catch(error3){}
-
-    try{
-      if(window.opener && !window.opener.closed){ dispatchTo(window.opener,name,detail); }
-    }catch(error4){}
   }
 
   function notifyScreens(cache,options){
@@ -86,7 +78,6 @@ Función o funciones:
     options = options || {};
     var legacy = compatibilityPayload(cache,options);
     var raw = "";
-
     try{ raw = JSON.stringify(legacy); }catch(error){ raw = ""; }
     if(raw){
       LEGACY_KEYS.forEach(function(key){
@@ -104,7 +95,6 @@ Función o funciones:
       requirements:legacy.requirements.length,
       updatedAt:legacy.meta.updatedAt
     };
-
     EVENT_NAMES.forEach(function(name){ broadcast(name,detail); });
     return cache;
   }
@@ -112,23 +102,16 @@ Función o funciones:
   function installRefreshGuard(){
     if(HUB.__screenFlowRefreshInstalled || typeof HUB.refreshCache !== "function"){ return; }
     var original = HUB.refreshCache.bind(HUB);
-
     HUB.refreshCache = function(options){
       options = Object.assign({},options || {});
       var explicitMode = options.full === true || options.light === true || options.periodsOnly === true || !!options.mode;
-
-      /*
-       * Una solicitud normal de una pantalla debe leer estudiantes reales.
-       * El modo liviano queda reservado para guardar/actualizar solo períodos.
-       */
       if(!explicitMode){ options.full = true; }
       if(options.periodoId && options.light !== true && options.mode !== "light"){ options.full = true; }
-
       return original(options).then(function(cache){
+        lastRefreshAt = Date.now();
         return notifyScreens(cache || U.readCache(),options);
       });
     };
-
     HUB.__screenFlowRefreshInstalled = true;
     HUB.__screenFlowRefreshVersion = VERSION;
   }
@@ -138,7 +121,6 @@ Función o funciones:
   function safeRefreshCache(options){
     options = Object.assign({ source:"cone.carga" },options || {});
     if(!HUB || typeof HUB.refreshCache !== "function"){ return Promise.resolve(null); }
-
     return HUB.refreshCache(options).catch(function(error){
       U.emit("bdlocal:con-carga-cache-warning",{
         ok:false,
@@ -148,6 +130,25 @@ Función o funciones:
       return null;
     });
   }
+
+  function scheduleCoreWriteRefresh(event){
+    if(Date.now() - lastRefreshAt < 700){ return; }
+    if(coreWriteTimer){ window.clearTimeout(coreWriteTimer); }
+    coreWriteTimer = window.setTimeout(function(){
+      coreWriteTimer = null;
+      if(Date.now() - lastRefreshAt < 700){ return; }
+      var detail = event && event.detail || {};
+      safeRefreshCache({
+        source:"cone.carga.core-write",
+        periodoId:detail.periodoId || "",
+        full:true,
+        immediate:true
+      });
+    },420);
+  }
+
+  window.addEventListener("bl2:students-saved",scheduleCoreWriteRefresh);
+  window.addEventListener("bl2:student-updated",scheduleCoreWriteRefresh);
 
   function getPeriods(){
     return ready().then(function(){
@@ -159,15 +160,10 @@ Función o funciones:
   function savePeriod(period){
     period = U.normalizePeriod(period);
     if(!period){ return Promise.reject(new Error("Período inválido.")); }
-
     return ready().then(function(){
       if(core() && typeof core().savePeriod === "function"){
         return core().savePeriod(period).then(function(saved){
-          return safeRefreshCache({
-            source:"cone.carga.savePeriod",
-            light:true,
-            immediate:true
-          }).then(function(){ return saved || period; });
+          return safeRefreshCache({ source:"cone.carga.savePeriod",light:true,immediate:true }).then(function(){ return saved || period; });
         });
       }
       return period;
@@ -178,21 +174,13 @@ Función o funciones:
     periodoId = U.canonicalPeriodId(periodoId);
     periodoLabel = U.text(periodoLabel || periodoId);
     if(!periodoId){ return Promise.reject(new Error("Seleccione un período válido.")); }
-
     try{ window.localStorage.setItem("carga.periodoSeleccionado",periodoId); }catch(error){}
     try{ window.localStorage.setItem("carga.periodoSeleccionadoLabel",periodoLabel); }catch(error2){}
-
     return ready().then(function(){
-      if(core() && typeof core().setActivePeriod === "function"){
-        return core().setActivePeriod(periodoId,periodoLabel);
-      }
+      if(core() && typeof core().setActivePeriod === "function"){ return core().setActivePeriod(periodoId,periodoLabel); }
       return {
-        id:periodoId,
-        label:periodoLabel,
-        periodoId:periodoId,
-        periodoLabel:periodoLabel,
-        periodoCanonicoId:periodoId,
-        periodoCanonicoLabel:periodoLabel
+        id:periodoId,label:periodoLabel,periodoId:periodoId,periodoLabel:periodoLabel,
+        periodoCanonicoId:periodoId,periodoCanonicoLabel:periodoLabel
       };
     });
   }
@@ -216,26 +204,11 @@ Función o funciones:
     rows = Array.isArray(rows) ? rows : [];
     options = normalizeOptions(options || {});
     if(!options.periodoId){ return Promise.reject(new Error("No hay período seleccionado para guardar.")); }
-
     return ready().then(function(){
-      if(!core() || typeof core().saveStudents !== "function"){
-        throw new Error("BL2Core.saveStudents no está disponible para Carga.");
-      }
-
-      U.emit("bdlocal:con-carga-saving",{
-        ok:true,
-        periodoId:options.periodoId,
-        total:rows.length,
-        source:options.source
-      });
-
+      if(!core() || typeof core().saveStudents !== "function"){ throw new Error("BL2Core.saveStudents no está disponible para Carga."); }
+      U.emit("bdlocal:con-carga-saving",{ ok:true,periodoId:options.periodoId,total:rows.length,source:options.source });
       return core().saveStudents(rows,options).then(function(result){
-        return safeRefreshCache({
-          source:"cone.carga.saveStudents",
-          periodoId:options.periodoId,
-          full:true,
-          immediate:true
-        }).then(function(){
+        return safeRefreshCache({ source:"cone.carga.saveStudents",periodoId:options.periodoId,full:true,immediate:true }).then(function(){
           U.emit("bdlocal:con-carga-saved",{
             ok:result && result.ok !== false,
             periodoId:options.periodoId,
@@ -251,9 +224,7 @@ Función o funciones:
   }
 
   function guardarEstudiantes(rows,periodoInfo,options){
-    periodoInfo = periodoInfo || {};
-    options = Object.assign({},options || {},periodoInfo || {});
-    return saveStudents(rows,options);
+    return saveStudents(rows,Object.assign({},options || {},periodoInfo || {}));
   }
 
   function getSummary(periodoId){
@@ -284,15 +255,9 @@ Función o funciones:
   HUB.register("carga",api);
   window.BDLocalCarga = api;
   window.ConCarga = api;
-
   if(!window.BDLRepoEstudiantes){
-    window.BDLRepoEstudiantes = {
-      guardarMuchos:function(rows,periodoInfo,options){
-        return guardarEstudiantes(rows,periodoInfo,options);
-      }
-    };
+    window.BDLRepoEstudiantes = { guardarMuchos:function(rows,periodoInfo,options){ return guardarEstudiantes(rows,periodoInfo,options); } };
   }
 
-  /* Primera reconstrucción completa: las pantallas no arrancan con una lista vacía o antigua. */
   safeRefreshCache({ source:"cone.carga.bootstrap",full:true,immediate:true });
 })(window);
