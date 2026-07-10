@@ -10,6 +10,7 @@
     "start:local": "electron .",
     "test": "node scripts/verify-bdlocal.js && node scripts/audit-repository.js",
     "test:bdlocal": "node scripts/verify-bdlocal.js",
+    "test:electron": "electron electron/smoke-main.js",
     "audit:repo": "node scripts/audit-repository.js",
     "verify": "npm test"
   },
