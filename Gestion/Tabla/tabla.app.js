@@ -1,14 +1,12 @@
 /* =========================================================
 Nombre completo: tabla.app.js
 Ruta o ubicación: /Requisitos/Gestion/Tabla/tabla.app.js
-Función:
-- Control visual de la pantalla Tabla.
-- Maneja filtros, chips, paginación, KPIs y render de filas.
-- Versión corregida para reducir cuelgues al ingresar:
-  1) evita renders repetidos por eventos de BDLocal,
-  2) evita reconstruir la tabla si los datos no cambiaron,
-  3) usa una paginación más liviana,
-  4) coordina mejor TablaActions después de pintar.
+Función o funciones:
+- Controlar filtros, chips, paginación, KPIs y filas de Tabla.
+- Esperar que los adaptadores de BDLocal estén listos antes del primer render.
+- Consultar IndexedDB al presionar Actualizar.
+- Reaccionar a cargas y ediciones realizadas en otras pantallas.
+- Evitar renders paralelos y reconstrucciones visuales innecesarias.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -40,6 +38,7 @@ Función:
     careerOptions:[],
     rendering:false,
     pendingRender:false,
+    refreshing:false,
     booted:false,
     lastError:""
   };
@@ -50,57 +49,37 @@ Función:
 
   function status(message,cls){
     var box=el("tabla-status");
-    if(box){
-      box.textContent=message;
-      box.className="tabla-status "+(cls||"");
-    }
+    if(box){box.textContent=message;box.className="tabla-status "+(cls||"");}
   }
 
-  function setText(id,value){
-    var node=el(id);
-    if(node)node.textContent=value;
-  }
+  function setText(id,value){var node=el(id);if(node)node.textContent=value;}
+  function option(value,label,selected){return '<option value="'+esc(value)+'" '+(selected?'selected':'')+'>'+esc(label)+'</option>';}
+  function source(){return window.TablaCore&&TablaCore.source?TablaCore.source():"Base Local";}
 
-  function option(value,label,selected){
-    return '<option value="'+esc(value)+'" '+(selected?'selected':'')+'>'+esc(label)+'</option>';
-  }
-
-  function source(){
-    return window.TablaCore&&TablaCore.source?TablaCore.source():"Base Local";
+  function connector(){
+    return window.ConTabla||window.BDLocalTabla||(
+      window.BDLocalConexiones&&typeof window.BDLocalConexiones.get==="function"
+        ? window.BDLocalConexiones.get("tabla")
+        : null
+    );
   }
 
   function pid(item){
     item=item||{};
-    return typeof item!=="object"
-      ? text(item)
-      : text(item.id||item.periodoId||item.periodId||item.value||item.key||item.label||item.periodoLabel||item.nombre||item.name);
+    return typeof item!=="object"?text(item):text(item.id||item.periodoId||item.periodId||item.value||item.key||item.label||item.periodoLabel||item.nombre||item.name);
   }
 
   function plabel(item){
     item=item||{};
-    return typeof item!=="object"
-      ? text(item)
-      : text(item.label||item.periodoLabel||item.nombre||item.name||item.descripcion||item.id||item.periodoId||item.periodId||item.value||item.key);
+    return typeof item!=="object"?text(item):text(item.label||item.periodoLabel||item.nombre||item.name||item.descripcion||item.id||item.periodoId||item.periodId||item.value||item.key);
   }
 
-  function listKey(items){
-    return (items||[]).map(function(item){
-      return pid(item)+"::"+plabel(item);
-    }).join("||");
-  }
+  function listKey(items){return (items||[]).map(function(item){return pid(item)+"::"+plabel(item);}).join("||");}
 
   function filtersKey(){
     return [
-      source(),
-      state.periodId,
-      state.division,
-      state.matricula,
-      state.career,
-      state.status,
-      state.search,
-      state.page,
-      state.pageSize,
-      state.requirements.join(",")
+      source(),state.periodId,state.division,state.matricula,state.career,
+      state.status,state.search,state.page,state.pageSize,state.requirements.join(",")
     ].join("|");
   }
 
@@ -113,7 +92,6 @@ Función:
   function loadActions(){
     if(window.TablaActions)return;
     if(document.querySelector('script[src*="tabla.actions.js"],script[data-tabla-actions="tabla.actions.js"],script[data-tabla-lazy="tabla.actions.js"]'))return;
-
     var script=document.createElement("script");
     script.src="tabla.actions.js";
     script.async=false;
@@ -123,55 +101,36 @@ Función:
 
   function fillPeriods(){
     var select=el("tabla-periodo");
-    var periods;
-    var key;
-
     if(!select||!window.TablaCore||!TablaCore.periods)return;
-
-    periods=TablaCore.periods()||[];
-    key=source()+"|"+listKey(periods);
-
+    var periods=TablaCore.periods()||[];
+    var key=source()+"|"+listKey(periods);
     if(state.periodKey!==key){
       select.innerHTML=option("","Todos",!state.periodId)+periods.map(function(item){
-        var id=pid(item);
-        return option(id,plabel(item)||id,state.periodId===id);
+        var id=pid(item);return option(id,plabel(item)||id,state.periodId===id);
       }).join("");
-
       state.periodKey=key;
     }
-
     if(select.value!==state.periodId)select.value=state.periodId;
   }
 
   function fillDeps(){
     var division=el("tabla-division");
     var career=el("tabla-carrera");
-    var opts;
     var key=[source(),state.periodId,state.matricula,state.division].join("|");
-
     if(state.depKey!==key){
-      opts=window.TablaCore&&TablaCore.options
+      var opts=window.TablaCore&&TablaCore.options
         ? TablaCore.options({periodId:state.periodId,matricula:state.matricula,division:state.division})
         : {divisions:[],careers:[]};
-
       state.divisionOptions=opts.divisions||[];
       state.careerOptions=opts.careers||[];
       state.depKey=key;
     }
-
     if(division){
-      division.innerHTML=option("","Todas",!state.division)+state.divisionOptions.map(function(value){
-        return option(value,value,state.division===value);
-      }).join("");
-
+      division.innerHTML=option("","Todas",!state.division)+state.divisionOptions.map(function(value){return option(value,value,state.division===value);}).join("");
       if(division.value!==state.division)division.value=state.division;
     }
-
     if(career){
-      career.innerHTML=option("","Todas",!state.career)+state.careerOptions.map(function(value){
-        return option(value,value,state.career===value);
-      }).join("");
-
+      career.innerHTML=option("","Todas",!state.career)+state.careerOptions.map(function(value){return option(value,value,state.career===value);}).join("");
       if(career.value!==state.career)career.value=state.career;
     }
   }
@@ -179,11 +138,9 @@ Función:
   function chips(){
     var wrap=el("tabla-req-chips");
     if(!wrap)return;
-
     Array.prototype.forEach.call(wrap.querySelectorAll("[data-req-filter]"),function(button){
       var key=button.getAttribute("data-req-filter");
       var active=state.requirements.indexOf(key)>=0;
-
       button.classList.toggle("is-active",active);
       button.setAttribute("aria-pressed",active?"true":"false");
     });
@@ -191,66 +148,39 @@ Función:
 
   function request(reset,delay){
     if(reset)state.page=1;
-
     if(state.timer)clearTimeout(state.timer);
+    state.timer=setTimeout(function(){state.timer=null;render();},typeof delay==="number"?delay:RENDER_DELAY);
+  }
 
-    state.timer=setTimeout(function(){
-      state.timer=null;
-      render();
-    },typeof delay==="number"?delay:RENDER_DELAY);
+  function clearVisualCaches(){
+    if(window.TablaCore&&TablaCore.clearCache)TablaCore.clearCache();
+    state.periodKey="";
+    state.depKey="";
+    state.tableKey="";
   }
 
   function requestFromEvent(){
     if(state.eventTimer)clearTimeout(state.eventTimer);
-
     state.eventTimer=setTimeout(function(){
       state.eventTimer=null;
-
-      if(window.TablaCore&&TablaCore.clearCache){
-        TablaCore.clearCache();
-      }
-
-      state.periodKey="";
-      state.depKey="";
-      state.tableKey="";
+      clearVisualCaches();
       request(false,40);
     },EVENT_DELAY);
   }
 
   function renderTable(rows){
     var wrap=el("tabla-table-wrap");
-    var key;
-    var html;
-
     if(!wrap)return;
-
     if(!rows.length){
-      key="empty";
-      if(state.tableKey!==key){
-        wrap.innerHTML='<div class="empty">Sin datos.</div>';
-        state.tableKey=key;
-      }
+      if(state.tableKey!=="empty"){wrap.innerHTML='<div class="empty">Sin datos.</div>';state.tableKey="empty";}
       return;
     }
-
-    key=filtersKey()+"::"+rowsKey(rows);
-
-    if(state.tableKey===key){
-      if(window.TablaActions&&TablaActions.enhance)TablaActions.enhance(80);
-      return;
-    }
-
-    html='<table><thead><tr>'+[
-      '<th>Cédula</th>',
-      '<th>Nombre</th>',
-      '<th>Carrera</th>',
-      '<th>Msg</th>',
-      '<th>Último</th>',
-      '<th>WA</th>',
-      '<th>TG</th>',
-      '<th>Mail</th>'
+    var key=filtersKey()+"::"+rowsKey(rows);
+    if(state.tableKey===key){if(window.TablaActions&&TablaActions.enhance)TablaActions.enhance(80);return;}
+    var html='<table><thead><tr>'+[
+      '<th>Cédula</th>','<th>Nombre</th>','<th>Carrera</th>','<th>Msg</th>',
+      '<th>Último</th>','<th>WA</th>','<th>TG</th>','<th>Mail</th>'
     ].join("")+'</tr></thead><tbody>';
-
     html+=rows.map(function(row){
       return '<tr data-cedula="'+esc(row._cedula)+'">'+
         '<td class="nowrap">'+esc(row._cedula)+'</td>'+
@@ -263,27 +193,17 @@ Función:
         '<td><button class="tabla-channel action-mail" type="button" disabled>Mail <small>0</small></button></td>'+
       '</tr>';
     }).join("");
-
     wrap.innerHTML=html+'</tbody></table>';
     state.tableKey=key;
-
-    if(window.TablaActions&&TablaActions.enhance){
-      TablaActions.enhance(60);
-    }
+    if(window.TablaActions&&TablaActions.enhance)TablaActions.enhance(60);
   }
 
   function pageButtons(pagination){
     state.pagination=pagination||{page:1,pages:1,total:0,label:"0 registros",hasPrev:false,hasNext:false};
-
     setText("tabla-count-text",state.pagination.total+" registro(s) filtrados");
     setText("tabla-page-text","Página "+state.pagination.page+" de "+state.pagination.pages);
     setText("tabla-page-label",state.pagination.label);
-
-    var first=el("tabla-page-first");
-    var prev=el("tabla-page-prev");
-    var next=el("tabla-page-next");
-    var last=el("tabla-page-last");
-
+    var first=el("tabla-page-first"),prev=el("tabla-page-prev"),next=el("tabla-page-next"),last=el("tabla-page-last");
     if(first)first.disabled=!state.pagination.hasPrev;
     if(prev)prev.disabled=!state.pagination.hasPrev;
     if(next)next.disabled=!state.pagination.hasNext;
@@ -292,7 +212,6 @@ Función:
 
   function applySummary(summary){
     summary=summary||{};
-
     setText("tabla-kpi-total",summary.total||0);
     setText("tabla-kpi-ok",summary.cumple||0);
     setText("tabla-kpi-pend",summary.pendiente||0);
@@ -301,52 +220,25 @@ Función:
   }
 
   function render(){
-    var result;
-    var summary;
     var started=Date.now();
-
-    if(state.rendering){
-      state.pendingRender=true;
-      return;
-    }
-
+    if(state.rendering){state.pendingRender=true;return;}
     state.rendering=true;
     state.pendingRender=false;
-
     try{
-      if(!window.TablaCore||!TablaCore.page){
-        throw new Error("TablaCore no disponible.");
-      }
-
+      if(!window.TablaCore||!TablaCore.page)throw new Error("TablaCore no disponible.");
       status("Cargando tabla...","");
-
-      fillPeriods();
-      fillDeps();
-      chips();
-
-      result=TablaCore.page({
-        periodId:state.periodId,
-        division:state.division,
-        matricula:state.matricula,
-        career:state.career,
-        status:state.status,
-        search:state.search,
-        page:state.page,
-        pageSize:state.pageSize,
-        requirements:state.requirements
+      fillPeriods();fillDeps();chips();
+      var result=TablaCore.page({
+        periodId:state.periodId,division:state.division,matricula:state.matricula,
+        career:state.career,status:state.status,search:state.search,page:state.page,
+        pageSize:state.pageSize,requirements:state.requirements
       });
-
       state.rows=result.rows||[];
       state.allRows=result.allRows||[];
-
-      summary=result.summary||(
-        window.TablaCore&&TablaCore.summary?TablaCore.summary(state.allRows):{}
-      );
-
+      var summary=result.summary||(window.TablaCore&&TablaCore.summary?TablaCore.summary(state.allRows):{});
       applySummary(summary);
       pageButtons(result.pagination);
       renderTable(state.rows);
-
       status("Tabla cargada por "+(result.source||source())+" · "+(Date.now()-started)+" ms.","ok");
       state.lastError="";
     }catch(error){
@@ -355,181 +247,95 @@ Función:
       status(state.lastError,"warn");
     }finally{
       state.rendering=false;
-
-      if(state.pendingRender){
-        state.pendingRender=false;
-        request(false,120);
-      }
+      if(state.pendingRender){state.pendingRender=false;request(false,120);}
     }
   }
 
-  function resetDeps(){
-    state.division="";
-    state.career="";
-    state.page=1;
-    state.depKey="";
-    state.tableKey="";
+  function refreshFromBDLocal(){
+    if(state.refreshing)return Promise.resolve(null);
+    state.refreshing=true;
+    status("Actualizando Tabla desde Base Local...","");
+    var api=connector();
+    var task=api&&typeof api.refresh==="function"
+      ? api.refresh({source:"TablaApp.refresh",full:true,immediate:true})
+      : window.BDLocalConexiones&&typeof window.BDLocalConexiones.refreshCache==="function"
+        ? window.BDLocalConexiones.refreshCache({source:"TablaApp.refresh",full:true,immediate:true})
+        : Promise.resolve(null);
+    return Promise.resolve(task).catch(function(error){
+      console.warn("[TablaApp refresh]",error);
+      status(error&&error.message?error.message:String(error),"warn");
+      return null;
+    }).then(function(){
+      clearVisualCaches();
+      request(false,20);
+    }).finally(function(){state.refreshing=false;});
   }
 
-  function bind(id,eventName,handler){
-    var node=el(id);
-    if(node)node.addEventListener(eventName,handler);
-  }
+  function resetDeps(){state.division="";state.career="";state.page=1;state.depKey="";state.tableKey="";}
+  function bind(id,eventName,handler){var node=el(id);if(node)node.addEventListener(eventName,handler);}
 
   function bindFilters(){
-    bind("tabla-periodo","change",function(event){
-      state.periodId=event.target.value;
-      resetDeps();
-      request(true,40);
-    });
-
-    bind("tabla-division","change",function(event){
-      state.division=event.target.value;
-      state.career="";
-      state.page=1;
-      state.depKey="";
-      state.tableKey="";
-      request(false,40);
-    });
-
-    bind("tabla-carrera","change",function(event){
-      state.career=event.target.value;
-      state.page=1;
-      state.tableKey="";
-      request(false,40);
-    });
-
-    bind("tabla-search","input",function(event){
-      state.search=event.target.value;
-      state.page=1;
-      state.tableKey="";
-      request(false,SEARCH_DELAY);
-    });
-
-    bind("tabla-refresh","click",function(){
-      if(window.TablaCore&&TablaCore.clearCache){
-        TablaCore.clearCache();
-      }
-
-      state.periodKey="";
-      state.depKey="";
-      state.tableKey="";
-      request(false,20);
-    });
+    bind("tabla-periodo","change",function(event){state.periodId=event.target.value;resetDeps();request(true,40);});
+    bind("tabla-division","change",function(event){state.division=event.target.value;state.career="";state.page=1;state.depKey="";state.tableKey="";request(false,40);});
+    bind("tabla-carrera","change",function(event){state.career=event.target.value;state.page=1;state.tableKey="";request(false,40);});
+    bind("tabla-search","input",function(event){state.search=event.target.value;state.page=1;state.tableKey="";request(false,SEARCH_DELAY);});
+    bind("tabla-refresh","click",refreshFromBDLocal);
   }
 
   function bindPagination(){
-    bind("tabla-page-first","click",function(){
-      if(state.page===1)return;
-      state.page=1;
-      state.tableKey="";
-      request(false,20);
-    });
-
-    bind("tabla-page-prev","click",function(){
-      var page=Math.max(1,state.page-1);
-      if(page===state.page)return;
-      state.page=page;
-      state.tableKey="";
-      request(false,20);
-    });
-
-    bind("tabla-page-next","click",function(){
-      var max=state.pagination?state.pagination.pages:state.page+1;
-      var page=Math.min(max,state.page+1);
-      if(page===state.page)return;
-      state.page=page;
-      state.tableKey="";
-      request(false,20);
-    });
-
-    bind("tabla-page-last","click",function(){
-      var page=state.pagination?state.pagination.pages:state.page;
-      if(page===state.page)return;
-      state.page=page;
-      state.tableKey="";
-      request(false,20);
-    });
+    bind("tabla-page-first","click",function(){if(state.page===1)return;state.page=1;state.tableKey="";request(false,20);});
+    bind("tabla-page-prev","click",function(){var page=Math.max(1,state.page-1);if(page===state.page)return;state.page=page;state.tableKey="";request(false,20);});
+    bind("tabla-page-next","click",function(){var max=state.pagination?state.pagination.pages:state.page+1;var page=Math.min(max,state.page+1);if(page===state.page)return;state.page=page;state.tableKey="";request(false,20);});
+    bind("tabla-page-last","click",function(){var page=state.pagination?state.pagination.pages:state.page;if(page===state.page)return;state.page=page;state.tableKey="";request(false,20);});
   }
 
   function bindChips(){
     var box=el("tabla-req-chips");
-
     if(!box)return;
-
     box.addEventListener("click",function(event){
       var button=event.target&&event.target.closest?event.target.closest("[data-req-filter]"):null;
-      var key;
-      var index;
-
       if(!button)return;
-
-      key=button.getAttribute("data-req-filter");
-      index=state.requirements.indexOf(key);
-
+      var key=button.getAttribute("data-req-filter");
+      var index=state.requirements.indexOf(key);
       if(key==="falta"){
         state.requirements=index>=0?[]:["falta"];
       }else{
         state.requirements=state.requirements.filter(function(value){return value!=="falta";});
         index=state.requirements.indexOf(key);
-
-        if(index>=0){
-          state.requirements.splice(index,1);
-        }else{
-          state.requirements.push(key);
-        }
+        if(index>=0)state.requirements.splice(index,1);else state.requirements.push(key);
       }
-
-      state.page=1;
-      state.tableKey="";
-      request(false,40);
+      state.page=1;state.tableKey="";request(false,40);
     });
   }
 
   function bindBaseEvents(){
-    window.addEventListener("bdlocal:legacy-ready",requestFromEvent);
-    window.addEventListener("bdlocal:legacy-snapshot",requestFromEvent);
-    window.addEventListener("requisitos:bl:snapshot-changed",requestFromEvent);
+    ["bdlocal:legacy-ready","bdlocal:legacy-snapshot","requisitos:bl:snapshot-changed","bdlocal:screen-data-updated"].forEach(function(name){window.addEventListener(name,requestFromEvent);});
+    window.addEventListener("storage",function(event){
+      if(event&&["REQ_BDLOCAL_CONEXIONES_CACHE_V1","REQ_BDLOCAL_LEGACY_SNAPSHOT_V1","REQ_EXCEL_LOCAL_V1:snapshot"].indexOf(event.key)>=0)requestFromEvent();
+    });
+  }
+
+  function connectionReady(){
+    if(window.BDLScreenDepsReady&&typeof window.BDLScreenDepsReady.then==="function")return window.BDLScreenDepsReady.catch(function(){return null;});
+    if(window.BDLocalScreenDeps&&typeof window.BDLocalScreenDeps.ready==="function")return window.BDLocalScreenDeps.ready().catch(function(){return null;});
+    return Promise.resolve(null);
   }
 
   function boot(){
     if(state.booted)return;
     state.booted=true;
-
-    loadActions();
-    bindFilters();
-    bindPagination();
-    bindChips();
-    bindBaseEvents();
-
-    request(false,120);
+    loadActions();bindFilters();bindPagination();bindChips();bindBaseEvents();
+    status("Conectando Tabla con Base Local...","");
+    connectionReady().then(refreshFromBDLocal);
   }
 
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",boot);
-  }else{
-    boot();
-  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 
   window.TablaApp={
     render:render,
     request:request,
-    refresh:function(){
-      if(window.TablaCore&&TablaCore.clearCache)TablaCore.clearCache();
-      state.periodKey="";
-      state.depKey="";
-      state.tableKey="";
-      request(false,20);
-    },
-    getState:function(){
-      return Object.assign({},state,{rows:state.rows.slice(),allRows:state.allRows.slice()});
-    },
-    setPageSize:function(size){
-      size=Number(size)||DEFAULT_PAGE_SIZE;
-      state.pageSize=Math.max(25,Math.min(300,size));
-      state.page=1;
-      state.tableKey="";
-      request(false,30);
-    }
+    refresh:refreshFromBDLocal,
+    getState:function(){return Object.assign({},state,{rows:state.rows.slice(),allRows:state.allRows.slice()});},
+    setPageSize:function(size){size=Number(size)||DEFAULT_PAGE_SIZE;state.pageSize=Math.max(25,Math.min(300,size));state.page=1;state.tableKey="";request(false,30);}
   };
 })(window,document);
