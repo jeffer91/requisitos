@@ -6,12 +6,12 @@ Función o funciones:
 - Mantener lectura y escritura compatible con contactos legacy.
 - Consolidar telegramUser y telegramChatId sin borrar valores válidos.
 - Propagar Telegram a todas las matrículas locales sin crear cola externa.
-- Registrar revisiones vacías sin eliminar Telegram existente.
+- Separar telegramCheckedAt de telegramUpdatedAt.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.2.0-v2-telegram-safe-review";
+  var VERSION = "1.2.1-v2-telegram-safe-review";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -111,11 +111,12 @@ Función o funciones:
     data = data || {};options = options || {};
     var user=normalizeUser(data.telegramUser || data._telegramUser || data.usuarioTelegram || "");
     var chatId=normalizeChatId(data.telegramChatId || data._telegramChatId || data.chatId || "");
-    var timestamp=text(data.telegramUpdatedAt || options.telegramUpdatedAt || "") || now();
+    var timestamp=text(data.telegramUpdatedAt || options.telegramUpdatedAt || "");
+    if(!timestamp && (user || chatId)){ timestamp=now(); }
     return {
       telegramUser:user,telegramChatId:chatId,_telegramUser:user,_telegramChatId:chatId,
       telegramUpdatedAt:timestamp,telegramSource:text(data.telegramSource || options.source || "local"),
-      telegramCheckedAt:text(data.telegramCheckedAt || options.checkedAt || timestamp),
+      telegramCheckedAt:text(data.telegramCheckedAt || options.checkedAt || now()),
       telegramVerifiedAt:text(data.telegramVerifiedAt || options.verifiedAt || "")
     };
   }
@@ -148,14 +149,8 @@ Función o funciones:
       telegramCheckedAt:patch.telegramCheckedAt,
       telegramVerifiedAt:patch.telegramVerifiedAt
     };
-    if(text(patch.telegramUser)){
-      output.telegramUser=patch.telegramUser;
-      output._telegramUser=patch.telegramUser;
-    }
-    if(text(patch.telegramChatId)){
-      output.telegramChatId=patch.telegramChatId;
-      output._telegramChatId=patch.telegramChatId;
-    }
+    if(text(patch.telegramUser)){output.telegramUser=patch.telegramUser;output._telegramUser=patch.telegramUser;}
+    if(text(patch.telegramChatId)){output.telegramChatId=patch.telegramChatId;output._telegramChatId=patch.telegramChatId;}
     output.updatedAt=row.updatedAt || now();
     return mergeNonEmpty(row,output);
   }
