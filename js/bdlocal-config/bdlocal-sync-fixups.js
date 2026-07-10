@@ -6,12 +6,12 @@ Función o funciones:
 - Redirigir Google, Firebase y Supabase únicamente a BDLSyncV2.
 - Impedir cargas completas paralelas fuera de cambios_pendientes.
 - Reemplazar la ejecución individual de la interfaz por la puerta segura.
-- No usar intervalos, no registrar sincronización automática y no subir al iniciar.
+- Instalarse después de que todas las guardias hayan terminado de cargar.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-single-sync-gate";
+  var VERSION = "3.0.1-single-sync-gate";
   var MAX_BATCH_SIZE = 25;
   var installed = false;
 
@@ -47,9 +47,7 @@ Función o funciones:
     target = text(target).toLowerCase();
     options = Object.assign({},options || {});
     if(options.manual !== true){ return blocked(target,"Solicitud automática bloqueada. La sincronización es exclusivamente manual."); }
-    if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){
-      return Promise.reject(new Error("BDLSyncV2 no está disponible."));
-    }
+    if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){ return Promise.reject(new Error("BDLSyncV2 no está disponible.")); }
 
     var periodPromise = text(options.periodoId)
       ? Promise.resolve({ id:text(options.periodoId),label:text(options.periodoLabel || options.periodoId) })
@@ -57,6 +55,7 @@ Función o funciones:
 
     return periodPromise.then(function(period){
       if(!period || !period.id){ throw new Error("Seleccione un período antes de sincronizar."); }
+      var limit = safeBatch(options.limit || options.batchSize);
       return window.BDLSyncV2.request({
         manual:true,
         automatic:false,
@@ -68,8 +67,8 @@ Función o funciones:
         tabla:text(options.tabla),
         forceRetry:options.forceRetry === true,
         ignoreRetry:options.ignoreRetry === true || options.forceRetry === true,
-        limit:safeBatch(options.limit || options.batchSize),
-        batchSize:safeBatch(options.limit || options.batchSize)
+        limit:limit,
+        batchSize:limit
       });
     });
   }
@@ -87,17 +86,14 @@ Función o funciones:
     return selectedPeriod().then(function(period){
       if(!period){ throw new Error("Seleccione un período antes de sincronizar."); }
       return openCount(target,period.id).then(function(total){
-        if(!total && options.forceRetry !== true){
-          return { ok:true,skipped:true,target:target,message:"No existen pendientes para " + target + " en el período activo." };
-        }
+        if(!total && options.forceRetry !== true){ return { ok:true,skipped:true,target:target,message:"No existen pendientes para " + target + " en el período activo." }; }
         var limit = safeBatch(options.limit || options.batchSize);
         if(options.confirm !== false){
           var approved = window.confirm(
-            "Sincronización manual\n\n" +
-            "Destino: " + target + "\n" +
-            "Período: " + period.label + "\n" +
-            "Pendientes abiertos: " + total + "\n" +
-            "Máximo en esta ejecución: " + Math.min(limit,total || limit) +
+            "Sincronización manual\n\nDestino: " + target +
+            "\nPeríodo: " + period.label +
+            "\nPendientes abiertos: " + total +
+            "\nMáximo en esta ejecución: " + Math.min(limit,total || limit) +
             (total > limit ? "\nLos restantes seguirán en la cola local." : "") +
             "\n\n¿Continuar?"
           );
@@ -115,8 +111,7 @@ Función o funciones:
 
   function patchManager(){
     var manager = window.BDLocalSyncManager;
-    if(!manager || manager.__singleSyncGateInstalled){ return false; }
-
+    if(!manager){ return false; }
     manager.pushLocalToSheets = function(options){ return requestTarget("google",Object.assign({},options || {},{ source:"BDLocalSyncManager.manual.google" })); };
     manager.pushLocalToFirebase = function(options){ return requestTarget("firebase",Object.assign({},options || {},{ source:"BDLocalSyncManager.manual.firebase" })); };
     manager.pushLocalToSupabase = function(options){ return requestTarget("supabase",Object.assign({},options || {},{ source:"BDLocalSyncManager.manual.supabase" })); };
@@ -126,7 +121,8 @@ Función o funciones:
       if(!window.BDLSyncV2 || typeof window.BDLSyncV2.request !== "function"){ return Promise.reject(new Error("BDLSyncV2 no está disponible.")); }
       return selectedPeriod().then(function(period){
         if(!period){ throw new Error("Seleccione un período."); }
-        return window.BDLSyncV2.request({ manual:true,automatic:false,source:"BDLocalSyncManager.manual.queue",targets:options.targets || ["google","firebase","supabase"],periodoId:period.id,periodoLabel:period.label,limit:safeBatch(options.limit || options.batchSize),batchSize:safeBatch(options.limit || options.batchSize) });
+        var limit = safeBatch(options.limit || options.batchSize);
+        return window.BDLSyncV2.request({ manual:true,automatic:false,source:"BDLocalSyncManager.manual.queue",targets:options.targets || ["google","firebase","supabase"],periodoId:period.id,periodoLabel:period.label,limit:limit,batchSize:limit });
       });
     };
     manager.syncAll = manager.syncQueue;
@@ -136,9 +132,8 @@ Función o funciones:
 
   function patchLegacySync(){
     var sync = window.BL2Sync;
-    if(!sync || sync.__singleSyncGateInstalled){ return false; }
+    if(!sync){ return false; }
     var firebasePull = sync.syncFirebase;
-
     sync.syncGoogle = function(options){ return requestTarget("google",Object.assign({},options || {},{ source:"BL2Sync.manual.google" })); };
     sync.syncFirebase = function(options){
       options = options || {};
@@ -157,7 +152,7 @@ Función o funciones:
 
   function patchUI(){
     var ui = window.BDLSyncUIBridge;
-    if(!ui || ui.__singleSyncGateInstalled){ return false; }
+    if(!ui){ return false; }
     ui.runTarget = function(target,options){ return confirmedTarget(text(target).toLowerCase(),options || {}); };
     ui.__singleSyncGateInstalled = true;
     return true;
@@ -168,7 +163,7 @@ Función o funciones:
     var syncReady = patchLegacySync();
     var uiReady = patchUI();
     installed = managerReady || syncReady || uiReady || installed;
-    return { ok:installed,manager:!!(window.BDLocalSyncManager && window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync && window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge && window.BDLSyncUIBridge.__singleSyncGateInstalled) };
+    return { ok:installed,manager:managerReady,legacy:syncReady,ui:uiReady };
   }
 
   window.BDLocalSyncFixups = {
@@ -183,6 +178,4 @@ Función o funciones:
   };
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",install);
-  window.addEventListener("bl2:ready",install);
-  window.setTimeout(install,0);
 })(window);
