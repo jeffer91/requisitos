@@ -2,10 +2,9 @@
 # Nombre completo: bdlocal-integrity.yml
 # Ruta o ubicación: /.github/workflows/bdlocal-integrity.yml
 # Función o funciones:
-# - Ejecutar certificación y auditoría estática en cada cambio de main.
-# - Instalar dependencias fijadas y abrir Electron en entorno aislado.
-# - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
-# - Guardar el reporte Electron como artefacto incluso si la prueba falla.
+# - Ejecutar certificación y auditoría estática.
+# - Ejecutar Electron e IndexedDB en entorno aislado.
+# - Publicar temporalmente el reporte de auditoría en el PR para diagnosticar un fallo de artefactos.
 # =========================================================
 name: BDLocal Integrity
 
@@ -18,22 +17,20 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   static-audit:
     name: Static audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Configure Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
-
       - name: Run complete static audit
         run: npm test
 
@@ -42,27 +39,42 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: static-audit
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Configure Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
-
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund
-
       - name: Run isolated Electron test
+        id: smoke
+        continue-on-error: true
         run: xvfb-run --auto-servernum npm run test:electron
-
-      - name: Upload Electron smoke report
+      - name: Publish isolated report in audit PR
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/github-script@v7
         with:
-          name: bdlocal-electron-smoke
-          path: artifacts/bdlocal-electron-smoke.json
-          if-no-files-found: warn
-          retention-days: 14
+          script: |
+            const fs = require('fs');
+            const path = 'artifacts/bdlocal-electron-smoke.json';
+            const content = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8')
+              : JSON.stringify({ok:false,message:'No se generó el reporte JSON.'}, null, 2);
+            const body = `<!-- bdlocal-smoke-report -->\n### Reporte aislado BDLocal\n\n\`\`\`json\n${content.slice(0,60000)}\n\`\`\``;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100
+            });
+            const previous = comments.find(comment => comment.body && comment.body.includes('<!-- bdlocal-smoke-report -->'));
+            if (previous) {
+              await github.rest.issues.updateComment({owner:context.repo.owner,repo:context.repo.repo,comment_id:previous.id,body});
+            } else {
+              await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body});
+            }
+      - name: Fail when Electron smoke fails
+        if: steps.smoke.outcome == 'failure'
+        run: exit 1
