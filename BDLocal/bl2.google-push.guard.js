@@ -7,12 +7,14 @@ Función o funciones:
 - Bloquear sincronizaciones automáticas, al cerrar o en paralelo.
 - Traer Firebase por período con comparación previa y respaldo obligatorio.
 - Proteger cambios locales pendientes o más recientes.
+- Controlar la cuota antes y después de leer Firebase.
+- Impedir aplicar una lectura parcial causada por el límite de cuota.
 - No usar intervalos ni iniciar procesos externos durante el arranque.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "4.0.0-single-gate-firebase-pull";
+  var VERSION = "4.1.0-read-quota-safe";
   var firebasePulling = false;
   var installed = false;
 
@@ -126,15 +128,66 @@ Función o funciones:
     return sync().ensureFirebase();
   }
 
+  function firebaseReadBudget(){
+    var currentStore = store();
+    if(!currentStore || typeof currentStore.getFirebaseQuotaStatus !== "function"){
+      return { controlled:false,allowed:true,readLimit:500,used:0,limit:500,stopPercent:100 };
+    }
+
+    var firstCheck = currentStore.getFirebaseQuotaStatus(1) || {};
+    if(firstCheck.allowed === false){
+      throw new Error("Lectura Firebase bloqueada por cuota manual: " + Number(firstCheck.used || 0) + " / " + Number(firstCheck.limit || 0) + ".");
+    }
+
+    var config = typeof currentStore.loadConfig === "function" ? currentStore.loadConfig() || {} : {};
+    var firebase = config.firebase || {};
+    var limit = Math.max(1,Number(firstCheck.limit || firebase.dailyLimit || 500));
+    var used = Math.max(0,Number(firstCheck.used || 0));
+    var stopPercent = Math.max(1,Math.min(100,Number(firebase.stopPercent || 95)));
+    var stopAt = Math.max(1,Math.floor(limit * stopPercent / 100));
+    var available = Math.max(0,stopAt - used - 1);
+
+    if(available < 1){
+      throw new Error("No existe cuota segura disponible para consultar Firebase. Uso actual: " + used + " / " + limit + ".");
+    }
+
+    return {
+      controlled:true,
+      allowed:true,
+      readLimit:Math.min(500,available),
+      used:used,
+      limit:limit,
+      stopPercent:stopPercent,
+      stopAt:stopAt,
+      available:available
+    };
+  }
+
+  function registerReadUsage(reads,label){
+    var currentStore = store();
+    if(currentStore && typeof currentStore.registerFirebaseUsage === "function"){
+      currentStore.registerFirebaseUsage({ reads:Number(reads || 0),label:label || "Lectura Firebase por período." });
+    }
+  }
+
   function remoteTime(row){
     var value = Date.parse(text(row && (row.updatedAt || row.ultimaSincronizacion || row.createdAt)));
     return Number.isFinite(value) ? value : 0;
   }
 
   function readFirebasePeriod(period){
+    var budget;
+    try{ budget = firebaseReadBudget(); }
+    catch(error){ return Promise.reject(error); }
+
     return ensureFirebase().then(function(firestore){
-      return firestore.collection(firebaseCollection()).where("periodoId","==",period.id).get();
+      var query = firestore.collection(firebaseCollection()).where("periodoId","==",period.id);
+      if(budget.readLimit && typeof query.limit === "function"){ query = query.limit(budget.readLimit); }
+      return query.get();
     }).then(function(snapshot){
+      var reads = Number(snapshot.size || 0);
+      registerReadUsage(reads,"Consulta segura Firebase del período " + period.id + ".");
+
       var map = Object.create(null);
       var duplicates = 0;
       snapshot.forEach(function(doc){
@@ -163,10 +216,14 @@ Función o funciones:
         map[cedula] = data;
       });
 
+      var truncated = !!(budget.controlled && reads >= budget.readLimit);
       return {
         rows:Object.keys(map).map(function(cedula){ return map[cedula]; }),
-        rawCount:Number(snapshot.size || 0),
-        duplicates:duplicates
+        rawCount:reads,
+        duplicates:duplicates,
+        truncated:truncated,
+        readLimit:budget.readLimit,
+        quotaBefore:budget
       };
     });
   }
@@ -249,6 +306,9 @@ Función o funciones:
         remoteDocuments:remote.rawCount,
         remoteUnique:remote.rows.length,
         duplicateDocumentsIgnored:remote.duplicates,
+        truncated:remote.truncated,
+        readLimit:remote.readLimit,
+        quotaBefore:remote.quotaBefore,
         local:localRows.length,
         apply:apply.length,
         equal:equal.length,
@@ -264,7 +324,9 @@ Función o funciones:
     return Object.assign({},preview,{
       rowsToApply:undefined,
       previewOnly:true,
-      message:"Comparación Firebase finalizada sin modificar Base Local."
+      message:preview.truncated
+        ? "Comparación Firebase incompleta por límite de cuota. No se puede aplicar esta lectura."
+        : "Comparación Firebase finalizada sin modificar Base Local."
     });
   }
 
@@ -289,6 +351,9 @@ Función o funciones:
   }
 
   function applyFirebasePreview(preview){
+    if(preview.truncated){
+      return Promise.reject(new Error("Firebase no se aplicó porque la cuota solo permitió una lectura parcial del período."));
+    }
     if(!preview.rowsToApply.length){
       return Promise.resolve(Object.assign({},publicPreview(preview),{
         previewOnly:false,
@@ -340,6 +405,14 @@ Función o funciones:
       if(!current){ throw new Error("Seleccione un período antes de traer Firebase."); }
       return buildFirebasePreview(current).then(function(preview){
         if(options.previewOnly === true){ return publicPreview(preview); }
+        if(preview.truncated){
+          return Object.assign({},publicPreview(preview),{
+            previewOnly:false,
+            blocked:true,
+            applied:0,
+            message:"Lectura parcial por cuota. No se aplicó ningún dato de Firebase."
+          });
+        }
 
         var approved = options.confirm === false || window.confirm(
           "Firebase → Base Local\n\n" +
@@ -360,14 +433,11 @@ Función o funciones:
         return applyFirebasePreview(preview);
       });
     }).then(function(result){
-      if(store() && typeof store().registerFirebaseUsage === "function"){
-        store().registerFirebaseUsage({ reads:Number(result.remoteDocuments || 0),label:result.previewOnly ? "Comparación Firebase." : "Descarga segura Firebase → BDLocal." });
-      }
       if(store() && typeof store().updateConnectionStatus === "function"){
-        store().updateConnectionStatus("firebase",{ connected:true,status:"ok",lastError:"" });
+        store().updateConnectionStatus("firebase",{ connected:true,status:result.blocked ? "warning" : "ok",lastError:result.blocked ? result.message : "" });
       }
       progress("firebase",100,result.message || "Firebase procesado.");
-      log("firebase_guard",result.message || "Firebase procesado.","info",result);
+      log("firebase_guard",result.message || "Firebase procesado.",result.blocked ? "warn" : "info",result);
       return result;
     }).catch(function(error){
       if(store() && typeof store().updateConnectionStatus === "function"){
@@ -442,7 +512,7 @@ Función o funciones:
     singleGate:true,
     install:install,
     requestManualTarget:requestManualTarget,
-    status:function(){ return { version:VERSION,installed:installed,singleGate:true,intervals:false }; }
+    status:function(){ return { version:VERSION,installed:installed,singleGate:true,intervals:false,readQuota:true }; }
   };
 
   window.BL2FirebaseGuard = {
@@ -454,7 +524,8 @@ Función o funciones:
     previewFirebase:function(period){ return pullFirebaseToLocalSafe(period || null,{ confirm:false,previewOnly:true }); },
     documentId:function(periodoId,cedula){ return normalizePeriod(periodoId) + "__" + normalizeCedula(cedula); },
     isPulling:function(){ return firebasePulling; },
-    status:function(){ return { version:VERSION,installed:installed,pulling:firebasePulling,singleGate:true }; }
+    readBudget:firebaseReadBudget,
+    status:function(){ return { version:VERSION,installed:installed,pulling:firebasePulling,singleGate:true,readQuota:true }; }
   };
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",install,{ once:true });
