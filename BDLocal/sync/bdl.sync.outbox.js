@@ -2,21 +2,25 @@
 Nombre completo: bdl.sync.outbox.js
 Ruta o ubicación: /BDLocal/sync/bdl.sync.outbox.js
 Función o funciones:
-- Leer la cola real cambios_pendientes.
-- Aplicar una deduplicación final antes de sincronizar.
-- Exigir un período para obtener pendientes enviables.
-- Limitar cada lote a un máximo seguro de 25 cambios.
-- Controlar estados, errores, espera y bloqueo por destino.
+- Leer la cola real cambios_pendientes por período.
+- Reutilizar conteos recientes y evitar deduplicaciones repetidas.
+- Exigir período para pendientes enviables y limitar lotes a 25.
+- Exponer paginación para la interfaz sin cargar toda la cola visualmente.
+- Controlar estados, errores, espera, bloqueo y reintentos por destino.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.4.0-idempotent-safe-batches";
+  var VERSION = "0.5.0-cached-paginated";
   var DEFAULT_MAX_ATTEMPTS = 3;
   var DEFAULT_BATCH_LIMIT = 25;
   var MAX_BATCH_LIMIT = 25;
+  var CACHE_TTL_MS = 1500;
   var DEFAULT_RETRY_MINUTES = [2,5,15,30,60];
   var TARGETS = ["google","firebase","supabase"];
+
+  var countsCache = Object.create(null);
+  var listCache = Object.create(null);
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function upper(value){ return text(value).toUpperCase(); }
@@ -27,7 +31,8 @@ Función o funciones:
 
   function repo(){
     if(window.BDLRepositories && typeof window.BDLRepositories.get === "function"){
-      return window.BDLRepositories.get("cambios") || window.BDLRepositories.get("cambios_pendientes");
+      return window.BDLRepositories.get("cambios_pendientes") ||
+        window.BDLRepositories.get("cambios");
     }
     return window.BDLRepoCambios || null;
   }
@@ -42,15 +47,51 @@ Función o funciones:
   function fields(target){
     target = targetKey(target);
     if(target === "google"){
-      return { target:"google",status:"estadoSheets",legacyStatus:"statusGoogle",syncedAt:"sincronizadoEnSheets",error:"ultimoErrorSheets",attempts:"intentosSheets",nextRetryAt:"nextRetryAtSheets",blocked:"bloqueadoSheets" };
+      return {
+        target:"google",
+        status:"estadoSheets",
+        legacyStatus:"statusGoogle",
+        syncedAt:"sincronizadoEnSheets",
+        error:"ultimoErrorSheets",
+        attempts:"intentosSheets",
+        nextRetryAt:"nextRetryAtSheets",
+        blocked:"bloqueadoSheets"
+      };
     }
     if(target === "firebase"){
-      return { target:"firebase",status:"estadoFirebase",legacyStatus:"statusFirebase",syncedAt:"sincronizadoEnFirebase",error:"ultimoErrorFirebase",attempts:"intentosFirebase",nextRetryAt:"nextRetryAtFirebase",blocked:"bloqueadoFirebase" };
+      return {
+        target:"firebase",
+        status:"estadoFirebase",
+        legacyStatus:"statusFirebase",
+        syncedAt:"sincronizadoEnFirebase",
+        error:"ultimoErrorFirebase",
+        attempts:"intentosFirebase",
+        nextRetryAt:"nextRetryAtFirebase",
+        blocked:"bloqueadoFirebase"
+      };
     }
     if(target === "supabase"){
-      return { target:"supabase",status:"estadoSupabase",legacyStatus:"statusSupabase",syncedAt:"sincronizadoEnSupabase",error:"ultimoErrorSupabase",attempts:"intentosSupabase",nextRetryAt:"nextRetryAtSupabase",blocked:"bloqueadoSupabase" };
+      return {
+        target:"supabase",
+        status:"estadoSupabase",
+        legacyStatus:"statusSupabase",
+        syncedAt:"sincronizadoEnSupabase",
+        error:"ultimoErrorSupabase",
+        attempts:"intentosSupabase",
+        nextRetryAt:"nextRetryAtSupabase",
+        blocked:"bloqueadoSupabase"
+      };
     }
-    return { target:target,status:"estado" + target,legacyStatus:"status" + target,syncedAt:"sincronizadoEn" + target,error:"ultimoError" + target,attempts:"intentos" + target,nextRetryAt:"nextRetryAt" + target,blocked:"bloqueado" + target };
+    return {
+      target:target,
+      status:"estado" + target,
+      legacyStatus:"status" + target,
+      syncedAt:"sincronizadoEn" + target,
+      error:"ultimoError" + target,
+      attempts:"intentos" + target,
+      nextRetryAt:"nextRetryAt" + target,
+      blocked:"bloqueado" + target
+    };
   }
 
   function statusOf(row,target){
@@ -74,7 +115,8 @@ Función o funciones:
     if(options.forceRetry || options.includeBlocked){ return false; }
     var f = fields(target);
     var maxAttempts = Number(options.maxAttempts || DEFAULT_MAX_ATTEMPTS);
-    return (row || {})[f.blocked] === true || (isError(row,target) && attemptsOf(row,target) >= maxAttempts);
+    return (row || {})[f.blocked] === true ||
+      (isError(row,target) && attemptsOf(row,target) >= maxAttempts);
   }
 
   function retryTime(row,target){
@@ -91,7 +133,9 @@ Función o funciones:
   }
 
   function allowedForTarget(row,target,options){
-    return !isDone(row,target) && !isBlocked(row,target,options || {}) && retryDue(row,target,options || {});
+    return !isDone(row,target) &&
+      !isBlocked(row,target,options || {}) &&
+      retryDue(row,target,options || {});
   }
 
   function logicalKey(row){
@@ -120,22 +164,103 @@ Función o funciones:
     });
   }
 
+  function cacheKey(options){
+    options = options || {};
+    return [
+      text(options.periodoId) || "*",
+      text(options.cedula) || "*",
+      text(options.tabla) || "*",
+      options.includeLegacy === false ? "outbox" : "both"
+    ].join("|");
+  }
+
+  function invalidateCache(){
+    countsCache = Object.create(null);
+    listCache = Object.create(null);
+    var changes = repo();
+    if(changes && typeof changes.invalidateCache === "function"){
+      try{ changes.invalidateCache(); }catch(error){}
+    }
+  }
+
+  function readListCache(options){
+    var key = cacheKey(options);
+    var item = listCache[key];
+    if(!item || (Date.now() - item.at) > CACHE_TTL_MS){ return null; }
+    return clone(item.rows);
+  }
+
+  function writeListCache(options,rows){
+    listCache[cacheKey(options)] = {
+      at:Date.now(),
+      rows:clone(rows || [])
+    };
+  }
+
   function list(options){
     options = options || {};
+    var cached = !options.force ? readListCache(options) : null;
+    if(cached){ return Promise.resolve(cached); }
+
     var changes = repo();
-    if(!changes || typeof changes.list !== "function"){ return Promise.resolve([]); }
+    if(!changes || typeof changes.list !== "function"){
+      return Promise.resolve([]);
+    }
+
     return changes.list(options).then(function(rows){
       rows = dedupe(rows);
+
       if(text(options.periodoId)){
-        rows = rows.filter(function(row){ return text(row.periodoId) === text(options.periodoId); });
+        rows = rows.filter(function(row){
+          return text(row.periodoId) === text(options.periodoId);
+        });
       }
       if(text(options.cedula)){
-        rows = rows.filter(function(row){ return text(row.cedula || row.numeroIdentificacion) === text(options.cedula); });
+        rows = rows.filter(function(row){
+          return text(row.cedula || row.numeroIdentificacion) === text(options.cedula);
+        });
       }
       if(text(options.tabla)){
-        rows = rows.filter(function(row){ return text(row.tabla || row.tipo) === text(options.tabla); });
+        rows = rows.filter(function(row){
+          return text(row.tabla || row.tipo) === text(options.tabla);
+        });
       }
-      return rows;
+
+      writeListCache(options,rows);
+      return clone(rows);
+    });
+  }
+
+  function listPage(options){
+    options = options || {};
+    var changes = repo();
+
+    if(changes && typeof changes.listPage === "function"){
+      return changes.listPage(options).then(function(result){
+        result = result || {};
+        result.rows = dedupe(result.rows || []);
+        return result;
+      });
+    }
+
+    var page = Math.max(1,Number(options.page || 1));
+    var pageSize = Math.max(1,Math.min(250,Number(options.pageSize || options.limit || 75)));
+
+    return list(options).then(function(rows){
+      var total = rows.length;
+      var totalPages = Math.max(1,Math.ceil(total / pageSize));
+      page = Math.min(page,totalPages);
+      var start = (page - 1) * pageSize;
+
+      return {
+        rows:rows.slice(start,start + pageSize),
+        page:page,
+        pageSize:pageSize,
+        total:total,
+        totalPages:totalPages,
+        hasPrev:page > 1,
+        hasNext:page < totalPages
+      };
     });
   }
 
@@ -149,18 +274,31 @@ Función o funciones:
   function pending(target,options){
     target = targetKey(target || "google");
     options = options || {};
+
     if(!text(options.periodoId) && options.allowAllPeriods !== true){
       return Promise.resolve([]);
     }
+
     var limit = safeLimit(options);
     return list(options).then(function(rows){
-      return rows.filter(function(row){ return allowedForTarget(row,target,options); }).slice(0,limit);
+      return rows.filter(function(row){
+        return allowedForTarget(row,target,options);
+      }).slice(0,limit);
     });
   }
 
   function detailFor(rows,target,options){
     options = options || {};
-    var detail = { target:targetKey(target),pending:0,synced:0,error:0,blocked:0,waitingRetry:0,total:0 };
+    var detail = {
+      target:targetKey(target),
+      pending:0,
+      synced:0,
+      error:0,
+      blocked:0,
+      waitingRetry:0,
+      total:0
+    };
+
     (Array.isArray(rows) ? rows : []).forEach(function(row){
       detail.total += 1;
       if(isDone(row,target)){ detail.synced += 1; return; }
@@ -169,15 +307,26 @@ Función o funciones:
       if(isError(row,target)){ detail.error += 1; return; }
       detail.pending += 1;
     });
+
     return detail;
   }
 
   function counts(options){
     options = options || {};
+    var key = cacheKey(options);
+    var cached = countsCache[key];
+
+    if(!options.force && cached && (Date.now() - cached.at) < CACHE_TTL_MS){
+      return Promise.resolve(clone(cached.value));
+    }
+
     return list(options).then(function(rows){
       var detail = {};
-      TARGETS.forEach(function(target){ detail[target] = detailFor(rows,target,options); });
-      return {
+      TARGETS.forEach(function(target){
+        detail[target] = detailFor(rows,target,options);
+      });
+
+      var result = {
         total:rows.length,
         uniqueLogicalChanges:rows.length,
         google:detail.google.pending,
@@ -199,6 +348,13 @@ Función o funciones:
         batchLimit:MAX_BATCH_LIMIT,
         at:nowISO()
       };
+
+      countsCache[key] = {
+        at:Date.now(),
+        value:clone(result)
+      };
+
+      return result;
     });
   }
 
@@ -208,12 +364,15 @@ Función o funciones:
     return new Date(nowMs() + DEFAULT_RETRY_MINUTES[index] * 60000).toISOString();
   }
 
-  function rowId(row){ return text(row && (row.id || row.cambioId)); }
+  function rowId(row){
+    return text(row && (row.id || row.cambioId));
+  }
 
   function patchForTarget(row,target,status,details){
     target = targetKey(target || "google");
     status = upper(status || "SINCRONIZADO");
     details = details || {};
+
     var f = fields(target);
     row = Object.assign({},row || {});
     var attempts = attemptsOf(row,target);
@@ -240,34 +399,65 @@ Función o funciones:
     }else{
       row[f.error] = text(details.error || details.message || "");
     }
+
     return row;
   }
 
   function saveRows(rows){
     rows = Array.isArray(rows) ? rows : [];
     var changes = repo();
+
     if(!changes || typeof changes.saveMany !== "function"){
-      return Promise.resolve({ ok:false,updated:0,message:"Repositorio de cambios no disponible." });
+      return Promise.resolve({
+        ok:false,
+        updated:0,
+        message:"Repositorio de cambios no disponible."
+      });
     }
-    if(!rows.length){ return Promise.resolve({ ok:true,updated:0 }); }
+
+    if(!rows.length){
+      return Promise.resolve({ ok:true,updated:0 });
+    }
+
     return changes.saveMany(rows,{ source:"outbox_status_update" }).then(function(saved){
-      return { ok:true,updated:Array.isArray(saved) ? saved.length : rows.length };
+      invalidateCache();
+      return {
+        ok:true,
+        updated:Array.isArray(saved) ? saved.length : rows.length
+      };
     });
   }
 
   function mark(rows,target,status,details){
     rows = dedupe(rows);
-    var patched = rows.map(function(row){ return patchForTarget(row,target,status,details || {}); });
+    var patched = rows.map(function(row){
+      return patchForTarget(row,target,status,details || {});
+    });
+
     return saveRows(patched).then(function(result){
-      return Object.assign({},result,{ target:targetKey(target),status:upper(status || "SINCRONIZADO"),ids:patched.map(rowId).filter(Boolean) });
+      return Object.assign({},result,{
+        target:targetKey(target),
+        status:upper(status || "SINCRONIZADO"),
+        ids:patched.map(rowId).filter(Boolean)
+      });
     });
   }
 
   function markByIds(ids,target,status,details){
     var wanted = Object.create(null);
-    (Array.isArray(ids) ? ids : []).forEach(function(value){ if(text(value)){ wanted[text(value)] = true; } });
-    return list({}).then(function(rows){
-      return mark(rows.filter(function(row){ return !!wanted[rowId(row)]; }),target,status,details || {});
+    (Array.isArray(ids) ? ids : []).forEach(function(value){
+      if(text(value)){ wanted[text(value)] = true; }
+    });
+
+    var changes = repo();
+    var read = changes && typeof changes.getByIds === "function"
+      ? changes.getByIds(Object.keys(wanted))
+      : list({}).then(function(rows){
+          return rows.filter(function(row){ return !!wanted[rowId(row)]; });
+        });
+
+    return read.then(function(rows){
+      return mark(rows,target,status,details || {});
     });
   }
 
@@ -284,7 +474,13 @@ Función o funciones:
       row.updatedAt = nowISO();
       return row;
     });
-    return saveRows(patched).then(function(result){ return Object.assign({},result,{ target:targetKey(target),action:"resetRetries" }); });
+
+    return saveRows(patched).then(function(result){
+      return Object.assign({},result,{
+        target:targetKey(target),
+        action:"resetRetries"
+      });
+    });
   }
 
   function makeAllPending(rows){
@@ -300,7 +496,10 @@ Función o funciones:
       row.updatedAt = row.updatedAt || nowISO();
       return row;
     });
-    return saveRows(patched).then(function(result){ return Object.assign({},result,{ action:"makeAllPending" }); });
+
+    return saveRows(patched).then(function(result){
+      return Object.assign({},result,{ action:"makeAllPending" });
+    });
   }
 
   window.BDLSyncOutbox = {
@@ -309,12 +508,17 @@ Función o funciones:
     maxBatchLimit:MAX_BATCH_LIMIT,
     fields:fields,
     list:list,
+    listPage:listPage,
     pending:pending,
     counts:counts,
     mark:mark,
     markByIds:markByIds,
-    markSynced:function(rows,target,details){ return mark(rows,target,"SINCRONIZADO",details || {}); },
-    markError:function(rows,target,details){ return mark(rows,target,"ERROR",details || {}); },
+    markSynced:function(rows,target,details){
+      return mark(rows,target,"SINCRONIZADO",details || {});
+    },
+    markError:function(rows,target,details){
+      return mark(rows,target,"ERROR",details || {});
+    },
     resetRetries:resetRetries,
     makeAllPending:makeAllPending,
     isDone:isDone,
@@ -324,6 +528,9 @@ Función o funciones:
     rowId:rowId,
     logicalKey:logicalKey,
     dedupe:dedupe,
-    safeLimit:safeLimit
+    safeLimit:safeLimit,
+    invalidateCache:invalidateCache
   };
+
+  window.addEventListener("bdlocal:changes-repository-updated",invalidateCache);
 })(window);
