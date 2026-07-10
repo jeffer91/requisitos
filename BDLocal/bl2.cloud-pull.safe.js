@@ -4,15 +4,15 @@ Ruta o ubicación: /BDLocal/bl2.cloud-pull.safe.js
 Función o funciones:
 - Ser la única implementación para traer Google Sheets a Base Local.
 - Exigir período, confirmación y respaldo previo.
-- Importar únicamente información académica permitida.
-- Ignorar config, cambios, logs, resumen, errores y sync_meta remotos.
-- Usar identificadores estables para no duplicar filas en descargas repetidas.
-- Marcar como procesados los cambios creados por la propia descarga.
+- Ignorar tablas técnicas y usar identificadores estables.
+- Proteger estudiantes con cambios locales pendientes o más recientes.
+- Combinar filas remotas parciales sin borrar campos completos.
+- Cerrar los cambios creados por la propia importación.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "3.0.0-single-safe-pull";
+  var VERSION = "3.1.0-local-first-pull";
   var FETCH_TIMEOUT_MS = 120000;
   var PAUSE_KEY = "REQ_BDLOCAL_PAUSE_GOOGLE_PUSH";
   var LS_DIVISIONES = "carga.periodos.divisiones";
@@ -55,17 +55,32 @@ Función o funciones:
   function config(){ return window.BL2Config || {}; }
   function stores(){ return config().stores || {}; }
 
-  function normalize(value){
-    return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();
-  }
-
+  function normalize(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
   function key(value){ return normalize(value).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); }
+  function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
+  function escapeHtml(value){ return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
+  function plain(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
 
-  function escapeHtml(value){
-    return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");
+  function hasValue(value){
+    if(value === undefined || value === null){ return false; }
+    if(typeof value === "string"){ return text(value) !== ""; }
+    if(Array.isArray(value)){ return value.length > 0; }
+    return true;
   }
 
-  function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
+  function mergeNonEmpty(base,incoming){
+    var output = plain(base) ? clone(base) : {};
+    if(!plain(incoming)){ return output; }
+    Object.keys(incoming).forEach(function(name){
+      var value = incoming[name];
+      if(plain(value)){
+        output[name] = mergeNonEmpty(plain(output[name]) ? output[name] : {},value);
+      }else if(hasValue(value)){
+        output[name] = clone(value);
+      }
+    });
+    return output;
+  }
 
   function hash(value){
     var source = typeof value === "string" ? value : JSON.stringify(value || {});
@@ -100,6 +115,11 @@ Función o funciones:
     return match ? match[1] + "-" + match[2] + "__" + match[3] + "-" + match[4] : value.replace(/_+/g,"__");
   }
 
+  function timestamp(row){
+    var value = Date.parse(text(row && (row.updatedAt || row.ultimaEdicionLocal || row.fechaActualizacion || row.fechaRegistro || row.createdAt)));
+    return Number.isFinite(value) ? value : 0;
+  }
+
   function log(message,level,data){
     try{
       var box = byId("bl2-log");
@@ -110,27 +130,13 @@ Función o funciones:
         box.insertBefore(item,box.firstChild);
       }
     }catch(error){}
-    try{
-      if(core() && typeof core().log === "function"){
-        core().log(level === "error" ? "ERROR" : level === "warn" ? "WARN" : "INFO",message,data || {}).catch(function(){});
-      }
-    }catch(error2){}
-    try{
-      if(store() && typeof store().addLog === "function"){
-        store().addLog("cloud_pull_safe",message,level === "error" ? "error" : level === "warn" ? "warning" : "success",data || {});
-      }
-    }catch(error3){}
+    try{ if(core() && typeof core().log === "function"){ core().log(level === "error" ? "ERROR" : level === "warn" ? "WARN" : "INFO",message,data || {}).catch(function(){}); } }catch(error2){}
+    try{ if(store() && typeof store().addLog === "function"){ store().addLog("cloud_pull_safe",message,level === "error" ? "error" : level === "warn" ? "warning" : "success",data || {}); } }catch(error3){}
   }
 
   function progress(percent,detail){
-    try{
-      window.dispatchEvent(new CustomEvent("bl2:sync-progress",{ detail:{ target:"google",percent:Math.max(0,Math.min(100,Number(percent || 0))),detail:detail || "",at:now() } }));
-    }catch(error){}
-    try{
-      if(window.BDLocalConfigUI && typeof window.BDLocalConfigUI.setProgress === "function"){
-        window.BDLocalConfigUI.setProgress(percent > 0 && percent < 100,percent,detail || "");
-      }
-    }catch(error2){}
+    try{ window.dispatchEvent(new CustomEvent("bl2:sync-progress",{ detail:{ target:"google",percent:Math.max(0,Math.min(100,Number(percent || 0))),detail:detail || "",at:now() } })); }catch(error){}
+    try{ if(window.BDLocalConfigUI && typeof window.BDLocalConfigUI.setProgress === "function"){ window.BDLocalConfigUI.setProgress(percent > 0 && percent < 100,percent,detail || ""); } }catch(error2){}
   }
 
   function setStatus(name,message){ var element = byId(name); if(element){ element.textContent = message; } }
@@ -160,13 +166,9 @@ Función o funciones:
     pulling = false;
     window.BL2_GOOGLE_PUSH_PAUSED = false;
     try{ window.localStorage.removeItem(PAUSE_KEY); }catch(error){}
-    if(enginePausedByPull && window.BDLSyncV2 && typeof window.BDLSyncV2.resume === "function"){
-      window.BDLSyncV2.resume();
-    }
+    if(enginePausedByPull && window.BDLSyncV2 && typeof window.BDLSyncV2.resume === "function"){ window.BDLSyncV2.resume(); }
     enginePausedByPull = false;
   }
-
-  function isPulling(){ return pulling; }
 
   function selectedPeriod(){
     try{
@@ -174,15 +176,10 @@ Función o funciones:
         var selected = window.BL2App.getSelectedPeriod();
         if(selected && text(selected.id)){ return { id:normalizePeriodId(selected.id),label:text(selected.label || selected.id) }; }
       }
-      if(window.BL2App && typeof window.BL2App.getState === "function"){
-        var state = window.BL2App.getState() || {};
-        if(state.activePeriod && text(state.activePeriod.id)){ return { id:normalizePeriodId(state.activePeriod.id),label:text(state.activePeriod.label || state.activePeriod.id) }; }
-      }
     }catch(error){}
     var select = byId("bl2-period-select");
     var periodoId = normalizePeriodId(select && select.value);
-    if(!periodoId){ return null; }
-    return { id:periodoId,label:select && select.selectedOptions && select.selectedOptions[0] ? text(select.selectedOptions[0].textContent) : periodoId };
+    return periodoId ? { id:periodoId,label:select && select.selectedOptions && select.selectedOptions[0] ? text(select.selectedOptions[0].textContent) : periodoId } : null;
   }
 
   function availablePeriods(){
@@ -212,7 +209,7 @@ Función o funciones:
     var modal = document.createElement("section");
     modal.id = "bl2-pull-period-modal";
     modal.className = "bl2-pull-modal";
-    modal.innerHTML = '<div class="bl2-pull-card" role="dialog" aria-modal="true"><div><h2>Traer Google Sheets a Base Local</h2><p>Seleccione un solo período. Base Local no se borra y no se importan tablas técnicas.</p></div><label>Período<select id="bl2-pull-period-select"></select></label><div class="bl2-pull-warning">Se ignorarán config, cambios, logs, resumen, errores y sync_meta. Antes de guardar se creará un respaldo local.</div><div class="bl2-pull-actions"><button type="button" data-pull-cancel>Cancelar</button><button type="button" class="primary" data-pull-confirm>Continuar</button></div></div>';
+    modal.innerHTML = '<div class="bl2-pull-card" role="dialog" aria-modal="true"><div><h2>Traer Google Sheets a Base Local</h2><p>Seleccione un solo período. Base Local no se borra y conserva cambios locales.</p></div><label>Período<select id="bl2-pull-period-select"></select></label><div class="bl2-pull-warning">Se ignorarán tablas técnicas, cambios pendientes, datos locales más recientes y registros remotos sin fecha cuando exista una versión local.</div><div class="bl2-pull-actions"><button type="button" data-pull-cancel>Cancelar</button><button type="button" class="primary" data-pull-confirm>Continuar</button></div></div>';
     document.body.appendChild(modal);
   }
 
@@ -228,7 +225,7 @@ Función o funciones:
         if(active && active.id){ select.value = active.id; }
         function close(){ modal.classList.remove("is-open"); modal.onclick = null; modal.querySelector("[data-pull-cancel]").onclick = null; modal.querySelector("[data-pull-confirm]").onclick = null; }
         modal.querySelector("[data-pull-cancel]").onclick = function(){ close(); reject(new Error("Operación cancelada.")); };
-        modal.querySelector("[data-pull-confirm]").onclick = function(){ var id = normalizePeriodId(select.value); var found = periods.filter(function(period){ return period.id === id; })[0]; close(); resolve(found || { id:id,label:id }); };
+        modal.querySelector("[data-pull-confirm]").onclick = function(){ var periodoId = normalizePeriodId(select.value); var found = periods.filter(function(period){ return period.id === periodoId; })[0]; close(); resolve(found || { id:periodoId,label:periodoId }); };
         modal.onclick = function(event){ if(event.target === modal){ close(); reject(new Error("Operación cancelada.")); } };
         modal.classList.add("is-open");
       });
@@ -273,19 +270,11 @@ Función o funciones:
         }
         return data;
       });
-    }).catch(function(error){
-      if(error && error.name === "AbortError"){ throw new Error("Tiempo agotado al leer Google Sheets."); }
-      throw error;
-    }).finally(function(){ if(timer){ window.clearTimeout(timer); } });
+    }).catch(function(error){ if(error && error.name === "AbortError"){ throw new Error("Tiempo agotado al leer Google Sheets."); } throw error; }).finally(function(){ if(timer){ window.clearTimeout(timer); } });
   }
 
-  function requestPull(cfg,period){
-    return postJson(cfg.appsScriptUrl,{ action:"pull_bl2",target:"bdlocal",source:"BL2CloudPullSafe",mode:"pull_to_bdlocal",token:cfg.token,spreadsheetId:cfg.spreadsheetId,sheetName:cfg.sheetName || "Requisitos",periodoId:period.id,periodoLabel:period.label,requestedAt:now() },FETCH_TIMEOUT_MS);
-  }
-
-  function requestCompact(cfg){
-    return postJson(cfg.appsScriptUrl,{ action:"compact_bl2",target:"google_sheets",source:"BL2CloudPullSafe",token:cfg.token,spreadsheetId:cfg.spreadsheetId,sheetName:cfg.sheetName || "Requisitos",requestedAt:now() },FETCH_TIMEOUT_MS);
-  }
+  function requestPull(cfg,period){ return postJson(cfg.appsScriptUrl,{ action:"pull_bl2",target:"bdlocal",source:"BL2CloudPullSafe",mode:"pull_to_bdlocal",token:cfg.token,spreadsheetId:cfg.spreadsheetId,sheetName:cfg.sheetName || "Requisitos",periodoId:period.id,periodoLabel:period.label,requestedAt:now() },FETCH_TIMEOUT_MS); }
+  function requestCompact(cfg){ return postJson(cfg.appsScriptUrl,{ action:"compact_bl2",target:"google_sheets",source:"BL2CloudPullSafe",token:cfg.token,spreadsheetId:cfg.spreadsheetId,sheetName:cfg.sheetName || "Requisitos",requestedAt:now() },FETCH_TIMEOUT_MS); }
 
   function normalizeTableKey(name){
     var map = {
@@ -321,8 +310,27 @@ Función o funciones:
     row.periodoCanonicoId = periodoId;
     row.periodoLabel = periodoLabel;
     row.periodoCanonicoLabel = periodoLabel;
-    row.updatedAt = row.updatedAt || now();
+    row.updatedAt = text(row.updatedAt || row.fechaActualizacion || row.fechaRegistro || row.createdAt);
     return row;
+  }
+
+  function changeCedula(row){
+    var payload = row && (row.payload || row.data || row.registro) || {};
+    return normalizeCedula(row && (row.cedula || row.numeroIdentificacion) || payload.cedula || payload.numeroIdentificacion);
+  }
+
+  function pendingCedulas(periodoId){
+    if(!outbox() || typeof outbox().list !== "function"){ return Promise.resolve({}); }
+    return outbox().list({ periodoId:periodoId }).then(function(rows){
+      var map = {};
+      (rows || []).forEach(function(row){
+        var cedula = changeCedula(row);
+        if(!cedula){ return; }
+        var open = ["google","firebase","supabase"].some(function(target){ return typeof outbox().isDone !== "function" || !outbox().isDone(row,target); });
+        if(open){ map[cedula] = true; }
+      });
+      return map;
+    }).catch(function(){ return {}; });
   }
 
   function buildDivisions(rows,period){
@@ -395,41 +403,7 @@ Función o funciones:
     return table + "__" + periodoId + "__" + (cedula || hash(row));
   }
 
-  function saveRawBusinessTable(table,rows,period){
-    if(!db() || typeof db().bulkPut !== "function"){ return Promise.resolve(0); }
-    var storeName = table === "requisitos" ? (stores().requisitos || "requisitos") : table === "contactos" ? (stores().contactos || "contactos") : (stores().notas || "notas");
-    var map = {};
-    (rows || []).forEach(function(source){
-      var row = ensurePeriod(source,period);
-      if(row.periodoId !== period.id){ return; }
-      row.cedula = normalizeCedula(first(row,["cedula","numeroIdentificacion","NumeroIdentificacion","Cédula","Cedula"]));
-      row.numeroIdentificacion = row.numeroIdentificacion || row.cedula;
-      row.id = stableRowId(table,row,period);
-      row.source = "google_sheets_pull";
-      map[row.id] = row;
-    });
-    var prepared = Object.keys(map).map(function(id){ return map[id]; });
-    if(!prepared.length){ return Promise.resolve(0); }
-    return db().bulkPut(storeName,prepared).then(function(result){ return (result || []).length; });
-  }
-
-  function markImportedChanges(changes){
-    changes = Array.isArray(changes) ? changes : [];
-    if(!changes.length){ return Promise.resolve(); }
-    if(outbox() && typeof outbox().markSynced === "function"){
-      var chain = Promise.resolve();
-      ["google","firebase","supabase"].forEach(function(target){
-        chain = chain.then(function(){ return outbox().markSynced(changes,target,{ syncedAt:now(),source:"google_sheets_pull",imported:true }); });
-      });
-      return chain;
-    }
-    if(sync() && typeof sync().markChanges === "function"){
-      return Promise.all(["google","firebase","supabase"].map(function(target){ return sync().markChanges(changes,target,"SINCRONIZADO",{ source:"google_sheets_pull",imported:true }); }));
-    }
-    return Promise.resolve();
-  }
-
-  function prepareStudents(tables,period){
+  function remoteStudents(tables,period){
     var source = (tables.estudiantes || []).concat(tables.matriculasPeriodo || []);
     var map = {};
     source.forEach(function(item){
@@ -440,34 +414,107 @@ Función o funciones:
       row.numeroIdentificacion = row.numeroIdentificacion || cedula;
       row.source = "google_sheets_pull";
       var current = map[cedula];
-      var incomingTime = Date.parse(row.updatedAt || "") || 0;
-      var currentTime = Date.parse(current && current.updatedAt || "") || 0;
-      if(!current || incomingTime >= currentTime){ map[cedula] = row; }
+      if(!current){ map[cedula] = row; return; }
+      if(timestamp(row) >= timestamp(current)){
+        map[cedula] = mergeNonEmpty(current,row);
+      }else{
+        map[cedula] = mergeNonEmpty(row,current);
+      }
+      map[cedula].updatedAt = timestamp(row) >= timestamp(current) ? row.updatedAt || current.updatedAt : current.updatedAt || row.updatedAt;
     });
     return Object.keys(map).map(function(cedula){ return map[cedula]; });
   }
 
+  function planStudents(tables,period,pendingMap,summary){
+    var remote = remoteStudents(tables,period);
+    summary.duplicatesIgnored = Math.max(0,(tables.estudiantes || []).length + (tables.matriculasPeriodo || []).length - remote.length);
+    return core().getStudents({ periodoId:period.id }).catch(function(){ return []; }).then(function(localRows){
+      var localMap = {};
+      (localRows || []).forEach(function(row){ localMap[normalizeCedula(row.cedula || row.numeroIdentificacion)] = row; });
+      var apply = [];
+      remote.forEach(function(row){
+        var cedula = row.cedula;
+        var local = localMap[cedula];
+        if(pendingMap[cedula]){ summary.protectedLocal += 1; return; }
+        if(!local){ row.updatedAt = row.updatedAt || now(); apply.push(row); return; }
+        var remoteTime = timestamp(row);
+        var localTime = timestamp(local);
+        if(!remoteTime){ summary.ambiguous += 1; return; }
+        if(localTime > remoteTime){ summary.localNewer += 1; return; }
+        var merged = mergeNonEmpty(local,row);
+        merged.cedula = cedula;
+        merged.numeroIdentificacion = merged.numeroIdentificacion || cedula;
+        merged.periodoId = period.id;
+        merged.periodoLabel = merged.periodoLabel || period.label;
+        merged.updatedAt = row.updatedAt || local.updatedAt || now();
+        merged.source = "google_sheets_pull";
+        apply.push(merged);
+      });
+      return apply;
+    });
+  }
+
+  function saveRawBusinessTable(table,rows,period,pendingMap,summary){
+    if(!db() || typeof db().bulkPut !== "function"){ return Promise.resolve(0); }
+    var storeName = table === "requisitos" ? (stores().requisitos || "requisitos") : table === "contactos" ? (stores().contactos || "contactos") : (stores().notas || "notas");
+    var map = {};
+    (rows || []).forEach(function(source){
+      var row = ensurePeriod(source,period);
+      if(row.periodoId !== period.id){ return; }
+      row.cedula = normalizeCedula(first(row,["cedula","numeroIdentificacion","NumeroIdentificacion","Cédula","Cedula"]));
+      if(!row.cedula || pendingMap[row.cedula]){ if(row.cedula && pendingMap[row.cedula]){ summary.protectedRelated += 1; } return; }
+      row.numeroIdentificacion = row.numeroIdentificacion || row.cedula;
+      row.id = stableRowId(table,row,period);
+      row.source = "google_sheets_pull";
+      map[row.id] = map[row.id] ? mergeNonEmpty(map[row.id],row) : row;
+    });
+    var prepared = Object.keys(map).map(function(id){ return map[id]; });
+    if(!prepared.length){ return Promise.resolve(0); }
+
+    return Promise.all(prepared.map(function(remote){
+      return db().get(storeName,remote.id).catch(function(){ return null; }).then(function(local){
+        if(!local){ remote.updatedAt = remote.updatedAt || now(); return remote; }
+        var remoteTime = timestamp(remote);
+        var localTime = timestamp(local);
+        if(!remoteTime){ summary.ambiguousRelated += 1; return null; }
+        if(localTime > remoteTime){ summary.localNewerRelated += 1; return null; }
+        var merged = mergeNonEmpty(local,remote);
+        merged.id = remote.id;
+        merged.cedula = remote.cedula;
+        merged.periodoId = period.id;
+        merged.updatedAt = remote.updatedAt || local.updatedAt || now();
+        merged.source = "google_sheets_pull";
+        return merged;
+      });
+    })).then(function(items){
+      items = items.filter(Boolean);
+      if(!items.length){ return 0; }
+      return db().bulkPut(storeName,items).then(function(result){ return (result || []).length; });
+    });
+  }
+
+  function markImportedChanges(changes){
+    changes = Array.isArray(changes) ? changes : [];
+    if(!changes.length){ return Promise.resolve(); }
+    if(outbox() && typeof outbox().markSynced === "function"){
+      var chain = Promise.resolve();
+      ["google","firebase","supabase"].forEach(function(target){ chain = chain.then(function(){ return outbox().markSynced(changes,target,{ syncedAt:now(),source:"google_sheets_pull",imported:true }); }); });
+      return chain;
+    }
+    if(sync() && typeof sync().markChanges === "function"){
+      return Promise.all(["google","firebase","supabase"].map(function(target){ return sync().markChanges(changes,target,"SINCRONIZADO",{ source:"google_sheets_pull",imported:true }); }));
+    }
+    return Promise.resolve();
+  }
+
   function createSafetyBackup(period){
     var backup = window.BL2BackupV2 || window.BL2Backup;
-    return backup && typeof backup.createBackup === "function"
-      ? backup.createBackup({ scope:"period",periodoId:period.id,periodoLabel:period.label,type:"pre_google_sheets_pull" })
-      : Promise.resolve(null);
+    return backup && typeof backup.createBackup === "function" ? backup.createBackup({ scope:"period",periodoId:period.id,periodoLabel:period.label,type:"pre_google_sheets_pull" }) : Promise.reject(new Error("No se pudo crear el respaldo de seguridad."));
   }
 
   function saveStudents(students,period,summary){
     if(!students.length){ return Promise.resolve(); }
-    return core().saveStudents(students,{
-      normalized:false,
-      periodoId:period.id,
-      periodoLabel:period.label,
-      source:"google_sheets_pull",
-      markRetired:false,
-      sync:false,
-      localOnly:true,
-      cloudSync:false,
-      manualCloudSync:true,
-      importResult:{ advertencias:[],errores:[],duplicados:summary.duplicatesIgnored }
-    }).then(function(result){
+    return core().saveStudents(students,{ normalized:false,periodoId:period.id,periodoLabel:period.label,source:"google_sheets_pull",markRetired:false,sync:false,localOnly:true,cloudSync:false,manualCloudSync:true,importResult:{ advertencias:[],errores:[],duplicados:summary.duplicatesIgnored } }).then(function(result){
       summary.guardados += Number(result.guardados || 0);
       summary.actualizados += Number(result.actualizados || 0);
       summary.sinCambios += Number(result.sinCambios || 0);
@@ -482,7 +529,12 @@ Función o funciones:
     if(!core() || typeof core().saveStudents !== "function"){ return Promise.reject(new Error("BL2Core.saveStudents no está disponible.")); }
     period = { id:normalizePeriodId(period.id),label:text(period.label || period.id) };
     var cfg = requireSheetsConfig();
-    var summary = { ok:true,periodoId:period.id,periodoLabel:period.label,totalEntrada:0,guardados:0,actualizados:0,sinCambios:0,duplicados:0,duplicatesIgnored:0,divisionesImportadas:0,rawTables:{},importedTables:{},ignoredTables:{},startedAt:now(),finishedAt:"",message:"" };
+    var summary = {
+      ok:true,periodoId:period.id,periodoLabel:period.label,totalEntrada:0,aplicables:0,
+      guardados:0,actualizados:0,sinCambios:0,duplicados:0,duplicatesIgnored:0,
+      protectedLocal:0,localNewer:0,ambiguous:0,protectedRelated:0,localNewerRelated:0,ambiguousRelated:0,
+      divisionesImportadas:0,rawTables:{},importedTables:{},ignoredTables:{},startedAt:now(),finishedAt:"",message:""
+    };
 
     pauseOutbound(period);
     setBusy(true);
@@ -493,9 +545,10 @@ Función o funciones:
       return syncSheetsConfigToBL2(cfg);
     }).then(function(){
       progress(15,"Leyendo Google Sheets del período " + period.label + "...");
-      return requestPull(cfg,period);
-    }).then(function(response){
-      var tables = extractTables(response);
+      return Promise.all([requestPull(cfg,period),pendingCedulas(period.id)]);
+    }).then(function(values){
+      var tables = extractTables(values[0]);
+      var pendingMap = values[1] || {};
       var names = Object.keys(tables);
       if(!names.length){ throw new Error("Apps Script no devolvió tablas para importar."); }
       names.forEach(function(name){
@@ -503,32 +556,23 @@ Función o funciones:
         if(ALLOWED_TABLES[name]){ summary.importedTables[name] = (tables[name] || []).length; }
         else{ summary.ignoredTables[name] = (tables[name] || []).length; }
       });
-
       Object.keys(TECHNICAL_TABLES).forEach(function(name){ if(tables[name]){ delete tables[name]; } });
-      var students = prepareStudents(tables,period);
-      summary.totalEntrada = students.length;
-      summary.duplicatesIgnored = Math.max(0,(summary.importedTables.estudiantes || 0) + (summary.importedTables.matriculasPeriodo || 0) - students.length);
+      summary.totalEntrada = (tables.estudiantes || []).length + (tables.matriculasPeriodo || []).length;
 
       var chain = Promise.resolve();
       if(tables.periodos && tables.periodos.length && core() && typeof core().savePeriod === "function"){
         chain = chain.then(function(){ return core().savePeriod({ id:period.id,periodoId:period.id,label:period.label,periodoLabel:period.label,updatedAt:now() }); });
       }
       chain = chain.then(function(){ return saveDivisions(buildDivisions(tables.periodosDivisiones || [],period),period).then(function(count){ summary.divisionesImportadas = count; }); });
-      chain = chain.then(function(){ progress(55,"Guardando estudiantes sin generar reenvíos..."); return saveStudents(students,period,summary); });
+      chain = chain.then(function(){ return planStudents(tables,period,pendingMap,summary); }).then(function(students){ summary.aplicables = students.length; progress(55,"Guardando únicamente cambios remotos seguros..."); return saveStudents(students,period,summary); });
       ["requisitos","contactos","notas"].forEach(function(table){
-        chain = chain.then(function(){
-          var rows = tables[table] || [];
-          if(!rows.length){ return null; }
-          return saveRawBusinessTable(table,rows,period).then(function(count){ summary.guardados += count; });
-        });
+        chain = chain.then(function(){ var rows = tables[table] || []; return rows.length ? saveRawBusinessTable(table,rows,period,pendingMap,summary).then(function(count){ summary.guardados += count; }) : null; });
       });
       return chain;
     }).then(function(){
       summary.finishedAt = now();
-      summary.message = "Google Sheets → Base Local completado sin importar tablas técnicas ni generar reenvíos.";
-      if(store() && typeof store().patchConfig === "function"){
-        store().patchConfig({ sheets:{ connected:true,status:"ok",lastSyncAt:now(),lastError:"",lastPullPeriodId:period.id },bdlocal:{ connected:true,status:"ok",lastTestAt:now() } });
-      }
+      summary.message = "Google Sheets → Base Local completado. Se protegieron cambios locales y no se importaron tablas técnicas.";
+      if(store() && typeof store().patchConfig === "function"){ store().patchConfig({ sheets:{ connected:true,status:"ok",lastSyncAt:now(),lastError:"",lastPullPeriodId:period.id },bdlocal:{ connected:true,status:"ok",lastTestAt:now() } }); }
       progress(100,summary.message);
       setStatus("bl2-google-status","Importado de forma segura: " + new Date().toLocaleString());
       log(summary.message,"ok",summary);
@@ -544,9 +588,7 @@ Función o funciones:
 
   function selectAndPull(){
     return choosePeriod().then(function(period){
-      if(!window.confirm("Google Sheets → Base Local\n\nPeríodo: " + period.label + "\n\nSe creará respaldo, no se marcarán retirados y se ignorarán tablas técnicas. ¿Continuar?")){
-        return { ok:true,cancelled:true,message:"Operación cancelada." };
-      }
+      if(!window.confirm("Google Sheets → Base Local\n\nPeríodo: " + period.label + "\n\nSe creará respaldo, se protegerán cambios locales y se ignorarán tablas técnicas. ¿Continuar?")){ return { ok:true,cancelled:true,message:"Operación cancelada." }; }
       return pullSheetsToLocal(period);
     });
   }
@@ -586,7 +628,7 @@ Función o funciones:
   }
 
   function bind(){
-    bindButton("bl2-btn-pull-sheets",function(){ return selectAndPull().then(function(result){ if(result && !result.cancelled){ window.alert(result.message + "\n\nEstudiantes: " + result.totalEntrada + "\nGuardados: " + result.guardados + "\nActualizados: " + result.actualizados); } return result; }); });
+    bindButton("bl2-btn-pull-sheets",function(){ return selectAndPull().then(function(result){ if(result && !result.cancelled){ window.alert(result.message + "\n\nFilas remotas: " + result.totalEntrada + "\nAplicables: " + result.aplicables + "\nProtegidos: " + (result.protectedLocal + result.localNewer + result.ambiguous)); } return result; }); });
     bindButton("bl2-btn-fetch-firebase-config",function(){ return forceFetchFirebaseConfig().then(function(result){ window.alert(result.message); return result; }); });
     bindButton("bl2-btn-clean-sheets-duplicates",function(){ if(!window.confirm("Compactar duplicados de Google Sheets sin borrar registros únicos. ¿Continuar?")){ return Promise.resolve({ cancelled:true }); } return cleanSheetsDuplicates().then(function(result){ window.alert(result.message); return result; }); });
   }
@@ -605,10 +647,14 @@ Función o funciones:
     buildDivisions:buildDivisions,
     pauseGooglePush:pauseOutbound,
     resumeGooglePush:resumeOutbound,
-    isPulling:isPulling,
-    bind:bind
+    isPulling:function(){ return pulling; },
+    bind:bind,
+    diagnostics:{
+      mergeNonEmpty:mergeNonEmpty,
+      stableRowId:stableRowId,
+      remoteStudents:remoteStudents,
+      normalizeTableKey:normalizeTableKey,
+      timestamp:timestamp
+    }
   };
-
-  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded",bind); }
-  else{ bind(); }
 })(window,document);
