@@ -108,7 +108,8 @@ contains("electron/main.js","secureHandle(channel,handler)","IPC usa registro se
 notContains("electron/main.js","webSecurity:false","Electron no desactiva seguridad web");
 notContains("electron/main.js","sandbox:false","Electron no desactiva sandbox");
 
-contains("BDLocal/bl2.import.js","xlsx-0.20.3","Importador usa SheetJS corregido");
+contains("BDLocal/bl2.import.js","node_modules/xlsx/dist/xlsx.full.min.js","Importador usa dependencia SheetJS local");
+contains("BDLocal/bl2.import.js","sheetjs@0.20.3","Importador declara SheetJS corregido");
 contains("BDLocal/bl2.import.js","MAX_FILE_BYTES=15*1024*1024","Importador limita archivos");
 contains("BDLocal/bl2.import.js","safeKey(key)","Importador bloquea claves peligrosas");
 contains("BDLocal/bl2.import.js","missingLeadingZero&&identity.safeAutoCorrection","Cero inicial solo con validación");
