@@ -1,0 +1,225 @@
+<!doctype html>
+<!-- =========================================================
+Nombre completo: plani.html
+Ruta o ubicación: /Requisitos/Plani/frontend/plani.html
+Función o funciones:
+- Mostrar la pantalla Plani para planificación de titulación.
+- Guiar el flujo: Período -> Insumos -> Documento.
+- Conectar estado, período, tipo de documento, cronograma, recursos, motor documental, exportación y plantillas Complexivo/Articulo.
+- Mantener el módulo separado de Infor hasta integración final.
+Con qué se conecta:
+- plani.css
+- ../core/plani.constants.js
+- ../core/plani.storage.js
+- ../core/plani.periodo.js
+- ../core/plani.tipo-documento.js
+- ../core/plani.state.js
+- ../core/plani.validator.js
+- ../core/plani.diagnostics.js
+- ../core/plani.cronograma.parser.js
+- ../core/plani.cronograma.mapper.js
+- ../core/plani.assets.js
+- ../core/plani.section-assets.js
+- ../core/plani.images.js
+- ../core/plani.charts.js
+- ../core/plani.numbering.js
+- ../core/plani.index-builder.js
+- ../sections/complexivo/complexivo.content.js
+- ../sections/complexivo/complexivo.rules.js
+- ../sections/complexivo/complexivo.tables.js
+- ../sections/complexivo/complexivo.charts.js
+- ../sections/complexivo/complexivo.assets.config.js
+- ../sections/complexivo/complexivo.sections.js
+- ../templates/documents/complexivo.config.js
+- ../sections/articulo/articulo.content.js
+- ../sections/articulo/articulo.rules.js
+- ../sections/articulo/articulo.tables.js
+- ../sections/articulo/articulo.charts.js
+- ../sections/articulo/articulo.assets.config.js
+- ../sections/articulo/articulo.sections.js
+- ../templates/documents/articulo.config.js
+- ../core/plani.section-builder.js
+- ../core/plani.document-model.js
+- ../core/plani.builder.js
+- ../core/plani.preview.js
+- ../core/plani.export.gateway.js
+- ../core/plani.qa.js
+- ../templates/layout/layout.config.js
+- ../templates/layout/typography.config.js
+- ../templates/layout/header.template.js
+- ../templates/layout/signatures.template.js
+- ../templates/layout/cover.template.js
+- ../templates/layout/index.template.js
+- ../templates/layout/table.template.js
+- ../templates/layout/section.template.js
+- ../templates/layout/page.template.js
+- ../export/shared/plani.export.filename.js
+- ../export/shared/plani.export.helpers.js
+- ../export/shared/plani.export.styles.js
+- ../export/html/plani.html.export.js
+- ../export/word/plani.word.export.js
+- ../export/pdf/plani.pdf.export.js
+- plani.ui.js
+- plani.events.js
+- plani.assets.ui.js
+- plani.preview.ui.js
+- plani.app.js
+========================================================= -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plani · Planificación de Titulación</title>
+  <link rel="stylesheet" href="plani.css" />
+</head>
+<body>
+  <main class="plani-app">
+    <section class="plani-hero">
+      <div>
+        <p class="plani-eyebrow">Unidad de Titulación y Eficiencia Terminal</p>
+        <h1>Plani · Planificación de Titulación</h1>
+        <p class="plani-lead">Selecciona el período, define el tipo de planificación, carga el cronograma y prepara el documento institucional.</p>
+      </div>
+      <div class="plani-hero-actions">
+        <span id="plani-module-state" class="plani-chip warn">Bloque 8</span>
+      </div>
+    </section>
+
+    <section id="plani-status" class="plani-status">Cargando Plani...</section>
+
+    <section id="plani-flow" class="plani-flow" aria-label="Flujo de planificación"></section>
+
+    <section class="plani-grid plani-grid-main">
+      <article class="plani-card">
+        <div class="plani-card-head">
+          <div>
+            <h2>1. Preparar planificación</h2>
+            <p>Selecciona el período y el tipo de documento que se generará.</p>
+          </div>
+          <span id="plani-period-chip" class="plani-chip warn">Sin período</span>
+        </div>
+
+        <label class="plani-field">
+          Período
+          <select id="plani-periodo">
+            <option value="">Cargando períodos...</option>
+          </select>
+        </label>
+
+        <label class="plani-field">
+          Tipo de planificación
+          <select id="plani-document-type">
+            <option value="">Selecciona un tipo</option>
+          </select>
+        </label>
+
+        <div class="plani-mini-grid plani-mini-grid-3">
+          <article><span>Tipo período</span><strong id="plani-period-type-label">—</strong></article>
+          <article><span>Documento</span><strong id="plani-document-label">—</strong></article>
+          <article><span>Código base</span><strong id="plani-document-code">—</strong></article>
+        </div>
+      </article>
+
+      <article class="plani-card">
+        <div class="plani-card-head">
+          <div>
+            <h2>2. Cronograma</h2>
+            <p>Pega el cronograma o carga un archivo de texto. Plani lo interpreta como filas institucionales.</p>
+          </div>
+          <span id="plani-cronograma-chip" class="plani-chip warn">Sin cronograma</span>
+        </div>
+
+        <label class="plani-field">Archivo de cronograma<input id="plani-cronograma-file" type="file" accept=".txt,.csv,.tsv,.md" /></label>
+        <label class="plani-field">Cronograma pegado<textarea id="plani-cronograma-raw" placeholder="Pega aquí el cronograma de planificación..."></textarea></label>
+      </article>
+    </section>
+
+    <section class="plani-card">
+      <div class="plani-card-head">
+        <div><h2>3. Recursos por sección</h2><p>La estructura queda preparada para que cada sección tenga sus propias imágenes, gráficos y tablas.</p></div>
+        <span id="plani-assets-chip" class="plani-chip">0 recursos</span>
+      </div>
+      <div id="plani-assets-preview" class="plani-preview-box"><div class="plani-empty">Todavía no hay recursos cargados por sección.</div></div>
+    </section>
+
+    <section class="plani-card">
+      <div class="plani-card-head">
+        <div><h2>4. Vista previa documental</h2><p>Resumen del modelo interno que luego se usará para Word y PDF.</p></div>
+        <span id="plani-preview-chip" class="plani-chip warn">Sin vista previa</span>
+      </div>
+      <div id="plani-preview" class="plani-preview-box"><div class="plani-empty">Selecciona un tipo de planificación y agrega un cronograma.</div></div>
+    </section>
+
+    <section class="plani-card plani-process-card">
+      <div>
+        <h2>5. Procesar y exportar</h2>
+        <p>En el bloque 8 ya existen plantillas específicas para Complexivo y Artículo Académico.</p>
+        <p id="plani-readiness" class="plani-muted">Estado base listo.</p>
+      </div>
+      <div class="plani-process-actions">
+        <button id="plani-process" class="plani-primary" type="button">Construir documento</button>
+        <button id="plani-export-word" type="button" disabled>Exportar Word</button>
+        <button id="plani-export-pdf" type="button" disabled>Exportar PDF</button>
+      </div>
+    </section>
+
+    <details class="plani-card plani-advanced"><summary>Diagnóstico avanzado</summary><pre id="plani-diagnostics">Sin diagnóstico.</pre></details>
+  </main>
+
+  <script src="../core/plani.constants.js"></script>
+  <script src="../core/plani.storage.js"></script>
+  <script src="../core/plani.periodo.js"></script>
+  <script src="../core/plani.tipo-documento.js"></script>
+  <script src="../core/plani.state.js"></script>
+  <script src="../core/plani.validator.js"></script>
+  <script src="../core/plani.diagnostics.js"></script>
+  <script src="../core/plani.cronograma.parser.js"></script>
+  <script src="../core/plani.cronograma.mapper.js"></script>
+  <script src="../core/plani.assets.js"></script>
+  <script src="../core/plani.section-assets.js"></script>
+  <script src="../core/plani.images.js"></script>
+  <script src="../core/plani.charts.js"></script>
+  <script src="../core/plani.numbering.js"></script>
+  <script src="../core/plani.index-builder.js"></script>
+  <script src="../sections/complexivo/complexivo.content.js"></script>
+  <script src="../sections/complexivo/complexivo.rules.js"></script>
+  <script src="../sections/complexivo/complexivo.tables.js"></script>
+  <script src="../sections/complexivo/complexivo.charts.js"></script>
+  <script src="../sections/complexivo/complexivo.assets.config.js"></script>
+  <script src="../sections/complexivo/complexivo.sections.js"></script>
+  <script src="../templates/documents/complexivo.config.js"></script>
+  <script src="../sections/articulo/articulo.content.js"></script>
+  <script src="../sections/articulo/articulo.rules.js"></script>
+  <script src="../sections/articulo/articulo.tables.js"></script>
+  <script src="../sections/articulo/articulo.charts.js"></script>
+  <script src="../sections/articulo/articulo.assets.config.js"></script>
+  <script src="../sections/articulo/articulo.sections.js"></script>
+  <script src="../templates/documents/articulo.config.js"></script>
+  <script src="../core/plani.section-builder.js"></script>
+  <script src="../core/plani.document-model.js"></script>
+  <script src="../core/plani.builder.js"></script>
+  <script src="../core/plani.preview.js"></script>
+  <script src="../templates/layout/layout.config.js"></script>
+  <script src="../templates/layout/typography.config.js"></script>
+  <script src="../templates/layout/header.template.js"></script>
+  <script src="../templates/layout/signatures.template.js"></script>
+  <script src="../templates/layout/cover.template.js"></script>
+  <script src="../templates/layout/index.template.js"></script>
+  <script src="../templates/layout/table.template.js"></script>
+  <script src="../templates/layout/section.template.js"></script>
+  <script src="../templates/layout/page.template.js"></script>
+  <script src="../export/shared/plani.export.filename.js"></script>
+  <script src="../export/shared/plani.export.helpers.js"></script>
+  <script src="../export/shared/plani.export.styles.js"></script>
+  <script src="../export/html/plani.html.export.js"></script>
+  <script src="../export/word/plani.word.export.js"></script>
+  <script src="../export/pdf/plani.pdf.export.js"></script>
+  <script src="../core/plani.export.gateway.js"></script>
+  <script src="plani.ui.js"></script>
+  <script src="plani.events.js"></script>
+  <script src="plani.assets.ui.js"></script>
+  <script src="plani.preview.ui.js"></script>
+  <script src="../core/plani.qa.js"></script>
+  <script src="plani.app.js"></script>
+</body>
+</html>

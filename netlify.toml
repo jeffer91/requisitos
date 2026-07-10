@@ -1,0 +1,29 @@
+[[redirects]]
+from = "/BaseLocal/*"
+to = "/BDLocal/bdlocal.html"
+status = 301
+force = true
+
+[[redirects]]
+from = "/BaseLocal2/*"
+to = "/BDLocal/bdlocal.html"
+status = 301
+force = true
+
+[[redirects]]
+from = "/Gestion/Excel/*"
+to = "/BDLocal/bdlocal.html"
+status = 301
+force = true
+
+[[redirects]]
+from = "/bdlocal"
+to = "/BDLocal/bdlocal.html"
+status = 200
+force = true
+
+[[redirects]]
+from = "/carga"
+to = "/BDLocal/bdlocal.html"
+status = 200
+force = true

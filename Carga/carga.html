@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carga | Base Local</title>
+
+  <link rel="stylesheet" href="./carga.css" />
+
+  <!-- Diagnóstico global: va primero para capturar errores desde el inicio. -->
+  <script src="../Diagnostico/diag.loader.js"></script>
+
+  <!--
+    Puente mínimo para que Carga pueda trabajar dentro de la Maqueta,
+    dentro de iframe o abierta directamente en Electron.
+    No reemplaza BDLocal: solo copia APIs existentes desde la ventana padre
+    y crea compatibilidad temporal hacia BL2Core cuando está disponible.
+  -->
+  <script>
+    (function(window){
+      "use strict";
+
+      var globals = [
+        "BL2Core",
+        "BDLocal",
+        "BDLNormText",
+        "BDLNormPeriodo",
+        "BDLNormEstudiante",
+        "BDLValidatorEstudiante",
+        "BDLRepoEstudiantes",
+        "BDLRepoCarreras",
+        "BDLRepoRequisitos",
+        "BDLRepoDashboard",
+        "BDLSyncEngine"
+      ];
+
+      function fromParent(name){
+        try{
+          if(!window[name] && window.parent && window.parent !== window && window.parent[name]){
+            window[name] = window.parent[name];
+          }
+        }catch(error){}
+      }
+
+      globals.forEach(fromParent);
+
+      if(!window.BDLNormText){
+        window.BDLNormText = {
+          cleanSpaces: function(value){
+            return String(value == null ? "" : value)
+              .replace(/\u00a0/g, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+          },
+
+          upper: function(value){
+            return this.cleanSpaces(value).toUpperCase();
+          },
+
+          key: function(value){
+            return this.cleanSpaces(value)
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, "");
+          },
+
+          first: function(row, fields){
+            row = row || {};
+            fields = Array.isArray(fields) ? fields : [];
+
+            var keys = Object.keys(row);
+            var wanted = fields.map(this.key.bind(this));
+
+            for(var i = 0; i < keys.length; i += 1){
+              if(wanted.indexOf(this.key(keys[i])) >= 0){
+                return this.cleanSpaces(row[keys[i]]);
+              }
+            }
+
+            return "";
+          }
+        };
+      }
+
+      if(!window.BDLNormPeriodo){
+        window.BDLNormPeriodo = {
+          normalize: function(row, selected){
+            var T = window.BDLNormText;
+            row = row || {};
+            selected = selected || {};
+
+            var rawId = selected.periodoCanonicoId || selected.periodoId || selected.id || selected.value || "";
+            var rawLabel = selected.periodoCanonicoLabel || selected.periodoLabel || selected.label || selected.nombre || rawId;
+
+            rawId = rawId || T.first(row, ["periodoId", "periodo", "periodoLabel", "cohorte"]);
+            rawLabel = rawLabel || T.first(row, ["periodoLabel", "periodo", "cohorte"]) || rawId;
+
+            return {
+              periodoId: T.cleanSpaces(rawId) || "SIN_PERIODO",
+              periodoLabel: T.cleanSpaces(rawLabel || rawId) || "Sin período",
+              valid: !!T.cleanSpaces(rawId)
+            };
+          },
+
+          isValid: function(periodo){
+            return !!(periodo && periodo.periodoId && periodo.periodoId !== "SIN_PERIODO");
+          }
+        };
+      }
+
+      if(!window.BDLNormEstudiante){
+        window.BDLNormEstudiante = {
+          numero: function(row){
+            var T = window.BDLNormText;
+            return T.first(row || {}, [
+              "numeroIdentificacion",
+              "NumeroIdentificacion",
+              "identificacion",
+              "cedula",
+              "cédula",
+              "documento"
+            ]);
+          },
+
+          normalize: function(row){
+            var T = window.BDLNormText;
+            row = row || {};
+
+            var cedula = T.cleanSpaces(this.numero(row)).replace(/[^0-9A-Za-z]/g, "");
+            if(/^\d{9}$/.test(cedula)){ cedula = "0" + cedula; }
+
+            var periodo = window.BDLNormPeriodo.normalize(row, {
+              periodoId: row.periodoCanonicoId || row.periodoId || row.PeriodoId || row._periodoSeleccionado || "",
+              periodoLabel: row.periodoCanonicoLabel || row.periodoLabel || row.Periodo || row._periodoSeleccionadoLabel || ""
+            });
+
+            var nombres = T.first(row, ["nombres", "Nombres", "nombre", "estudiante", "alumno"]);
+            var codigoCarrera = T.first(row, ["codigoCarrera", "CodigoCarrera", "CódigoCarrera", "codCarrera"]);
+            var nombreCarrera = T.first(row, ["nombreCarrera", "NombreCarrera", "carrera", "Carrera", "programa"]);
+            var idEstudiantePeriodo = periodo.periodoId + "__" + cedula;
+
+            return {
+              periodo: periodo,
+              persona: {
+                numeroIdentificacion: cedula,
+                nombres: nombres,
+                correoPersonal: T.first(row, ["correoPersonal", "CorreoPersonal", "correo", "email"]),
+                correoInstitucional: T.first(row, ["correoInstitucional", "CorreoInstitucional"]),
+                celular: T.first(row, ["celular", "Celular", "telefono", "teléfono"])
+              },
+              resumen: {
+                id: idEstudiantePeriodo,
+                idEstudiantePeriodo: idEstudiantePeriodo,
+                numeroIdentificacion: cedula,
+                cedula: cedula,
+                nombres: nombres,
+                periodoId: periodo.periodoId,
+                periodoLabel: periodo.periodoLabel,
+                codigoCarrera: codigoCarrera,
+                nombreCarrera: nombreCarrera,
+                carrera: nombreCarrera,
+                estadoMatricula: T.upper(row.estadoMatricula || row.EstadoMatricula || "ACTIVO") || "ACTIVO"
+              },
+              detalle: Object.assign({}, row, {
+                id: idEstudiantePeriodo,
+                idEstudiantePeriodo: idEstudiantePeriodo,
+                numeroIdentificacion: cedula,
+                cedula: cedula,
+                periodoId: periodo.periodoId,
+                periodoLabel: periodo.periodoLabel,
+                periodoCanonicoId: periodo.periodoId,
+                periodoCanonicoLabel: periodo.periodoLabel,
+                nombres: nombres,
+                Nombres: nombres,
+                codigoCarrera: codigoCarrera,
+                CodigoCarrera: codigoCarrera,
+                nombreCarrera: nombreCarrera,
+                NombreCarrera: nombreCarrera
+              })
+            };
+          }
+        };
+      }
+
+      if(!window.BDLRepoEstudiantes && window.BL2Core && typeof window.BL2Core.saveStudents === "function"){
+        window.BDLRepoEstudiantes = {
+          guardarMuchos: function(rows, periodoInfo, options){
+            periodoInfo = periodoInfo || {};
+            options = options || {};
+
+            return window.BL2Core.saveStudents(rows || [], {
+              periodoId: periodoInfo.periodoId || periodoInfo.id || "",
+              periodoLabel: periodoInfo.periodoLabel || periodoInfo.label || "",
+              normalized: true,
+              source: options.source || "carga_excel",
+              fileName: options.fileName || "",
+              origen: options.origen || "",
+              sync: false,
+              localOnly: true,
+              cloudSync: false,
+              manualCloudSync: true
+            }).then(function(result){
+              result = result || {};
+              return {
+                ok: result.ok !== false,
+                total: result.totalEntrada || result.total || (rows || []).length,
+                saved: result.guardados || result.saved || 0,
+                updated: result.actualizados || result.updated || 0,
+                merged: result.duplicados || result.merged || 0,
+                warnings: result.advertencias || result.warnings || [],
+                errors: result.errores || result.errors || [],
+                changes: result.changes || []
+              };
+            });
+          }
+        };
+      }
+    })(window);
+  </script>
+
+  <!-- Núcleo de Carga -->
+  <script defer src="./carga.config.js"></script>
+  <script defer src="./carga.state.js"></script>
+
+  <!-- Lectores -->
+  <script defer src="./readers/carga.reader.csv.js"></script>
+  <script defer src="./readers/carga.reader.txt.js"></script>
+  <script defer src="./readers/carga.reader.html.js"></script>
+  <script defer src="./readers/carga.reader.xlsx.js"></script>
+  <script defer src="./readers/carga.reader.clipboard.js"></script>
+  <script defer src="./readers/carga.reader.file.js"></script>
+
+  <!-- Mapeo -->
+  <script defer src="./mapping/carga.field-map.js"></script>
+  <script defer src="./mapping/carga.detect-periodo.js"></script>
+  <script defer src="./mapping/carga.detect-carrera.js"></script>
+  <script defer src="./mapping/carga.detect-division.js"></script>
+  <script defer src="./mapping/carga.detect-requisitos.js"></script>
+  <script defer src="./mapping/carga.detect-notas.js"></script>
+
+  <!-- Proceso -->
+  <script defer src="./process/carga.normalizer.js"></script>
+  <script defer src="./process/carga.validator.js"></script>
+  <script defer src="./process/carga.preview.js"></script>
+  <script defer src="./process/carga.report.js"></script>
+  <script defer src="./process/carga.distributor.js"></script>
+  <script defer src="./process/carga.save.js"></script>
+
+  <!-- UI -->
+  <script defer src="./carga.divisiones.popup.js"></script>
+  <script defer src="./carga.app.js"></script>
+  <script defer src="./carga.ui.js"></script>
+  <script defer src="./carga.index.js"></script>
+</head>
+
+<body>
+  <main class="carga-shell">
+    <header class="carga-header">
+      <div>
+        <span class="carga-eyebrow">Carga de datos</span>
+        <h1>Carga a BDLocal</h1>
+        <p>Selecciona un período, sube el archivo y guarda los estudiantes en la base local. Las bases externas se suben manualmente desde BDLocal.</p>
+      </div>
+
+      <div class="carga-header-status">
+        <span class="carga-pill" id="cargaRuntimePill">Detectando entorno...</span>
+        <span class="carga-pill carga-pill-ok" id="cargaEstadoPill">Listo</span>
+      </div>
+    </header>
+
+    <section class="carga-grid">
+      <!-- 1. Periodo -->
+      <article class="carga-card carga-card-compact" id="cargaPeriodoModulo">
+        <div class="carga-card-header carga-card-header-tight">
+          <div>
+            <h2>1. Período</h2>
+            <p>Elige el período antes de subir el archivo.</p>
+          </div>
+          <span class="carga-chip warn" id="cargaPeriodoChip">Sin período</span>
+        </div>
+
+        <div class="carga-period-form">
+          <label>
+            <span>Período guardado</span>
+            <select id="cargaPeriodoSelect">
+              <option value="">Seleccione...</option>
+            </select>
+          </label>
+
+          <button type="button" class="carga-btn carga-btn-light" id="cargaBtnPeriodoEditar">Editar</button>
+          <button type="button" class="carga-btn carga-btn-light" id="cargaBtnPeriodoBorrar">Borrar</button>
+
+          <div class="carga-period-custom" id="cargaPeriodoPersonalizadoWrap">
+            <label>
+              <span>Desde</span>
+              <select id="cargaPeriodoDesdeMes"></select>
+            </label>
+            <label>
+              <span>Año</span>
+              <input id="cargaPeriodoDesdeAnio" type="number" min="2020" max="2100" placeholder="2026" />
+            </label>
+            <label>
+              <span>Hasta</span>
+              <select id="cargaPeriodoHastaMes"></select>
+            </label>
+            <label>
+              <span>Año</span>
+              <input id="cargaPeriodoHastaAnio" type="number" min="2020" max="2100" placeholder="2026" />
+            </label>
+            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnPeriodoCrear">Crear período</button>
+          </div>
+               </div>
+
+        <div class="carga-selected-period" id="cargaPeriodoSeleccionado">
+          Ningún período seleccionado.
+        </div>
+
+        <div class="carga-period-cards" id="cargaPeriodosCards">
+          <div class="carga-empty compact">No hay períodos creados.</div>
+        </div>
+      </article>
+
+      <!-- 2. Subir -->
+      <article class="carga-card carga-card-compact" id="cargaSubirModulo">
+        <div class="carga-card-header carga-card-header-tight">
+          <div>
+            <h2>2. Subir</h2>
+            <p>Sube el Excel en el período guardado arriba.</p>
+          </div>
+          <span class="carga-chip warn" id="cargaPeriodoActivoChip">Sin período</span>
+        </div>
+
+        <div class="carga-locked" id="cargaSubirBloqueado">
+          Primero crea o selecciona un período.
+        </div>
+
+        <div id="cargaSubirContenido" class="carga-subir-content is-disabled">
+          <label class="carga-dropzone" id="cargaDropzone" for="cargaArchivoInput">
+            <input id="cargaArchivoInput" type="file" accept=".xlsx,.xls,.csv,.txt,.json,.html,.htm" />
+            <span class="carga-dropzone-icon">↑</span>
+            <strong>Seleccionar archivo</strong>
+            <small>XLS viejo como HTML, XLSX, CSV, TXT o JSON</small>
+          </label>
+
+          <div class="carga-file-info" id="cargaFileInfo">Ningún archivo seleccionado.</div>
+
+          <div class="carga-actions carga-actions-tight">
+            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnGuardar" disabled>Subir y guardar en BDLocal</button>
+            <button type="button" class="carga-btn carga-btn-light" id="cargaBtnLimpiar">Limpiar</button>
+          </div>
+        </div>
+
+        <div class="carga-summary-mini">
+          <div><span>Archivo</span><strong id="cargaResumenArchivo">—</strong></div>
+          <div><span>Período</span><strong id="cargaResumenPeriodo">—</strong></div>
+          <div><span>Filas</span><strong id="cargaResumenFilas">0</strong></div>
+          <div><span>Carreras</span><strong id="cargaResumenCarreras">0</strong></div>
+          <div><span>Requisitos</span><strong id="cargaResumenRequisitos">0</strong></div>
+        </div>
+
+        <section class="carga-result-mini carga-hidden" id="cargaResultadoBox">
+          <div><span>Total</span><strong id="cargaResultTotal">0</strong></div>
+          <div><span>Guardados</span><strong id="cargaResultGuardados">0</strong></div>
+          <div><span>Actualizados</span><strong id="cargaResultActualizados">0</strong></div>
+          <div><span>Duplicados</span><strong id="cargaResultDuplicados">0</strong></div>
+          <div><span>Advertencias</span><strong id="cargaResultAdvertencias">0</strong></div>
+        </section>
+      </article>
+
+      <!-- 3. Estado posterior a la carga -->
+      <article class="carga-card carga-card-compact" id="cargaSyncModulo">
+        <div class="carga-card-header carga-card-header-tight">
+          <div>
+            <h2>3. Estado de bases</h2>
+            <p>Carga guarda solo en BDLocal. Las bases externas se suben manualmente desde BDLocal.</p>
+          </div>
+          <span class="carga-chip ok" id="cargaSyncChip">BDLocal OK</span>
+        </div>
+
+        <div class="carga-sync-box">
+          <div class="carga-sync-row">
+            <strong id="cargaSyncBase">BDLocal</strong>
+            <span id="cargaSyncTexto">0% · Cambios para nubes 0 · En espera</span>
+          </div>
+          <div class="carga-progress" aria-label="Estado de guardado local">
+            <span id="cargaSyncBar" style="width:0%"></span>
+          </div>
+          <div class="carga-sync-foot">
+            <span id="cargaSyncUltimo">Último resultado: sin actividad</span>
+          </div>
+        </div>
+
+        <div class="carga-note compact">
+          Después de guardar, Firebase, Supabase y Google Sheets quedan pendientes. Súbelas con los botones rojos desde BDLocal.
+        </div>
+      </article>
+    </section>
+
+    <section class="carga-problems-grid">
+      <article class="carga-card">
+        <div class="carga-card-header">
+          <div>
+            <h2>Advertencias</h2>
+            <p>Datos que se guardan, pero conviene revisar.</p>
+          </div>
+        </div>
+        <div id="cargaWarnings" class="carga-list">
+          <div class="carga-empty">Sin advertencias.</div>
+        </div>
+      </article>
+
+      <article class="carga-card">
+        <div class="carga-card-header">
+          <div>
+            <h2>Errores</h2>
+            <p>Si existen errores, la carga se bloquea hasta corregirlos.</p>
+          </div>
+        </div>
+        <div id="cargaErrors" class="carga-list">
+          <div class="carga-empty">Sin errores.</div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div class="carga-toast carga-hidden" id="cargaToast"></div>
+
+  <div class="carga-modal carga-hidden" id="cargaDivisionesModal" aria-hidden="true">
+    <div class="carga-modal-backdrop" data-close="1"></div>
+    <section class="carga-modal-box">
+      <header class="carga-modal-header">
+        <div>
+          <span class="carga-eyebrow">Divisiones</span>
+          <h2 id="cargaDivisionesTitulo">Configurar divisiones</h2>
+          <p id="cargaDivisionesSubtitulo">Anexa carreras a cada división para el período seleccionado.</p>
+        </div>
+        <button type="button" class="carga-modal-close" id="cargaBtnCerrarDivisiones">×</button>
+      </header>
+
+      <div class="carga-modal-content">
+        <div class="carga-divisiones-toolbar">
+          <input id="cargaNuevaDivisionNombre" type="text" placeholder="Nombre de la división" />
+          <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnAgregarDivision">Agregar división</button>
+        </div>
+
+        <div id="cargaDivisionesLista" class="carga-divisiones-lista">
+          <div class="carga-empty">No hay divisiones configuradas.</div>
+        </div>
+      </div>
+
+      <footer class="carga-modal-footer">
+        <button type="button" class="carga-btn carga-btn-light" id="cargaBtnCancelarDivisiones">Cancelar</button>
+        <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnGuardarDivisiones">Guardar cambios</button>
+      </footer>
+    </section>
+  </div>
+</body>
+</html>
