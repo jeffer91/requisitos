@@ -5,12 +5,12 @@ Función o funciones:
 - Administrar cambios_pendientes con claves lógicas estables.
 - Mantener un único pendiente por tabla, período y registro.
 - Preservar la identidad original antes de aplicar reglas legacy.
-- Ignorar duplicados antiguos cuando existe una versión V2 más reciente.
+- Conservar destinos ya sincronizados ante actualizaciones de estado antiguas.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.4.1-idempotent";
+  var VERSION = "0.4.2-idempotent-status-safe";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -94,6 +94,16 @@ Función o funciones:
     return value === "PENDING" || !value ? "PENDIENTE" : value;
   }
 
+  function targetFields(target){
+    if(target === "google"){
+      return ["estadoSheets","statusGoogle","sincronizadoEnSheets","ultimoErrorSheets","nextRetryAtSheets","bloqueadoSheets","intentosSheets"];
+    }
+    if(target === "firebase"){
+      return ["estadoFirebase","statusFirebase","sincronizadoEnFirebase","ultimoErrorFirebase","nextRetryAtFirebase","bloqueadoFirebase","intentosFirebase"];
+    }
+    return ["estadoSupabase","statusSupabase","sincronizadoEnSupabase","ultimoErrorSupabase","nextRetryAtSupabase","bloqueadoSupabase","intentosSupabase"];
+  }
+
   function normalize(row,options){
     var original = clone(row || {});
     var originalId = text(original.sourceChangeId || original.id || original.cambioId);
@@ -146,12 +156,28 @@ Función o funciones:
   }
 
   function reset(row,target){
-    var fields = target === "google"
-      ? ["estadoSheets","statusGoogle","ultimoErrorSheets","nextRetryAtSheets","bloqueadoSheets","intentosSheets"]
-      : target === "firebase"
-        ? ["estadoFirebase","statusFirebase","ultimoErrorFirebase","nextRetryAtFirebase","bloqueadoFirebase","intentosFirebase"]
-        : ["estadoSupabase","statusSupabase","ultimoErrorSupabase","nextRetryAtSupabase","bloqueadoSupabase","intentosSupabase"];
-    row[fields[0]] = "PENDIENTE"; row[fields[1]] = "PENDIENTE"; row[fields[2]] = ""; row[fields[3]] = ""; row[fields[4]] = false; row[fields[5]] = 0;
+    var fields = targetFields(target);
+    row[fields[0]] = "PENDIENTE";
+    row[fields[1]] = "PENDIENTE";
+    row[fields[2]] = "";
+    row[fields[3]] = "";
+    row[fields[4]] = "";
+    row[fields[5]] = false;
+    row[fields[6]] = 0;
+  }
+
+  function preserveSynced(existing,incoming,result,target){
+    var fields = targetFields(target);
+    var existingStatus = status(existing[fields[0]] || existing[fields[1]]);
+    var incomingStatus = status(incoming[fields[0]] || incoming[fields[1]]);
+
+    if(existingStatus === "SINCRONIZADO" && incomingStatus === "PENDIENTE"){
+      fields.forEach(function(field){
+        if(existing[field] !== undefined){ result[field] = clone(existing[field]); }
+      });
+      result[fields[0]] = "SINCRONIZADO";
+      result[fields[1]] = "SINCRONIZADO";
+    }
   }
 
   function merge(existing,incoming){
@@ -167,11 +193,13 @@ Función o funciones:
       updatedAt:now(),
       sourceChangeId:incoming.sourceChangeId || existing.sourceChangeId
     });
+
     if(changed){
       ["google","firebase","supabase"].forEach(function(target){ reset(result,target); });
       result.payloadRevision = number(existing.payloadRevision || 1) + 1;
       result.lastContentChangedAt = now();
     }else{
+      ["google","firebase","supabase"].forEach(function(target){ preserveSynced(existing,incoming,result,target); });
       result.payloadRevision = number(existing.payloadRevision || 1);
     }
     return result;
@@ -211,7 +239,9 @@ Función o funciones:
   }
 
   function list(options){
-    return Promise.all([Repos.safeGetAll(outboxStore()),Repos.safeGetAll(legacyStore())]).then(function(values){ return filter(mergeRows(values[0],values[1]),options || {}); });
+    return Promise.all([Repos.safeGetAll(outboxStore()),Repos.safeGetAll(legacyStore())]).then(function(values){
+      return filter(mergeRows(values[0],values[1]),options || {});
+    });
   }
 
   function getExisting(key){
@@ -220,13 +250,17 @@ Función o funciones:
 
   function save(row,options){
     var incoming = normalize(row || {},options || {});
-    return getExisting(incoming.id).then(function(existing){ return Repos.safePut(outboxStore(),options && options.replace === true ? incoming : merge(existing,incoming)); });
+    return getExisting(incoming.id).then(function(existing){
+      return Repos.safePut(outboxStore(),options && options.replace === true ? incoming : merge(existing,incoming));
+    });
   }
 
   function saveMany(rows,options){
     var result = [];
     var chain = Promise.resolve();
-    (rows || []).forEach(function(row){ chain = chain.then(function(){ return save(row,options || {}).then(function(saved){ if(saved){ result.push(saved); } }); }); });
+    (rows || []).forEach(function(row){
+      chain = chain.then(function(){ return save(row,options || {}).then(function(saved){ if(saved){ result.push(saved); } }); });
+    });
     return chain.then(function(){ return result; });
   }
 
@@ -242,7 +276,20 @@ Función o funciones:
     });
   }
 
-  var api = { version:VERSION,list:list,pending:pending,save:save,saveMany:saveMany,normalize:normalize,logicalKey:logicalKey,stableId:stableId,contentHash:contentHash,mergeExisting:merge,mergeRows:mergeRows };
+  var api = {
+    version:VERSION,
+    list:list,
+    pending:pending,
+    save:save,
+    saveMany:saveMany,
+    normalize:normalize,
+    logicalKey:logicalKey,
+    stableId:stableId,
+    contentHash:contentHash,
+    mergeExisting:merge,
+    mergeRows:mergeRows
+  };
+
   Repos.register("cambios",api);
   Repos.register("cambios_pendientes",api);
   window.BDLRepoCambios = api;
