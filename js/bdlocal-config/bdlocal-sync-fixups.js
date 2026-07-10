@@ -7,11 +7,12 @@ Función o funciones:
 - Mostrar Estudiantes como colección personal y de Telegram.
 - Delegar compare/download académicos en BL2FirebaseGuard.
 - Cargar la lectura automática, limitada y local de Telegram.
+- Impedir que la interfaz antigua revierta la colección académica al guardar cuota.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="3.3.0-telegram-loader";
+  var VERSION="3.3.1-telegram-loader";
   var MAX=25;
   var installed=false;
   var bound=false;
@@ -166,7 +167,14 @@ Función o funciones:
 
   function bind(){
     if(bound){return;}bound=true;
-    document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-bdlc-action]"):null;if(b&&b.getAttribute("data-bdlc-action")==="save-sheets"){saveSheets();}},true);
+    document.addEventListener("click",function(e){
+      var button=e.target&&e.target.closest?e.target.closest("[data-bdlc-action]"):null;
+      var action=button?text(button.getAttribute("data-bdlc-action")):"";
+      if(action==="save-sheets"){saveSheets();}
+      if(action==="save-firebase"){
+        window.setTimeout(function(){enforce();patchVisibleConfig();},0);
+      }
+    },true);
     if(window.MutationObserver){new MutationObserver(patchVisibleConfig).observe(document.body,{childList:true,subtree:true});}
   }
 
