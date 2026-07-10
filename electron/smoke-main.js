@@ -7,6 +7,7 @@ Función o funciones:
 - Esperar el arranque completo de módulos, conectores e IndexedDB.
 - Ejecutar BL2Test en modo de solo lectura y sin red.
 - Guardar un reporte JSON y devolver código de salida 0 o 1.
+- Usar la firma moderna del evento console-message de Electron.
 ========================================================= */
 "use strict";
 
@@ -107,7 +108,11 @@ async function run(){
   smokeWindow.webContents.on("will-navigate",(event,url)=>{
     if(url!==smokeWindow.webContents.getURL()){event.preventDefault();}
   });
-  smokeWindow.webContents.on("console-message",(_event,level,message,line,sourceId)=>{
+  smokeWindow.webContents.on("console-message",(_event,details)=>{
+    const level=Number(details&&details.level||0);
+    const message=String(details&&details.message||"");
+    const line=Number(details&&details.lineNumber||0);
+    const sourceId=String(details&&details.sourceId||"");
     if(level>=2){console.error("[Renderer]",message,"@",sourceId+":"+line);}
     else{console.log("[Renderer]",message);}
   });
