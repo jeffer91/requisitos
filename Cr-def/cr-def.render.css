@@ -1,0 +1,180 @@
+/* =========================================================
+Nombre completo: cr-def.render.css
+Ruta o ubicación: /Requisitos/Cr-def/cr-def.render.css
+Función o funciones:
+- Estilos de render avanzado para estados, alertas y exportación.
+- Mejorar lectura visual de estudiantes programados, sin cupo y con conflicto.
+- Preparar panel de exportación sin modificar la lógica principal.
+Con qué se conecta:
+- cr-def.render.js
+- cr-def.export.js
+- cr-def.html
+========================================================= */
+.cr-status-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 180px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: normal;
+}
+
+.cr-status-badge--programado{
+  background: var(--cr-success-bg);
+  color: var(--cr-success);
+  border: 1px solid #bbf7d0;
+}
+
+.cr-status-badge--sincupo,
+.cr-status-badge--supletorio{
+  background: var(--cr-warning-bg);
+  color: var(--cr-warning);
+  border: 1px solid #fed7aa;
+}
+
+.cr-status-badge--conflicto{
+  background: var(--cr-danger-bg);
+  color: var(--cr-danger);
+  border: 1px solid #fecaca;
+}
+
+.cr-status-badge--apto{
+  background: var(--cr-primary-soft);
+  color: #1e3a8a;
+  border: 1px solid #bfdbfe;
+}
+
+.cr-note-pill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #f8fafc;
+  border: 1px solid var(--cr-border);
+  font-weight: 900;
+}
+
+.cr-alert-marker{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--cr-danger-bg);
+  color: var(--cr-danger);
+  border: 1px solid #fecaca;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.cr-row--programado{
+  background: #f0fdf4;
+}
+
+.cr-row--sin-cupo{
+  background: var(--cr-warning-bg);
+}
+
+.cr-row--conflicto{
+  background: var(--cr-danger-bg);
+}
+
+.cr-export-panel{
+  background: var(--cr-surface);
+  border: 1px solid var(--cr-border);
+  box-shadow: var(--cr-shadow);
+  border-radius: var(--cr-radius-lg);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.cr-export-panel[hidden]{
+  display: none;
+}
+
+.cr-export-head{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.cr-export-head h2{
+  margin-bottom: 4px;
+}
+
+.cr-export-head p{
+  margin-bottom: 0;
+  color: var(--cr-muted);
+  line-height: 1.4;
+}
+
+.cr-export-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cr-export-note{
+  margin-top: 10px;
+  color: var(--cr-muted);
+  font-size: 13px;
+}
+
+.cr-copy-box{
+  width: 100%;
+  min-height: 110px;
+  margin-top: 12px;
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  padding: 10px 12px;
+  resize: vertical;
+  font: 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #f8fafc;
+  color: var(--cr-text);
+}
+
+@media print{
+  body{
+    background: #fff;
+  }
+
+  .cr-hero,
+  .cr-status-panel,
+  .cr-toolbar,
+  .cr-plan-panel,
+  .cr-actions,
+  .cr-export-panel,
+  .cr-pill{
+    display: none !important;
+  }
+
+  .cr-shell{
+    width: 100%;
+    padding: 0;
+  }
+
+  .cr-table-card{
+    box-shadow: none;
+    border: none;
+  }
+
+  .cr-table{
+    min-width: 0;
+  }
+
+  .cr-table th,
+  .cr-table td{
+    font-size: 10px;
+    padding: 6px;
+  }
+}

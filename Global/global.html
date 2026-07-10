@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <meta name="color-scheme" content="light">
+
+  <title>Global · Titulación</title>
+
+  <link rel="stylesheet" href="global.css">
+</head>
+
+<body>
+  <main class="global-shell" data-global-shell>
+    <section
+      class="global-filters"
+      aria-label="Filtros superiores de Global"
+    >
+      <div class="global-filter-item">
+        <label for="globalFiltroDesde">
+          Período desde
+        </label>
+
+        <select
+          id="globalFiltroDesde"
+          data-global-filter="periodoDesde"
+        >
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="global-filter-item">
+        <label for="globalFiltroHasta">
+          Período hasta
+        </label>
+
+        <select
+          id="globalFiltroHasta"
+          data-global-filter="periodoHasta"
+        >
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="global-filter-item global-filter-wide">
+        <label for="globalFiltroCarrera">
+          Carrera
+        </label>
+
+        <select
+          id="globalFiltroCarrera"
+          data-global-filter="carrera"
+        >
+          <option value="">
+            Todas las carreras
+          </option>
+        </select>
+      </div>
+
+      <div class="global-filter-item">
+        <label for="globalFiltroDivision">
+          División
+        </label>
+
+        <select
+          id="globalFiltroDivision"
+          data-global-filter="division"
+        >
+          <option value="">
+            Todas las divisiones
+          </option>
+        </select>
+      </div>
+
+      <div class="global-filter-item">
+        <label for="globalFiltroRequisito">
+          Requisito
+        </label>
+
+        <select
+          id="globalFiltroRequisito"
+          data-global-filter="requisito"
+        >
+          <option value="">
+            Todos los requisitos
+          </option>
+        </select>
+      </div>
+
+      <div class="global-filter-item">
+        <label for="globalFiltroTipo">
+          Tipo de carrera
+        </label>
+
+        <select
+          id="globalFiltroTipo"
+          data-global-filter="tipoCarrera"
+        >
+          <option value="">Todas</option>
+          <option value="UNIVERSITARIA">
+            Universitaria
+          </option>
+          <option value="SUPERIOR">
+            Superior
+          </option>
+        </select>
+      </div>
+
+      <div class="global-filter-actions">
+        <button
+          type="button"
+          class="global-btn global-btn-light"
+          id="globalBtnActualizar"
+        >
+          Actualizar datos
+        </button>
+
+        <button
+          type="button"
+          class="global-btn global-btn-gold"
+          id="globalBtnPdf"
+        >
+          PDF institucional
+        </button>
+
+        <button
+          type="button"
+          class="global-btn global-btn-light"
+          id="globalBtnLimpiar"
+        >
+          Limpiar filtros
+        </button>
+      </div>
+    </section>
+
+    <section class="global-workspace">
+      <aside
+        class="global-sidebar"
+        aria-label="Menú de secciones Global"
+      >
+        <div class="global-sidebar-title">
+          Secciones
+        </div>
+
+        <nav
+          id="globalMenu"
+          class="global-menu"
+        ></nav>
+      </aside>
+
+      <section
+        class="global-content"
+        aria-live="polite"
+      >
+        <div class="global-section-head">
+          <div>
+            <p class="global-section-kicker">
+              Sección actual
+            </p>
+
+            <h2 id="globalSectionTitle">
+              Resumen general
+            </h2>
+
+            <p id="globalSectionDescription">
+              Vista ejecutiva del universo filtrado.
+            </p>
+          </div>
+
+          <div
+            class="global-section-state"
+            id="globalSectionState"
+            data-state="loading"
+          >
+            Conectando BDLocal
+          </div>
+        </div>
+
+        <section
+          id="globalSectionBody"
+          class="global-section-body"
+        >
+          <div class="global-empty-state">
+            <h3>Módulo Global iniciado</h3>
+
+            <p>
+              Global está preparando datos, filtros,
+              tablas, gráficos y PDF institucional.
+            </p>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <!-- Dependencias de Base Local -->
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
+
+  <!-- Módulos de Global: mantener este orden -->
+  <script src="global.config.js"></script>
+  <script src="global.core.js"></script>
+  <script src="global.table.js"></script>
+  <script src="global.chart.js"></script>
+  <script src="global.pdf.js"></script>
+  <script src="global.app.js"></script>
+  <script src="global.index.js"></script>
+</body>
+</html>

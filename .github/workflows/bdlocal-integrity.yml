@@ -1,0 +1,68 @@
+# =========================================================
+# Nombre completo: bdlocal-integrity.yml
+# Ruta o ubicación: /.github/workflows/bdlocal-integrity.yml
+# Función o funciones:
+# - Ejecutar certificación y auditoría estática en cada cambio de main.
+# - Instalar dependencias fijadas y abrir Electron en entorno aislado.
+# - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
+# - Guardar el reporte Electron como artefacto incluso si la prueba falla.
+# =========================================================
+name: BDLocal Integrity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-audit:
+    name: Static audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Run complete static audit
+        run: npm test
+
+  electron-smoke:
+    name: Electron and IndexedDB smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: static-audit
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run isolated Electron test
+        run: xvfb-run --auto-servernum npm run test:electron
+
+      - name: Upload Electron smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdlocal-electron-smoke
+          path: artifacts/bdlocal-electron-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
