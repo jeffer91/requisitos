@@ -2,9 +2,11 @@
 # Nombre completo: bdlocal-integrity.yml
 # Ruta o ubicación: /.github/workflows/bdlocal-integrity.yml
 # Función o funciones:
-# - Ejecutar certificación y auditoría estática.
-# - Ejecutar Electron e IndexedDB en entorno aislado.
-# - Publicar temporalmente la consola y el reporte en el PR de auditoría.
+# - Ejecutar certificación y auditoría estática en cada cambio de main.
+# - Instalar dependencias fijadas y abrir Electron en entorno aislado.
+# - Configurar correctamente el sandbox SUID de Electron en Linux.
+# - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
+# - Guardar el reporte Electron como artefacto incluso si la prueba falla.
 # =========================================================
 name: BDLocal Integrity
 
@@ -17,20 +19,22 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   static-audit:
     name: Static audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Configure Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
+
       - name: Run complete static audit
         run: npm test
 
@@ -39,50 +43,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: static-audit
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Configure Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
+
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund
-      - name: Run isolated Electron test
-        id: smoke
-        continue-on-error: true
-        shell: bash
+
+      - name: Configure Electron Linux sandbox
         run: |
-          mkdir -p artifacts
-          set -o pipefail
-          xvfb-run --auto-servernum npm run test:electron > artifacts/smoke-console.log 2>&1
-      - name: Publish isolated diagnostics in audit PR
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Run isolated Electron test
+        run: xvfb-run --auto-servernum npm run test:electron
+
+      - name: Upload Electron smoke report
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const fs = require('fs');
-            const reportPath = 'artifacts/bdlocal-electron-smoke.json';
-            const consolePath = 'artifacts/smoke-console.log';
-            const report = fs.existsSync(reportPath)
-              ? fs.readFileSync(reportPath, 'utf8')
-              : JSON.stringify({ok:false,message:'No se generó el reporte JSON.'}, null, 2);
-            const consoleText = fs.existsSync(consolePath)
-              ? fs.readFileSync(consolePath, 'utf8')
-              : 'No se generó la salida de consola.';
-            const body = `<!-- bdlocal-smoke-report -->\n### Diagnóstico aislado BDLocal\n\n#### Reporte JSON\n\`\`\`json\n${report.slice(0,50000)}\n\`\`\`\n\n#### Consola Electron\n\`\`\`text\n${consoleText.slice(-50000)}\n\`\`\``;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100
-            });
-            const previous = comments.find(comment => comment.body && comment.body.includes('<!-- bdlocal-smoke-report -->'));
-            if (previous) {
-              await github.rest.issues.updateComment({owner:context.repo.owner,repo:context.repo.repo,comment_id:previous.id,body});
-            } else {
-              await github.rest.issues.createComment({owner:context.repo.owner,repo:context.repo.repo,issue_number:context.issue.number,body});
-            }
-      - name: Fail when Electron smoke fails
-        if: steps.smoke.outcome == 'failure'
-        run: exit 1
+          name: bdlocal-electron-smoke
+          path: artifacts/bdlocal-electron-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
