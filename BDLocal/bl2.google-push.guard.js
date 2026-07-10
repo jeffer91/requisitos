@@ -7,11 +7,12 @@ Función o funciones:
 - Excluir todos los campos Telegram de la descarga académica.
 - Proteger únicamente cambios locales todavía abiertos.
 - Crear respaldo y controlar la cuota de lectura.
+- Normalizar identificaciones con la regla central validada.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="4.2.1-academic-collection";
+  var VERSION="4.2.2-identity-safe";
   var pulling=false;
   var installed=false;
   var TELEGRAM=["telegram","telegramUser","telegramUsername","usuarioTelegram","telegramChatId","chatIdTelegram","chatId","telegramUpdatedAt","telegramSource","telegramCheckedAt","telegramVerifiedAt","_telegramUser","_telegramChatId"];
@@ -26,7 +27,13 @@ Función o funciones:
   function cfg(){return window.BL2Config&&window.BL2Config.firebase||{};}
   function academicCollection(){var c=cfg();return text(c.academicCollection||c.collection||"EstudiantesPeriodo")||"EstudiantesPeriodo";}
   function personCollection(){var c=cfg();return text(c.personCollection||c.telegramCollection||"Estudiantes")||"Estudiantes";}
-  function cedula(v){var raw=text(v).replace(/[^0-9A-Za-z]/g,"");return /^\d{9}$/.test(raw)?"0"+raw:raw;}
+  function cedula(v){
+    var rules=window.BDLRulesPersona;
+    if(rules&&typeof rules.normalizeCedula==="function"){return rules.normalizeCedula(v);}
+    var utils=window.BL2Config&&window.BL2Config.utils;
+    if(utils&&typeof utils.normalizeCedula==="function"){return utils.normalizeCedula(v);}
+    return text(v).replace(/[^0-9A-Za-z]/g,"").toUpperCase();
+  }
   function period(v){v=text(v);var m=v.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);return m?m[1]+"-"+m[2]+"__"+m[3]+"-"+m[4]:v.replace(/_+/g,"__");}
   function stripTelegram(row){row=Object.assign({},row||{});TELEGRAM.forEach(function(k){delete row[k];});return row;}
   function emitProgress(percent,message){try{window.dispatchEvent(new CustomEvent("bl2:sync-progress",{detail:{target:"firebase",percent:percent,detail:message,at:now()}}));}catch(e){}}
@@ -75,7 +82,7 @@ Función o funciones:
       var map={};var duplicates=0;
       snapshot.forEach(function(doc){
         var row=stripTelegram(doc.data()||{});var id=text(doc.id);var c=cedula(row.cedula||row.numeroIdentificacion||(id.indexOf(p.id+"__")===0?id.slice((p.id+"__").length):id));if(!c){return;}
-        row.cedula=c;row.numeroIdentificacion=text(row.numeroIdentificacion||c);row.periodoId=p.id;row.periodoCanonicoId=p.id;row.periodoLabel=text(row.periodoLabel||row.periodoCanonicoLabel||p.label);row.firebaseDocumentId=id;row.firebaseCollection=academicCollection();row.source="firebase_academic_pull";
+        row.cedula=c;row.numeroIdentificacion=cedula(row.numeroIdentificacion||c);row.periodoId=p.id;row.periodoCanonicoId=p.id;row.periodoLabel=text(row.periodoLabel||row.periodoCanonicoLabel||p.label);row.firebaseDocumentId=id;row.firebaseCollection=academicCollection();row.source="firebase_academic_pull";
         if(map[c]){duplicates+=1;if(time(row)<time(map[c])){return;}}
         map[c]=row;
       });
