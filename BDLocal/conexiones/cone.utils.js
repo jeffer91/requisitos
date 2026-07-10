@@ -174,13 +174,11 @@
     return array(cache.students).length*1000000+array(cache.periods).length*1000+array(cache.requirements).length;
   }
 
-  function preferCache(a,b){
-    a=normalizeCache(a||emptyCache());
-    b=normalizeCache(b||emptyCache());
-    var at=cacheTime(a);
-    var bt=cacheTime(b);
-    if(at!==bt){return at>bt?a:b;}
-    return cacheWeight(a)>=cacheWeight(b)?a:b;
+  function incomingWins(incoming,current){
+    var incomingAt=cacheTime(incoming);
+    var currentAt=cacheTime(current);
+    if(incomingAt!==currentAt){return incomingAt>currentAt;}
+    return cacheWeight(incoming)>=cacheWeight(current);
   }
 
   function mergeCache(incoming,current,options){
@@ -188,8 +186,9 @@
     incoming=normalizeCache(incoming||emptyCache());
     current=normalizeCache(current||emptyCache());
     var allowEmpty=options.allowEmpty===true;
-    var preferred=preferCache(incoming,current);
-    var fallback=preferred===incoming?current:incoming;
+    var useIncoming=incomingWins(incoming,current);
+    var preferred=useIncoming?incoming:current;
+    var fallback=useIncoming?current:incoming;
     var result=normalizeCache(preferred);
 
     if(!allowEmpty){
