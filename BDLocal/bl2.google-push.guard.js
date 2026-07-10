@@ -1,280 +1,494 @@
 /* =========================================================
-Archivo: bl2.google-push.guard.js
-Ruta: /BDLocal/bl2.google-push.guard.js
-Función:
-- Evitar que Google Sheets suba tablas completas una y otra vez cuando no hay cambios.
-- Controlar primera subida completa por período, no como bandera global única.
-- Bloquear doble ejecución si ya existe una subida en curso.
-- Respetar la pausa cuando se está ejecutando Traer Sheets → BL.
-- Mantener disponible la subida manual cuando realmente hace falta una primera subida por período.
-Con qué se conecta:
-- ../js/bdlocal-config/bdlocal-sync.manager.js
-- bl2.cloud-pull.safe.js
-- BDLocalConfigStore
-- BL2Sync
-- BL2Core
+Nombre completo: bl2.google-push.guard.js
+Ruta o ubicación: /BDLocal/bl2.google-push.guard.js
+Función o funciones:
+- Proteger las rutas legacy de Google Sheets y Firebase.
+- Bloquear sincronizaciones automáticas y ejecuciones paralelas.
+- Traer Firebase por período con comparación previa.
+- No sobrescribir cambios locales pendientes o más recientes.
+- Crear respaldo antes de aplicar datos remotos.
+- Marcar una importación remota como procesada para evitar ciclos.
 ========================================================= */
 (function(window){
   "use strict";
 
+  var VERSION = "3.0.0-external-sync-guard";
   var PAUSE_KEY = "REQ_BDLOCAL_PAUSE_GOOGLE_PUSH";
-  var running = false;
+  var googleRunning = false;
+  var firebasePulling = false;
+  var installed = false;
 
-  function text(value){ return String(value === null || value === undefined ? "" : value).trim(); }
-  function nowISO(){ return new Date().toISOString(); }
-
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function now(){ return new Date().toISOString(); }
+  function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
   function store(){ return window.BDLocalConfigStore || null; }
   function core(){ return window.BL2Core || null; }
   function sync(){ return window.BL2Sync || null; }
   function manager(){ return window.BDLocalSyncManager || null; }
+  function outbox(){ return window.BDLSyncOutbox || null; }
 
-  function log(message, level, data){
-    level = text(level || "info");
+  function normalizeCedula(value){
+    var raw = text(value).replace(/[^0-9A-Za-z]/g,"");
+    return /^\d{9}$/.test(raw) ? "0" + raw : raw;
+  }
 
+  function normalizePeriod(value){
+    value = text(value);
+    var match = value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
+    return match ? match[1] + "-" + match[2] + "__" + match[3] + "-" + match[4] : value.replace(/_+/g,"__");
+  }
+
+  function log(channel,message,level,data){
     try{
       if(store() && typeof store().addLog === "function"){
-        store().addLog("google_push_guard", message, level === "error" ? "error" : level === "warn" ? "warning" : "success", data || {});
+        store().addLog(channel,message,level === "error" ? "error" : level === "warn" ? "warning" : "success",data || {});
       }
     }catch(error){}
-
-    try{
-      if(window.BDLocalModal && typeof window.BDLocalModal.add === "function"){
-        window.BDLocalModal.add(level === "error" ? "error" : level === "warn" ? "warning" : "info", "Google Sheets", message, data || {});
-      }
-    }catch(error2){}
   }
 
-  function progress(percent, detail){
+  function progress(target,percent,detail){
     try{
-      window.dispatchEvent(new CustomEvent("bl2:sync-progress", {
-        detail:{ target:"google", percent:Math.max(0, Math.min(100, Number(percent || 0))), detail:detail || "", at:nowISO() }
+      window.dispatchEvent(new CustomEvent("bl2:sync-progress",{
+        detail:{ target:target,percent:Math.max(0,Math.min(100,Number(percent || 0))),detail:detail || "",at:now() }
       }));
     }catch(error){}
-
     try{
       if(window.BDLocalConfigUI && typeof window.BDLocalConfigUI.setProgress === "function"){
-        window.BDLocalConfigUI.setProgress(percent > 0 && percent < 100, percent, detail || "");
+        window.BDLocalConfigUI.setProgress(percent > 0 && percent < 100,percent,detail || "");
       }
     }catch(error2){}
   }
 
-  function readJson(name, fallback){
+  function readJson(name,fallback){
     try{
-      var parsed = JSON.parse(window.localStorage.getItem(name) || "");
-      return parsed === null || parsed === undefined ? fallback : parsed;
+      var value = JSON.parse(window.localStorage.getItem(name) || "");
+      return value == null ? fallback : value;
     }catch(error){ return fallback; }
   }
 
-  function pausedByPull(){
+  function googlePaused(){
     if(window.BL2_GOOGLE_PUSH_PAUSED){ return true; }
-    var pause = readJson(PAUSE_KEY, null);
-    return !!(pause && pause.paused);
+    var value = readJson(PAUSE_KEY,null);
+    return !!(value && value.paused);
   }
 
   function getActivePeriod(){
     try{
+      if(window.BL2App && typeof window.BL2App.getSelectedPeriod === "function"){
+        var selected = window.BL2App.getSelectedPeriod();
+        if(selected && text(selected.id)){ return Promise.resolve({ id:normalizePeriod(selected.id),label:text(selected.label || selected.id) }); }
+      }
       if(window.BL2App && typeof window.BL2App.getState === "function"){
         var state = window.BL2App.getState() || {};
-        if(state.activePeriod && text(state.activePeriod.id)){
-          return Promise.resolve({ id:text(state.activePeriod.id), label:text(state.activePeriod.label || state.activePeriod.id) });
-        }
+        if(state.activePeriod && text(state.activePeriod.id)){ return Promise.resolve({ id:normalizePeriod(state.activePeriod.id),label:text(state.activePeriod.label || state.activePeriod.id) }); }
       }
     }catch(error){}
-
     if(core() && typeof core().getActivePeriod === "function"){
-      return core().getActivePeriod().then(function(period){
-        if(!period || !text(period.id)){ return null; }
-        return { id:text(period.id), label:text(period.label || period.periodoLabel || period.id) };
-      });
+      return core().getActivePeriod().then(function(period){ return period && text(period.id) ? { id:normalizePeriod(period.id),label:text(period.label || period.periodoLabel || period.id) } : null; });
     }
-
     return Promise.resolve(null);
   }
 
-  function getPending(periodoId){
-    if(sync() && typeof sync().getPendingChangesFor === "function"){
-      return sync().getPendingChangesFor("google", periodoId).then(function(rows){ return Array.isArray(rows) ? rows : []; }).catch(function(){ return []; });
-    }
-
-    if(core() && typeof core().getPendingChanges === "function"){
-      return core().getPendingChanges("google", periodoId).then(function(rows){ return Array.isArray(rows) ? rows : []; }).catch(function(){ return []; });
-    }
-
-    return Promise.resolve([]);
-  }
-
-  function loadConfig(){
-    try{ return store() && typeof store().loadConfig === "function" ? (store().loadConfig() || {}) : {}; }
-    catch(error){ return {}; }
+  function skipped(target,message,data){
+    log(target + "_guard",message,"warn",data || {});
+    progress(target,100,message);
+    return Promise.resolve({ ok:true,skipped:true,target:target,message:message,data:data || {} });
   }
 
   function periodUploadMap(config){
-    config = config || {};
-    var sheets = config.sheets || {};
-    var map = sheets.fullUploadByPeriod || sheets.fullUploadsByPeriod || sheets.periodFullUploads || {};
+    var sheets = config && config.sheets || {};
+    var map = sheets.fullUploadByPeriod || sheets.fullUploadsByPeriod || {};
     return map && typeof map === "object" && !Array.isArray(map) ? map : {};
   }
 
   function periodHasFullUpload(periodoId){
-    var config = loadConfig();
+    var config = store() && typeof store().loadConfig === "function" ? store().loadConfig() || {} : {};
     var sheets = config.sheets || {};
     var map = periodUploadMap(config);
-    if(map[periodoId]){ return true; }
-    if(text(sheets.lastFullUploadPeriodId) === text(periodoId)){ return true; }
-    return false;
+    return !!map[periodoId] || text(sheets.lastFullUploadPeriodId) === text(periodoId);
   }
 
-  function markPeriodFullUpload(periodoId, result){
-    if(!store() || typeof store().patchConfig !== "function" || !periodoId){ return; }
+  function markPeriodFullUpload(periodoId,result){
+    if(!store() || typeof store().patchConfig !== "function"){ return; }
+    var config = store().loadConfig() || {};
+    var map = Object.assign({},periodUploadMap(config));
+    map[periodoId] = { ok:true,at:now(),source:"ExternalSyncGuard",changes:Number(result && result.changes || 0) };
+    store().patchConfig({ sheets:{ firstFullUploadDone:true,lastFullUploadAt:now(),lastFullUploadPeriodId:periodoId,fullUploadByPeriod:map,connected:true,status:"ok",lastError:"" } });
+  }
 
-    var config = loadConfig();
-    var map = Object.assign({}, periodUploadMap(config));
-    map[periodoId] = {
-      ok:true,
-      at:nowISO(),
-      source:"GooglePushGuard",
-      changes:Number(result && result.changes || 0)
+  function pendingGoogle(periodoId){
+    if(outbox() && typeof outbox().list === "function"){
+      return outbox().list({ periodoId:periodoId }).then(function(rows){
+        return (rows || []).filter(function(row){ return !outbox().isDone(row,"google"); });
+      }).catch(function(){ return []; });
+    }
+    return Promise.resolve([]);
+  }
+
+  function installGoogleGuard(m){
+    if(!m || m.__externalGoogleGuardInstalled || typeof m.pushLocalToSheets !== "function"){ return; }
+    var originalPush = m.pushLocalToSheets;
+    var originalQueue = typeof m.syncQueue === "function" ? m.syncQueue : null;
+    var originalAll = typeof m.syncAll === "function" ? m.syncAll : null;
+
+    m.pushLocalToSheets = function(options){
+      options = options || {};
+      if(options.manual !== true){ return skipped("google","Solicitud automática de Google Sheets bloqueada.",{ source:options.source || "legacy" }); }
+      if(googlePaused()){ return skipped("google","Google Sheets está pausado mientras se traen datos.",{ reason:"pull_in_progress" }); }
+      if(googleRunning){ return skipped("google","Ya existe una subida a Google Sheets en curso.",{ reason:"already_running" }); }
+
+      return getActivePeriod().then(function(period){
+        if(!period){ throw new Error("Seleccione un período antes de sincronizar Google Sheets."); }
+        return pendingGoogle(period.id).then(function(changes){
+          var forcedFull = options.forceFull === true || options.manualFull === true;
+          var hasFull = periodHasFullUpload(period.id);
+          if(!forcedFull && !changes.length && hasFull){
+            return skipped("google","No hay cambios pendientes para este período.",{ periodoId:period.id });
+          }
+          var safeOptions = Object.assign({},options,{ manual:true,fullPeriod:forcedFull || !hasFull,mode:forcedFull || !hasFull ? "full_period" : "changes" });
+          googleRunning = true;
+          return originalPush.call(m,safeOptions).then(function(result){
+            if(result && result.ok !== false && safeOptions.fullPeriod){ markPeriodFullUpload(period.id,result); }
+            return result;
+          }).finally(function(){ googleRunning = false; });
+        });
+      });
     };
 
-    store().patchConfig({
-      sheets:{
-        firstFullUploadDone:true,
-        lastFullUploadAt:nowISO(),
-        lastFullUploadPeriodId:periodoId,
-        fullUploadByPeriod:map,
-        connected:true,
-        status:"ok",
-        lastError:""
-      }
+    if(originalQueue){
+      m.syncQueue = function(options){
+        options = options || {};
+        if(options.manual !== true){ return skipped("google","Cola automática legacy bloqueada.",{}); }
+        return originalQueue.call(m,options);
+      };
+    }
+    if(originalAll){
+      m.syncAll = function(options){
+        options = options || {};
+        if(options.manual !== true){ return skipped("google","Sincronización total automática bloqueada.",{}); }
+        return originalAll.call(m,options);
+      };
+    }
+    m.__externalGoogleGuardInstalled = true;
+  }
+
+  function firebaseCollection(){
+    var config = window.BL2Config && window.BL2Config.firebase || {};
+    return text(config.collection || "Estudiantes") || "Estudiantes";
+  }
+
+  function ensureFirebase(){
+    if(!sync() || typeof sync().ensureFirebase !== "function"){ return Promise.reject(new Error("Firebase no está disponible.")); }
+    return sync().ensureFirebase();
+  }
+
+  function remoteTime(row){
+    var value = Date.parse(text(row && (row.updatedAt || row.ultimaSincronizacion || row.createdAt)));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function readFirebasePeriod(period){
+    return ensureFirebase().then(function(firestore){
+      return firestore.collection(firebaseCollection()).where("periodoId","==",period.id).get();
+    }).then(function(snapshot){
+      var map = Object.create(null);
+      var duplicates = 0;
+      snapshot.forEach(function(doc){
+        var data = Object.assign({},doc.data() || {});
+        var documentId = text(doc.id);
+        var fallbackCedula = documentId.indexOf(period.id + "__") === 0 ? documentId.slice((period.id + "__").length) : documentId;
+        var identification = normalizeCedula(data.cedula || data.numeroIdentificacion || fallbackCedula);
+        if(!identification){ return; }
+        data.cedula = identification;
+        data.numeroIdentificacion = text(data.numeroIdentificacion || identification);
+        data.periodoId = period.id;
+        data.periodoCanonicoId = period.id;
+        data.periodoLabel = text(data.periodoLabel || data.periodoCanonicoLabel || period.label || period.id);
+        data.firebaseDocumentId = documentId;
+        data.source = "firebase_pull";
+        if(map[identification]){
+          duplicates += 1;
+          var currentStable = map[identification].firebaseDocumentId === period.id + "__" + identification;
+          var incomingStable = documentId === period.id + "__" + identification;
+          if(remoteTime(data) < remoteTime(map[identification])){ return; }
+          if(remoteTime(data) === remoteTime(map[identification]) && currentStable && !incomingStable){ return; }
+        }
+        map[identification] = data;
+      });
+      return { rows:Object.keys(map).map(function(key){ return map[key]; }),rawCount:snapshot.size || 0,duplicates:duplicates };
     });
   }
 
-  function skipped(message, data){
-    log(message, "warn", data || {});
-    progress(100, message);
-    try{
-      if(store() && typeof store().patchConfig === "function"){
-        store().patchConfig({ sheets:{ connected:true, status:"ok", lastError:"", lastSkippedAt:nowISO(), lastSkippedReason:message } });
-      }
-    }catch(error){}
-    return Promise.resolve({ ok:true, skipped:true, target:"google", message:message, data:data || {} });
+  function localPendingMap(periodoId){
+    if(!outbox() || typeof outbox().list !== "function"){ return Promise.resolve({}); }
+    return outbox().list({ periodoId:periodoId }).then(function(rows){
+      var map = Object.create(null);
+      (rows || []).forEach(function(row){
+        var identification = normalizeCedula(row.cedula || row.numeroIdentificacion || (row.payload || {}).cedula);
+        if(!identification){ return; }
+        var open = ["google","firebase","supabase"].some(function(target){ return !outbox().isDone(row,target); });
+        if(open){ map[identification] = true; }
+      });
+      return map;
+    }).catch(function(){ return {}; });
   }
 
-  function shouldForceFull(options){
+  function buildFirebasePreview(period){
+    if(!core() || typeof core().getStudents !== "function"){ return Promise.reject(new Error("BL2Core.getStudents no está disponible.")); }
+    progress("firebase",15,"Leyendo Firebase del período " + period.label + "...");
+    return Promise.all([readFirebasePeriod(period),core().getStudents({ periodoId:period.id }),localPendingMap(period.id)]).then(function(values){
+      var remote = values[0];
+      var localRows = values[1] || [];
+      var pending = values[2] || {};
+      var localMap = Object.create(null);
+      localRows.forEach(function(row){ localMap[normalizeCedula(row.cedula || row.numeroIdentificacion)] = row; });
+
+      var apply = [];
+      var equal = [];
+      var localNewer = [];
+      var pendingConflict = [];
+      var ambiguous = [];
+
+      remote.rows.forEach(function(remoteRow){
+        var identification = normalizeCedula(remoteRow.cedula || remoteRow.numeroIdentificacion);
+        var local = localMap[identification];
+        if(pending[identification]){ pendingConflict.push(identification); return; }
+        if(!local){ apply.push(remoteRow); return; }
+        var winner = core() && typeof core().compareRecords === "function" ? core().compareRecords(local,remoteRow) : "different";
+        if(winner === "remote"){ apply.push(remoteRow); }
+        else if(winner === "equal"){ equal.push(identification); }
+        else if(winner === "local"){ localNewer.push(identification); }
+        else{ ambiguous.push(identification); }
+      });
+
+      return {
+        ok:true,
+        period:period,
+        remoteRows:remote.rows,
+        rowsToApply:apply,
+        remoteDocuments:remote.rawCount,
+        remoteUnique:remote.rows.length,
+        duplicateDocumentsIgnored:remote.duplicates,
+        local:localRows.length,
+        apply:apply.length,
+        equal:equal.length,
+        localNewer:localNewer.length,
+        pendingConflict:pendingConflict.length,
+        ambiguous:ambiguous.length,
+        detail:{ equal:equal,localNewer:localNewer,pendingConflict:pendingConflict,ambiguous:ambiguous }
+      };
+    });
+  }
+
+  function createSafetyBackup(period){
+    if(window.BL2Backup && typeof window.BL2Backup.createBackup === "function"){
+      return window.BL2Backup.createBackup({ scope:"period",periodoId:period.id,periodoLabel:period.label,type:"pre_firebase_pull" });
+    }
+    return Promise.resolve(null);
+  }
+
+  function markImportedChanges(changes){
+    changes = Array.isArray(changes) ? changes : [];
+    if(!changes.length || !outbox() || typeof outbox().markSynced !== "function"){ return Promise.resolve(); }
+    var chain = Promise.resolve();
+    ["firebase","google","supabase"].forEach(function(target){
+      chain = chain.then(function(){ return outbox().markSynced(changes,target,{ syncedAt:now(),source:"firebase_pull",imported:true }); });
+    });
+    return chain;
+  }
+
+  function applyFirebasePreview(preview){
+    if(!preview.rowsToApply.length){
+      return Promise.resolve(Object.assign({},preview,{ applied:0,message:"Firebase no tiene cambios seguros para aplicar." }));
+    }
+    progress("firebase",55,"Creando respaldo antes de aplicar Firebase...");
+    return createSafetyBackup(preview.period).then(function(backup){
+      progress("firebase",70,"Guardando cambios seguros en Base Local...");
+      return core().saveStudents(preview.rowsToApply,{
+        normalized:true,
+        periodoId:preview.period.id,
+        periodoLabel:preview.period.label,
+        source:"firebase_pull",
+        markRetired:false,
+        sync:false,
+        localOnly:true,
+        cloudSync:false,
+        manualCloudSync:true,
+        importResult:{ advertencias:[],errores:[],duplicados:preview.duplicateDocumentsIgnored }
+      }).then(function(summary){
+        return markImportedChanges(summary.changes).then(function(){
+          return Object.assign({},preview,{
+            applied:preview.rowsToApply.length,
+            summary:summary,
+            safetyBackupId:backup && backup.record && backup.record.id || "",
+            rowsToApply:undefined,
+            remoteRows:undefined,
+            message:"Firebase → Base Local completado sin generar reenvíos. Aplicados: " + preview.rowsToApply.length + "."
+          });
+        });
+      });
+    });
+  }
+
+  function pullFirebaseToLocalSafe(period,options){
     options = options || {};
+    if(firebasePulling){ return skipped("firebase","Ya existe una descarga Firebase en curso.",{}); }
+    var periodPromise = period && period.id ? Promise.resolve({ id:normalizePeriod(period.id),label:text(period.label || period.id) }) : getActivePeriod();
 
-    /*
-      IMPORTANTE:
-      fullPeriod:true puede venir de una sincronización automática antigua.
-      No debe tomarse como orden obligatoria de subida completa, porque eso
-      vuelve a mandar todo el período y genera duplicados en Google Sheets.
+    firebasePulling = true;
+    window.BL2_FIREBASE_PULLING = true;
+    return periodPromise.then(function(current){
+      if(!current){ throw new Error("Seleccione un período antes de traer Firebase."); }
+      return buildFirebasePreview(current).then(function(preview){
+        var approved = true;
+        if(options.confirm !== false){
+          approved = window.confirm(
+            "Firebase → Base Local\n\n" +
+            "Período: " + current.label + "\n" +
+            "Documentos leídos: " + preview.remoteDocuments + "\n" +
+            "Registros únicos: " + preview.remoteUnique + "\n" +
+            "Cambios seguros para aplicar: " + preview.apply + "\n" +
+            "Cambios locales protegidos: " + preview.pendingConflict + "\n" +
+            "Locales más recientes: " + preview.localNewer + "\n" +
+            "Duplicados remotos ignorados: " + preview.duplicateDocumentsIgnored + "\n\n" +
+            "Se creará un respaldo y no se marcarán estudiantes como retirados. ¿Continuar?"
+          );
+        }
+        if(!approved){ return Object.assign({},preview,{ cancelled:true,rowsToApply:undefined,remoteRows:undefined,message:"Descarga cancelada." }); }
+        return applyFirebasePreview(preview);
+      });
+    }).then(function(result){
+      if(store() && typeof store().registerFirebaseUsage === "function"){
+        store().registerFirebaseUsage({ reads:Number(result.remoteDocuments || 0),label:"Descarga segura Firebase → BDLocal." });
+      }
+      if(store() && typeof store().updateConnectionStatus === "function"){
+        store().updateConnectionStatus("firebase",{ connected:true,status:"ok",lastError:"" });
+      }
+      progress("firebase",100,result.message || "Firebase procesado.");
+      log("firebase_guard",result.message || "Firebase procesado.","info",result);
+      return result;
+    }).catch(function(error){
+      if(store() && typeof store().updateConnectionStatus === "function"){
+        store().updateConnectionStatus("firebase",{ connected:false,status:"error",lastError:error.message || String(error) });
+      }
+      progress("firebase",0,"Error al traer Firebase.");
+      throw error;
+    }).finally(function(){ firebasePulling = false; window.BL2_FIREBASE_PULLING = false; });
+  }
 
-      Solo se permite subida completa forzada cuando venga explícitamente:
-      - forceFull:true
-      - manualFull:true
-    */
-    return options.forceFull === true || options.manualFull === true;
+  function installFirebaseGuard(m){
+    if(!m || m.__externalFirebaseGuardInstalled){ return; }
+
+    m.pullFirebaseToLocal = function(options){
+      options = options || {};
+      return pullFirebaseToLocalSafe(options.period || null,{ confirm:options.confirm !== false });
+    };
+
+    m.pushLocalToFirebase = function(options){
+      options = options || {};
+      if(options.manual !== true){ return skipped("firebase","Solicitud automática de Firebase bloqueada.",{ source:options.source || "legacy" }); }
+      return getActivePeriod().then(function(period){
+        if(!period){ throw new Error("Seleccione un período antes de subir Firebase."); }
+        if(!window.BDLSyncOrchestrator || typeof window.BDLSyncOrchestrator.syncTarget !== "function"){
+          throw new Error("El orquestador seguro de Firebase no está disponible.");
+        }
+        return window.BDLSyncOrchestrator.syncTarget("firebase",{
+          manual:true,
+          source:"ExternalSyncGuard.manual.firebase",
+          periodoId:period.id,
+          periodoLabel:period.label,
+          limit:25,
+          batchSize:25
+        });
+      });
+    };
+
+    m.__externalFirebaseGuardInstalled = true;
+  }
+
+  function installLegacySyncGuard(){
+    var current = sync();
+    if(!current || current.__externalSyncGuardInstalled){ return; }
+
+    current.__originalMaybeSyncFirebaseDaily = current.maybeSyncFirebaseDaily;
+    current.__originalSyncFirebase = current.syncFirebase;
+    current.__originalSyncBeforeClose = current.syncBeforeClose;
+
+    current.maybeSyncFirebaseDaily = function(){
+      return skipped("firebase","La sincronización diaria automática de Firebase está desactivada.",{ manualOnly:true });
+    };
+
+    current.syncFirebase = function(options){
+      options = options || {};
+      var action = text(options.action || "upload").toLowerCase();
+      if(options.manual !== true){ return skipped("firebase","Ruta legacy automática de Firebase bloqueada.",{ action:action }); }
+      if(action === "download" || action === "compare"){
+        return pullFirebaseToLocalSafe({ id:options.periodoId,label:options.periodoLabel || options.periodoId },{ confirm:action !== "compare" });
+      }
+      if(!window.BDLSyncOrchestrator || typeof window.BDLSyncOrchestrator.syncTarget !== "function"){
+        return Promise.reject(new Error("El orquestador seguro no está disponible."));
+      }
+      return window.BDLSyncOrchestrator.syncTarget("firebase",{
+        manual:true,
+        source:"BL2Sync.legacy.guard",
+        periodoId:options.periodoId,
+        periodoLabel:options.periodoLabel,
+        limit:25,
+        batchSize:25
+      });
+    };
+
+    current.syncBeforeClose = function(){
+      return Promise.resolve({
+        ok:true,
+        skipped:true,
+        manualOnly:true,
+        message:"Sincronización externa al cerrar desactivada. Los pendientes permanecen guardados."
+      });
+    };
+
+    current.__externalSyncGuardInstalled = true;
   }
 
   function install(){
     var m = manager();
-    if(!m || m.__googlePushGuardInstalled){ return false; }
-    if(typeof m.pushLocalToSheets !== "function"){ return false; }
-
-    var originalPush = m.pushLocalToSheets;
-    var originalSyncQueue = typeof m.syncQueue === "function" ? m.syncQueue : null;
-    var originalSyncAll = typeof m.syncAll === "function" ? m.syncAll : null;
-
-    m.pushLocalToSheets = function(options){
-      options = options || {};
-
-      if(pausedByPull()){
-        return skipped("Subida a Google Sheets pausada: se está trayendo información desde Sheets hacia Base Local.", { reason:"pull_in_progress" });
-      }
-
-      if(running){
-        return skipped("Ya hay una subida a Google Sheets en curso. Se evita una segunda ejecución.", { reason:"already_running" });
-      }
-
-      return getActivePeriod().then(function(period){
-        if(!period || !period.id){ throw new Error("Seleccione un período activo antes de sincronizar Google Sheets."); }
-
-        return getPending(period.id).then(function(changes){
-          var pendingCount = Array.isArray(changes) ? changes.length : 0;
-          var forcedFull = shouldForceFull(options);
-          var hasPeriodFull = periodHasFullUpload(period.id);
-
-          if(!forcedFull && pendingCount === 0 && hasPeriodFull){
-            return skipped("Google Sheets no se subió porque no hay cambios pendientes para este período.", {
-              periodoId:period.id,
-              periodoLabel:period.label,
-              changes:0,
-              fullUploadDone:true
-            });
-          }
-
-          var finalOptions = Object.assign({}, options);
-          if(!forcedFull){
-            finalOptions.fullPeriod = !hasPeriodFull;
-            finalOptions.mode = !hasPeriodFull ? "full_period" : "changes";
-          }
-
-          running = true;
-          progress(8, finalOptions.fullPeriod ? "Primera subida controlada del período..." : "Subiendo cambios reales a Google Sheets...");
-
-          return originalPush.call(m, finalOptions).then(function(result){
-            if(result && result.ok !== false && (finalOptions.fullPeriod || result.message && result.message.indexOf("Primera subida") >= 0)){
-              markPeriodFullUpload(period.id, result);
-            }
-            return result;
-          }).finally(function(){
-            running = false;
-          });
-        });
-      }).catch(function(error){
-        running = false;
-        throw error;
-      });
-    };
-
-    if(originalSyncQueue){
-      m.syncQueue = function(){
-        if(pausedByPull()){
-          return skipped("Cola de Google Sheets pausada por Traer Sheets → BL.", { reason:"pull_in_progress" });
-        }
-        return originalSyncQueue.apply(m, arguments);
-      };
+    if(m){
+      installGoogleGuard(m);
+      installFirebaseGuard(m);
     }
-
-    if(originalSyncAll){
-      m.syncAll = function(){
-        if(pausedByPull()){
-          return skipped("Sincronización total pausada por Traer Sheets → BL.", { reason:"pull_in_progress" });
-        }
-        return originalSyncAll.apply(m, arguments);
-      };
-    }
-
-    m.__googlePushGuardInstalled = true;
-    log("Guardia anti-subida eterna instalado para Google Sheets.", "info", {});
-    return true;
+    installLegacySyncGuard();
+    if(window.BL2CloudPull){ window.BL2CloudPull.pullFirebaseToLocal = pullFirebaseToLocalSafe; }
+    if(window.BL2CloudPullSafe){ window.BL2CloudPullSafe.pullFirebaseToLocal = pullFirebaseToLocalSafe; }
+    installed = !!m && !!sync();
+    return installed;
   }
 
   function boot(){
+    install();
     var attempts = 0;
     var timer = window.setInterval(function(){
       attempts += 1;
-      if(install() || attempts >= 50){ window.clearInterval(timer); }
-    }, 150);
+      if(install() || attempts >= 60){ window.clearInterval(timer); }
+    },150);
   }
 
   window.BL2GooglePushGuard = {
+    version:VERSION,
     install:install,
-    pausedByPull:pausedByPull,
+    pausedByPull:googlePaused,
     periodHasFullUpload:periodHasFullUpload,
     markPeriodFullUpload:markPeriodFullUpload
   };
 
-  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
+  window.BL2FirebaseGuard = {
+    version:VERSION,
+    install:install,
+    pullFirebaseToLocal:pullFirebaseToLocalSafe,
+    previewFirebase:function(period){ return (period && period.id ? Promise.resolve(period) : getActivePeriod()).then(function(current){ if(!current){ throw new Error("Seleccione un período."); } return buildFirebasePreview(current); }); },
+    documentId:function(periodoId,identification){ return normalizePeriod(periodoId) + "__" + normalizeCedula(identification); },
+    isPulling:function(){ return firebasePulling; }
+  };
+
+  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded",boot); }
   else{ boot(); }
 })(window);
