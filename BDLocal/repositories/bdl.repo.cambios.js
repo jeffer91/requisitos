@@ -11,7 +11,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "0.3.0-idempotent-outbox";
+  var VERSION = "0.3.1-idempotent-outbox";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -19,6 +19,7 @@ Función o funciones:
   function upper(value){ return text(value).toUpperCase(); }
   function nowISO(){ return new Date().toISOString(); }
   function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
+  function num(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
   function store(){ return Repos.storeName("cambiosPendientes","cambios_pendientes"); }
   function legacyStore(){ return Repos.storeName("cambios","cambios"); }
 
@@ -162,7 +163,10 @@ Función o funciones:
   function mergeExisting(existing,incoming){
     existing = existing || null;
     incoming = normalize(incoming || {});
-    if(!existing){ return incoming; }
+    if(!existing){
+      incoming.payloadRevision = num(incoming.payloadRevision || 1);
+      return incoming;
+    }
 
     existing = normalize(existing);
     var changed = text(existing.contentHash) !== text(incoming.contentHash);
@@ -186,8 +190,6 @@ Función o funciones:
     return merged;
   }
 
-  function num(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
-
   function newer(a,b){
     var aTime = Date.parse(text(a && (a.updatedAt || a.createdAt))) || 0;
     var bTime = Date.parse(text(b && (b.updatedAt || b.createdAt))) || 0;
@@ -201,8 +203,11 @@ Función o funciones:
       var normalized = normalize(row || {});
       var key = normalized.logicalKey;
       if(!groups[key]){ groups[key] = { outbox:null,legacy:null }; }
-      if(source === "cambios_pendientes"){ groups[key].outbox = groups[key].outbox ? newer(groups[key].outbox,normalized) : normalized; }
-      else{ groups[key].legacy = groups[key].legacy ? newer(groups[key].legacy,normalized) : normalized; }
+      if(source === "cambios_pendientes"){
+        groups[key].outbox = groups[key].outbox ? newer(groups[key].outbox,normalized) : normalized;
+      }else{
+        groups[key].legacy = groups[key].legacy ? newer(groups[key].legacy,normalized) : normalized;
+      }
     }
 
     (Array.isArray(outboxRows) ? outboxRows : []).forEach(function(row){ push(row,"cambios_pendientes"); });
@@ -247,10 +252,17 @@ Función o funciones:
     });
   }
 
+  function getExisting(key){
+    return Repos.requireDB().then(function(current){
+      if(!current || typeof current.get !== "function"){ return null; }
+      return current.get(store(),key);
+    }).catch(function(){ return null; });
+  }
+
   function save(row,options){
     options = options || {};
     var incoming = normalize(row || {},options);
-    return Repos.safeGet(store(),incoming.id).catch(function(){ return null; }).then(function(existing){
+    return getExisting(incoming.id).then(function(existing){
       var merged = options.replace === true ? incoming : mergeExisting(existing,incoming);
       return Repos.safePut(store(),merged);
     });
@@ -260,7 +272,9 @@ Función o funciones:
     rows = Array.isArray(rows) ? rows : [];
     var saved = [];
     var chain = Promise.resolve();
-    rows.forEach(function(row){ chain = chain.then(function(){ return save(row,options || {}).then(function(item){ saved.push(item); }); }); });
+    rows.forEach(function(row){
+      chain = chain.then(function(){ return save(row,options || {}).then(function(item){ if(item){ saved.push(item); } }); });
+    });
     return chain.then(function(){ return saved; });
   }
 
