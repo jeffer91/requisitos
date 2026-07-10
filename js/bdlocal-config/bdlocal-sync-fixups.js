@@ -2,19 +2,20 @@
 Nombre completo: bdlocal-sync-fixups.js
 Ruta o ubicación: /js/bdlocal-config/bdlocal-sync-fixups.js
 Función o funciones:
-- Mantener una sola puerta manual hacia Google, Firebase y Supabase.
+- Mantener una sola puerta manual de escritura externa.
 - Reafirmar EstudiantesPeriodo como colección académica.
 - Mostrar Estudiantes como colección personal y de Telegram.
-- Delegar compare/download directamente en BL2FirebaseGuard.
-- Conservar el guardado de la credencial de Apps Script.
+- Delegar compare/download académicos en BL2FirebaseGuard.
+- Cargar la lectura automática, limitada y local de Telegram.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="3.2.1-firebase-split";
+  var VERSION="3.3.0-telegram-loader";
   var MAX=25;
   var installed=false;
   var bound=false;
+  var telegramLoading=null;
 
   function text(v){return String(v==null?"":v).trim();}
   function limit(v){v=Math.floor(Number(v||MAX));return Math.min(MAX,Math.max(1,v||MAX));}
@@ -27,6 +28,7 @@ Función o funciones:
       personCollection:"Estudiantes",telegramCollection:"Estudiantes",
       documentIdStrategy:"periodoId__cedula",academicDocumentIdStrategy:"periodoId__cedula",
       personDocumentIdStrategy:"cedula",excludeTelegramFromAcademic:true,
+      telegramAutoPull:true,telegramMaxReads:25,telegramRecheckDays:7,
       batchSize:25,maxBatchSize:25,deleteAllowed:false,
       previewBeforePull:true,backupBeforePull:true,protectLocalPending:true
     };
@@ -38,10 +40,7 @@ Función o funciones:
     try{
       var store=window.BDLocalConfigStore;
       if(store&&store.patchConfig){
-        store.patchConfig({
-          sync:{mode:"manual",manualOnly:true,automatic:false,syncOnIdle:false,syncOnClose:false,maxBatchSize:25},
-          firebase:firebaseConfig()
-        });
+        store.patchConfig({sync:{mode:"manual",manualOnly:true,automatic:false,syncOnIdle:false,syncOnClose:false,maxBatchSize:25},firebase:firebaseConfig()});
       }
     }catch(error){}
     return cfg.firebase;
@@ -66,18 +65,17 @@ Función o funciones:
       var message="EstudiantesPeriodo guarda datos académicos; Estudiantes conserva persona y Telegram.";
       if(title&&text(title.textContent)==="Firebase"&&description&&text(description.textContent)!==message){description.textContent=message;}
     });
+    if(window.BDLFirebaseTelegramPull&&window.BDLFirebaseTelegramPull.renderUI){window.BDLFirebaseTelegramPull.renderUI();}
   }
 
   function selectedPeriod(){
-    try{
-      if(window.BL2App&&window.BL2App.getSelectedPeriod){var p=window.BL2App.getSelectedPeriod();if(p&&text(p.id)){return Promise.resolve({id:text(p.id),label:text(p.label||p.id)});}}
-    }catch(error){}
+    try{if(window.BL2App&&window.BL2App.getSelectedPeriod){var p=window.BL2App.getSelectedPeriod();if(p&&text(p.id)){return Promise.resolve({id:text(p.id),label:text(p.label||p.id)});}}}catch(error){}
     return window.BL2Core&&window.BL2Core.getActivePeriod?window.BL2Core.getActivePeriod().then(function(p){return p&&text(p.id)?{id:text(p.id),label:text(p.label||p.periodoLabel||p.id)}:null;}):Promise.resolve(null);
   }
 
   function request(target,options){
     options=Object.assign({},options||{});
-    if(options.manual!==true){return Promise.resolve({ok:false,blocked:true,target:target,message:"Solicitud automática bloqueada."});}
+    if(options.manual!==true){return Promise.resolve({ok:false,blocked:true,target:target,message:"Solicitud automática de escritura bloqueada."});}
     if(!window.BDLSyncV2||!window.BDLSyncV2.request){return Promise.reject(new Error("BDLSyncV2 no está disponible."));}
     return (text(options.periodoId)?Promise.resolve({id:text(options.periodoId),label:text(options.periodoLabel||options.periodoId)}):selectedPeriod()).then(function(p){
       if(!p){throw new Error("Seleccione un período.");}
@@ -143,6 +141,29 @@ Función o funciones:
     store.setSheetsConfig({enabled:current.enabled,appsScriptUrl:current.appsScriptUrl,token:text(field.value),spreadsheetId:current.spreadsheetId,sheetName:current.sheetName,batchSize:current.batchSize});
   }
 
+  function scriptExists(src){
+    return Array.prototype.some.call(document.scripts||[],function(script){var declared=script.getAttribute("src")||script.getAttribute("data-bl2-loader-src")||"";return declared===src||text(script.src).slice(-src.length)===src;});
+  }
+  function loadTelegramModule(){
+    if(window.BDLFirebaseTelegramPull){return Promise.resolve(window.BDLFirebaseTelegramPull);}
+    if(telegramLoading){return telegramLoading;}
+    var sources=["sync/bdl.firebase.telegram-pull.js","../BDLocal/sync/bdl.firebase.telegram-pull.js"];
+    telegramLoading=new Promise(function(resolve,reject){
+      function next(){
+        var src=sources.shift();
+        if(!src){reject(new Error("No se pudo cargar el módulo Telegram."));return;}
+        if(scriptExists(src)&&window.BDLFirebaseTelegramPull){resolve(window.BDLFirebaseTelegramPull);return;}
+        var script=document.createElement("script");
+        script.src=src;script.async=false;script.setAttribute("data-bdl-telegram-loader",src);
+        script.onload=function(){if(window.BDLFirebaseTelegramPull){resolve(window.BDLFirebaseTelegramPull);}else if(sources.length){next();}else{reject(new Error("El módulo Telegram no se registró."));}};
+        script.onerror=function(){if(sources.length){next();}else{reject(new Error("No se pudo cargar: "+src));}};
+        document.body.appendChild(script);
+      }
+      next();
+    }).catch(function(error){try{console.warn("[BDLocalSyncFixups]",error);}catch(inner){}return null;}).finally(function(){telegramLoading=null;});
+    return telegramLoading;
+  }
+
   function bind(){
     if(bound){return;}bound=true;
     document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-bdlc-action]"):null;if(b&&b.getAttribute("data-bdlc-action")==="save-sheets"){saveSheets();}},true);
@@ -153,12 +174,18 @@ Función o funciones:
     enforce();bind();patchVisibleConfig();
     var manager=patchManager(),legacy=patchSync(),ui=patchUI();
     installed=manager||legacy||ui||installed;
-    return {ok:installed,manager:manager,legacy:legacy,ui:ui,academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes"};
+    loadTelegramModule().then(function(module){if(module&&module.renderUI){module.renderUI();}});
+    return {ok:installed,manager:manager,legacy:legacy,ui:ui,academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes",telegramModule:!!window.BDLFirebaseTelegramPull};
   }
 
-  window.BDLocalSyncFixups={version:VERSION,compatibilityOnly:true,manualOnly:true,maxBatchSize:MAX,install:install,enforceFirebaseSplit:enforce,patchFirebaseUI:patchVisibleConfig,requestTarget:request,confirmedTarget:confirmed,saveSheetsAccess:saveSheets,status:function(){return {version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager&&window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync&&window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge&&window.BDLSyncUIBridge.__singleSyncGateInstalled),academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes"};}};
+  window.BDLocalSyncFixups={
+    version:VERSION,compatibilityOnly:true,manualOnly:true,maxBatchSize:MAX,install:install,
+    enforceFirebaseSplit:enforce,patchFirebaseUI:patchVisibleConfig,requestTarget:request,confirmedTarget:confirmed,
+    saveSheetsAccess:saveSheets,loadTelegramModule:loadTelegramModule,
+    status:function(){return {version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager&&window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync&&window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge&&window.BDLSyncUIBridge.__singleSyncGateInstalled),academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes",telegramModule:!!window.BDLFirebaseTelegramPull};}
+  };
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",install);
   window.addEventListener("bl2:ready",install);
-  window.addEventListener("bl2:app-refreshed",function(){enforce();patchVisibleConfig();});
+  window.addEventListener("bl2:app-refreshed",function(){enforce();patchVisibleConfig();loadTelegramModule();});
 })(window,document);
