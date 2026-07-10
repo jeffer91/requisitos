@@ -5,8 +5,8 @@ Función o funciones:
 - Mantener en la ventana principal una copia compartida de BDLocal.
 - Recibir caché desde Carga o BL mediante postMessage seguro.
 - Entregar la misma caché a Tabla, Ficha, Stats, Coordi y Reportes.
-- Evitar depender de localStorage entre archivos file:// distintos.
-- Conservar compatibilidad con el snapshot legacy y la sesión rápida.
+- Combinar períodos, estudiantes y requisitos sin reemplazar colecciones válidas por vacías.
+- Conservar la última copia completa aunque localStorage no admita el tamaño del contenido.
 - No sincronizar servicios externos ni modificar IndexedDB.
 ========================================================= */
 (function(window,document){
@@ -16,7 +16,7 @@ Función o funciones:
   var CACHE_KEY="REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var SIGNAL_KEY="REQ_BL_SIGNAL_V1";
   var STATUS_KEY="REQ_MAQ_BASELOCAL_SESSION_STATUS_V1";
-  var VERSION="1.2.0-frame-cache-bridge";
+  var VERSION="1.3.0-collection-safe-bridge";
 
   var MESSAGE={
     publish:"requisitos:bdlocal-cache:publish",
@@ -32,38 +32,37 @@ Función o funciones:
     loadedAt:"",
     updatedAt:"",
     source:"lazy",
+    volatile:false,
     errorMessage:""
   };
 
   function now(){return new Date().toISOString();}
   function clone(value){try{return structuredClone(value);}catch(error){try{return JSON.parse(JSON.stringify(value==null?null:value));}catch(inner){return value;}}}
   function safeParse(value,fallback){try{return value?JSON.parse(value):fallback;}catch(error){return fallback;}}
+  function array(value){return Array.isArray(value)?value:[];}
+  function object(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+  function hasRows(value){return Array.isArray(value)&&value.length>0;}
 
   function emptySnapshot(){
     var at=now();
     return {
       meta:{app:"Requisitos",module:"BDLocalCompartida",source:"maq-session",version:VERSION,createdAt:at,updatedAt:at,totalPeriods:0,totalStudents:0,refreshMode:"empty"},
-      periods:[],
-      students:[],
-      requirements:[],
-      summaries:{},
-      history:[],
-      diagnostics:[]
+      periods:[],students:[],requirements:[],summaries:{},history:[],diagnostics:[]
     };
   }
 
   function normalizeSnapshot(snapshot){
     var base=snapshot&&typeof snapshot==="object"?clone(snapshot):emptySnapshot();
-    base.meta=base.meta&&typeof base.meta==="object"?base.meta:{};
-    base.periods=Array.isArray(base.periods)?base.periods:[];
-    base.students=Array.isArray(base.students)?base.students:[];
-    base.requirements=Array.isArray(base.requirements)?base.requirements:[];
-    base.summaries=base.summaries&&typeof base.summaries==="object"?base.summaries:{};
-    base.history=Array.isArray(base.history)?base.history:[];
-    base.diagnostics=Array.isArray(base.diagnostics)?base.diagnostics:[];
+    base.meta=object(base.meta);
+    base.periods=array(base.periods);
+    base.students=array(base.students);
+    base.requirements=array(base.requirements);
+    base.summaries=object(base.summaries);
+    base.history=array(base.history);
+    base.diagnostics=array(base.diagnostics);
     base.meta.app=base.meta.app||"Requisitos";
     base.meta.module=base.meta.module||"BDLocalCompartida";
-    base.meta.version=base.meta.version||VERSION;
+    base.meta.version=VERSION;
     base.meta.totalPeriods=base.periods.length;
     base.meta.totalStudents=base.students.length;
     base.meta.updatedAt=base.meta.updatedAt||now();
@@ -72,11 +71,57 @@ Función o funciones:
 
   function hasData(snapshot){
     snapshot=snapshot||{};
-    return !!(
-      Array.isArray(snapshot.students)&&snapshot.students.length||
-      Array.isArray(snapshot.periods)&&snapshot.periods.length||
-      Array.isArray(snapshot.requirements)&&snapshot.requirements.length
-    );
+    return hasRows(snapshot.students)||hasRows(snapshot.periods)||hasRows(snapshot.requirements);
+  }
+
+  function snapshotTime(snapshot){
+    var value=Date.parse(String(snapshot&&snapshot.meta&&snapshot.meta.updatedAt||""));
+    return Number.isFinite(value)?value:0;
+  }
+
+  function snapshotWeight(snapshot){
+    snapshot=snapshot||{};
+    return array(snapshot.students).length*1000000+array(snapshot.periods).length*1000+array(snapshot.requirements).length;
+  }
+
+  function preferredSnapshot(a,b){
+    a=normalizeSnapshot(a||emptySnapshot());
+    b=normalizeSnapshot(b||emptySnapshot());
+    var at=snapshotTime(a);
+    var bt=snapshotTime(b);
+    if(at!==bt){return at>bt?a:b;}
+    return snapshotWeight(a)>=snapshotWeight(b)?a:b;
+  }
+
+  function mergeSnapshots(incoming,current,options){
+    options=options||{};
+    incoming=normalizeSnapshot(incoming||emptySnapshot());
+    current=normalizeSnapshot(current||emptySnapshot());
+
+    if(options.replace===true){return incoming;}
+
+    var preferred=preferredSnapshot(incoming,current);
+    var fallback=preferred===incoming?current:incoming;
+    var result=normalizeSnapshot(preferred);
+    var allowEmpty=options.allowEmpty===true;
+
+    if(!allowEmpty){
+      if(!hasRows(result.periods)&&hasRows(fallback.periods)){result.periods=clone(fallback.periods);}
+      if(!hasRows(result.students)&&hasRows(fallback.students)){result.students=clone(fallback.students);}
+      if(!hasRows(result.requirements)&&hasRows(fallback.requirements)){result.requirements=clone(fallback.requirements);}
+      if(!hasRows(result.history)&&hasRows(fallback.history)){result.history=clone(fallback.history);}
+      if(!hasRows(result.diagnostics)&&hasRows(fallback.diagnostics)){result.diagnostics=clone(fallback.diagnostics);}
+    }
+
+    result.summaries=Object.assign({},object(fallback.summaries),object(result.summaries));
+    result.meta=Object.assign({},object(fallback.meta),object(result.meta),{
+      version:VERSION,
+      totalPeriods:result.periods.length,
+      totalStudents:result.students.length,
+      collectionSafe:true,
+      bridgeVersion:VERSION
+    });
+    return normalizeSnapshot(result);
   }
 
   function saveStatus(status){
@@ -91,30 +136,36 @@ Función o funciones:
     try{window.localStorage.setItem(SIGNAL_KEY,JSON.stringify({id:"maq-session-"+Date.now(),kind:"session-"+kind,payload:detail,at:now()}));}catch(error){}
   }
 
-  function readRawLocal(){
-    try{
-      return window.localStorage.getItem(CACHE_KEY)||window.localStorage.getItem(SNAPSHOT_KEY)||"";
-    }catch(error){
-      return "";
-    }
+  function storageValue(key){
+    try{return window.localStorage.getItem(key)||"";}catch(error){return "";}
+  }
+
+  function readLocalSnapshot(){
+    var rawCache=storageValue(CACHE_KEY);
+    var rawLegacy=storageValue(SNAPSHOT_KEY);
+    var current=safeParse(rawCache,null);
+    var legacy=safeParse(rawLegacy,null);
+    return {
+      raw:rawCache||rawLegacy||"",
+      snapshot:mergeSnapshots(current,legacy,{allowEmpty:false})
+    };
   }
 
   function ensureReady(options){
     options=options||{};
     var force=options.force===true;
-
     if(cache.ready&&!force){return getStatus();}
 
-    var raw=readRawLocal();
-
     try{
-      var snapshot=normalizeSnapshot(safeParse(raw,emptySnapshot()));
+      var local=readLocalSnapshot();
+      var existing=cache.snapshot||emptySnapshot();
+      var snapshot=mergeSnapshots(local.snapshot,existing,{allowEmpty:false});
       cache.ready=true;
-      cache.raw=raw;
+      cache.raw=local.raw;
       cache.snapshot=snapshot;
       cache.loadedAt=cache.loadedAt||now();
       cache.updatedAt=now();
-      cache.source=raw?"localStorage":"empty";
+      cache.source=hasData(snapshot)?(local.raw?"localStorage-merged":"memory"):"empty";
       cache.errorMessage="";
 
       var status=getStatus();
@@ -123,8 +174,8 @@ Función o funciones:
       return status;
     }catch(error){
       cache.ready=true;
-      cache.raw="";
-      cache.snapshot=emptySnapshot();
+      cache.raw=cache.raw||"";
+      cache.snapshot=cache.snapshot||emptySnapshot();
       cache.loadedAt=cache.loadedAt||now();
       cache.updatedAt=now();
       cache.source="fallback";
@@ -154,26 +205,31 @@ Función o funciones:
 
   function setSnapshot(snapshot,options){
     options=options||{};
-    var clean=normalizeSnapshot(snapshot||emptySnapshot());
+    var current=cache.snapshot||readLocalSnapshot().snapshot||emptySnapshot();
+    var clean=mergeSnapshots(snapshot,current,{
+      allowEmpty:options.allowEmpty===true,
+      replace:options.replace===true
+    });
     clean.meta=Object.assign({},clean.meta||{}, {
       source:options.source||clean.meta.source||"setSnapshot",
       updatedAt:now(),
       totalPeriods:clean.periods.length,
       totalStudents:clean.students.length,
-      bridgeVersion:VERSION
+      bridgeVersion:VERSION,
+      collectionSafe:true
     });
 
     var raw="";
     try{raw=JSON.stringify(clean);}catch(error){raw=JSON.stringify(emptySnapshot());}
-
     var stored=options.alreadyStored===true?true:persistSnapshot(raw);
 
     cache.ready=true;
-    cache.raw=raw;
+    cache.raw=stored?raw:cache.raw;
     cache.snapshot=clean;
     cache.updatedAt=now();
     cache.loadedAt=cache.loadedAt||now();
     cache.source=options.source||"setSnapshot";
+    cache.volatile=!stored;
     cache.errorMessage="";
 
     var status=getStatus();
@@ -205,7 +261,9 @@ Función o funciones:
       students:counts.students,
       requirements:counts.requirements,
       history:counts.history,
+      volatile:cache.volatile,
       bridge:true,
+      collectionSafe:true,
       version:VERSION
     };
   }
@@ -247,6 +305,7 @@ Función o funciones:
       reason:reason||"updated",
       cache:snapshot,
       status:getStatus(),
+      allowEmpty:false,
       at:now()
     };
 
@@ -265,6 +324,7 @@ Función o funciones:
 
     var incoming=normalizeSnapshot(data.cache||data.snapshot||emptySnapshot());
     var current=getSnapshot();
+    var merged=mergeSnapshots(incoming,current,{allowEmpty:data.allowEmpty===true});
 
     if(!hasData(incoming)&&hasData(current)&&data.allowEmpty!==true){
       send(event.source,{
@@ -278,7 +338,7 @@ Función o funciones:
       return;
     }
 
-    setSnapshot(incoming,{source:data.source||"iframe-publish"});
+    setSnapshot(merged,{source:data.source||"iframe-publish",allowEmpty:data.allowEmpty===true});
     broadcastSnapshot(data.source||"iframe-publish",event.source);
   }
 
@@ -299,14 +359,16 @@ Función o funciones:
         requestId:String(data.requestId||""),
         cache:getSnapshot(),
         status:getStatus(),
+        allowEmpty:false,
         at:now()
       });
     }
   }
 
   function boot(){
+    ensureReady();
     saveStatus(getStatus());
-    emit("lazy",{ready:false,source:"lazy",message:"Base Local se cargará cuando una pantalla la necesite."});
+    emit("lazy",{ready:cache.ready,source:cache.source,message:"Base Local compartida preparada sin reemplazar colecciones válidas por respuestas vacías."});
   }
 
   window.addEventListener("message",handleMessage);
@@ -319,6 +381,7 @@ Función o funciones:
     ensureReady:ensureReady,
     getSnapshot:getSnapshot,
     setSnapshot:setSnapshot,
+    mergeSnapshots:mergeSnapshots,
     publishSnapshot:function(snapshot,options){
       var result=setSnapshot(snapshot,options||{});
       broadcastSnapshot(options&&options.source||"parent-publish");
