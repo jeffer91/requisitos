@@ -5,6 +5,7 @@ Función o funciones:
 - Ejecutar una certificación integral sin escribir datos ni usar internet.
 - Verificar arranque, tablas, registros, servicios y conectores.
 - Comprobar política manual, lote máximo y puerta única de sincronización.
+- Cargar y validar el destino Firebase antes de emitir el resultado.
 - Validar estructura Firebase periodoId__cedula mediante datos simulados.
 - Validar filtros, IDs estables y combinación segura de Google Sheets.
 - Detectar duplicados lógicos existentes en cambios_pendientes.
@@ -12,7 +13,7 @@ Función o funciones:
 (function(window,document){
   "use strict";
 
-  var VERSION = "3.0.0-read-only-certification";
+  var VERSION = "3.1.0-read-only-final-certification";
   var state = { running:false,lastResult:null };
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -43,16 +44,27 @@ Función o funciones:
 
   function missing(existing,expected){ return expected.filter(function(name){ return existing.indexOf(name) < 0; }); }
 
+  function prepareFirebaseTarget(){
+    if(window.BDLSyncV2 && typeof window.BDLSyncV2.loadExtraTargets === "function"){
+      return window.BDLSyncV2.loadExtraTargets();
+    }
+    return Promise.resolve(window.BDLSyncTargetFirebase || null);
+  }
+
   function checkModules(){
-    var required = [
-      "BL2Config","BL2DB","BL2Core","BL2Backup","BL2App","BL2Test",
-      "BDLRules","BDLRepositories","BDLServices","BDLocalConexiones",
-      "BDLSyncTargets","BDLSyncOutbox","BDLSyncOrchestrator","BDLSyncV2",
-      "BDLSyncUIBridge","BDLocalSyncFixups","BL2CloudPullSafe",
-      "BL2FirebaseGuard","BDLSyncTargetFirebase"
-    ];
-    var absent = required.filter(function(name){ return !window[name]; });
-    return Promise.resolve(absent.length ? bad("Módulos","Faltan módulos: " + absent.join(", "),{ missing:absent }) : ok("Módulos",required.length + " módulos principales disponibles."));
+    return prepareFirebaseTarget().catch(function(){ return null; }).then(function(){
+      var required = [
+        "BL2Config","BL2DB","BL2Core","BL2Backup","BL2App","BL2Test",
+        "BDLRules","BDLRepositories","BDLServices","BDLocalConexiones",
+        "BDLSyncTargets","BDLSyncOutbox","BDLSyncOrchestrator","BDLSyncV2",
+        "BDLSyncUIBridge","BDLocalSyncFixups","BL2CloudPullSafe",
+        "BL2FirebaseGuard","BDLSyncTargetFirebase"
+      ];
+      var absent = required.filter(function(name){ return !window[name]; });
+      return absent.length
+        ? bad("Módulos","Faltan módulos: " + absent.join(", "),{ missing:absent })
+        : ok("Módulos",required.length + " módulos principales disponibles.");
+    });
   }
 
   function checkRegistries(){
@@ -74,7 +86,9 @@ Función o funciones:
       targets:missing(targets,["google","firebase","supabase"])
     };
     var failed = Object.keys(failures).filter(function(name){ return failures[name].length; });
-    return Promise.resolve(failed.length ? bad("Registros centrales","Faltan registros en: " + failed.join(", "),failures) : ok("Registros centrales","Reglas, repositorios, servicios, conectores y destinos están registrados.",{ rules:rules.length,repositories:repositories.length,services:services.length,connectors:connectors.length,targets:targets }));
+    return Promise.resolve(failed.length
+      ? bad("Registros centrales","Faltan registros en: " + failed.join(", "),failures)
+      : ok("Registros centrales","Reglas, repositorios, servicios, conectores y destinos están registrados.",{ rules:rules.length,repositories:repositories.length,services:services.length,connectors:connectors.length,targets:targets }));
   }
 
   function checkAppReady(){
@@ -102,7 +116,9 @@ Función o funciones:
     Object.keys(config().stores || {}).forEach(function(name){ var storeName = text(config().stores[name]); if(storeName){ map[storeName] = true; } });
     var expected = Object.keys(map);
     var absent = expected.filter(function(name){ return actual.indexOf(name) < 0; });
-    return Promise.resolve(absent.length ? bad("Tablas físicas","Faltan tablas: " + absent.join(", "),{ expected:expected,actual:actual,missing:absent }) : ok("Tablas físicas",actual.length + " tablas físicas disponibles.",{ stores:actual }));
+    return Promise.resolve(absent.length
+      ? bad("Tablas físicas","Faltan tablas: " + absent.join(", "),{ expected:expected,actual:actual,missing:absent })
+      : ok("Tablas físicas",actual.length + " tablas físicas disponibles.",{ stores:actual }));
   }
 
   function checkPeriods(){
@@ -114,7 +130,9 @@ Función o funciones:
   }
 
   function checkActivePeriod(){
-    return activePeriod().then(function(period){ return period && text(period.id) ? ok("Período activo",text(period.label || period.id),period) : warn("Período activo","No hay período activo seleccionado."); });
+    return activePeriod().then(function(period){
+      return period && text(period.id) ? ok("Período activo",text(period.label || period.id),period) : warn("Período activo","No hay período activo seleccionado.");
+    });
   }
 
   function countTable(name){
@@ -177,7 +195,11 @@ Función o funciones:
       if(status.firebaseTargetReady !== true){ problems.push("El destino Firebase no está registrado."); }
       var fixups = window.BDLocalSyncFixups && typeof window.BDLocalSyncFixups.status === "function" ? window.BDLocalSyncFixups.status() : {};
       if(!fixups.installed || !fixups.manager || !fixups.legacy || !fixups.ui){ problems.push("La puerta única no quedó instalada en todas las rutas."); }
-      return problems.length ? bad("Política de sincronización",problems.join(" "),{ config:policy,firebase:firebase,status:status,fixups:fixups }) : ok("Política de sincronización","Solo manual, sin cierre/inactividad y con máximo 25.",{ status:status,fixups:fixups });
+      var guard = window.BL2GooglePushGuard && typeof window.BL2GooglePushGuard.status === "function" ? window.BL2GooglePushGuard.status() : {};
+      if(guard.singleGate !== true || guard.intervals !== false){ problems.push("La guardia externa conserva una segunda puerta o un intervalo de instalación."); }
+      return problems.length
+        ? bad("Política de sincronización",problems.join(" "),{ config:policy,firebase:firebase,status:status,fixups:fixups,guard:guard })
+        : ok("Política de sincronización","Solo manual, sin cierre/inactividad, sin intervalos y con máximo 25.",{ status:status,fixups:fixups,guard:guard });
     });
   }
 
@@ -197,7 +219,9 @@ Función o funciones:
     if(firstId !== period + "__" + cedula || firstId !== secondId){ problems.push("El ID Firebase no es estable."); }
     if(!groups || groups.groups.length !== 1 || groups.groups[0].changeIds.length !== 2){ problems.push("Dos cambios del mismo estudiante no se consolidan."); }
     if(limited.length !== 25){ problems.push("El destino Firebase no limita a 25."); }
-    return Promise.resolve(problems.length ? bad("Firebase seguro",problems.join(" "),{ documentId:firstId,groups:groups,limited:limited.length }) : ok("Firebase seguro","ID estable, consolidación por estudiante y límite de 25 verificados sin conexión.",{ documentId:firstId,groups:groups.groups.length,changes:groups.groups[0].changeIds.length,limit:limited.length }));
+    return Promise.resolve(problems.length
+      ? bad("Firebase seguro",problems.join(" "),{ documentId:firstId,groups:groups,limited:limited.length })
+      : ok("Firebase seguro","ID estable, consolidación por estudiante y límite de 25 verificados sin conexión.",{ documentId:firstId,groups:groups.groups.length,changes:groups.groups[0].changeIds.length,limit:limited.length }));
   }
 
   function checkSheetsSafety(){
@@ -214,27 +238,38 @@ Función o funciones:
 
     var period = { id:"2026-01__2026-06",label:"Prueba" };
     var requirement = { cedula:"0123456789",periodoId:period.id,requisito:"Académico" };
-    var id1 = safePull.diagnostics.stableRowId("requisitos",requirement,period);
-    var id2 = safePull.diagnostics.stableRowId("requisitos",clone(requirement),period);
-    if(id1 !== id2){ problems.push("El ID de requisito no es estable."); }
+    var requirementId1 = safePull.diagnostics.stableRowId("requisitos",requirement,period);
+    var requirementId2 = safePull.diagnostics.stableRowId("requisitos",clone(requirement),period);
+    if(requirementId1 !== requirementId2){ problems.push("El ID de requisito no es estable."); }
+
+    var contactA = { cedula:"0123456789",periodoId:period.id,tipo:"correo",valor:"anterior@correo.com" };
+    var contactB = { cedula:"0123456789",periodoId:period.id,tipo:"correo",valor:"nuevo@correo.com" };
+    var contactId1 = safePull.diagnostics.stableRowId("contactos",contactA,period);
+    var contactId2 = safePull.diagnostics.stableRowId("contactos",contactB,period);
+    if(contactId1 !== contactId2){ problems.push("Cambiar el valor de un contacto crea una identidad nueva."); }
 
     var merged = safePull.diagnostics.mergeNonEmpty({ Nombres:"Nombre completo",Carrera:"Software",correo:"local@correo.com" },{ Nombres:"",Carrera:"Sistemas" });
     if(merged.Nombres !== "Nombre completo" || merged.Carrera !== "Sistemas" || merged.correo !== "local@correo.com"){ problems.push("La combinación segura borra o no actualiza campos correctamente."); }
 
-    return Promise.resolve(problems.length ? bad("Google Sheets seguro",problems.join(" "),{ technical:technical,id1:id1,id2:id2,merged:merged }) : ok("Google Sheets seguro","Tablas técnicas ignoradas, fachada única, IDs estables y combinación no destructiva verificados.",{ ignored:technical,stableId:id1,merged:merged }));
+    return Promise.resolve(problems.length
+      ? bad("Google Sheets seguro",problems.join(" "),{ technical:technical,requirementId:requirementId1,contactId1:contactId1,contactId2:contactId2,merged:merged })
+      : ok("Google Sheets seguro","Tablas técnicas ignoradas, fachada única, IDs estables y combinación no destructiva verificados.",{ ignored:technical,requirementId:requirementId1,contactId:contactId1,merged:merged }));
   }
 
   function checkQueueIntegrity(){
     var current = db();
     var currentOutbox = window.BDLSyncOutbox;
+    var storeName = text(config().stores && config().stores.cambiosPendientes || "cambios_pendientes");
     if(!current || typeof current.getAll !== "function" || !currentOutbox || typeof currentOutbox.logicalKey !== "function"){ return Promise.resolve(bad("Integridad de cola","No se puede analizar cambios_pendientes.")); }
     return activePeriod().then(function(period){
-      return current.getAll("cambios_pendientes").then(function(rows){
+      return current.getAll(storeName).then(function(rows){
         rows = (rows || []).filter(function(row){ return !period || !period.id || !text(row.periodoId) || text(row.periodoId) === text(period.id); });
         var counts = {};
         rows.forEach(function(row){ var logical = currentOutbox.logicalKey(row); counts[logical] = (counts[logical] || 0) + 1; });
         var duplicates = Object.keys(counts).filter(function(name){ return counts[name] > 1; }).map(function(name){ return { key:name,total:counts[name] }; });
-        return duplicates.length ? bad("Integridad de cola",duplicates.length + " clave(s) lógicas duplicadas en cambios_pendientes.",{ rows:rows.length,duplicates:duplicates.slice(0,20) }) : ok("Integridad de cola",rows.length + " cambio(s) revisados sin duplicados lógicos.",{ rows:rows.length });
+        return duplicates.length
+          ? bad("Integridad de cola",duplicates.length + " clave(s) lógicas duplicadas en cambios_pendientes.",{ rows:rows.length,duplicates:duplicates.slice(0,20) })
+          : ok("Integridad de cola",rows.length + " cambio(s) revisados sin duplicados lógicos.",{ rows:rows.length });
       });
     });
   }
@@ -248,7 +283,9 @@ Función o funciones:
     if(!pullButton){ problems.push("No existe el botón Traer Google Sheets."); }
     else if(pullButton.getAttribute("data-cloud-pull-owner") !== "safe"){ problems.push("El botón de Google Sheets no pertenece al flujo seguro."); }
     if(!window.BDLSyncUIBridge || window.BDLSyncUIBridge.__singleSyncGateInstalled !== true){ problems.push("La interfaz no usa la puerta única de sincronización."); }
-    return Promise.resolve(problems.length ? bad("Propiedad de interfaz",problems.join(" "),{ legacyLoaded:legacyLoaded,buttonOwner:pullButton && pullButton.getAttribute("data-cloud-pull-owner") }) : ok("Propiedad de interfaz","Sin interfaces antiguas; Sheets y sincronización tienen un único propietario."));
+    return Promise.resolve(problems.length
+      ? bad("Propiedad de interfaz",problems.join(" "),{ legacyLoaded:legacyLoaded,buttonOwner:pullButton && pullButton.getAttribute("data-cloud-pull-owner") })
+      : ok("Propiedad de interfaz","Sin interfaces antiguas; Sheets y sincronización tienen un único propietario."));
   }
 
   function checkConnections(){
