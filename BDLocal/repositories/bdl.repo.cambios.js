@@ -4,13 +4,13 @@ Ruta o ubicación: /BDLocal/repositories/bdl.repo.cambios.js
 Función o funciones:
 - Administrar cambios_pendientes con claves lógicas estables.
 - Mantener un único pendiente por tabla, período y registro.
-- Actualizar el pendiente si cambia el contenido.
-- Ignorar duplicados legacy antiguos cuando ya existe un cambio V2 más reciente.
+- Preservar la identidad original antes de aplicar reglas legacy.
+- Ignorar duplicados antiguos cuando existe una versión V2 más reciente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.4.0-idempotent";
+  var VERSION = "0.4.1-idempotent";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -95,25 +95,51 @@ Función o funciones:
   }
 
   function normalize(row,options){
-    row = Object.assign({},clone(row || {}));
+    var original = clone(row || {});
+    var originalId = text(original.sourceChangeId || original.id || original.cambioId);
+    var originalCreatedAt = text(original.createdAt);
+    var originalUpdatedAt = text(original.updatedAt);
+    var originalTable = table(original);
+    var originalPeriod = periodo(original);
+    var originalRecord = registro(original);
+    var originalPayload = payload(original);
+    var originalCedula = cedula(original.cedula || original.numeroIdentificacion || originalPayload.cedula || originalPayload.numeroIdentificacion);
+
+    row = original;
     if(window.BDLRulesSync && typeof window.BDLRulesSync.build === "function"){
-      try{ row = window.BDLRulesSync.build(row,options || {}) || row; }catch(error){}
+      try{
+        row = window.BDLRulesSync.build(original,Object.assign({},options || {},{
+          tabla:originalTable,
+          periodoId:originalPeriod,
+          cedula:originalCedula,
+          registroId:originalRecord,
+          payload:originalPayload
+        })) || original;
+      }catch(error){ row = original; }
     }
-    var sourceId = text(row.sourceChangeId || row.id || row.cambioId);
-    row.tabla = table(row);
-    row.periodoId = periodo(row);
-    row.cedula = cedula(row.cedula || row.numeroIdentificacion || payload(row).cedula || payload(row).numeroIdentificacion);
-    row.registroId = text(row.registroId || row.idEstudiantePeriodo || row.studentId || registro(row));
-    row.logicalKey = logicalKey(row);
-    row.contentHash = contentHash(row);
-    row.id = stableId(row);
+
+    row = Object.assign({},row);
+    row.tabla = originalTable;
+    row.periodoId = originalPeriod;
+    row.cedula = originalCedula;
+    row.registroId = originalRecord;
+    row.payload = clone(originalPayload);
+    row.logicalKey = [part(originalTable),part(originalPeriod),part(originalRecord)].join("__");
+    row.contentHash = "payload__" + hash({
+      tabla:originalTable,
+      periodoId:originalPeriod,
+      registroId:originalRecord,
+      action:upper(original.accion || original.action || row.accion || "UPSERT"),
+      payload:originalPayload
+    });
+    row.id = "outbox__" + hash(row.logicalKey);
     row.cambioId = row.id;
-    row.sourceChangeId = sourceId && sourceId !== row.id ? sourceId : text(row.sourceChangeId);
-    row.createdAt = text(row.createdAt) || now();
-    row.updatedAt = text(row.updatedAt) || now();
-    row.estadoSheets = status(row.estadoSheets || row.statusGoogle); row.statusGoogle = row.estadoSheets;
-    row.estadoFirebase = status(row.estadoFirebase || row.statusFirebase); row.statusFirebase = row.estadoFirebase;
-    row.estadoSupabase = status(row.estadoSupabase || row.statusSupabase); row.statusSupabase = row.estadoSupabase;
+    row.sourceChangeId = originalId && originalId !== row.id ? originalId : text(original.sourceChangeId);
+    row.createdAt = originalCreatedAt || text(row.createdAt) || now();
+    row.updatedAt = originalUpdatedAt || originalCreatedAt || text(row.updatedAt) || now();
+    row.estadoSheets = status(original.estadoSheets || original.statusGoogle || row.estadoSheets || row.statusGoogle); row.statusGoogle = row.estadoSheets;
+    row.estadoFirebase = status(original.estadoFirebase || original.statusFirebase || row.estadoFirebase || row.statusFirebase); row.statusFirebase = row.estadoFirebase;
+    row.estadoSupabase = status(original.estadoSupabase || original.statusSupabase || row.estadoSupabase || row.statusSupabase); row.statusSupabase = row.estadoSupabase;
     row.outboxIdempotent = true;
     row.outboxRepositoryVersion = VERSION;
     return row;
