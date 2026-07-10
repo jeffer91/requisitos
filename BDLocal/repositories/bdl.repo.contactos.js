@@ -6,11 +6,12 @@ Función o funciones:
 - Mantener lectura y escritura compatible con contactos legacy.
 - Consolidar telegramUser y telegramChatId sin borrar valores válidos.
 - Propagar Telegram a todas las matrículas locales sin crear cola externa.
+- Registrar revisiones vacías sin eliminar Telegram existente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-v2-telegram-propagation";
+  var VERSION = "1.2.0-v2-telegram-safe-review";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -140,17 +141,29 @@ Función o funciones:
     });
   }
 
+  function safeStudentPatch(row,patch){
+    var output={
+      telegramUpdatedAt:patch.telegramUpdatedAt,
+      telegramSource:patch.telegramSource,
+      telegramCheckedAt:patch.telegramCheckedAt,
+      telegramVerifiedAt:patch.telegramVerifiedAt
+    };
+    if(text(patch.telegramUser)){
+      output.telegramUser=patch.telegramUser;
+      output._telegramUser=patch.telegramUser;
+    }
+    if(text(patch.telegramChatId)){
+      output.telegramChatId=patch.telegramChatId;
+      output._telegramChatId=patch.telegramChatId;
+    }
+    output.updatedAt=row.updatedAt || now();
+    return mergeNonEmpty(row,output);
+  }
+
   function updateStudentCopies(cedula,patch){
     return rowsByCedula(studentStore(),cedula).then(function(rows){
       if(!rows.length){return [];}
-      var updated=rows.map(function(row){
-        return Object.assign({},row,patch,{
-          _telegramUser:patch.telegramUser,
-          _telegramChatId:patch.telegramChatId,
-          /* Telegram no altera updatedAt académico ni crea cambios_pendientes. */
-          updatedAt:row.updatedAt || now()
-        });
-      });
+      var updated=rows.map(function(row){return safeStudentPatch(row,patch);});
       return Repos.bulkPut(studentStore(),updated).then(function(){return updated;});
     });
   }
@@ -190,7 +203,7 @@ Función o funciones:
   var api={
     version:VERSION,primaryStore:v2Store,legacyStore:legacyStore,list:list,getByCedula:getByCedula,
     save:save,saveTelegram:saveTelegram,saveTelegramForCedula:saveTelegramForCedula,
-    normalize:normalize,telegramPatch:telegramPatch,mergeNonEmpty:mergeNonEmpty
+    normalize:normalize,telegramPatch:telegramPatch,mergeNonEmpty:mergeNonEmpty,safeStudentPatch:safeStudentPatch
   };
 
   Repos.register("contactos",api);
