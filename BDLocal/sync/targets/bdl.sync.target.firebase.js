@@ -2,23 +2,38 @@
 Nombre completo: bdl.sync.target.firebase.js
 Ruta o ubicación: /BDLocal/sync/targets/bdl.sync.target.firebase.js
 Función o funciones:
-- Sincronizar cambios pendientes con la colección Estudiantes.
+- Sincronizar cambios académicos con EstudiantesPeriodo.
 - Usar periodoId__cedula como identificador estable del documento.
 - Consolidar varios cambios del mismo estudiante en una sola escritura.
 - Leer la versión completa más reciente desde Base Local.
+- Excluir Telegram y datos personales reservados del documento académico.
 - Rechazar documentos parciales y enviar máximo 25 cambios.
 - Comprobar la cuota manual antes de ejecutar el batch Firebase.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.5.0-quota-safe";
+  var VERSION = "0.6.0-academic-collection";
   var MAX_BATCH_SIZE = 25;
+  var TELEGRAM_FIELDS = {
+    telegram:true,
+    telegramUser:true,
+    telegramUsername:true,
+    usuarioTelegram:true,
+    telegramChatId:true,
+    chatIdTelegram:true,
+    chatId:true,
+    telegramUpdatedAt:true,
+    telegramSource:true,
+    telegramCheckedAt:true,
+    telegramVerifiedAt:true
+  };
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function now(){ return new Date().toISOString(); }
   function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
   function configStore(){ return window.BDLocalConfigStore || null; }
+  function firebaseConfig(){ return window.BL2Config && window.BL2Config.firebase || {}; }
 
   function normalizeCedula(value){
     var raw = text(value).replace(/[^0-9A-Za-z]/g,"");
@@ -62,9 +77,20 @@ Función o funciones:
     return value;
   }
 
-  function collectionName(){
-    var config = window.BL2Config && window.BL2Config.firebase || {};
-    return text(config.collection || "Estudiantes") || "Estudiantes";
+  function academicCollectionName(){
+    var config = firebaseConfig();
+    return text(config.academicCollection || config.collection || "EstudiantesPeriodo") || "EstudiantesPeriodo";
+  }
+
+  function personCollectionName(){
+    var config = firebaseConfig();
+    return text(config.personCollection || config.telegramCollection || "Estudiantes") || "Estudiantes";
+  }
+
+  function stripTelegramFields(document){
+    document = document && typeof document === "object" ? document : {};
+    Object.keys(TELEGRAM_FIELDS).forEach(function(field){ delete document[field]; });
+    return document;
   }
 
   function safeRows(rows,options){
@@ -121,7 +147,7 @@ Función o funciones:
   }
 
   function buildDocument(student,group){
-    student = clean(student || {});
+    student = stripTelegramFields(clean(student || {}));
     if(!student || typeof student !== "object"){ return null; }
 
     var cedula = normalizeCedula(student.cedula || student.numeroIdentificacion || group.cedula);
@@ -144,7 +170,8 @@ Función o funciones:
       ultimoPeriodoId:periodoId,
       syncSource:"BDLocal",
       syncTarget:"Firebase",
-      syncSchemaVersion:"3",
+      syncEntity:"academic_period",
+      syncSchemaVersion:"4",
       lastChangeIds:group.changeIds.slice(0,25),
       updatedAt:text(student.updatedAt || now()),
       ultimaSincronizacion:now()
@@ -157,7 +184,7 @@ Función o funciones:
       return readLocalStudent(group).then(function(student){
         var document = buildDocument(student,group);
         if(!document){
-          grouped.skipped.push({ ids:group.changeIds.slice(),reason:"No se encontró un estudiante completo en Base Local." });
+          grouped.skipped.push({ ids:group.changeIds.slice(),reason:"No se encontró un estudiante académico completo en Base Local." });
           return null;
         }
         return { documentId:document.firebaseDocumentId,document:document,changeIds:group.changeIds.slice() };
@@ -183,7 +210,7 @@ Función o funciones:
     try{
       var current = configStore();
       if(current && typeof current.registerFirebaseUsage === "function"){
-        current.registerFirebaseUsage({ writes:Number(writes || 0),label:"Subida segura BDLocal → Firebase." });
+        current.registerFirebaseUsage({ writes:Number(writes || 0),label:"Subida académica segura BDLocal → EstudiantesPeriodo." });
       }
     }catch(error){}
   }
@@ -211,7 +238,7 @@ Función o funciones:
 
     return prepareDocuments(pendingRows,options).then(function(prepared){
       if(!prepared.documents.length){
-        return { ok:false,target:"firebase",processedIds:[],skipped:prepared.skipped,message:"No existen documentos completos para enviar." };
+        return { ok:false,target:"firebase",processedIds:[],skipped:prepared.skipped,message:"No existen documentos académicos completos para enviar." };
       }
 
       var quota = quotaFor(prepared.documents.length);
@@ -230,7 +257,7 @@ Función o funciones:
 
       return window.BL2Sync.ensureFirebase().then(function(firestore){
         var batch = firestore.batch();
-        var collection = firestore.collection(collectionName());
+        var collection = firestore.collection(academicCollectionName());
         prepared.documents.forEach(function(item){
           batch.set(collection.doc(item.documentId),item.document,{ merge:true });
         });
@@ -243,13 +270,14 @@ Función o funciones:
         return {
           ok:true,
           target:"firebase",
-          collection:collectionName(),
+          collection:academicCollectionName(),
+          personCollection:personCollectionName(),
           documents:prepared.documents.length,
           processedIds:processedIds,
           skipped:prepared.skipped,
           quota:quota,
           response:response || {},
-          message:"Firebase actualizado: " + prepared.documents.length + " estudiante(s), " + processedIds.length + " cambio(s) confirmado(s)." + (quota.level === "advertencia" ? " Advertencia: cuota cercana al límite." : "")
+          message:"EstudiantesPeriodo actualizado: " + prepared.documents.length + " estudiante(s), " + processedIds.length + " cambio(s) confirmado(s). Telegram no fue modificado." + (quota.level === "advertencia" ? " Advertencia: cuota cercana al límite." : "")
         };
       });
     }).catch(function(error){
@@ -259,7 +287,14 @@ Función o funciones:
   }
 
   if(window.BDLSyncTargets && typeof window.BDLSyncTargets.register === "function"){
-    window.BDLSyncTargets.register("firebase",{ push:push,version:VERSION,collection:"Estudiantes",documentId:"periodoId__cedula" });
+    window.BDLSyncTargets.register("firebase",{
+      push:push,
+      version:VERSION,
+      collection:"EstudiantesPeriodo",
+      personCollection:"Estudiantes",
+      documentId:"periodoId__cedula",
+      telegramExcluded:true
+    });
   }
 
   window.BDLSyncTargetFirebase = {
@@ -268,7 +303,11 @@ Función o funciones:
     safeRows:safeRows,
     groupChanges:groupChanges,
     prepareDocuments:prepareDocuments,
+    buildDocument:buildDocument,
+    stripTelegramFields:stripTelegramFields,
     documentId:documentId,
+    academicCollectionName:academicCollectionName,
+    personCollectionName:personCollectionName,
     quotaFor:quotaFor
   };
 })(window);
