@@ -2,389 +2,309 @@
 Nombre completo: bdlocal-config.ui.js
 Ruta o ubicación: /js/bdlocal-config/bdlocal-config.ui.js
 Función o funciones:
-- Controlar el Centro de Control BDLocal sin crear una segunda interfaz.
-- Renderizar Resumen, Bases externas y Pantallas.
-- Usar IndexedDB y la cola real de sincronización como fuentes.
-- Guardar configuraciones de Firebase, Google Sheets y Supabase.
-- Ejecutar pruebas, subidas, descargas y refrescos manuales.
+- Controlar Resumen, Conexiones, Pantallas, Tablas y Consulta de estudiante.
+- Reutilizar IndexedDB, servicios y sincronización existentes.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var rootElement = null;
-  var initialized = false;
+  var root = null;
   var bound = false;
-  var renderSequence = 0;
+  var studentSnapshot = null;
 
   var SCREENS = {
-    carga:{ label:"Carga", reads:["periodos"], writes:["personas","matriculas_periodo","requisitos_estudiante","cambios_pendientes"] },
-    ficha:{ label:"Ficha", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","contactos_estudiante"], writes:["contactos_estudiante","requisitos_estudiante","cambios_pendientes"] },
-    tabla:{ label:"Tabla", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:["cambios_pendientes"] },
-    stats:{ label:"Estadísticas", reads:["matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:[] },
-    coordi:{ label:"Coordinación", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:["notas_titulacion","cambios_pendientes"] },
-    reportes:{ label:"Reportes", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:[] },
-    defensas:{ label:"Defensas", reads:["personas","matriculas_periodo","requisitos_estudiante"], writes:["notas_titulacion","cambios_pendientes"] },
-    global:{ label:"Global", reads:["periodos","personas","matriculas_periodo"], writes:[] }
+    carga:["Carga","periodos","personas, matriculas_periodo, requisitos_estudiante, cambios_pendientes"],
+    ficha:["Ficha","personas, matriculas_periodo, requisitos_estudiante, notas_titulacion, contactos_estudiante","contactos_estudiante, requisitos_estudiante, cambios_pendientes"],
+    tabla:["Tabla","personas, matriculas_periodo, requisitos_estudiante, notas_titulacion","cambios_pendientes"],
+    stats:["Estadísticas","matriculas_periodo, requisitos_estudiante, notas_titulacion","Solo lectura"],
+    coordi:["Coordinación","personas, matriculas_periodo, requisitos_estudiante, notas_titulacion","notas_titulacion, cambios_pendientes"],
+    reportes:["Reportes","personas, matriculas_periodo, requisitos_estudiante, notas_titulacion","Solo lectura"],
+    defensas:["Defensas","personas, matriculas_periodo, requisitos_estudiante","notas_titulacion, cambios_pendientes"],
+    global:["Global","periodos, personas, matriculas_periodo","Solo lectura"]
   };
 
-  function byId(id){ return document.getElementById(id); }
-  function text(value){ return String(value == null ? "" : value).trim(); }
-  function number(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
-  function esc(value){ return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
-  function formatNumber(value){ try{ return number(value).toLocaleString("es-EC"); }catch(error){ return String(number(value)); } }
-  function formatDate(value){ if(!text(value)){ return "Sin registro"; } var d = new Date(value); return Number.isFinite(d.getTime()) ? d.toLocaleString("es-EC") : text(value); }
+  function id(name){ return document.getElementById(name); }
+  function txt(value){ return String(value == null ? "" : value).trim(); }
+  function num(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
+  function esc(value){ return txt(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
+  function setText(name,value){ var el = id(name); if(el){ el.textContent = value; } }
+  function setHTML(name,value){ var el = id(name); if(el){ el.innerHTML = value; } }
+  function value(name){ var el = id(name); return el ? el.value : ""; }
+  function db(){ return window.BL2DB || null; }
+  function core(){ return window.BL2Core || null; }
   function store(){ return window.BDLocalConfigStore || null; }
   function manager(){ return window.BDLocalSyncManager || null; }
-  function core(){ return window.BL2Core || null; }
-  function db(){ return window.BL2DB || null; }
   function hub(){ return window.BDLocalConexiones || null; }
+  function format(value){ try{ return num(value).toLocaleString("es-EC"); }catch(error){ return String(num(value)); } }
+  function date(value){ if(!txt(value)){ return "Sin registro"; } var d = new Date(value); return Number.isFinite(d.getTime()) ? d.toLocaleString("es-EC") : txt(value); }
 
-  function statusClass(status){
-    status = text(status).toLowerCase();
-    if(["ok","conectado","configurado","success","correcto"].indexOf(status) >= 0){ return "ok"; }
-    if(["error","failed","bloqueado"].indexOf(status) >= 0){ return "error"; }
-    if(["advertencia","warning","pendientes"].indexOf(status) >= 0){ return "warning"; }
-    return "pending";
-  }
-
-  function badge(status, label){ return '<span class="bdlc-status ' + statusClass(status) + '">' + esc(label || status || "Pendiente") + '</span>'; }
-  function setText(id, value){ var el = byId(id); if(el){ el.textContent = value; } }
-  function setHTML(id, value){ var el = byId(id); if(el){ el.innerHTML = value; } }
-  function input(id){ var el = byId(id); return el ? el.value : ""; }
-
-  function notify(message, type){
-    var el = byId("bl2-global-alert") || (rootElement && rootElement.querySelector("[data-bdlc-alert]"));
-    if(!el){ window.alert(message); return; }
-    el.className = "bdlc-alert " + (type || "info");
-    el.textContent = message;
-    el.hidden = false;
-    el.style.display = "block";
-    window.clearTimeout(el.__hideTimer);
-    el.__hideTimer = window.setTimeout(function(){ el.hidden = true; el.style.display = "none"; }, 5500);
-  }
-
-  function setProgress(active, percent, message){
-    percent = Math.max(0, Math.min(100, number(percent)));
-    var bar = byId("bl2-sync-bar");
-    var fill = byId("bl2-sync-progress");
-    if(bar){ bar.hidden = !active; }
-    if(fill){ fill.style.width = percent + "%"; }
-    setText("bl2-sync-percent", Math.round(percent) + "%");
-    setText("bl2-sync-detail", message || "");
-  }
-
-  function selectedPeriod(){
-    var app = window.BL2App && typeof window.BL2App.getState === "function" ? window.BL2App.getState() : {};
-    if(app.activePeriod && text(app.activePeriod.id)){ return { id:text(app.activePeriod.id), label:text(app.activePeriod.label || app.activePeriod.id) }; }
-    var select = byId("bl2-period-select");
-    var id = text(select && select.value);
-    var label = id;
-    if(select && select.selectedOptions && select.selectedOptions[0]){ label = text(select.selectedOptions[0].textContent) || id; }
-    return { id:id, label:label };
-  }
-
-  function queryCount(table, index, value){
-    var current = db();
-    if(!current){ return Promise.resolve(0); }
-    if(index && value && typeof current.queryByIndex === "function"){
-      return current.queryByIndex(table, index, value).then(function(rows){ return Array.isArray(rows) ? rows.length : 0; }).catch(function(){ return 0; });
+  function period(){
+    if(window.BL2App && typeof window.BL2App.getSelectedPeriod === "function"){
+      var row = window.BL2App.getSelectedPeriod();
+      if(row && txt(row.id)){ return { id:txt(row.id), label:txt(row.label || row.id) }; }
     }
-    if(typeof current.count === "function"){ return current.count(table).then(number).catch(function(){ return 0; }); }
-    if(typeof current.getAll === "function"){ return current.getAll(table).then(function(rows){ return Array.isArray(rows) ? rows.length : 0; }).catch(function(){ return 0; }); }
-    return Promise.resolve(0);
+    var select = id("bl2-period-select");
+    var pid = txt(select && select.value);
+    return { id:pid, label:select && select.selectedOptions && select.selectedOptions[0] ? txt(select.selectedOptions[0].textContent) : pid };
   }
 
-  function lastBackup(){
-    var current = db();
-    if(!current || typeof current.getAll !== "function"){ return Promise.resolve(null); }
-    return current.getAll("backups").then(function(rows){
-      rows = Array.isArray(rows) ? rows : [];
-      rows.sort(function(a,b){ return new Date(b.createdAt || b.updatedAt || b.at || 0).getTime() - new Date(a.createdAt || a.updatedAt || a.at || 0).getTime(); });
-      return rows[0] || null;
-    }).catch(function(){ return null; });
+  function notify(message,type){
+    var box = id("bl2-global-alert");
+    if(!box){ window.alert(message); return; }
+    box.className = "bdlc-alert " + (type || "info");
+    box.textContent = message;
+    box.hidden = false;
+    clearTimeout(box.__timer);
+    box.__timer = setTimeout(function(){ box.hidden = true; },5000);
   }
+
+  function progress(show,percent,message){
+    var bar = id("bl2-sync-bar");
+    if(bar){ bar.hidden = !show; }
+    setText("bl2-sync-percent",Math.round(num(percent)) + "%");
+    setText("bl2-sync-detail",message || "");
+    var fill = id("bl2-sync-progress");
+    if(fill){ fill.style.width = Math.max(0,Math.min(100,num(percent))) + "%"; }
+  }
+
+  function badge(ok,label){ return '<span class="bdlc-status ' + (ok ? 'ok' : 'warning') + '">' + esc(label) + '</span>'; }
+  function button(action,label,variant,target,buttonId){ return '<button ' + (buttonId ? 'id="' + buttonId + '" ' : '') + 'class="bdlc-button ' + (variant || '') + '" type="button" data-bdlc-action="' + action + '"' + (target ? ' data-target="' + target + '"' : '') + '>' + label + '</button>'; }
 
   function buildSummary(){
-    var section = byId("bl2-section-resumen");
-    if(!section || section.__bdlcBuilt){ return; }
-    section.__bdlcBuilt = true;
-    section.innerHTML = ''
-      + '<div class="bdlc-header"><div><span class="bdlc-overline">Vista general</span><h2 class="bdlc-title">Resumen</h2><p class="bdlc-description">Estado del período activo, IndexedDB y sincronizaciones pendientes.</p></div><span id="bdlc-summary-health" class="bdlc-status pending">Verificando</span></div>'
-      + '<div class="bdlc-card-grid bdlc-card-grid-kpis">'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Período activo</span><strong id="bl2-kpi-period">—</strong><small id="bl2-kpi-period-id">Sin seleccionar</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Estudiantes</span><strong id="bl2-kpi-students">0</strong><small id="bl2-kpi-students-sub">Matrículas del período</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Activos</span><strong id="bdlc-kpi-active">0</strong><small>Estado de matrícula</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Retirados</span><strong id="bdlc-kpi-retired">0</strong><small>Conservados en reportes</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Personas</span><strong id="bdlc-kpi-people">0</strong><small>Registro general</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Requisitos</span><strong id="bdlc-kpi-requirements">0</strong><small>Del período</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Notas</span><strong id="bdlc-kpi-notes">0</strong><small>Del período</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Pendientes Google</span><strong id="bl2-kpi-google">0</strong><small>Google Sheets</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Pendientes Firebase</span><strong id="bl2-kpi-firebase">0</strong><small>Firebase</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Pendientes Supabase</span><strong id="bl2-kpi-supabase">0</strong><small>Supabase</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Errores</span><strong id="bl2-kpi-warnings">0</strong><small>Validación o sincronización</small></article>'
-      + '<article class="bdlc-card bdlc-kpi-card"><span>Último respaldo</span><strong id="bdlc-kpi-backup">—</strong><small id="bl2-backup-status">Sin registro</small></article>'
-      + '</div>'
-      + '<div class="bdlc-card-grid two">'
-      + '<article class="bdlc-card"><h3>Estado técnico</h3><div class="bdlc-table-wrap"><table class="bdlc-table"><tbody id="bdlc-summary-technical"><tr><th>Estado</th><td>Consultando IndexedDB...</td></tr></tbody></table></div></article>'
-      + '<article class="bdlc-card"><h3>Conexiones externas</h3><div id="bdlc-summary-connections" class="bdlc-placeholder"><strong>Comprobando conexiones</strong><span>Espere un momento.</span></div></article>'
-      + '</div>';
+    var section = id("bl2-section-resumen");
+    if(!section || section.__built){ return; }
+    section.__built = true;
+    var cards = [
+      ["Período activo","bl2-kpi-period","—"],["Estudiantes","bl2-kpi-students","0"],["Activos","bdlc-kpi-active","0"],["Retirados","bdlc-kpi-retired","0"],
+      ["Personas","bdlc-kpi-people","0"],["Requisitos","bdlc-kpi-requirements","0"],["Notas","bdlc-kpi-notes","0"],["Errores","bl2-kpi-warnings","0"],
+      ["Google","bl2-kpi-google","0"],["Firebase","bl2-kpi-firebase","0"],["Supabase","bl2-kpi-supabase","0"],["Respaldo","bdlc-kpi-backup","—"]
+    ];
+    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">Vista general</span><h2 class="bdlc-title">Resumen</h2><p class="bdlc-description">Estado del período activo, tablas y pendientes.</p></div><span id="bdlc-summary-health" class="bdlc-status pending">Verificando</span></div><div class="bdlc-card-grid bdlc-card-grid-kpis">'
+      + cards.map(function(card){ return '<article class="bdlc-card bdlc-kpi-card"><span>' + card[0] + '</span><strong id="' + card[1] + '">' + card[2] + '</strong><small>Base Local</small></article>'; }).join("")
+      + '</div><div class="bdlc-card-grid two"><article class="bdlc-card"><h3>Estado técnico</h3><div class="bdlc-table-wrap"><table class="bdlc-table"><tbody id="bdlc-summary-technical"></tbody></table></div></article><article class="bdlc-card"><h3>Conexiones</h3><div id="bdlc-summary-connections" class="bdlc-empty">Verificando...</div></article></div>';
+  }
+
+  function connection(key,label,actions,form){
+    return '<article class="bdlc-connection-card"><div class="bdlc-connection-head"><div><h3>' + label + '</h3><p>BDLocal ↔ ' + label + '</p></div><span id="bl2-dot-' + key + '" class="bl2-dot bl2-dot-warn"></span></div><div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-' + key + '-status">Verificando...</strong></div><div class="bdlc-actions">' + actions + '</div><details><summary>Configuración</summary>' + form + '</details></article>';
   }
 
   function buildExternal(){
-    var section = byId("bl2-section-bases-externas");
-    if(!section || section.__bdlcBuilt){ return; }
-    section.__bdlcBuilt = true;
-    section.innerHTML = ''
-      + '<div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Bases externas</h2><p class="bdlc-description">BDLocal sigue siendo la base principal. Las operaciones externas son manuales y controladas.</p></div><button class="bdlc-button secondary" type="button" data-bdlc-action="test-all">Probar todas</button></div>'
-      + '<div class="bdlc-connections-grid">'
-      + connectionCard("google","Google Sheets","Sin configurar",[
-          button("push-google","Subir","bl2-btn-push-google"),
-          button("pull-sheets","Traer","bl2-btn-pull-sheets","secondary"),
-          button("test-sheets","Probar","","subtle")
-        ], sheetsForm())
-      + connectionCard("firebase","Firebase","Pendiente",[
-          button("push-firebase","Subir","bl2-btn-push-firebase"),
-          button("pull-firebase","Traer datos","","secondary"),
-          button("fetch-firebase-config","Traer configuración","bl2-btn-fetch-firebase-config","subtle"),
-          button("test-firebase","Probar","","subtle")
-        ], firebaseForm())
-      + connectionCard("supabase","Supabase","Sin configurar",[
-          button("push-supabase","Subir","bl2-btn-push-supabase"),
-          button("test-supabase","Probar","","subtle")
-        ], supabaseForm())
+    var section = id("bl2-section-bases-externas");
+    if(!section || section.__built){ return; }
+    section.__built = true;
+    var sheetsForm = '<div class="bdlc-form"><div class="bdlc-field"><label class="bdlc-label">Estado</label><select id="bdlc-sheets-enabled" class="bdlc-select"><option value="false">Desactivado</option><option value="true">Activado</option></select></div><div class="bdlc-field"><label class="bdlc-label">Lote</label><input id="bdlc-sheets-batch" class="bdlc-input" type="number"></div><div class="bdlc-field full"><label class="bdlc-label">Apps Script</label><input id="bdlc-sheets-url" class="bdlc-input"></div><div class="bdlc-field"><label class="bdlc-label">Sheet ID</label><input id="bdlc-sheets-id" class="bdlc-input"></div><div class="bdlc-field"><label class="bdlc-label">Hoja</label><input id="bdlc-sheets-name" class="bdlc-input"></div></div>' + button("save-sheets","Guardar","","","");
+    var firebaseForm = '<div class="bdlc-form"><div class="bdlc-field"><label class="bdlc-label">Límite diario</label><input id="bdlc-firebase-limit" class="bdlc-input" type="number"></div><div class="bdlc-field"><label class="bdlc-label">Advertir %</label><input id="bdlc-firebase-warning" class="bdlc-input" type="number"></div><div class="bdlc-field"><label class="bdlc-label">Bloquear %</label><input id="bdlc-firebase-stop" class="bdlc-input" type="number"></div></div>' + button("save-firebase","Guardar","","","");
+    var supabaseForm = '<div class="bdlc-form"><div class="bdlc-field"><label class="bdlc-label">Estado</label><select id="bdlc-supabase-enabled" class="bdlc-select"><option value="false">Desactivado</option><option value="true">Activado</option></select></div><div class="bdlc-field"><label class="bdlc-label">Tabla</label><input id="bdlc-supabase-table" class="bdlc-input"></div><div class="bdlc-field full"><label class="bdlc-label">URL</label><input id="bdlc-supabase-url" class="bdlc-input"></div><div class="bdlc-field full"><label class="bdlc-label">Anon key</label><input id="bdlc-supabase-key" class="bdlc-input" type="password"></div></div>' + button("save-supabase","Guardar","","","");
+    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Bases externas</h2><p class="bdlc-description">Operaciones manuales y controladas.</p></div>' + button("test-all","Probar todas","secondary") + '</div><div class="bdlc-connections-grid">'
+      + connection("google","Google Sheets",button("push-google","Subir","","","bl2-btn-push-google") + button("pull-sheets","Traer","secondary","","bl2-btn-pull-sheets") + button("test-sheets","Probar","subtle"),sheetsForm)
+      + connection("firebase","Firebase",button("push-firebase","Subir","","","bl2-btn-push-firebase") + button("pull-firebase","Traer datos","secondary") + button("fetch-firebase-config","Traer configuración","subtle","","bl2-btn-fetch-firebase-config") + button("test-firebase","Probar","subtle"),firebaseForm)
+      + connection("supabase","Supabase",button("push-supabase","Subir","","","bl2-btn-push-supabase") + button("test-supabase","Probar","subtle"),supabaseForm)
       + '</div>';
   }
 
-  function button(action, label, id, variant){ return '<button ' + (id ? 'id="' + id + '" ' : '') + 'type="button" class="bdlc-button ' + (variant || '') + '" data-bdlc-owned="ui" data-bdlc-action="' + action + '">' + label + '</button>'; }
-
-  function connectionCard(key, label, initial, actions, form){
-    return '<article class="bdlc-connection-card" data-bdlc-connection="' + key + '">'
-      + '<div class="bdlc-connection-head"><div><h3>' + esc(label) + '</h3><p>BDLocal ↔ ' + esc(label) + '</p></div><span id="bl2-dot-' + key + '" class="bl2-dot bl2-dot-warn"></span></div>'
-      + '<div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-' + key + '-status">' + esc(initial) + '</strong></div>'
-      + '<div class="bdlc-actions">' + actions.join("") + '</div>'
-      + '<details><summary>Configuración y detalles</summary>' + form + '</details>'
-      + '</article>';
-  }
-
-  function sheetsForm(){
-    return '<div class="bdlc-form">'
-      + '<div class="bdlc-field"><label class="bdlc-label">Estado</label><select id="bdlc-sheets-enabled" class="bdlc-select"><option value="false">Desactivado</option><option value="true">Activado</option></select></div>'
-      + '<div class="bdlc-field"><label class="bdlc-label">Tamaño de lote</label><input id="bdlc-sheets-batch" class="bdlc-input" type="number" min="1" max="500"></div>'
-      + '<div class="bdlc-field full"><label class="bdlc-label">URL de Apps Script</label><input id="bdlc-sheets-url" class="bdlc-input" type="url"></div>'
-      + '<div class="bdlc-field"><label class="bdlc-label">ID del Google Sheet</label><input id="bdlc-sheets-id" class="bdlc-input" type="text"></div>'
-      + '<div class="bdlc-field"><label class="bdlc-label">Nombre de hoja</label><input id="bdlc-sheets-name" class="bdlc-input" type="text"></div>'
-      + '<div class="bdlc-field full"><label class="bdlc-label">Token de Apps Script</label><input id="bdlc-sheets-token" class="bdlc-input" type="password" autocomplete="off"></div>'
-      + '</div><div class="bdlc-actions"><button class="bdlc-button" type="button" data-bdlc-action="save-sheets">Guardar configuración</button></div>';
-  }
-
-  function firebaseForm(){
-    return '<div class="bdlc-form">'
-      + '<div class="bdlc-field"><label class="bdlc-label">Límite diario estimado</label><input id="bdlc-firebase-limit" class="bdlc-input" type="number" min="1"></div>'
-      + '<div class="bdlc-field"><label class="bdlc-label">Advertir al porcentaje</label><input id="bdlc-firebase-warning" class="bdlc-input" type="number" min="1" max="100"></div>'
-      + '<div class="bdlc-field"><label class="bdlc-label">Bloquear al porcentaje</label><input id="bdlc-firebase-stop" class="bdlc-input" type="number" min="1" max="100"></div>'
-      + '</div><div class="bdlc-actions"><button class="bdlc-button" type="button" data-bdlc-action="save-firebase">Guardar cuota</button></div>';
-  }
-
-  function supabaseForm(){
-    return '<div class="bdlc-form">'
-      + '<div class="bdlc-field"><label class="bdlc-label">Estado</label><select id="bdlc-supabase-enabled" class="bdlc-select"><option value="false">Desactivado</option><option value="true">Activado</option></select></div>'
-      + '<div class="bdlc-field"><label class="bdlc-label">Tabla externa</label><input id="bdlc-supabase-table" class="bdlc-input" type="text"></div>'
-      + '<div class="bdlc-field full"><label class="bdlc-label">Supabase URL</label><input id="bdlc-supabase-url" class="bdlc-input" type="url"></div>'
-      + '<div class="bdlc-field full"><label class="bdlc-label">Anon key</label><input id="bdlc-supabase-key" class="bdlc-input" type="password" autocomplete="off"></div>'
-      + '</div><div class="bdlc-actions"><button class="bdlc-button" type="button" data-bdlc-action="save-supabase">Guardar configuración</button></div>';
-  }
-
   function buildScreens(){
-    var section = byId("bl2-section-pantallas");
-    if(!section || section.__bdlcBuilt){ return; }
-    section.__bdlcBuilt = true;
-    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Pantallas</h2><p class="bdlc-description">Verifica que cada módulo consulte o guarde mediante BDLocal.</p></div><button class="bdlc-button secondary" type="button" data-bdlc-action="screen-refresh-all">Refrescar conexiones</button></div><div id="bdlc-screen-grid" class="bdlc-card-grid three"></div>';
+    var section = id("bl2-section-pantallas");
+    if(!section || section.__built){ return; }
+    section.__built = true;
+    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Pantallas</h2><p class="bdlc-description">Módulos que leen o guardan mediante BDLocal.</p></div>' + button("screen-refresh-all","Refrescar","secondary") + '</div><div id="bdlc-screen-grid" class="bdlc-card-grid three"></div>';
   }
 
   function renderScreens(){
-    var grid = byId("bdlc-screen-grid");
+    var grid = id("bdlc-screen-grid");
     if(!grid){ return; }
-    var currentHub = hub();
-    var status = currentHub && typeof currentHub.status === "function" ? currentHub.status() : {};
-    var registered = status && Array.isArray(status.connectors) ? status.connectors : [];
+    var current = hub();
+    var registered = current && typeof current.status === "function" ? current.status().connectors || [] : [];
     grid.innerHTML = Object.keys(SCREENS).map(function(key){
-      var item = SCREENS[key];
-      var api = currentHub && typeof currentHub.get === "function" ? currentHub.get(key) : null;
-      var ready = registered.indexOf(key) >= 0 || !!api;
-      return '<article class="bdlc-card" data-bdlc-screen="' + key + '"><div class="bdlc-header"><div><h3>' + esc(item.label) + '</h3><p>Conector: ' + esc(key) + '</p></div>' + badge(ready ? "ok" : "pendiente", ready ? "Conectada" : "No cargada") + '</div>'
-        + '<div class="bdlc-table-wrap"><table class="bdlc-table"><tbody><tr><th>Lee</th><td>' + esc(item.reads.join(", ") || "Ninguna") + '</td></tr><tr><th>Guarda</th><td>' + esc(item.writes.join(", ") || "Solo lectura") + '</td></tr><tr><th>Último resultado</th><td data-bdlc-screen-result="' + key + '">' + (ready ? "Conector disponible" : "Pendiente de carga") + '</td></tr></tbody></table></div>'
-        + '<div class="bdlc-actions"><button class="bdlc-button secondary" type="button" data-bdlc-action="screen-test" data-target="' + key + '">Probar conexión</button><button class="bdlc-button subtle" type="button" data-bdlc-action="screen-refresh" data-target="' + key + '">Refrescar datos</button></div></article>';
+      var row = SCREENS[key];
+      var ready = registered.indexOf(key) >= 0 || !!(current && current.get && current.get(key));
+      return '<article class="bdlc-card"><div class="bdlc-header"><div><h3>' + row[0] + '</h3><p>' + key + '</p></div>' + badge(ready,ready ? "Conectada" : "No cargada") + '</div><div class="bdlc-table-wrap"><table class="bdlc-table"><tbody><tr><th>Lee</th><td>' + row[1] + '</td></tr><tr><th>Guarda</th><td>' + row[2] + '</td></tr><tr><th>Resultado</th><td data-screen-result="' + key + '">' + (ready ? "Disponible" : "Pendiente") + '</td></tr></tbody></table></div><div class="bdlc-actions">' + button("screen-test","Probar","secondary",key) + button("screen-refresh","Refrescar datos","subtle",key) + '</div></article>';
     }).join("");
   }
 
-  function fillConfigForms(){
+  function buildTables(){
+    var section = id("bl2-section-tablas");
+    if(!section || section.__built){ return; }
+    section.__built = true;
+    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">IndexedDB</span><h2 class="bdlc-title">Tablas</h2><p class="bdlc-description">Explorador de solo lectura.</p></div></div><div id="bl2-tables-slot" class="bdlc-empty">Preparando explorador...</div>';
+  }
+
+  function mountTables(force){
+    var slot = id("bl2-tables-slot");
+    if(!slot || !window.BL2RawView || typeof window.BL2RawView.mount !== "function"){ return Promise.resolve(null); }
+    if(!force && slot.getAttribute("data-raw-mounted") === "true"){ return Promise.resolve(window.BL2RawView.getState()); }
+    return window.BL2RawView.mount(slot,{ periodoId:period().id });
+  }
+
+  function buildStudent(){
+    var section = id("bl2-section-estudiante");
+    if(!section || section.__built){ return; }
+    section.__built = true;
+    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">Consulta integral</span><h2 class="bdlc-title">Consulta de estudiante</h2><p class="bdlc-description">Resultado consolidado como texto bruto.</p></div><span id="student-period" class="bdlc-status pending">Sin período</span></div><div class="bdlc-card"><div class="bdlc-field"><label class="bdlc-label">Cédula, nombre, correo o carrera</label><input id="student-search" class="bdlc-input" type="search" placeholder="Escriba al menos dos caracteres"></div><div class="bdlc-actions">' + button("student-search","Buscar") + button("student-clear","Limpiar","secondary") + button("student-copy","Copiar resultado","secondary") + '</div></div><div id="student-results" class="bdlc-empty">Realice una búsqueda.</div><div class="bdlc-card"><h3>Texto bruto</h3><pre id="student-raw" class="bdlc-raw-output">{}</pre></div>';
+    id("student-search").addEventListener("keydown",function(event){ if(event.key === "Enter"){ event.preventDefault(); handleAction(section.querySelector('[data-bdlc-action="student-search"]')); } });
+  }
+
+  function updateStudentPeriod(){
+    var current = period();
+    var pill = id("student-period");
+    if(pill){ pill.className = "bdlc-status " + (current.id ? "ok" : "warning"); pill.textContent = current.id ? current.label : "Seleccione un período"; }
+  }
+
+  function fillForms(){
     var s = store();
     if(!s){ return; }
     var config = s.loadConfig();
     var sheets = s.getSheetsConfig({ includeSecret:true });
     var supabase = s.getSupabaseConfig({ includeSecret:true });
-    function value(id, val){ var el = byId(id); if(el){ el.value = val == null ? "" : val; } }
-    value("bdlc-firebase-limit", config.firebase.dailyLimit || 500);
-    value("bdlc-firebase-warning", config.firebase.warningPercent || 80);
-    value("bdlc-firebase-stop", config.firebase.stopPercent || 95);
-    value("bdlc-sheets-enabled", String(!!sheets.enabled)); value("bdlc-sheets-batch", sheets.batchSize || 25); value("bdlc-sheets-url", sheets.appsScriptUrl || ""); value("bdlc-sheets-id", sheets.spreadsheetId || ""); value("bdlc-sheets-name", sheets.sheetName || "Requisitos"); value("bdlc-sheets-token", sheets.token || "");
-    value("bdlc-supabase-enabled", String(!!supabase.enabled)); value("bdlc-supabase-table", supabase.tableName || "app_records"); value("bdlc-supabase-url", supabase.url || ""); value("bdlc-supabase-key", supabase.anonKey || "");
+    function put(name,val){ var el = id(name); if(el){ el.value = val == null ? "" : val; } }
+    put("bdlc-firebase-limit",config.firebase.dailyLimit || 500); put("bdlc-firebase-warning",config.firebase.warningPercent || 80); put("bdlc-firebase-stop",config.firebase.stopPercent || 95);
+    put("bdlc-sheets-enabled",String(!!sheets.enabled)); put("bdlc-sheets-batch",sheets.batchSize || 25); put("bdlc-sheets-url",sheets.appsScriptUrl || ""); put("bdlc-sheets-id",sheets.spreadsheetId || ""); put("bdlc-sheets-name",sheets.sheetName || "Requisitos");
+    put("bdlc-supabase-enabled",String(!!supabase.enabled)); put("bdlc-supabase-table",supabase.tableName || "app_records"); put("bdlc-supabase-url",supabase.url || ""); put("bdlc-supabase-key",supabase.anonKey || "");
+  }
+
+  function query(table,index,key){
+    var current = db();
+    if(!current){ return Promise.resolve([]); }
+    if(index && typeof current.queryByIndex === "function"){ return current.queryByIndex(table,index,key).catch(function(){ return []; }); }
+    return current.getAll(table).catch(function(){ return []; });
+  }
+
+  function count(table,index,key){ return query(table,index,key).then(function(rows){ return rows.length; }); }
+
+  function renderSummary(){
+    var current = period();
+    var summary = current.id && core() ? core().getSummary(current.id).catch(function(){ return {}; }) : Promise.resolve({});
+    var counts = window.BDLSyncUIBridge ? window.BDLSyncUIBridge.refreshCounts().catch(function(){ return null; }) : Promise.resolve(null);
+    return Promise.all([summary,count("personas"),count("matriculas_periodo","periodoId",current.id),count("requisitos_estudiante","periodoId",current.id),count("notas_titulacion","periodoId",current.id),count("errores_validacion","periodoId",current.id),counts]).then(function(rows){
+      var s = rows[0] || {};
+      setText("bl2-kpi-period",current.label || "—"); setText("bl2-kpi-students",format(s.totalEstudiantes || rows[2])); setText("bdlc-kpi-active",format(s.totalActivos)); setText("bdlc-kpi-retired",format(s.totalRetirados));
+      setText("bdlc-kpi-people",format(rows[1])); setText("bdlc-kpi-requirements",format(rows[3])); setText("bdlc-kpi-notes",format(rows[4])); setText("bl2-kpi-warnings",format(rows[5]));
+      var meta = db() && db().meta ? db().meta() : {};
+      setHTML("bdlc-summary-technical",'<tr><th>Base</th><td>' + esc(meta.name || "REQUISITOS_BL2") + '</td></tr><tr><th>Versión</th><td>' + esc(meta.version || "—") + '</td></tr><tr><th>Tablas</th><td>' + (meta.stores || []).length + '</td></tr><tr><th>Período</th><td>' + esc(current.label || "Sin seleccionar") + '</td></tr><tr><th>Actualización</th><td>' + esc(date(s.updatedAt)) + '</td></tr>');
+      var health = id("bdlc-summary-health"); if(health){ var ok = !(meta.missingStores || []).length; health.className = "bdlc-status " + (ok ? "ok" : "warning"); health.textContent = ok ? "Base saludable" : "Faltan tablas"; }
+      renderConnections(rows[6]);
+      return s;
+    });
   }
 
   function renderConnections(counts){
-    var s = store();
-    if(!s){ return; }
-    var config = s.loadConfig();
-    var sheets = s.getSheetsConfig({ includeSecret:false });
-    var supabase = s.getSupabaseConfig({ includeSecret:false });
-    counts = counts || {};
-    var detail = counts.detail || counts;
-    function pending(target){ var row = detail[target] || {}; return number(row.pending) + number(row.waitingRetry) + number(row.error) + number(row.blocked); }
-    var gp = pending("google"), fp = pending("firebase"), sp = pending("supabase");
-    setText("bl2-google-status", (sheets.connected ? "Conectado" : (sheets.enabled ? "Configurado" : "Sin configurar")) + " · Pendientes: " + gp + " · Última prueba: " + formatDate(sheets.lastTestAt));
-    setText("bl2-firebase-status", (config.firebase.connected ? "Conectado" : "Pendiente de prueba") + " · Pendientes: " + fp + " · Última prueba: " + formatDate(config.firebase.lastTestAt));
-    setText("bl2-supabase-status", (supabase.connected ? "Conectado" : (supabase.enabled ? "Configurado" : "Sin configurar")) + " · Pendientes: " + sp + " · Última prueba: " + formatDate(supabase.lastTestAt));
-    setText("bl2-kpi-google", formatNumber(gp)); setText("bl2-kpi-firebase", formatNumber(fp)); setText("bl2-kpi-supabase", formatNumber(sp));
-    var summary = byId("bdlc-summary-connections");
-    if(summary){ summary.className = "bdlc-table-wrap"; summary.innerHTML = '<table class="bdlc-table"><tbody><tr><th>Google Sheets</th><td>' + esc(sheets.connected ? "Conectado" : "Revisar") + ' · ' + gp + ' pendiente(s)</td></tr><tr><th>Firebase</th><td>' + esc(config.firebase.connected ? "Conectado" : "Revisar") + ' · ' + fp + ' pendiente(s)</td></tr><tr><th>Supabase</th><td>' + esc(supabase.connected ? "Conectado" : (supabase.enabled ? "Revisar" : "Desactivado")) + ' · ' + sp + ' pendiente(s)</td></tr></tbody></table>'; }
+    var s = store(); if(!s){ return; }
+    var cfg = s.loadConfig(); var sheets = s.getSheetsConfig({ includeSecret:false }); var supabase = s.getSupabaseConfig({ includeSecret:false });
+    var detail = counts && (counts.detail || counts) || {};
+    function pending(name){ var row = detail[name] || {}; return num(row.pending) + num(row.waitingRetry) + num(row.error) + num(row.blocked); }
+    var g = pending("google"), f = pending("firebase"), sp = pending("supabase");
+    setText("bl2-kpi-google",format(g)); setText("bl2-kpi-firebase",format(f)); setText("bl2-kpi-supabase",format(sp));
+    setText("bl2-google-status",(sheets.connected ? "Conectado" : "Revisar") + " · " + g + " pendiente(s)"); setText("bl2-firebase-status",(cfg.firebase.connected ? "Conectado" : "Revisar") + " · " + f + " pendiente(s)"); setText("bl2-supabase-status",(supabase.connected ? "Conectado" : "Revisar") + " · " + sp + " pendiente(s)");
+    var box = id("bdlc-summary-connections"); if(box){ box.className = "bdlc-table-wrap"; box.innerHTML = '<table class="bdlc-table"><tbody><tr><th>Google</th><td>' + g + '</td></tr><tr><th>Firebase</th><td>' + f + '</td></tr><tr><th>Supabase</th><td>' + sp + '</td></tr></tbody></table>'; }
   }
 
-  function renderSummary(){
-    var seq = ++renderSequence;
-    var period = selectedPeriod();
-    var summaryPromise = period.id && core() && typeof core().getSummary === "function" ? core().getSummary(period.id).catch(function(){ return {}; }) : Promise.resolve({});
-    var countsPromise = window.BDLSyncUIBridge && typeof window.BDLSyncUIBridge.refreshCounts === "function" ? window.BDLSyncUIBridge.refreshCounts().catch(function(){ return null; }) : Promise.resolve(null);
-    return Promise.all([
-      summaryPromise,
-      queryCount("personas"),
-      queryCount("matriculas_periodo","periodoId",period.id),
-      queryCount("requisitos_estudiante","periodoId",period.id),
-      queryCount("notas_titulacion","periodoId",period.id),
-      queryCount("errores_validacion","periodoId",period.id),
-      lastBackup(),
-      countsPromise
-    ]).then(function(values){
-      if(seq !== renderSequence){ return null; }
-      var summary = values[0] || {};
-      var people = values[1], matriculas = values[2], requirements = values[3], notes = values[4], errors = values[5], backupRow = values[6], counts = values[7];
-      var appState = window.BL2App && typeof window.BL2App.getState === "function" ? window.BL2App.getState() : {};
-      var active = appState.activePeriod || period;
-      setText("bl2-kpi-period", active.label || active.id || "—"); setText("bl2-kpi-period-id", active.id || "Sin seleccionar");
-      setText("bl2-kpi-students", formatNumber(summary.totalEstudiantes || matriculas));
-      setText("bdlc-kpi-active", formatNumber(summary.totalActivos)); setText("bdlc-kpi-retired", formatNumber(summary.totalRetirados));
-      setText("bdlc-kpi-people", formatNumber(people)); setText("bdlc-kpi-requirements", formatNumber(requirements)); setText("bdlc-kpi-notes", formatNumber(notes)); setText("bl2-kpi-warnings", formatNumber(errors));
-      setText("bdlc-kpi-backup", backupRow ? "Disponible" : "—"); setText("bl2-backup-status", backupRow ? formatDate(backupRow.createdAt || backupRow.updatedAt || backupRow.at) : "Sin respaldo registrado");
-      var meta = db() && typeof db().meta === "function" ? db().meta() : {};
-      var health = window.BDLFinalHealth && typeof window.BDLFinalHealth.run === "function" ? window.BDLFinalHealth.run() : null;
-      var healthEl = byId("bdlc-summary-health");
-      if(healthEl){ healthEl.className = "bdlc-status " + (health && health.ok ? "ok" : "warning"); healthEl.textContent = health && health.ok ? "Base saludable" : "Revisar salud"; }
-      setHTML("bdlc-summary-technical", '<tr><th>Base</th><td>' + esc(meta.name || "REQUISITOS_BL2") + '</td></tr><tr><th>Versión</th><td>' + esc(meta.version || "—") + '</td></tr><tr><th>Tablas detectadas</th><td>' + esc(Array.isArray(meta.stores) ? meta.stores.length : Array.isArray(meta.storeNames) ? meta.storeNames.length : "—") + '</td></tr><tr><th>Período</th><td>' + esc(active.label || active.id || "Sin seleccionar") + '</td></tr><tr><th>Última actualización</th><td>' + esc(formatDate(summary.updatedAt)) + '</td></tr>');
-      renderConnections(counts);
-      return summary;
+  function searchStudent(){
+    var current = period(); var q = txt(value("student-search")); var box = id("student-results");
+    if(!current.id){ return Promise.reject(new Error("Seleccione un período.")); }
+    if(q.length < 2){ return Promise.reject(new Error("Escriba al menos dos caracteres.")); }
+    if(!core() || !core().searchStudents){ return Promise.reject(new Error("El buscador no está disponible.")); }
+    box.className = "bdlc-empty"; box.textContent = "Buscando...";
+    return core().searchStudents({ periodoId:current.id,search:q,limit:25 }).then(function(result){
+      var rows = result.rows || [];
+      if(!rows.length){ box.textContent = "No se encontraron estudiantes."; setText("student-raw","{}"); return { ok:true,message:"Sin resultados." }; }
+      var exact = rows.filter(function(row){ return txt(row.cedula || row.numeroIdentificacion) === q; })[0];
+      if(exact || rows.length === 1){ return loadStudent(txt((exact || rows[0]).cedula || (exact || rows[0]).numeroIdentificacion)); }
+      box.className = "bdlc-table-wrap";
+      box.innerHTML = '<table class="bdlc-table"><thead><tr><th>Ver</th><th>Cédula</th><th>Nombre</th><th>Carrera</th><th>Estado</th></tr></thead><tbody>' + rows.map(function(row){ var cedula = txt(row.cedula || row.numeroIdentificacion); return '<tr><td>' + button("student-select","Ver","subtle",cedula) + '</td><td>' + esc(cedula) + '</td><td>' + esc(row.Nombres || row.nombres || row.nombreCompleto) + '</td><td>' + esc(row.NombreCarrera || row.carrera) + '</td><td>' + esc(row.estadoMatricula) + '</td></tr>'; }).join("") + '</tbody></table>';
+      return { ok:true,message:rows.length + " coincidencia(s)." };
     });
   }
 
-  function saveConfig(action){
-    var s = store();
-    if(!s){ throw new Error("BDLocalConfigStore no está disponible."); }
-    if(action === "save-firebase"){ s.setFirebaseQuota({ dailyLimit:input("bdlc-firebase-limit"), warningPercent:input("bdlc-firebase-warning"), stopPercent:input("bdlc-firebase-stop") }); return "Cuota Firebase guardada."; }
-    if(action === "save-sheets"){ s.setSheetsConfig({ enabled:input("bdlc-sheets-enabled") === "true", batchSize:input("bdlc-sheets-batch"), appsScriptUrl:input("bdlc-sheets-url"), spreadsheetId:input("bdlc-sheets-id"), sheetName:input("bdlc-sheets-name"), token:input("bdlc-sheets-token") }); return "Configuración de Google Sheets guardada."; }
-    if(action === "save-supabase"){ s.setSupabaseConfig({ enabled:input("bdlc-supabase-enabled") === "true", tableName:input("bdlc-supabase-table"), url:input("bdlc-supabase-url"), anonKey:input("bdlc-supabase-key") }); return "Configuración de Supabase guardada."; }
-    return "Configuración guardada.";
+  function loadStudent(cedula){
+    var current = period();
+    var base = window.BDLServiceFicha && window.BDLServiceFicha.getDetalle
+      ? window.BDLServiceFicha.getDetalle({ periodoId:current.id,cedula:cedula })
+      : core().getStudentByCedula(cedula,current.id).then(function(row){ return { ok:!!row,periodoId:current.id,cedula:cedula,estudiante:row }; });
+    return Promise.all([base,query("divisiones_estudiante","periodo_cedula",[current.id,cedula]),query("cambios_pendientes","cedula",cedula),query("errores_validacion","cedula",cedula)]).then(function(rows){
+      var data = rows[0] || {};
+      data.divisiones = rows[1] || [];
+      data.cambiosPendientes = (rows[2] || []).filter(function(row){ return !txt(row.periodoId) || txt(row.periodoId) === current.id; });
+      data.erroresValidacion = (rows[3] || []).filter(function(row){ return !txt(row.periodoId) || txt(row.periodoId) === current.id; });
+      data.fuente = "BDLocal"; data.consultadoEn = new Date().toISOString();
+      studentSnapshot = data;
+      setText("student-raw",JSON.stringify(data,null,2));
+      var box = id("student-results"); box.className = "bdlc-alert success"; box.textContent = "Estudiante cargado: " + cedula + ".";
+      return { ok:true,message:"Consulta cargada." };
+    });
   }
 
-  function runManager(method){
-    var m = manager();
-    if(!m || typeof m[method] !== "function"){ return Promise.reject(new Error("La acción " + method + " no está disponible.")); }
-    return Promise.resolve(m[method]());
+  function clearStudent(){ studentSnapshot = null; setText("student-raw","{}"); var search = id("student-search"); if(search){ search.value = ""; } var box = id("student-results"); if(box){ box.className = "bdlc-empty"; box.textContent = "Realice una búsqueda."; } return { ok:true,message:"Consulta limpiada." }; }
+  function copyStudent(){ if(!navigator.clipboard || !navigator.clipboard.writeText){ return Promise.reject(new Error("Portapapeles no disponible.")); } return navigator.clipboard.writeText(JSON.stringify(studentSnapshot || {},null,2)).then(function(){ return { ok:true,message:"Resultado copiado." }; }); }
+
+  function save(action){
+    var s = store(); if(!s){ throw new Error("Configuración no disponible."); }
+    if(action === "save-firebase"){ s.setFirebaseQuota({ dailyLimit:value("bdlc-firebase-limit"),warningPercent:value("bdlc-firebase-warning"),stopPercent:value("bdlc-firebase-stop") }); }
+    if(action === "save-sheets"){ s.setSheetsConfig({ enabled:value("bdlc-sheets-enabled") === "true",batchSize:value("bdlc-sheets-batch"),appsScriptUrl:value("bdlc-sheets-url"),spreadsheetId:value("bdlc-sheets-id"),sheetName:value("bdlc-sheets-name") }); }
+    if(action === "save-supabase"){ s.setSupabaseConfig({ enabled:value("bdlc-supabase-enabled") === "true",tableName:value("bdlc-supabase-table"),url:value("bdlc-supabase-url"),anonKey:value("bdlc-supabase-key") }); }
+    return { ok:true,message:"Configuración guardada." };
   }
 
-  function runScreen(action, target){
-    var currentHub = hub();
-    if(!currentHub){ return Promise.reject(new Error("BDLocalConexiones no está disponible.")); }
-    if(action === "screen-refresh" || action === "screen-refresh-all"){
-      if(typeof currentHub.refreshCache !== "function"){ return Promise.reject(new Error("El refresco de conexiones no está disponible.")); }
-      return currentHub.refreshCache({ force:true, light:true, source:"BDLocalConfigUI" }).then(function(result){ renderScreens(); return { ok:true, message:"Conexiones de pantallas actualizadas.", result:result }; });
+  function execute(action,target){
+    if(action.indexOf("save-") === 0){ return Promise.resolve(save(action)); }
+    if(action === "test-all" || action === "test-firebase" || action === "test-sheets" || action === "test-supabase"){
+      var method = action === "test-all" ? "testAll" : action === "test-firebase" ? "testFirebase" : action === "test-sheets" ? "testSheets" : "testSupabase";
+      return manager() && manager()[method] ? manager()[method]() : Promise.reject(new Error("Prueba no disponible."));
     }
-    var api = typeof currentHub.get === "function" ? currentHub.get(target) : null;
-    if(!api){ return Promise.reject(new Error("El conector " + target + " no está cargado.")); }
-    var runner = typeof api.ready === "function" ? api.ready() : (typeof currentHub.ready === "function" ? currentHub.ready() : Promise.resolve(true));
-    return Promise.resolve(runner).then(function(result){ var cell = rootElement.querySelector('[data-bdlc-screen-result="' + target + '"]'); if(cell){ cell.textContent = "Prueba correcta: " + new Date().toLocaleString("es-EC"); } return { ok:true, message:"Conexión de " + (SCREENS[target] ? SCREENS[target].label : target) + " correcta.", result:result }; });
+    if(action.indexOf("push-") === 0){ return window.BDLSyncUIBridge.runTarget(action.replace("push-",""),{ confirm:true }); }
+    if(action === "pull-sheets"){ if(!confirm("Traer Google Sheets hacia BDLocal sin borrar datos locales. ¿Continuar?")){ return Promise.resolve({ cancelled:true }); } return window.BL2CloudPull.pullSheetsToLocal(); }
+    if(action === "fetch-firebase-config"){ return window.BL2CloudPull.forceFetchFirebaseConfig(); }
+    if(action === "pull-firebase"){ if(!confirm("Traer Firebase hacia BDLocal para el período activo. ¿Continuar?")){ return Promise.resolve({ cancelled:true }); } return manager().pullFirebaseToLocal(); }
+    if(action === "screen-refresh" || action === "screen-refresh-all"){ return hub().refreshCache({ force:true,light:true }).then(function(){ renderScreens(); return { ok:true,message:"Conexiones actualizadas." }; }); }
+    if(action === "screen-test"){ var api = hub().get(target); if(!api){ return Promise.reject(new Error("Conector no disponible.")); } return Promise.resolve(api.ready ? api.ready() : hub().ready()).then(function(){ return { ok:true,message:"Conexión correcta." }; }); }
+    if(action === "student-search"){ return searchStudent(); }
+    if(action === "student-select"){ return loadStudent(target); }
+    if(action === "student-clear"){ return Promise.resolve(clearStudent()); }
+    if(action === "student-copy"){ return copyStudent(); }
+    return Promise.reject(new Error("Acción no reconocida."));
   }
 
-  function execute(action, target){
-    if(action === "refresh"){ return window.BL2App && typeof window.BL2App.refresh === "function" ? window.BL2App.refresh() : render(); }
-    if(action === "save-firebase" || action === "save-sheets" || action === "save-supabase"){ return Promise.resolve({ ok:true, message:saveConfig(action) }); }
-    if(action === "test-all"){ return runManager("testAll"); }
-    if(action === "test-firebase"){ return runManager("testFirebase"); }
-    if(action === "test-sheets"){ return runManager("testSheets"); }
-    if(action === "test-supabase"){ return runManager("testSupabase"); }
-    if(action === "push-google" || action === "push-firebase" || action === "push-supabase"){
-      var syncTarget = action.replace("push-","");
-      if(!window.BDLSyncUIBridge || typeof window.BDLSyncUIBridge.runTarget !== "function"){ return Promise.reject(new Error("El puente de sincronización no está disponible.")); }
-      return window.BDLSyncUIBridge.runTarget(syncTarget, { confirm:true });
-    }
-    if(action === "pull-sheets"){
-      if(!window.confirm("Traer Google Sheets hacia BDLocal para el período seleccionado. Esta operación no borra la base local. ¿Continuar?")){ return Promise.resolve({ ok:true, cancelled:true, message:"Operación cancelada." }); }
-      if(!window.BL2CloudPull || typeof window.BL2CloudPull.pullSheetsToLocal !== "function"){ return Promise.reject(new Error("La descarga de Google Sheets no está disponible.")); }
-      return window.BL2CloudPull.pullSheetsToLocal();
-    }
-    if(action === "fetch-firebase-config"){
-      if(!window.BL2CloudPull || typeof window.BL2CloudPull.forceFetchFirebaseConfig !== "function"){ return Promise.reject(new Error("La recuperación de configuración Firebase no está disponible.")); }
-      return window.BL2CloudPull.forceFetchFirebaseConfig();
-    }
-    if(action === "pull-firebase"){
-      if(!window.confirm("Traer datos de Firebase hacia BDLocal para el período seleccionado. ¿Continuar?")){ return Promise.resolve({ ok:true, cancelled:true, message:"Operación cancelada." }); }
-      return runManager("pullFirebaseToLocal");
-    }
-    if(action === "screen-test" || action === "screen-refresh" || action === "screen-refresh-all"){ return runScreen(action, target); }
-    return Promise.reject(new Error("Acción no reconocida: " + action));
-  }
-
-  function handleAction(button){
-    var action = text(button.getAttribute("data-bdlc-action"));
-    var target = text(button.getAttribute("data-target"));
-    if(!action){ return; }
-    button.disabled = true;
-    setProgress(true, 12, "Ejecutando " + action + "...");
-    Promise.resolve().then(function(){ return execute(action, target); }).then(function(result){
-      setProgress(true, 100, "Operación finalizada.");
-      if(result && !result.cancelled){ notify(result.message || "Operación finalizada.", result.ok === false ? "error" : "success"); }
-      return render();
-    }).catch(function(error){ setProgress(false, 0, "Error"); notify(error && error.message ? error.message : String(error), "error"); }).finally(function(){ button.disabled = false; window.setTimeout(function(){ setProgress(false, 0, ""); }, 1800); });
+  function handleAction(buttonEl){
+    if(!buttonEl){ return; }
+    var action = txt(buttonEl.getAttribute("data-bdlc-action")); var target = txt(buttonEl.getAttribute("data-target"));
+    buttonEl.disabled = true; progress(true,15,"Procesando...");
+    Promise.resolve().then(function(){ return execute(action,target); }).then(function(result){ if(result && !result.cancelled){ notify(result.message || "Operación finalizada.",result.ok === false ? "error" : "success"); } return render(); }).catch(function(error){ notify(error.message || String(error),"error"); }).finally(function(){ buttonEl.disabled = false; progress(false,0,""); });
   }
 
   function bindEvents(){
-    if(bound || !rootElement){ return; }
-    bound = true;
-    rootElement.addEventListener("click", function(event){
-      var button = event.target && event.target.closest ? event.target.closest("[data-bdlc-action]") : null;
-      if(button && rootElement.contains(button)){ event.preventDefault(); handleAction(button); return; }
-      var nav = event.target && event.target.closest ? event.target.closest("[data-bl2-section-target]") : null;
-      if(nav && store()){ store().patchConfig({ ui:{ activeSection:nav.getAttribute("data-bl2-section-target") || "resumen" } }); }
+    if(bound){ return; } bound = true;
+    root.addEventListener("click",function(event){
+      var action = event.target.closest && event.target.closest("[data-bdlc-action]");
+      if(action && root.contains(action)){ event.preventDefault(); handleAction(action); return; }
+      var nav = event.target.closest && event.target.closest("[data-bl2-section-target]");
+      if(nav && nav.getAttribute("data-bl2-section-target") === "tablas"){ mountTables(false); }
     });
-    window.addEventListener("bdlocal:sync-ui-updated", function(event){ renderConnections(event.detail && event.detail.counts); });
-    window.addEventListener("bl2:period-changed", render);
-    window.addEventListener("bl2:students-saved", render);
-    window.addEventListener("bdlocal:changes-created", render);
+    window.addEventListener("bdlocal:raw-view-ready",function(){ mountTables(false); });
+    window.addEventListener("bdlocal:sync-ui-updated",function(event){ renderConnections(event.detail && event.detail.counts); });
+    window.addEventListener("bl2:period-changed",function(){ updateStudentPeriod(); clearStudent(); if(window.BL2RawView){ window.BL2RawView.setPeriod(period().id); } render(); });
+    window.addEventListener("bl2:students-saved",render);
   }
 
-  function ensureStructure(){ buildSummary(); buildExternal(); buildScreens(); fillConfigForms(); renderScreens(); }
-
-  function render(){
-    if(!rootElement){ return Promise.resolve(null); }
-    ensureStructure();
-    renderScreens();
-    return renderSummary().then(function(result){ fillConfigForms(); return result; });
-  }
+  function build(){ buildSummary(); buildExternal(); buildScreens(); buildTables(); buildStudent(); fillForms(); renderScreens(); updateStudentPeriod(); mountTables(false); }
+  function render(){ if(!root){ return Promise.resolve(null); } build(); renderScreens(); return renderSummary().then(function(result){ fillForms(); return result; }); }
 
   function init(options){
     options = options || {};
-    rootElement = options.container || document.querySelector(options.containerSelector || "#bdlocal-control-center-root") || document.querySelector("#bdlocal-config-root");
-    if(!rootElement){ console.warn("BDLocalConfigUI: no se encontró el contenedor del centro de control."); return Promise.resolve(null); }
-    if(!initialized){ initialized = true; bindEvents(); }
+    root = options.container || document.querySelector(options.containerSelector || "#bdlocal-control-center-root") || id("bdlocal-config-root");
+    if(!root){ return Promise.resolve(null); }
+    bindEvents();
     return render();
   }
 
-  window.BDLocalConfigUI = { init:init, render:render, notify:notify, setProgress:setProgress, renderSummary:renderSummary, renderConnections:renderConnections, renderScreens:renderScreens };
+  window.BDLocalConfigUI = {
+    init:init,
+    render:render,
+    notify:notify,
+    setProgress:progress,
+    renderSummary:renderSummary,
+    renderConnections:renderConnections,
+    renderScreens:renderScreens,
+    mountTables:mountTables,
+    searchStudents:searchStudent,
+    loadStudent:loadStudent,
+    getStudentSnapshot:function(){ return studentSnapshot; }
+  };
 })(window, document);
