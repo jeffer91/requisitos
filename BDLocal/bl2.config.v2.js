@@ -5,13 +5,13 @@ Función o funciones:
 - Configurar DB_VERSION 2 sin borrar tablas existentes.
 - Declarar las trece tablas oficiales V2.
 - Reutilizar tablas V2 para resumen, errores y metadatos legacy.
-- Evitar crear tres stores físicos adicionales e innecesarios.
 - Centralizar índices esperados para diagnóstico y mantenimiento.
+- Separar Firebase personal de Firebase académico sin tocar credenciales.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-complete-config";
+  var VERSION = "2.2.0-firebase-split";
   var config = window.BL2Config = window.BL2Config || {};
   var stores = config.stores = config.stores || {};
 
@@ -50,10 +50,6 @@ Función o funciones:
   defineStore("erroresValidacion","errores_validacion");
   defineStore("cacheViews","cache_views");
 
-  /*
-   * Compatibilidad con BL2Core, BL2Sync y respaldo legacy.
-   * No se crean stores extra: se reutilizan las tablas V2 equivalentes.
-   */
   stores.resumen = stores.cacheViews;
   stores.errores = stores.erroresValidacion;
   stores.syncMeta = stores.syncEstado;
@@ -104,6 +100,36 @@ Función o funciones:
     cacheViews:["viewKey","periodoId","updatedAt"]
   };
 
+  /*
+   * Firebase queda separado por responsabilidad:
+   * - Estudiantes/{cedula}: persona y Telegram.
+   * - EstudiantesPeriodo/{periodoId__cedula}: datos académicos.
+   * `collection` conserva compatibilidad y apunta siempre al destino académico.
+   */
+  config.firebase = Object.assign({},config.firebase || {},{
+    enabled:true,
+    manualOnly:true,
+    automatic:false,
+    collection:"EstudiantesPeriodo",
+    academicCollection:"EstudiantesPeriodo",
+    personCollection:"Estudiantes",
+    telegramCollection:"Estudiantes",
+    documentIdStrategy:"periodoId__cedula",
+    academicDocumentIdStrategy:"periodoId__cedula",
+    personDocumentIdStrategy:"cedula",
+    excludeTelegramFromAcademic:true,
+    telegramFields:[
+      "telegramUser","telegramChatId","telegramUpdatedAt",
+      "telegramSource","telegramCheckedAt","telegramVerifiedAt"
+    ],
+    batchSize:25,
+    maxBatchSize:25,
+    deleteAllowed:false,
+    previewBeforePull:true,
+    backupBeforePull:true,
+    protectLocalPending:true
+  });
+
   function requiredStores(){ return config.dbV2.requiredStores.slice(); }
   function requiredV2Stores(){ return config.dbV2.requiredV2Stores.slice(); }
 
@@ -129,7 +155,19 @@ Función o funciones:
 
   try{
     window.dispatchEvent(new CustomEvent("bdlocal:config-v2-ready",{
-      detail:{ ok:true,version:VERSION,dbVersion:config.dbVersion,physicalStores:requiredStores(),v2Stores:requiredV2Stores(),aliases:config.dbV2.aliases }
+      detail:{
+        ok:true,
+        version:VERSION,
+        dbVersion:config.dbVersion,
+        physicalStores:requiredStores(),
+        v2Stores:requiredV2Stores(),
+        aliases:config.dbV2.aliases,
+        firebase:{
+          personCollection:config.firebase.personCollection,
+          academicCollection:config.firebase.academicCollection,
+          academicDocumentIdStrategy:config.firebase.academicDocumentIdStrategy
+        }
+      }
     }));
   }catch(error){}
 })(window);
