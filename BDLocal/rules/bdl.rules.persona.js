@@ -4,13 +4,14 @@ Ruta o ubicación: /BDLocal/rules/bdl.rules.persona.js
 Función o funciones:
 - Normalizar identidad y datos permanentes de la persona.
 - Separar persona de matrícula y período académico.
+- Conservar identificaciones extranjeras sin cambiar su longitud.
+- Completar el cero solo para cédulas ecuatorianas verificadas.
 - Normalizar telegramUser y telegramChatId sin perder campos parciales.
-- Conservar metadatos de origen, revisión y verificación de Telegram.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-telegram-persona";
+  var VERSION = "1.2.0-identity-safe";
   var Rules = window.BDLRules;
   var Config = window.BL2Config || {};
   var utils = Config.utils || {};
@@ -29,23 +30,55 @@ Función o funciones:
     return "";
   }
 
+  function cleanIdentification(value){
+    if(typeof utils.cleanIdentification === "function"){ return utils.cleanIdentification(value); }
+    return text(value).replace(/[^\dA-Za-z]/g,"").toUpperCase();
+  }
+
+  function isValidEcuadorianCedula(value){
+    if(typeof utils.isValidEcuadorianCedula === "function"){ return utils.isValidEcuadorianCedula(value); }
+    var raw = cleanIdentification(value);
+    if(!/^\d{10}$/.test(raw)){ return false; }
+    var province = Number(raw.slice(0,2));
+    var third = Number(raw.charAt(2));
+    if(province < 1 || province > 24 || third > 5){ return false; }
+    var coefficients = [2,1,2,1,2,1,2,1,2];
+    var sum = 0;
+    for(var i=0;i<9;i+=1){
+      var product = Number(raw.charAt(i)) * coefficients[i];
+      sum += product >= 10 ? product - 9 : product;
+    }
+    return ((10 - (sum % 10)) % 10) === Number(raw.charAt(9));
+  }
+
+  function analyzeIdentification(value){
+    if(typeof utils.analyzeIdentification === "function"){ return utils.analyzeIdentification(value); }
+    var raw = cleanIdentification(value);
+    var result = { original:text(value),raw:raw,canonical:raw,changed:false,type:raw ? "OTHER_IDENTIFICATION" : "EMPTY",validEcuadorian:false,missingLeadingZero:false,safeAutoCorrection:false };
+    if(/^\d{10}$/.test(raw) && isValidEcuadorianCedula(raw)){
+      result.type="ECUADORIAN_CEDULA";result.validEcuadorian=true;result.safeAutoCorrection=true;return result;
+    }
+    if(/^\d{9}$/.test(raw) && isValidEcuadorianCedula("0"+raw)){
+      result.canonical="0"+raw;result.changed=true;result.type="ECUADORIAN_CEDULA_MISSING_ZERO";result.validEcuadorian=true;result.missingLeadingZero=true;result.safeAutoCorrection=true;
+    }
+    return result;
+  }
+
   function normalizeCedula(value){
     if(typeof utils.normalizeCedula === "function"){ return utils.normalizeCedula(value); }
-    var raw = text(value).replace(/[^\dA-Za-z]/g,"");
-    return /^\d{9}$/.test(raw) ? "0" + raw : raw;
+    return analyzeIdentification(value).canonical;
   }
 
   function normalizeName(value){ return text(value).replace(/\s+/g," ").toUpperCase(); }
   function normalizeEmail(value){ return text(value).toLowerCase(); }
 
   function normalizeTelegramUser(value){
-    var user = text(value)
+    return text(value)
       .replace(/^https?:\/\/(?:www\.)?t\.me\//i,"")
       .replace(/^tg:\/\/resolve\?domain=/i,"")
       .replace(/^@+/,"")
       .split(/[/?#]/)[0]
       .replace(/\s+/g,"");
-    return user;
   }
 
   function normalizeTelegramChatId(value){
@@ -129,6 +162,9 @@ Función o funciones:
   window.BDLRulesPersona = {
     version:VERSION,
     pick:pick,
+    cleanIdentification:cleanIdentification,
+    isValidEcuadorianCedula:isValidEcuadorianCedula,
+    analyzeIdentification:analyzeIdentification,
     normalizeCedula:normalizeCedula,
     normalizeName:normalizeName,
     normalizeTelegramUser:normalizeTelegramUser,
