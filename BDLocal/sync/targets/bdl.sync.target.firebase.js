@@ -6,12 +6,12 @@ Función o funciones:
 - Usar periodoId__cedula como identificador estable del documento.
 - Consolidar varios cambios del mismo estudiante en una sola escritura.
 - Leer la versión completa más reciente desde Base Local.
-- Enviar máximo 25 cambios por lote y nunca borrar documentos.
+- Rechazar documentos parciales y enviar máximo 25 cambios.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "0.4.0-student-period-upsert";
+  var VERSION = "0.4.1-student-period-upsert";
   var MAX_BATCH_SIZE = 25;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -90,9 +90,8 @@ Función o funciones:
       }
       var id = documentId(periodoId,cedula);
       if(!groups[id]){
-        groups[id] = { documentId:id,periodoId:periodoId,cedula:cedula,changes:[],changeIds:[],fallback:null };
+        groups[id] = { documentId:id,periodoId:periodoId,cedula:cedula,changeIds:[],fallback:null };
       }
-      groups[id].changes.push(change);
       if(rowId(change)){ groups[id].changeIds.push(rowId(change)); }
       var payload = payloadOf(change);
       if(payload && Object.keys(payload).length){ groups[id].fallback = payload; }
@@ -101,12 +100,22 @@ Función o funciones:
     return { groups:Object.keys(groups).map(function(key){ return groups[key]; }),skipped:skipped };
   }
 
+  function fallbackLooksComplete(payload){
+    payload = payload || {};
+    return !!text(payload.Nombres || payload.nombres || payload.nombreCompleto || payload.NombreCompleto) &&
+      !!normalizeCedula(payload.cedula || payload.numeroIdentificacion) &&
+      !!normalizePeriod(payload.periodoId || payload.periodoCanonicoId);
+  }
+
   function readLocalStudent(group){
     var core = window.BL2Core;
     if(core && typeof core.getStudentByCedula === "function"){
-      return core.getStudentByCedula(group.cedula,group.periodoId).then(function(student){ return student || group.fallback || null; });
+      return core.getStudentByCedula(group.cedula,group.periodoId).then(function(student){
+        if(student){ return student; }
+        return fallbackLooksComplete(group.fallback) ? group.fallback : null;
+      });
     }
-    return Promise.resolve(group.fallback || null);
+    return Promise.resolve(fallbackLooksComplete(group.fallback) ? group.fallback : null);
   }
 
   function buildDocument(student,group){
@@ -115,7 +124,8 @@ Función o funciones:
 
     var cedula = normalizeCedula(student.cedula || student.numeroIdentificacion || group.cedula);
     var periodoId = normalizePeriod(student.periodoId || student.periodoCanonicoId || group.periodoId);
-    if(!cedula || !periodoId){ return null; }
+    var nombres = text(student.Nombres || student.nombres || student.nombreCompleto || student.NombreCompleto);
+    if(!cedula || !periodoId || !nombres){ return null; }
 
     var id = documentId(periodoId,cedula);
     return Object.assign({},student,{
@@ -123,6 +133,8 @@ Función o funciones:
       firebaseDocumentId:id,
       cedula:cedula,
       numeroIdentificacion:text(student.numeroIdentificacion || cedula),
+      Nombres:text(student.Nombres || nombres),
+      nombres:text(student.nombres || nombres),
       periodoId:periodoId,
       periodoCanonicoId:periodoId,
       periodoLabel:text(student.periodoLabel || student.periodoCanonicoLabel || periodoId),
@@ -143,14 +155,22 @@ Función o funciones:
       return readLocalStudent(group).then(function(student){
         var document = buildDocument(student,group);
         if(!document){
-          grouped.skipped.push({ ids:group.changeIds.slice(),reason:"No se encontró un estudiante consolidado en Base Local." });
+          grouped.skipped.push({ ids:group.changeIds.slice(),reason:"No se encontró un estudiante completo en Base Local." });
           return null;
         }
-        return { documentId:group.documentId,document:document,changeIds:group.changeIds.slice() };
+        return { documentId:document.firebaseDocumentId,document:document,changeIds:group.changeIds.slice() };
       });
     })).then(function(documents){
       return { documents:documents.filter(Boolean),skipped:grouped.skipped };
     });
+  }
+
+  function registerUsage(writes){
+    try{
+      if(window.BDLocalConfigStore && typeof window.BDLocalConfigStore.registerFirebaseUsage === "function"){
+        window.BDLocalConfigStore.registerFirebaseUsage({ writes:Number(writes || 0),label:"Subida segura BDLocal → Firebase." });
+      }
+    }catch(error){}
   }
 
   function push(pendingRows,options){
@@ -167,7 +187,7 @@ Función o funciones:
 
     return prepareDocuments(pendingRows,options).then(function(prepared){
       if(!prepared.documents.length){
-        return { ok:false,target:"firebase",processedIds:[],skipped:prepared.skipped,message:"No existen documentos válidos para enviar." };
+        return { ok:false,target:"firebase",processedIds:[],skipped:prepared.skipped,message:"No existen documentos completos para enviar." };
       }
 
       return window.BL2Sync.ensureFirebase().then(function(firestore){
@@ -180,6 +200,7 @@ Función o funciones:
       }).then(function(response){
         var processedIds = [];
         prepared.documents.forEach(function(item){ processedIds = processedIds.concat(item.changeIds); });
+        registerUsage(prepared.documents.length);
         return {
           ok:true,
           target:"firebase",
