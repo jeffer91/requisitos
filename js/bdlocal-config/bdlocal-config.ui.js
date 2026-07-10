@@ -1,423 +1,390 @@
-/*
-  Archivo: bdlocal-config.ui.js
-  Ruta: js/bdlocal-config/bdlocal-config.ui.js
+/* =========================================================
+Nombre completo: bdlocal-config.ui.js
+Ruta o ubicación: /js/bdlocal-config/bdlocal-config.ui.js
+Función o funciones:
+- Controlar el Centro de Control BDLocal sin crear una segunda interfaz.
+- Renderizar Resumen, Bases externas y Pantallas.
+- Usar IndexedDB y la cola real de sincronización como fuentes.
+- Guardar configuraciones de Firebase, Google Sheets y Supabase.
+- Ejecutar pruebas, subidas, descargas y refrescos manuales.
+========================================================= */
+(function(window, document){
+  "use strict";
 
-  Interfaz MVP para el centro de control de BDLocal.
-  Requiere bdlocal-config.store.js y bdlocal-config.css.
-*/
-(function (window, document) {
-  'use strict';
-
-  var activeSection = 'resumen';
   var rootElement = null;
-  var MENU = [
-    { id: 'resumen', label: 'Resumen general' },
-    { id: 'base', label: 'Base local' },
-    { id: 'firebase', label: 'Firebase' },
-    { id: 'supabase', label: 'Supabase' },
-    { id: 'sheets', label: 'Google Sheets' },
-    { id: 'cola', label: 'Cola / Pendientes' },
-    { id: 'diagnostico', label: 'Diagnóstico' }
-  ];
+  var initialized = false;
+  var bound = false;
+  var renderSequence = 0;
 
-  function store() {
-    return window.BDLocalConfigStore || null;
-  }
-
-  function syncManager() {
-    return window.BDLocalSyncManager || null;
-  }
-
-  function html(value) {
-    return String(value === null || value === undefined ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  function formatDate(value) {
-    if (!value) return 'Sin registro';
-    var d = new Date(value);
-    return Number.isNaN(d.getTime()) ? 'Sin registro' : d.toLocaleString();
-  }
-
-  function statusText(status) {
-    var map = {
-      ok: 'OK',
-      conectado: 'Conectado',
-      configurado: 'Configurado',
-      pendiente: 'Pendiente',
-      sin_configurar: 'Sin configurar',
-      error: 'Error',
-      bloqueado: 'Bloqueado',
-      advertencia: 'Advertencia',
-      success: 'Correcto'
-    };
-    return map[status] || status || 'Pendiente';
-  }
-
-  function statusClass(status) {
-    var s = String(status || '').toLowerCase();
-    if (['ok', 'conectado', 'configurado', 'success'].indexOf(s) !== -1) return 'ok';
-    if (['advertencia', 'warning', 'modo_ahorro'].indexOf(s) !== -1) return 'warning';
-    if (['error', 'bloqueado', 'failed'].indexOf(s) !== -1) return 'error';
-    return 'pending';
-  }
-
-  function badge(status, label) {
-    return '<span class="bdlc-status ' + statusClass(status) + '">' + html(label || statusText(status)) + '</span>';
-  }
-
-  function card(title, value, note) {
-    return '<div class="bdlc-card">' +
-      '<p class="bdlc-card-title">' + html(title) + '</p>' +
-      '<p class="bdlc-card-value">' + value + '</p>' +
-      (note ? '<p class="bdlc-card-note">' + html(note) + '</p>' : '') +
-      '</div>';
-  }
-
-  function notify(message, type) {
-    var el = rootElement ? rootElement.querySelector('[data-bdlc-alert]') : null;
-    if (!el) {
-      window.alert(message);
-      return;
-    }
-    el.className = 'bdlc-alert ' + (type || 'info');
-    el.textContent = message;
-    el.style.display = 'block';
-    window.setTimeout(function () { el.style.display = 'none'; }, 4500);
-  }
-
-  function setProgress(active, percent, message) {
-    var wrap = rootElement ? rootElement.querySelector('[data-bdlc-progress]') : null;
-    var bar = rootElement ? rootElement.querySelector('[data-bdlc-progress-bar]') : null;
-    var text = rootElement ? rootElement.querySelector('[data-bdlc-progress-text]') : null;
-    if (!wrap || !bar || !text) return;
-    wrap.style.display = active ? 'block' : 'none';
-    bar.style.width = Math.max(0, Math.min(100, Number(percent || 0))) + '%';
-    text.textContent = message || '';
-  }
-
-  function runAction(name) {
-    var manager = syncManager();
-    if (!manager || typeof manager[name] !== 'function') {
-      notify('Esta acción quedará activa en el Bloque 3 de sincronización.', 'warning');
-      return;
-    }
-    setProgress(true, 10, 'Ejecutando...');
-    Promise.resolve(manager[name]())
-      .then(function (result) {
-        setProgress(false, 100, 'Finalizado.');
-        notify((result && result.message) || 'Acción finalizada.', result && result.ok === false ? 'error' : 'success');
-        render();
-      })
-      .catch(function (error) {
-        setProgress(false, 0, 'Error.');
-        notify(error && error.message ? error.message : 'No se pudo ejecutar la acción.', 'error');
-      });
-  }
-
-  function menu() {
-    return '<aside class="bdlc-sidebar">' +
-      '<div class="bdlc-sidebar-title">BDLocal</div>' +
-      '<div class="bdlc-sidebar-subtitle">Centro de control de base local, Firebase, Supabase y Google Sheets.</div>' +
-      '<nav class="bdlc-nav">' +
-      MENU.map(function (item) {
-        return '<button type="button" class="bdlc-nav-button ' + (item.id === activeSection ? 'is-active' : '') + '" data-bdlc-section-target="' + item.id + '">' + html(item.label) + '</button>';
-      }).join('') +
-      '</nav>' +
-      '</aside>';
-  }
-
-  function sectionClass(id) {
-    return 'bdlc-section ' + (activeSection === id ? 'is-active' : '');
-  }
-
-  function resumen() {
-    var s = store().getSummary();
-    var quota = s.firebase.quota || {};
-    return '<section class="' + sectionClass('resumen') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Resumen general</h2><p class="bdlc-description">Estado rápido de las bases y sincronizaciones manuales.</p></div>' + badge('ok', 'BDLocal activo') + '</div>' +
-      '<div class="bdlc-card-grid">' +
-      card('BDLocal', badge(s.bdlocal.status, statusText(s.bdlocal.status)), 'Base principal de la app.') +
-      card('Firebase', badge(s.firebase.connected ? 'ok' : s.firebase.status, s.firebase.connected ? 'Conectado' : statusText(s.firebase.status)), 'Uso diario: ' + quota.used + ' / ' + quota.limit) +
-      card('Supabase', badge(s.supabase.connected ? 'ok' : s.supabase.status, s.supabase.connected ? 'Conectado' : statusText(s.supabase.status)), s.supabase.enabled ? 'Activado' : 'Desactivado') +
-      card('Google Sheets', badge(s.sheets.connected ? 'ok' : s.sheets.status, s.sheets.connected ? 'Conectado' : statusText(s.sheets.status)), 'Pendientes: ' + Number(s.sheets.pendingCount || 0)) +
-      '</div>' +
-      '<div class="bdlc-card-grid three">' +
-      card('Pendientes en cola', String(s.queue.pendiente || 0), 'Cambios todavía no sincronizados.') +
-      card('Errores en cola', String(s.queue.error || 0), 'Registros que requieren reintento.') +
-      card('Primera subida Sheets', s.sheets.firstFullUploadDone ? 'Realizada' : 'Pendiente', 'Primero sube todo; luego solo cambios.') +
-      '</div>' +
-      '<div class="bdlc-card"><p class="bdlc-card-title">Acciones rápidas</p>' + actionButtons() + progressHtml() + '</div>' +
-      '</section>';
-  }
-
-  function actionButtons() {
-    return '<div class="bdlc-actions">' +
-      '<button type="button" class="bdlc-button" data-bdlc-action="pullFirebaseToLocal">Traer de Firebase</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="pushLocalToFirebase">Subir a Firebase</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="pushLocalToSheets">Subir a Google Sheets</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="pushLocalToSupabase">Subir a Supabase</button>' +
-      '<button type="button" class="bdlc-button success" data-bdlc-action="syncAll">Sincronizar todo</button>' +
-      '<button type="button" class="bdlc-button warning" data-bdlc-action="testAll">Probar conexiones</button>' +
-      '</div>';
-  }
-
-  function progressHtml() {
-    return '<div data-bdlc-progress style="display:none;"><div class="bdlc-progress"><div class="bdlc-progress-bar" data-bdlc-progress-bar></div></div><div class="bdlc-progress-text" data-bdlc-progress-text></div></div>';
-  }
-
-  function baseLocal() {
-    return '<section class="' + sectionClass('base') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Base local</h2><p class="bdlc-description">BDLocal se mantiene como base principal.</p></div>' + badge('ok', 'Principal') + '</div>' +
-      '<div class="bdlc-alert info">Aquí se debe insertar o envolver la tabla actual de BDLocal sin borrar su lógica.</div>' +
-      '<div id="bdlc-base-local-slot" class="bdlc-card"><p class="bdlc-card-title">Espacio para la base actual</p><p class="bdlc-card-note">En la integración final se conecta aquí la tabla existente.</p></div>' +
-      '</section>';
-  }
-
-  function firebase() {
-    var c = store().loadConfig();
-    var quota = store().getFirebaseQuotaStatus(0);
-    return '<section class="' + sectionClass('firebase') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Firebase</h2><p class="bdlc-description">Control de conexión, respaldo, recuperación inicial y cuota diaria manual.</p></div>' + badge(c.firebase.connected ? 'ok' : c.firebase.status, c.firebase.connected ? 'Conectado' : statusText(c.firebase.status)) + '</div>' +
-      '<div class="bdlc-card-grid three">' +
-      card('Uso diario', quota.used + ' / ' + quota.limit, 'Porcentaje actual: ' + quota.percent + '%') +
-      card('Restante', String(quota.remaining), 'Operaciones disponibles estimadas.') +
-      card('Estado cuota', badge(quota.level, statusText(quota.level)), 'La app frenará si se acerca al límite.') +
-      '</div>' +
-      '<div class="bdlc-card"><p class="bdlc-card-title">Cuota diaria manual</p>' +
-      '<div class="bdlc-form">' +
-      field('bdlc-firebase-limit', 'Límite diario estimado', 'number', c.firebase.dailyLimit, 'Ejemplo: 500 operaciones por día.') +
-      field('bdlc-firebase-warning', 'Advertencia al %', 'number', c.firebase.warningPercent, 'Recomendado: 80.') +
-      field('bdlc-firebase-stop', 'Bloquear al %', 'number', c.firebase.stopPercent, 'Recomendado: 95.') +
-      '</div>' +
-      '<div class="bdlc-actions">' +
-      '<button type="button" class="bdlc-button" data-bdlc-action="saveFirebaseQuota">Guardar cuota</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="testFirebase">Probar Firebase</button>' +
-      '<button type="button" class="bdlc-button success" data-bdlc-action="pullFirebaseToLocal">Traer Firebase → BDLocal</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="pushLocalToFirebase">Subir BDLocal → Firebase</button>' +
-      '<button type="button" class="bdlc-button warning" data-bdlc-action="backupConfigToFirebase">Respaldar configuración</button>' +
-      '<button type="button" class="bdlc-button warning" data-bdlc-action="restoreConfigFromFirebase">Restaurar configuración</button>' +
-      '</div></div>' +
-      statusTable([
-        ['Última prueba', formatDate(c.firebase.lastTestAt)],
-        ['Último respaldo', formatDate(c.firebase.lastBackupAt)],
-        ['Última restauración', formatDate(c.firebase.lastRestoreAt)],
-        ['Último error', c.firebase.lastError || 'Sin errores']
-      ]) +
-      '</section>';
-  }
-
-  function field(id, label, type, value, help, full) {
-    return '<div class="bdlc-field ' + (full ? 'full' : '') + '">' +
-      '<label class="bdlc-label" for="' + id + '">' + html(label) + '</label>' +
-      '<input id="' + id + '" class="bdlc-input" type="' + (type || 'text') + '" value="' + html(value || '') + '">' +
-      (help ? '<div class="bdlc-help">' + html(help) + '</div>' : '') +
-      '</div>';
-  }
-
-  function selectField(id, label, enabled) {
-    return '<div class="bdlc-field"><label class="bdlc-label" for="' + id + '">' + html(label) + '</label><select id="' + id + '" class="bdlc-select"><option value="false" ' + (!enabled ? 'selected' : '') + '>Desactivado</option><option value="true" ' + (enabled ? 'selected' : '') + '>Activado</option></select></div>';
-  }
-
-  function statusTable(rows) {
-    return '<div class="bdlc-card"><p class="bdlc-card-title">Estado</p><div class="bdlc-table-wrap"><table class="bdlc-table"><tbody>' +
-      rows.map(function (row) { return '<tr><th>' + html(row[0]) + '</th><td>' + html(row[1]) + '</td></tr>'; }).join('') +
-      '</tbody></table></div></div>';
-  }
-
-  function supabase() {
-    var c = store().getSupabaseConfig({ includeSecret: true });
-    return '<section class="' + sectionClass('supabase') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Supabase</h2><p class="bdlc-description">Base paralela. Recibirá cambios importantes desde BDLocal.</p></div>' + badge(c.connected ? 'ok' : c.status, c.connected ? 'Conectado' : statusText(c.status)) + '</div>' +
-      '<div class="bdlc-card"><p class="bdlc-card-title">Configuración Supabase</p><div class="bdlc-form">' +
-      selectField('bdlc-supabase-enabled', 'Estado', c.enabled) +
-      field('bdlc-supabase-table', 'Tabla', 'text', c.tableName || 'requisitos_estudiantes') +
-      field('bdlc-supabase-url', 'Supabase URL', 'url', c.url || '', 'Ejemplo: https://xxxxx.supabase.co', true) +
-      field('bdlc-supabase-key', 'Anon key', 'password', c.anonKey || '', 'No uses service_role en frontend. Para MVP usa anon key con políticas seguras.', true) +
-      '</div><div class="bdlc-actions">' +
-      '<button type="button" class="bdlc-button" data-bdlc-action="saveSupabaseConfig">Guardar Supabase</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="testSupabase">Probar conexión</button>' +
-      '<button type="button" class="bdlc-button success" data-bdlc-action="pushLocalToSupabase">Subir BDLocal → Supabase</button>' +
-      '</div></div>' +
-      statusTable([
-        ['Última prueba', formatDate(c.lastTestAt)],
-        ['Última sincronización', formatDate(c.lastSyncAt)],
-        ['Último error', c.lastError || 'Sin errores']
-      ]) +
-      '</section>';
-  }
-
-  function sheets() {
-    var c = store().getSheetsConfig({ includeSecret: true });
-    return '<section class="' + sectionClass('sheets') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Google Sheets</h2><p class="bdlc-description">Primera subida completa en lotes. Después solo cambios reales.</p></div>' + badge(c.connected ? 'ok' : c.status, c.connected ? 'Conectado' : statusText(c.status)) + '</div>' +
-      '<div class="bdlc-card-grid three">' +
-      card('Primera subida', c.firstFullUploadDone ? 'Realizada' : 'Pendiente', 'Si está pendiente, se sube toda la base poco a poco.') +
-      card('Pendientes Sheets', String(c.pendingCount || 0), 'Cambios esperando envío.') +
-      card('Tamaño de lote', String(c.batchSize || 25), 'Cantidad enviada por bloque.') +
-      '</div>' +
-      '<div class="bdlc-card"><p class="bdlc-card-title">Configuración Google Sheets</p><div class="bdlc-form">' +
-      selectField('bdlc-sheets-enabled', 'Estado', c.enabled) +
-      field('bdlc-sheets-batch', 'Tamaño de lote', 'number', c.batchSize || 25) +
-      field('bdlc-sheets-url', 'URL de Apps Script', 'url', c.appsScriptUrl || '', 'Ejemplo: https://script.google.com/macros/s/XXXX/exec', true) +
-      field('bdlc-sheets-id', 'ID del Google Sheet', 'text', c.spreadsheetId || '') +
-      field('bdlc-sheets-name', 'Nombre de hoja', 'text', c.sheetName || 'Requisitos') +
-      '</div><div class="bdlc-actions">' +
-      '<button type="button" class="bdlc-button" data-bdlc-action="saveSheetsConfig">Guardar Google Sheets</button>' +
-      '<button type="button" class="bdlc-button secondary" data-bdlc-action="testSheets">Probar conexión</button>' +
-      '<button type="button" class="bdlc-button success" data-bdlc-action="pushLocalToSheets">Subir BDLocal → Google Sheets</button>' +
-      '<button type="button" class="bdlc-button warning" data-bdlc-action="markSheetsFullUploadPending">Marcar primera subida como pendiente</button>' +
-      '</div></div>' +
-      statusTable([
-        ['Última prueba', formatDate(c.lastTestAt)],
-        ['Última subida completa', formatDate(c.lastFullUploadAt)],
-        ['Última subida de cambios', formatDate(c.lastDeltaUploadAt)],
-        ['Último error', c.lastError || 'Sin errores']
-      ]) +
-      '</section>';
-  }
-
-  function cola() {
-    var q = store().loadQueue();
-    var s = store().getQueueSummary();
-    var rows = q.slice(-80).reverse().map(function (item) {
-      return '<tr><td>' + html(item.target || '') + '</td><td>' + html(item.type || '') + '</td><td>' + badge(item.status || 'pendiente', statusText(item.status || 'pendiente')) + '</td><td>' + html(item.periodo || '') + '</td><td>' + html(item.cedula || '') + '</td><td>' + html(item.lastError || '') + '</td></tr>';
-    }).join('');
-
-    return '<section class="' + sectionClass('cola') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Cola de sincronización</h2><p class="bdlc-description">Cambios pendientes para Firebase, Supabase y Google Sheets.</p></div>' + badge(s.error > 0 ? 'warning' : 'ok', s.error > 0 ? 'Con errores' : 'Sin errores') + '</div>' +
-      '<div class="bdlc-card-grid three">' +
-      card('Total cola', String(s.total), 'Todos los registros en cola.') +
-      card('Pendientes', String(s.pendiente), 'Esperando sincronización.') +
-      card('Errores', String(s.error), 'Requieren reintento.') +
-      '</div>' +
-      '<div class="bdlc-actions"><button type="button" class="bdlc-button" data-bdlc-action="syncQueue">Sincronizar pendientes</button><button type="button" class="bdlc-button secondary" data-bdlc-action="refresh">Actualizar vista</button><button type="button" class="bdlc-button danger" data-bdlc-action="clearQueue">Limpiar cola</button></div>' +
-      (q.length === 0 ? '<div class="bdlc-empty">No hay pendientes en cola.</div>' : '<div class="bdlc-table-wrap"><table class="bdlc-table"><thead><tr><th>Destino</th><th>Tipo</th><th>Estado</th><th>Período</th><th>Cédula</th><th>Error</th></tr></thead><tbody>' + rows + '</tbody></table></div>') +
-      '</section>';
-  }
-
-  function diagnostico() {
-    var c = store().loadConfig();
-    var logs = store().loadLogs().slice(-50).reverse();
-    var issues = [];
-    if (!c.firebase.connected) issues.push('Firebase todavía no ha sido probado o no aparece como conectado.');
-    if (c.supabase.enabled && !c.supabase.url) issues.push('Supabase está activado, pero falta la URL.');
-    if (c.supabase.enabled && !c.supabase.anonKeyProtected) issues.push('Supabase está activado, pero falta la anon key.');
-    if (c.sheets.enabled && !c.sheets.appsScriptUrlProtected) issues.push('Google Sheets está activado, pero falta la URL de Apps Script.');
-    if (c.sheets.enabled && !c.sheets.sheetName) issues.push('Google Sheets está activado, pero falta el nombre de hoja.');
-
-    var issueHtml = issues.length ? '<div class="bdlc-alert warning">' + issues.map(html).join('<br>') + '</div>' : '<div class="bdlc-alert success">No se detectan problemas básicos de configuración.</div>';
-    var logHtml = logs.length ? '<div class="bdlc-log-list">' + logs.map(function (log) {
-      return '<div class="bdlc-log-item"><strong>' + html(log.scope || 'general') + ' · ' + html(log.level || 'info') + '</strong><span>' + html(formatDate(log.createdAt)) + '</span><span>' + html(log.message || '') + '</span></div>';
-    }).join('') + '</div>' : '<div class="bdlc-empty">Todavía no hay eventos registrados.</div>';
-
-    return '<section class="' + sectionClass('diagnostico') + '">' +
-      '<div class="bdlc-header"><div><h2 class="bdlc-title">Diagnóstico</h2><p class="bdlc-description">Revisión rápida de configuración, errores y eventos internos.</p></div>' + badge(issues.length ? 'warning' : 'ok', issues.length ? 'Revisar' : 'Correcto') + '</div>' +
-      issueHtml +
-      '<div class="bdlc-actions"><button type="button" class="bdlc-button" data-bdlc-action="testAll">Probar conexiones</button><button type="button" class="bdlc-button secondary" data-bdlc-action="refresh">Actualizar</button><button type="button" class="bdlc-button danger" data-bdlc-action="clearLogs">Limpiar eventos</button></div>' +
-      '<div class="bdlc-card"><p class="bdlc-card-title">Eventos recientes</p>' + logHtml + '</div>' +
-      '</section>';
-  }
-
-  function render() {
-    if (!rootElement) return;
-    if (!store()) {
-      rootElement.innerHTML = '<div class="bdlc-alert error">No se encontró BDLocalConfigStore. Carga bdlocal-config.store.js antes que bdlocal-config.ui.js.</div>';
-      return;
-    }
-    store().patchConfig({ ui: { activeSection: activeSection } });
-    rootElement.innerHTML = '<div class="bdlc-shell">' + menu() + '<main class="bdlc-main"><div data-bdlc-alert style="display:none;"></div>' + resumen() + baseLocal() + firebase() + supabase() + sheets() + cola() + diagnostico() + '</main></div>';
-    bindEvents();
-  }
-
-  function bindEvents() {
-    rootElement.querySelectorAll('[data-bdlc-section-target]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        activeSection = button.getAttribute('data-bdlc-section-target') || 'resumen';
-        render();
-      });
-    });
-    rootElement.querySelectorAll('[data-bdlc-action]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        handleAction(button.getAttribute('data-bdlc-action'));
-      });
-    });
-  }
-
-  function input(id) {
-    var el = document.getElementById(id);
-    return el ? el.value : '';
-  }
-
-  function handleAction(action) {
-    var s = store();
-    if (!s) return;
-
-    if (action === 'refresh') return render();
-    if (action === 'saveFirebaseQuota') {
-      s.setFirebaseQuota({ dailyLimit: input('bdlc-firebase-limit'), warningPercent: input('bdlc-firebase-warning'), stopPercent: input('bdlc-firebase-stop') });
-      notify('Cuota de Firebase guardada.', 'success');
-      return render();
-    }
-    if (action === 'saveSupabaseConfig') {
-      s.setSupabaseConfig({ enabled: input('bdlc-supabase-enabled') === 'true', url: input('bdlc-supabase-url'), anonKey: input('bdlc-supabase-key'), tableName: input('bdlc-supabase-table') });
-      notify('Configuración de Supabase guardada.', 'success');
-      return render();
-    }
-    if (action === 'saveSheetsConfig') {
-      s.setSheetsConfig({ enabled: input('bdlc-sheets-enabled') === 'true', appsScriptUrl: input('bdlc-sheets-url'), spreadsheetId: input('bdlc-sheets-id'), sheetName: input('bdlc-sheets-name'), batchSize: input('bdlc-sheets-batch') });
-      notify('Configuración de Google Sheets guardada.', 'success');
-      return render();
-    }
-    if (action === 'backupConfigToFirebase') {
-      return s.backupConfigToFirebase().then(function (result) { notify(result.message, result.ok ? 'success' : 'warning'); render(); });
-    }
-    if (action === 'restoreConfigFromFirebase') {
-      return s.restoreConfigFromFirebase().then(function (result) { notify(result.message, result.ok ? 'success' : 'warning'); render(); });
-    }
-    if (action === 'clearQueue') {
-      if (!window.confirm('¿Seguro que quieres limpiar la cola local de sincronización?')) return;
-      s.clearQueue();
-      s.addLog('cola', 'Cola local limpiada manualmente.', 'warning');
-      notify('Cola limpiada.', 'success');
-      return render();
-    }
-    if (action === 'clearLogs') {
-      s.clearLogs();
-      notify('Eventos limpiados.', 'success');
-      return render();
-    }
-    if (action === 'markSheetsFullUploadPending') {
-      s.patchConfig({ sheets: { firstFullUploadDone: false, lastFullUploadAt: '' } });
-      s.addLog('sheets', 'Primera subida completa marcada como pendiente.', 'warning');
-      notify('Google Sheets quedó marcado para primera subida completa.', 'success');
-      return render();
-    }
-
-    runAction(action);
-  }
-
-  function init(options) {
-    options = options || {};
-    rootElement = options.container || document.querySelector(options.containerSelector || '#bdlocal-config-root');
-    if (!rootElement) {
-      console.warn('BDLocalConfigUI: no se encontró el contenedor #bdlocal-config-root.');
-      return;
-    }
-    if (store()) {
-      activeSection = (store().loadConfig().ui || {}).activeSection || 'resumen';
-    }
-    render();
-  }
-
-  window.BDLocalConfigUI = {
-    init: init,
-    render: render,
-    notify: notify,
-    setProgress: setProgress
+  var SCREENS = {
+    carga:{ label:"Carga", reads:["periodos"], writes:["personas","matriculas_periodo","requisitos_estudiante","cambios_pendientes"] },
+    ficha:{ label:"Ficha", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","contactos_estudiante"], writes:["contactos_estudiante","requisitos_estudiante","cambios_pendientes"] },
+    tabla:{ label:"Tabla", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:["cambios_pendientes"] },
+    stats:{ label:"Estadísticas", reads:["matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:[] },
+    coordi:{ label:"Coordinación", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:["notas_titulacion","cambios_pendientes"] },
+    reportes:{ label:"Reportes", reads:["personas","matriculas_periodo","requisitos_estudiante","notas_titulacion"], writes:[] },
+    defensas:{ label:"Defensas", reads:["personas","matriculas_periodo","requisitos_estudiante"], writes:["notas_titulacion","cambios_pendientes"] },
+    global:{ label:"Global", reads:["periodos","personas","matriculas_periodo"], writes:[] }
   };
+
+  function byId(id){ return document.getElementById(id); }
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function number(value){ value = Number(value || 0); return Number.isFinite(value) ? value : 0; }
+  function esc(value){ return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
+  function formatNumber(value){ try{ return number(value).toLocaleString("es-EC"); }catch(error){ return String(number(value)); } }
+  function formatDate(value){ if(!text(value)){ return "Sin registro"; } var d = new Date(value); return Number.isFinite(d.getTime()) ? d.toLocaleString("es-EC") : text(value); }
+  function store(){ return window.BDLocalConfigStore || null; }
+  function manager(){ return window.BDLocalSyncManager || null; }
+  function core(){ return window.BL2Core || null; }
+  function db(){ return window.BL2DB || null; }
+  function hub(){ return window.BDLocalConexiones || null; }
+
+  function statusClass(status){
+    status = text(status).toLowerCase();
+    if(["ok","conectado","configurado","success","correcto"].indexOf(status) >= 0){ return "ok"; }
+    if(["error","failed","bloqueado"].indexOf(status) >= 0){ return "error"; }
+    if(["advertencia","warning","pendientes"].indexOf(status) >= 0){ return "warning"; }
+    return "pending";
+  }
+
+  function badge(status, label){ return '<span class="bdlc-status ' + statusClass(status) + '">' + esc(label || status || "Pendiente") + '</span>'; }
+  function setText(id, value){ var el = byId(id); if(el){ el.textContent = value; } }
+  function setHTML(id, value){ var el = byId(id); if(el){ el.innerHTML = value; } }
+  function input(id){ var el = byId(id); return el ? el.value : ""; }
+
+  function notify(message, type){
+    var el = byId("bl2-global-alert") || (rootElement && rootElement.querySelector("[data-bdlc-alert]"));
+    if(!el){ window.alert(message); return; }
+    el.className = "bdlc-alert " + (type || "info");
+    el.textContent = message;
+    el.hidden = false;
+    el.style.display = "block";
+    window.clearTimeout(el.__hideTimer);
+    el.__hideTimer = window.setTimeout(function(){ el.hidden = true; el.style.display = "none"; }, 5500);
+  }
+
+  function setProgress(active, percent, message){
+    percent = Math.max(0, Math.min(100, number(percent)));
+    var bar = byId("bl2-sync-bar");
+    var fill = byId("bl2-sync-progress");
+    if(bar){ bar.hidden = !active; }
+    if(fill){ fill.style.width = percent + "%"; }
+    setText("bl2-sync-percent", Math.round(percent) + "%");
+    setText("bl2-sync-detail", message || "");
+  }
+
+  function selectedPeriod(){
+    var app = window.BL2App && typeof window.BL2App.getState === "function" ? window.BL2App.getState() : {};
+    if(app.activePeriod && text(app.activePeriod.id)){ return { id:text(app.activePeriod.id), label:text(app.activePeriod.label || app.activePeriod.id) }; }
+    var select = byId("bl2-period-select");
+    var id = text(select && select.value);
+    var label = id;
+    if(select && select.selectedOptions && select.selectedOptions[0]){ label = text(select.selectedOptions[0].textContent) || id; }
+    return { id:id, label:label };
+  }
+
+  function queryCount(table, index, value){
+    var current = db();
+    if(!current){ return Promise.resolve(0); }
+    if(index && value && typeof current.queryByIndex === "function"){
+      return current.queryByIndex(table, index, value).then(function(rows){ return Array.isArray(rows) ? rows.length : 0; }).catch(function(){ return 0; });
+    }
+    if(typeof current.count === "function"){ return current.count(table).then(number).catch(function(){ return 0; }); }
+    if(typeof current.getAll === "function"){ return current.getAll(table).then(function(rows){ return Array.isArray(rows) ? rows.length : 0; }).catch(function(){ return 0; }); }
+    return Promise.resolve(0);
+  }
+
+  function lastBackup(){
+    var current = db();
+    if(!current || typeof current.getAll !== "function"){ return Promise.resolve(null); }
+    return current.getAll("backups").then(function(rows){
+      rows = Array.isArray(rows) ? rows : [];
+      rows.sort(function(a,b){ return new Date(b.createdAt || b.updatedAt || b.at || 0).getTime() - new Date(a.createdAt || a.updatedAt || a.at || 0).getTime(); });
+      return rows[0] || null;
+    }).catch(function(){ return null; });
+  }
+
+  function buildSummary(){
+    var section = byId("bl2-section-resumen");
+    if(!section || section.__bdlcBuilt){ return; }
+    section.__bdlcBuilt = true;
+    section.innerHTML = ''
+      + '<div class="bdlc-header"><div><span class="bdlc-overline">Vista general</span><h2 class="bdlc-title">Resumen</h2><p class="bdlc-description">Estado del período activo, IndexedDB y sincronizaciones pendientes.</p></div><span id="bdlc-summary-health" class="bdlc-status pending">Verificando</span></div>'
+      + '<div class="bdlc-card-grid bdlc-card-grid-kpis">'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Período activo</span><strong id="bl2-kpi-period">—</strong><small id="bl2-kpi-period-id">Sin seleccionar</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Estudiantes</span><strong id="bl2-kpi-students">0</strong><small id="bl2-kpi-students-sub">Matrículas del período</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Activos</span><strong id="bdlc-kpi-active">0</strong><small>Estado de matrícula</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Retirados</span><strong id="bdlc-kpi-retired">0</strong><small>Conservados en reportes</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Personas</span><strong id="bdlc-kpi-people">0</strong><small>Registro general</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Requisitos</span><strong id="bdlc-kpi-requirements">0</strong><small>Del período</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Notas</span><strong id="bdlc-kpi-notes">0</strong><small>Del período</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Pendientes Google</span><strong id="bl2-kpi-google">0</strong><small>Google Sheets</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Pendientes Firebase</span><strong id="bl2-kpi-firebase">0</strong><small>Firebase</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Pendientes Supabase</span><strong id="bl2-kpi-supabase">0</strong><small>Supabase</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Errores</span><strong id="bl2-kpi-warnings">0</strong><small>Validación o sincronización</small></article>'
+      + '<article class="bdlc-card bdlc-kpi-card"><span>Último respaldo</span><strong id="bdlc-kpi-backup">—</strong><small id="bl2-backup-status">Sin registro</small></article>'
+      + '</div>'
+      + '<div class="bdlc-card-grid two">'
+      + '<article class="bdlc-card"><h3>Estado técnico</h3><div class="bdlc-table-wrap"><table class="bdlc-table"><tbody id="bdlc-summary-technical"><tr><th>Estado</th><td>Consultando IndexedDB...</td></tr></tbody></table></div></article>'
+      + '<article class="bdlc-card"><h3>Conexiones externas</h3><div id="bdlc-summary-connections" class="bdlc-placeholder"><strong>Comprobando conexiones</strong><span>Espere un momento.</span></div></article>'
+      + '</div>';
+  }
+
+  function buildExternal(){
+    var section = byId("bl2-section-bases-externas");
+    if(!section || section.__bdlcBuilt){ return; }
+    section.__bdlcBuilt = true;
+    section.innerHTML = ''
+      + '<div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Bases externas</h2><p class="bdlc-description">BDLocal sigue siendo la base principal. Las operaciones externas son manuales y controladas.</p></div><button class="bdlc-button secondary" type="button" data-bdlc-action="test-all">Probar todas</button></div>'
+      + '<div class="bdlc-connections-grid">'
+      + connectionCard("google","Google Sheets","Sin configurar",[
+          button("push-google","Subir","bl2-btn-push-google"),
+          button("pull-sheets","Traer","bl2-btn-pull-sheets","secondary"),
+          button("test-sheets","Probar","","subtle")
+        ], sheetsForm())
+      + connectionCard("firebase","Firebase","Pendiente",[
+          button("push-firebase","Subir","bl2-btn-push-firebase"),
+          button("pull-firebase","Traer datos","","secondary"),
+          button("fetch-firebase-config","Traer configuración","bl2-btn-fetch-firebase-config","subtle"),
+          button("test-firebase","Probar","","subtle")
+        ], firebaseForm())
+      + connectionCard("supabase","Supabase","Sin configurar",[
+          button("push-supabase","Subir","bl2-btn-push-supabase"),
+          button("test-supabase","Probar","","subtle")
+        ], supabaseForm())
+      + '</div>';
+  }
+
+  function button(action, label, id, variant){ return '<button ' + (id ? 'id="' + id + '" ' : '') + 'type="button" class="bdlc-button ' + (variant || '') + '" data-bdlc-owned="ui" data-bdlc-action="' + action + '">' + label + '</button>'; }
+
+  function connectionCard(key, label, initial, actions, form){
+    return '<article class="bdlc-connection-card" data-bdlc-connection="' + key + '">'
+      + '<div class="bdlc-connection-head"><div><h3>' + esc(label) + '</h3><p>BDLocal ↔ ' + esc(label) + '</p></div><span id="bl2-dot-' + key + '" class="bl2-dot bl2-dot-warn"></span></div>'
+      + '<div class="bdlc-connection-status"><span>Estado</span><strong id="bl2-' + key + '-status">' + esc(initial) + '</strong></div>'
+      + '<div class="bdlc-actions">' + actions.join("") + '</div>'
+      + '<details><summary>Configuración y detalles</summary>' + form + '</details>'
+      + '</article>';
+  }
+
+  function sheetsForm(){
+    return '<div class="bdlc-form">'
+      + '<div class="bdlc-field"><label class="bdlc-label">Estado</label><select id="bdlc-sheets-enabled" class="bdlc-select"><option value="false">Desactivado</option><option value="true">Activado</option></select></div>'
+      + '<div class="bdlc-field"><label class="bdlc-label">Tamaño de lote</label><input id="bdlc-sheets-batch" class="bdlc-input" type="number" min="1" max="500"></div>'
+      + '<div class="bdlc-field full"><label class="bdlc-label">URL de Apps Script</label><input id="bdlc-sheets-url" class="bdlc-input" type="url"></div>'
+      + '<div class="bdlc-field"><label class="bdlc-label">ID del Google Sheet</label><input id="bdlc-sheets-id" class="bdlc-input" type="text"></div>'
+      + '<div class="bdlc-field"><label class="bdlc-label">Nombre de hoja</label><input id="bdlc-sheets-name" class="bdlc-input" type="text"></div>'
+      + '<div class="bdlc-field full"><label class="bdlc-label">Token de Apps Script</label><input id="bdlc-sheets-token" class="bdlc-input" type="password" autocomplete="off"></div>'
+      + '</div><div class="bdlc-actions"><button class="bdlc-button" type="button" data-bdlc-action="save-sheets">Guardar configuración</button></div>';
+  }
+
+  function firebaseForm(){
+    return '<div class="bdlc-form">'
+      + '<div class="bdlc-field"><label class="bdlc-label">Límite diario estimado</label><input id="bdlc-firebase-limit" class="bdlc-input" type="number" min="1"></div>'
+      + '<div class="bdlc-field"><label class="bdlc-label">Advertir al porcentaje</label><input id="bdlc-firebase-warning" class="bdlc-input" type="number" min="1" max="100"></div>'
+      + '<div class="bdlc-field"><label class="bdlc-label">Bloquear al porcentaje</label><input id="bdlc-firebase-stop" class="bdlc-input" type="number" min="1" max="100"></div>'
+      + '</div><div class="bdlc-actions"><button class="bdlc-button" type="button" data-bdlc-action="save-firebase">Guardar cuota</button></div>';
+  }
+
+  function supabaseForm(){
+    return '<div class="bdlc-form">'
+      + '<div class="bdlc-field"><label class="bdlc-label">Estado</label><select id="bdlc-supabase-enabled" class="bdlc-select"><option value="false">Desactivado</option><option value="true">Activado</option></select></div>'
+      + '<div class="bdlc-field"><label class="bdlc-label">Tabla externa</label><input id="bdlc-supabase-table" class="bdlc-input" type="text"></div>'
+      + '<div class="bdlc-field full"><label class="bdlc-label">Supabase URL</label><input id="bdlc-supabase-url" class="bdlc-input" type="url"></div>'
+      + '<div class="bdlc-field full"><label class="bdlc-label">Anon key</label><input id="bdlc-supabase-key" class="bdlc-input" type="password" autocomplete="off"></div>'
+      + '</div><div class="bdlc-actions"><button class="bdlc-button" type="button" data-bdlc-action="save-supabase">Guardar configuración</button></div>';
+  }
+
+  function buildScreens(){
+    var section = byId("bl2-section-pantallas");
+    if(!section || section.__bdlcBuilt){ return; }
+    section.__bdlcBuilt = true;
+    section.innerHTML = '<div class="bdlc-header"><div><span class="bdlc-overline">Conexiones</span><h2 class="bdlc-title">Pantallas</h2><p class="bdlc-description">Verifica que cada módulo consulte o guarde mediante BDLocal.</p></div><button class="bdlc-button secondary" type="button" data-bdlc-action="screen-refresh-all">Refrescar conexiones</button></div><div id="bdlc-screen-grid" class="bdlc-card-grid three"></div>';
+  }
+
+  function renderScreens(){
+    var grid = byId("bdlc-screen-grid");
+    if(!grid){ return; }
+    var currentHub = hub();
+    var status = currentHub && typeof currentHub.status === "function" ? currentHub.status() : {};
+    var registered = status && Array.isArray(status.connectors) ? status.connectors : [];
+    grid.innerHTML = Object.keys(SCREENS).map(function(key){
+      var item = SCREENS[key];
+      var api = currentHub && typeof currentHub.get === "function" ? currentHub.get(key) : null;
+      var ready = registered.indexOf(key) >= 0 || !!api;
+      return '<article class="bdlc-card" data-bdlc-screen="' + key + '"><div class="bdlc-header"><div><h3>' + esc(item.label) + '</h3><p>Conector: ' + esc(key) + '</p></div>' + badge(ready ? "ok" : "pendiente", ready ? "Conectada" : "No cargada") + '</div>'
+        + '<div class="bdlc-table-wrap"><table class="bdlc-table"><tbody><tr><th>Lee</th><td>' + esc(item.reads.join(", ") || "Ninguna") + '</td></tr><tr><th>Guarda</th><td>' + esc(item.writes.join(", ") || "Solo lectura") + '</td></tr><tr><th>Último resultado</th><td data-bdlc-screen-result="' + key + '">' + (ready ? "Conector disponible" : "Pendiente de carga") + '</td></tr></tbody></table></div>'
+        + '<div class="bdlc-actions"><button class="bdlc-button secondary" type="button" data-bdlc-action="screen-test" data-target="' + key + '">Probar conexión</button><button class="bdlc-button subtle" type="button" data-bdlc-action="screen-refresh" data-target="' + key + '">Refrescar datos</button></div></article>';
+    }).join("");
+  }
+
+  function fillConfigForms(){
+    var s = store();
+    if(!s){ return; }
+    var config = s.loadConfig();
+    var sheets = s.getSheetsConfig({ includeSecret:true });
+    var supabase = s.getSupabaseConfig({ includeSecret:true });
+    function value(id, val){ var el = byId(id); if(el){ el.value = val == null ? "" : val; } }
+    value("bdlc-firebase-limit", config.firebase.dailyLimit || 500);
+    value("bdlc-firebase-warning", config.firebase.warningPercent || 80);
+    value("bdlc-firebase-stop", config.firebase.stopPercent || 95);
+    value("bdlc-sheets-enabled", String(!!sheets.enabled)); value("bdlc-sheets-batch", sheets.batchSize || 25); value("bdlc-sheets-url", sheets.appsScriptUrl || ""); value("bdlc-sheets-id", sheets.spreadsheetId || ""); value("bdlc-sheets-name", sheets.sheetName || "Requisitos"); value("bdlc-sheets-token", sheets.token || "");
+    value("bdlc-supabase-enabled", String(!!supabase.enabled)); value("bdlc-supabase-table", supabase.tableName || "app_records"); value("bdlc-supabase-url", supabase.url || ""); value("bdlc-supabase-key", supabase.anonKey || "");
+  }
+
+  function renderConnections(counts){
+    var s = store();
+    if(!s){ return; }
+    var config = s.loadConfig();
+    var sheets = s.getSheetsConfig({ includeSecret:false });
+    var supabase = s.getSupabaseConfig({ includeSecret:false });
+    counts = counts || {};
+    var detail = counts.detail || counts;
+    function pending(target){ var row = detail[target] || {}; return number(row.pending) + number(row.waitingRetry) + number(row.error) + number(row.blocked); }
+    var gp = pending("google"), fp = pending("firebase"), sp = pending("supabase");
+    setText("bl2-google-status", (sheets.connected ? "Conectado" : (sheets.enabled ? "Configurado" : "Sin configurar")) + " · Pendientes: " + gp + " · Última prueba: " + formatDate(sheets.lastTestAt));
+    setText("bl2-firebase-status", (config.firebase.connected ? "Conectado" : "Pendiente de prueba") + " · Pendientes: " + fp + " · Última prueba: " + formatDate(config.firebase.lastTestAt));
+    setText("bl2-supabase-status", (supabase.connected ? "Conectado" : (supabase.enabled ? "Configurado" : "Sin configurar")) + " · Pendientes: " + sp + " · Última prueba: " + formatDate(supabase.lastTestAt));
+    setText("bl2-kpi-google", formatNumber(gp)); setText("bl2-kpi-firebase", formatNumber(fp)); setText("bl2-kpi-supabase", formatNumber(sp));
+    var summary = byId("bdlc-summary-connections");
+    if(summary){ summary.className = "bdlc-table-wrap"; summary.innerHTML = '<table class="bdlc-table"><tbody><tr><th>Google Sheets</th><td>' + esc(sheets.connected ? "Conectado" : "Revisar") + ' · ' + gp + ' pendiente(s)</td></tr><tr><th>Firebase</th><td>' + esc(config.firebase.connected ? "Conectado" : "Revisar") + ' · ' + fp + ' pendiente(s)</td></tr><tr><th>Supabase</th><td>' + esc(supabase.connected ? "Conectado" : (supabase.enabled ? "Revisar" : "Desactivado")) + ' · ' + sp + ' pendiente(s)</td></tr></tbody></table>'; }
+  }
+
+  function renderSummary(){
+    var seq = ++renderSequence;
+    var period = selectedPeriod();
+    var summaryPromise = period.id && core() && typeof core().getSummary === "function" ? core().getSummary(period.id).catch(function(){ return {}; }) : Promise.resolve({});
+    var countsPromise = window.BDLSyncUIBridge && typeof window.BDLSyncUIBridge.refreshCounts === "function" ? window.BDLSyncUIBridge.refreshCounts().catch(function(){ return null; }) : Promise.resolve(null);
+    return Promise.all([
+      summaryPromise,
+      queryCount("personas"),
+      queryCount("matriculas_periodo","periodoId",period.id),
+      queryCount("requisitos_estudiante","periodoId",period.id),
+      queryCount("notas_titulacion","periodoId",period.id),
+      queryCount("errores_validacion","periodoId",period.id),
+      lastBackup(),
+      countsPromise
+    ]).then(function(values){
+      if(seq !== renderSequence){ return null; }
+      var summary = values[0] || {};
+      var people = values[1], matriculas = values[2], requirements = values[3], notes = values[4], errors = values[5], backupRow = values[6], counts = values[7];
+      var appState = window.BL2App && typeof window.BL2App.getState === "function" ? window.BL2App.getState() : {};
+      var active = appState.activePeriod || period;
+      setText("bl2-kpi-period", active.label || active.id || "—"); setText("bl2-kpi-period-id", active.id || "Sin seleccionar");
+      setText("bl2-kpi-students", formatNumber(summary.totalEstudiantes || matriculas));
+      setText("bdlc-kpi-active", formatNumber(summary.totalActivos)); setText("bdlc-kpi-retired", formatNumber(summary.totalRetirados));
+      setText("bdlc-kpi-people", formatNumber(people)); setText("bdlc-kpi-requirements", formatNumber(requirements)); setText("bdlc-kpi-notes", formatNumber(notes)); setText("bl2-kpi-warnings", formatNumber(errors));
+      setText("bdlc-kpi-backup", backupRow ? "Disponible" : "—"); setText("bl2-backup-status", backupRow ? formatDate(backupRow.createdAt || backupRow.updatedAt || backupRow.at) : "Sin respaldo registrado");
+      var meta = db() && typeof db().meta === "function" ? db().meta() : {};
+      var health = window.BDLFinalHealth && typeof window.BDLFinalHealth.run === "function" ? window.BDLFinalHealth.run() : null;
+      var healthEl = byId("bdlc-summary-health");
+      if(healthEl){ healthEl.className = "bdlc-status " + (health && health.ok ? "ok" : "warning"); healthEl.textContent = health && health.ok ? "Base saludable" : "Revisar salud"; }
+      setHTML("bdlc-summary-technical", '<tr><th>Base</th><td>' + esc(meta.name || "REQUISITOS_BL2") + '</td></tr><tr><th>Versión</th><td>' + esc(meta.version || "—") + '</td></tr><tr><th>Tablas detectadas</th><td>' + esc(Array.isArray(meta.stores) ? meta.stores.length : Array.isArray(meta.storeNames) ? meta.storeNames.length : "—") + '</td></tr><tr><th>Período</th><td>' + esc(active.label || active.id || "Sin seleccionar") + '</td></tr><tr><th>Última actualización</th><td>' + esc(formatDate(summary.updatedAt)) + '</td></tr>');
+      renderConnections(counts);
+      return summary;
+    });
+  }
+
+  function saveConfig(action){
+    var s = store();
+    if(!s){ throw new Error("BDLocalConfigStore no está disponible."); }
+    if(action === "save-firebase"){ s.setFirebaseQuota({ dailyLimit:input("bdlc-firebase-limit"), warningPercent:input("bdlc-firebase-warning"), stopPercent:input("bdlc-firebase-stop") }); return "Cuota Firebase guardada."; }
+    if(action === "save-sheets"){ s.setSheetsConfig({ enabled:input("bdlc-sheets-enabled") === "true", batchSize:input("bdlc-sheets-batch"), appsScriptUrl:input("bdlc-sheets-url"), spreadsheetId:input("bdlc-sheets-id"), sheetName:input("bdlc-sheets-name"), token:input("bdlc-sheets-token") }); return "Configuración de Google Sheets guardada."; }
+    if(action === "save-supabase"){ s.setSupabaseConfig({ enabled:input("bdlc-supabase-enabled") === "true", tableName:input("bdlc-supabase-table"), url:input("bdlc-supabase-url"), anonKey:input("bdlc-supabase-key") }); return "Configuración de Supabase guardada."; }
+    return "Configuración guardada.";
+  }
+
+  function runManager(method){
+    var m = manager();
+    if(!m || typeof m[method] !== "function"){ return Promise.reject(new Error("La acción " + method + " no está disponible.")); }
+    return Promise.resolve(m[method]());
+  }
+
+  function runScreen(action, target){
+    var currentHub = hub();
+    if(!currentHub){ return Promise.reject(new Error("BDLocalConexiones no está disponible.")); }
+    if(action === "screen-refresh" || action === "screen-refresh-all"){
+      if(typeof currentHub.refreshCache !== "function"){ return Promise.reject(new Error("El refresco de conexiones no está disponible.")); }
+      return currentHub.refreshCache({ force:true, light:true, source:"BDLocalConfigUI" }).then(function(result){ renderScreens(); return { ok:true, message:"Conexiones de pantallas actualizadas.", result:result }; });
+    }
+    var api = typeof currentHub.get === "function" ? currentHub.get(target) : null;
+    if(!api){ return Promise.reject(new Error("El conector " + target + " no está cargado.")); }
+    var runner = typeof api.ready === "function" ? api.ready() : (typeof currentHub.ready === "function" ? currentHub.ready() : Promise.resolve(true));
+    return Promise.resolve(runner).then(function(result){ var cell = rootElement.querySelector('[data-bdlc-screen-result="' + target + '"]'); if(cell){ cell.textContent = "Prueba correcta: " + new Date().toLocaleString("es-EC"); } return { ok:true, message:"Conexión de " + (SCREENS[target] ? SCREENS[target].label : target) + " correcta.", result:result }; });
+  }
+
+  function execute(action, target){
+    if(action === "refresh"){ return window.BL2App && typeof window.BL2App.refresh === "function" ? window.BL2App.refresh() : render(); }
+    if(action === "save-firebase" || action === "save-sheets" || action === "save-supabase"){ return Promise.resolve({ ok:true, message:saveConfig(action) }); }
+    if(action === "test-all"){ return runManager("testAll"); }
+    if(action === "test-firebase"){ return runManager("testFirebase"); }
+    if(action === "test-sheets"){ return runManager("testSheets"); }
+    if(action === "test-supabase"){ return runManager("testSupabase"); }
+    if(action === "push-google" || action === "push-firebase" || action === "push-supabase"){
+      var syncTarget = action.replace("push-","");
+      if(!window.BDLSyncUIBridge || typeof window.BDLSyncUIBridge.runTarget !== "function"){ return Promise.reject(new Error("El puente de sincronización no está disponible.")); }
+      return window.BDLSyncUIBridge.runTarget(syncTarget, { confirm:true });
+    }
+    if(action === "pull-sheets"){
+      if(!window.confirm("Traer Google Sheets hacia BDLocal para el período seleccionado. Esta operación no borra la base local. ¿Continuar?")){ return Promise.resolve({ ok:true, cancelled:true, message:"Operación cancelada." }); }
+      if(!window.BL2CloudPull || typeof window.BL2CloudPull.pullSheetsToLocal !== "function"){ return Promise.reject(new Error("La descarga de Google Sheets no está disponible.")); }
+      return window.BL2CloudPull.pullSheetsToLocal();
+    }
+    if(action === "fetch-firebase-config"){
+      if(!window.BL2CloudPull || typeof window.BL2CloudPull.forceFetchFirebaseConfig !== "function"){ return Promise.reject(new Error("La recuperación de configuración Firebase no está disponible.")); }
+      return window.BL2CloudPull.forceFetchFirebaseConfig();
+    }
+    if(action === "pull-firebase"){
+      if(!window.confirm("Traer datos de Firebase hacia BDLocal para el período seleccionado. ¿Continuar?")){ return Promise.resolve({ ok:true, cancelled:true, message:"Operación cancelada." }); }
+      return runManager("pullFirebaseToLocal");
+    }
+    if(action === "screen-test" || action === "screen-refresh" || action === "screen-refresh-all"){ return runScreen(action, target); }
+    return Promise.reject(new Error("Acción no reconocida: " + action));
+  }
+
+  function handleAction(button){
+    var action = text(button.getAttribute("data-bdlc-action"));
+    var target = text(button.getAttribute("data-target"));
+    if(!action){ return; }
+    button.disabled = true;
+    setProgress(true, 12, "Ejecutando " + action + "...");
+    Promise.resolve().then(function(){ return execute(action, target); }).then(function(result){
+      setProgress(true, 100, "Operación finalizada.");
+      if(result && !result.cancelled){ notify(result.message || "Operación finalizada.", result.ok === false ? "error" : "success"); }
+      return render();
+    }).catch(function(error){ setProgress(false, 0, "Error"); notify(error && error.message ? error.message : String(error), "error"); }).finally(function(){ button.disabled = false; window.setTimeout(function(){ setProgress(false, 0, ""); }, 1800); });
+  }
+
+  function bindEvents(){
+    if(bound || !rootElement){ return; }
+    bound = true;
+    rootElement.addEventListener("click", function(event){
+      var button = event.target && event.target.closest ? event.target.closest("[data-bdlc-action]") : null;
+      if(button && rootElement.contains(button)){ event.preventDefault(); handleAction(button); return; }
+      var nav = event.target && event.target.closest ? event.target.closest("[data-bl2-section-target]") : null;
+      if(nav && store()){ store().patchConfig({ ui:{ activeSection:nav.getAttribute("data-bl2-section-target") || "resumen" } }); }
+    });
+    window.addEventListener("bdlocal:sync-ui-updated", function(event){ renderConnections(event.detail && event.detail.counts); });
+    window.addEventListener("bl2:period-changed", render);
+    window.addEventListener("bl2:students-saved", render);
+    window.addEventListener("bdlocal:changes-created", render);
+  }
+
+  function ensureStructure(){ buildSummary(); buildExternal(); buildScreens(); fillConfigForms(); renderScreens(); }
+
+  function render(){
+    if(!rootElement){ return Promise.resolve(null); }
+    ensureStructure();
+    renderScreens();
+    return renderSummary().then(function(result){ fillConfigForms(); return result; });
+  }
+
+  function init(options){
+    options = options || {};
+    rootElement = options.container || document.querySelector(options.containerSelector || "#bdlocal-control-center-root") || document.querySelector("#bdlocal-config-root");
+    if(!rootElement){ console.warn("BDLocalConfigUI: no se encontró el contenedor del centro de control."); return Promise.resolve(null); }
+    if(!initialized){ initialized = true; bindEvents(); }
+    return render();
+  }
+
+  window.BDLocalConfigUI = { init:init, render:render, notify:notify, setProgress:setProgress, renderSummary:renderSummary, renderConnections:renderConnections, renderScreens:renderScreens };
 })(window, document);
