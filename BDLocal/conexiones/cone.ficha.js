@@ -6,15 +6,23 @@ Función o funciones:
 - Consultar estudiantes, períodos, divisiones y requisitos.
 - Guardar ediciones mediante BL2Core.updateStudent.
 - Exponer métodos de actualización compatibles con FichaModalidad.
+- Confirmar visualmente el guardado real o mostrar su error.
 - Refrescar la caché y la cola después de cada edición.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-write-through";
+  var VERSION = "1.1.1-write-confirmation";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
   if(!HUB || !U){ return; }
+
+  function setFichaStatus(message,cls){
+    try{
+      var node = window.document && window.document.getElementById("ficha-status");
+      if(node){ node.textContent = message; node.className = "ficha-status " + (cls || ""); }
+    }catch(error){}
+  }
 
   function rows(options){
     options = options || {};
@@ -98,10 +106,21 @@ Función o funciones:
   }
 
   function trackedUpdate(id,changes,options){
-    return updateStudent(id,changes,options || {}).catch(function(error){
+    setFichaStatus("Guardando cambio en Base Local...","");
+    return updateStudent(id,changes,options || {}).then(function(saved){
+      setFichaStatus("Cambio confirmado en Base Local y agregado a la cola.","ok");
+      try{
+        window.dispatchEvent(new CustomEvent("ficha:student-save-confirmed",{
+          detail:{ ok:true,id:id,saved:saved || null }
+        }));
+      }catch(error){}
+      return saved;
+    }).catch(function(error){
+      var message = error && error.message ? error.message : String(error);
+      setFichaStatus("No se pudo guardar en Base Local: " + message,"warn");
       try{
         window.dispatchEvent(new CustomEvent("ficha:student-save-error",{
-          detail:{ ok:false,id:id,message:error && error.message ? error.message : String(error) }
+          detail:{ ok:false,id:id,message:message }
         }));
       }catch(innerError){}
       return null;
@@ -146,7 +165,9 @@ Función o funciones:
     getStudentById:getStudentById,
     updateStudent:trackedUpdate,
     updateStudentField:function(id,field,value,options){
-      return trackedUpdate(id,(function(){ var patch = {}; patch[field] = value; return patch; })(),options || {});
+      var patch = {};
+      patch[field] = value;
+      return trackedUpdate(id,patch,options || {});
     }
   });
 
