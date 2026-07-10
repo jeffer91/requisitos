@@ -5,12 +5,14 @@ Función o funciones:
 - Configurar Base Local, tablas, períodos y campos protegidos.
 - Declarar todas las sincronizaciones externas como manuales.
 - Limitar Firebase y las colas externas a 25 cambios por ejecución.
-- Definir Estudiantes/periodoId__cedula como estructura Firebase.
+- Separar Firebase personal y académico mediante configuración V2.
+- Normalizar identificaciones sin alterar documentos extranjeros.
+- Completar el cero solo cuando forma una cédula ecuatoriana válida.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-manual-safe";
+  var VERSION = "1.2.0-identity-safe";
   var DB_NAME = "REQUISITOS_BL2";
   var DB_VERSION = 1;
 
@@ -203,9 +205,82 @@ Función o funciones:
     return normalizeBasic(value).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
   }
 
+  function cleanIdentification(value){
+    return text(value).replace(/[^\dA-Za-z]/g,"").toUpperCase();
+  }
+
+  function isValidEcuadorianCedula(value){
+    var raw = cleanIdentification(value);
+    if(!/^\d{10}$/.test(raw)){ return false; }
+    var province = Number(raw.slice(0,2));
+    var third = Number(raw.charAt(2));
+    if(province < 1 || province > 24 || third < 0 || third > 5){ return false; }
+    var coefficients = [2,1,2,1,2,1,2,1,2];
+    var sum = 0;
+    for(var i=0;i<9;i+=1){
+      var product = Number(raw.charAt(i)) * coefficients[i];
+      sum += product >= 10 ? product - 9 : product;
+    }
+    var verifier = (10 - (sum % 10)) % 10;
+    return verifier === Number(raw.charAt(9));
+  }
+
+  function analyzeIdentification(value){
+    var original = text(value);
+    var raw = cleanIdentification(value);
+    var result = {
+      original:original,
+      raw:raw,
+      canonical:raw,
+      changed:false,
+      type:raw ? "OTHER_IDENTIFICATION" : "EMPTY",
+      validEcuadorian:false,
+      missingLeadingZero:false,
+      safeAutoCorrection:false,
+      reason:raw ? "Identificación conservada sin transformación estructural." : "Identificación vacía."
+    };
+
+    if(!raw){ return result; }
+    if(/^\d{10}$/.test(raw) && isValidEcuadorianCedula(raw)){
+      result.type = "ECUADORIAN_CEDULA";
+      result.validEcuadorian = true;
+      result.safeAutoCorrection = true;
+      result.reason = "Cédula ecuatoriana válida.";
+      return result;
+    }
+    if(/^\d{9}$/.test(raw)){
+      var candidate = "0" + raw;
+      if(isValidEcuadorianCedula(candidate)){
+        result.canonical = candidate;
+        result.changed = true;
+        result.type = "ECUADORIAN_CEDULA_MISSING_ZERO";
+        result.validEcuadorian = true;
+        result.missingLeadingZero = true;
+        result.safeAutoCorrection = true;
+        result.reason = "El cero inicial completa una cédula ecuatoriana válida.";
+        return result;
+      }
+      result.type = "NUMERIC_IDENTIFICATION_9";
+      result.reason = "Nueve dígitos, pero agregar cero no produce una cédula ecuatoriana válida; se conserva como posible identificación extranjera.";
+      return result;
+    }
+    if(/^\d{10}$/.test(raw)){
+      result.type = "NUMERIC_IDENTIFICATION_10_UNVERIFIED";
+      result.reason = "Diez dígitos que no validan como cédula ecuatoriana; se conservan sin cambios.";
+      return result;
+    }
+    if(/^\d+$/.test(raw)){
+      result.type = "NUMERIC_FOREIGN_OR_OTHER";
+      result.reason = "Identificación numérica de longitud no ecuatoriana; se conserva sin cambios.";
+      return result;
+    }
+    result.type = "ALPHANUMERIC_FOREIGN_OR_OTHER";
+    result.reason = "Identificación alfanumérica; se conserva sin cambios.";
+    return result;
+  }
+
   function normalizeCedula(value){
-    var raw = text(value).replace(/[^\dA-Za-z]/g,"");
-    return /^\d{9}$/.test(raw) ? "0" + raw : raw;
+    return analyzeIdentification(value).canonical;
   }
 
   function isRequirementValue(value){
@@ -278,6 +353,9 @@ Función o funciones:
       text:text,
       normalizeBasic:normalizeBasic,
       normalizeKey:normalizeKey,
+      cleanIdentification:cleanIdentification,
+      isValidEcuadorianCedula:isValidEcuadorianCedula,
+      analyzeIdentification:analyzeIdentification,
       normalizeCedula:normalizeCedula,
       isRequirementValue:isRequirementValue,
       isRequirementField:isRequirementField,
