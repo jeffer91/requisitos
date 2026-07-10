@@ -3,17 +3,16 @@ Nombre completo: bdlocal-google-bridge.js
 Ruta o ubicación: /js/bdlocal-config/bdlocal-google-bridge.js
 Función o funciones:
 - Mantener compatibilidad con llamadas antiguas de BL2Sync.
-- Permitir Google Sheets únicamente con una orden manual explícita.
-- Desactivar sincronización automática por inactividad.
-- Desactivar toda sincronización externa al cerrar la aplicación.
-- Evitar que una ruta legacy active Firebase automáticamente.
+- Bloquear Google Sheets automático, por inactividad o al cerrar.
+- Delegar las órdenes manuales al administrador, que luego usa BDLSyncV2.
+- Instalarse una sola vez al finalizar la carga ordenada.
+- No usar intervalos ni iniciar conexiones externas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
+  var VERSION = "2.0.0-manual-no-interval";
   var installed = false;
-  var attempts = 0;
-  var MAX_ATTEMPTS = 40;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function manager(){ return window.BDLocalSyncManager || null; }
@@ -31,6 +30,7 @@ Función o funciones:
     var result = {
       ok:true,
       skipped:true,
+      blocked:true,
       manualOnly:true,
       source:text(source || "legacy"),
       message:message
@@ -42,11 +42,7 @@ Función o funciones:
   function install(){
     var currentSync = sync();
     var currentManager = manager();
-    attempts += 1;
-
-    if(!currentSync || !currentManager || typeof currentManager.pushLocalToSheets !== "function"){
-      return false;
-    }
+    if(!currentSync || !currentManager || typeof currentManager.pushLocalToSheets !== "function"){ return false; }
     if(installed || currentSync.__bdlocalManualBridgeInstalled){ return true; }
 
     currentSync.syncGoogle = function(options){
@@ -56,6 +52,7 @@ Función o funciones:
       }
       return currentManager.pushLocalToSheets(Object.assign({},options,{
         manual:true,
+        automatic:false,
         source:text(options.source || "BL2Sync.bridge.manual")
       }));
     };
@@ -77,26 +74,30 @@ Función o funciones:
 
     currentSync.__bdlocalManualBridgeInstalled = true;
     installed = true;
-    log("Puente legacy configurado en modo exclusivamente manual.","info",{
+    log("Puente legacy configurado una sola vez en modo manual.","info",{
+      version:VERSION,
       googleAutomatic:false,
-      firebaseAutomatic:false,
-      syncBeforeClose:false
+      syncOnIdle:false,
+      syncBeforeClose:false,
+      intervals:false
     });
     return true;
   }
 
-  function start(){
-    if(install()){ return; }
-    var timer = window.setInterval(function(){
-      if(install() || attempts >= MAX_ATTEMPTS){ window.clearInterval(timer); }
-    },250);
-  }
+  window.BDLocalGoogleBridge = Object.assign({},window.BDLocalGoogleBridge || {},{
+    version:VERSION,
+    manualOnly:true,
+    intervals:false,
+    install:install,
+    status:function(){ return { version:VERSION,installed:installed,manualOnly:true,intervals:false }; }
+  });
 
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded",start);
-  }else{
-    start();
+  window.addEventListener("bdlocal:bl2-html-scripts-loaded",install,{ once:true });
+  if(!document.querySelector("script[data-bl2-loader-src]")){
+    if(document.readyState === "loading"){
+      document.addEventListener("DOMContentLoaded",install,{ once:true });
+    }else{
+      install();
+    }
   }
-
-  window.addEventListener("bl2:ready",start);
 })(window,document);
