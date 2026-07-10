@@ -1,19 +1,13 @@
 <!doctype html>
 <!-- =========================================================
 Nombre completo: defart.html
-Ruta o ubicación: /Requisitos/defart/defart.html
+Ruta o ubicación: /defart/defart.html
 Función o funciones:
 - Pantalla Defensas para cargar N-ART y N-DEF desde BDLocal.
 - Calcular N-FIN con 70% artículo y 30% defensa.
-- Mostrar filtros compactos en 2 filas, sin encabezado grande.
-- Mostrar tabla más visual, ordenable y cómoda para navegar.
-- Guardar cambios generales y guardar una sola fila con botón por estudiante en Acciones.
-- Registrar notas como eventos críticos de continuidad.
-- Descargar Excel visible.
-- Aplicar paginación real de 25 filas.
-- Consultar Defensas mediante BDLServiceDefensas.getPage().
-- Guardar notas primero en notas_titulacion y cambios_pendientes.
-- Mantener fallback legacy si el servicio nuevo no está disponible.
+- Mostrar filtros compactos en dos filas y paginación de 25.
+- Guardar notas mediante servicios V2 y cambios_pendientes.
+- Descargar Excel usando la dependencia XLSX local fijada por npm.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -23,7 +17,7 @@ Función o funciones:
   <link rel="stylesheet" href="defart.css" />
   <link rel="stylesheet" href="defart.table.visual.css" />
   <link rel="stylesheet" href="defart.pagination.css" />
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="../node_modules/xlsx/dist/xlsx.full.min.js" data-requisitos-dependency="xlsx@0.18.5"></script>
 </head>
 <body>
   <main class="def-app">
@@ -35,17 +29,14 @@ Función o funciones:
           <span>Período</span>
           <select id="def-filter-periodo"><option value="">Todos</option></select>
         </label>
-
         <label>
           <span>División</span>
           <select id="def-filter-division"><option value="">Todas</option></select>
         </label>
-
         <label class="def-filter-wide">
           <span>Carrera</span>
           <select id="def-filter-carrera"><option value="">Todas</option></select>
         </label>
-
         <label>
           <span>Estado</span>
           <select id="def-filter-estado">
@@ -65,12 +56,10 @@ Función o funciones:
           <span>Buscar</span>
           <input id="def-filter-search" type="search" placeholder="Cédula, nombre, carrera o división..." />
         </label>
-
         <div class="def-mini-summary" aria-label="Resumen de pantalla">
           <span id="def-visible-count">0 visibles</span>
           <span id="def-save-state">Listo</span>
         </div>
-
         <div class="def-toolbar-actions">
           <button id="def-btn-clear" type="button">Limpiar filtros</button>
           <button id="def-btn-export" type="button">Descargar Excel</button>
@@ -108,7 +97,6 @@ Función o funciones:
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
-
   <script src="../BDLocal/bl2.config.js"></script>
   <script src="../BDLocal/bl2.config.v2.js"></script>
   <script src="../BDLocal/bl2.db.js"></script>
