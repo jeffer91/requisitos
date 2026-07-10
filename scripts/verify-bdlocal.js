@@ -7,6 +7,7 @@ Función o funciones:
 - Comprobar seguridad Electron e IPC.
 - Confirmar sincronización externa exclusivamente manual.
 - Validar importación segura y dependencia SheetJS corregida.
+- Verificar que el diagnóstico PowerShell esté instalado.
 - No abrir Electron, IndexedDB ni conexiones externas.
 ========================================================= */
 "use strict";
@@ -74,6 +75,8 @@ console.log("No abre Electron, IndexedDB, Firebase ni Google Sheets.\n");
   "js/bdlocal-config/bdlocal-sync-fixups.js",
   "Carga/readers/carga.reader.xlsx.js",
   "scripts/audit-repository.js",
+  "scripts/diagnostico-bdlocal.ps1",
+  "scripts/diagnostico-runtime.js",
   ".github/workflows/bdlocal-integrity.yml"
 ].forEach(requireFile);
 
@@ -108,7 +111,7 @@ contains("electron/main.js","secureHandle(channel,handler)","IPC usa registro se
 notContains("electron/main.js","webSecurity:false","Electron no desactiva seguridad web");
 notContains("electron/main.js","sandbox:false","Electron no desactiva sandbox");
 
-contains("BDLocal/bl2.import.js","xlsx-0.20.3","Importador usa SheetJS corregido");
+contains("BDLocal/bl2.import.js","sheetjs@0.20.3","Importador usa SheetJS corregido");
 contains("BDLocal/bl2.import.js","MAX_FILE_BYTES=15*1024*1024","Importador limita archivos");
 contains("BDLocal/bl2.import.js","safeKey(key)","Importador bloquea claves peligrosas");
 contains("BDLocal/bl2.import.js","missingLeadingZero&&identity.safeAutoCorrection","Cero inicial solo con validación");
@@ -121,6 +124,7 @@ contains("defart/defart.html","sheetjs@0.20.3","Defensas declara SheetJS corregi
 contains("package.json",'"node": ">=22.12.0"',"Motor Node mínimo fijado");
 contains("package.json",'"electron": "43.1.0"',"Electron fijado");
 contains("package.json","xlsx-0.20.3.tgz","SheetJS corregido y fijado");
+contains("package.json",'"diagnostico:bdlocal"',"Comando de diagnóstico BDLocal disponible");
 notContains("package.json",'"latest"',"Sin dependencias latest");
 notContains("package.json","npx --yes","Inicio sin descarga dinámica");
 contains("package.json",'"test": "node scripts/verify-bdlocal.js && node scripts/audit-repository.js"',"npm test ejecuta certificación y auditoría");
