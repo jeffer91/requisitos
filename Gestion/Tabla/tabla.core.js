@@ -1,21 +1,17 @@
 /* =========================================================
 Nombre completo: tabla.core.js
-Ruta: /Requisitos/Gestion/Tabla/tabla.core.js
-Función:
-- Motor de datos para Tabla.
-- Lee estudiantes desde BL2DataEngine, BL2EstudiantesRepo o ExcelLocalRepo.
-- Filtra por período, división, carrera, búsqueda y requisitos activos.
-- Versión corregida para reducir cuelgues:
-  1) decoración liviana inicial,
-  2) cálculo de requisitos bajo demanda y con caché,
-  3) opciones de carrera/división sin recalcular requisitos,
-  4) caché por filtros para evitar reprocesar en cada render.
+Ruta o ubicación: /Requisitos/Gestion/Tabla/tabla.core.js
+Función o funciones:
+- Consumir directamente ConTabla como única fuente de Base Local.
+- Filtrar estudiantes sin reinstalar adaptadores ni releer localStorage.
+- Decorar cada estudiante una sola vez por revisión de datos.
+- Calcular requisitos con índices de campos y caché por estudiante.
+- Exponer períodos, opciones, paginación, indicadores y utilidades de mensajes.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="2.3.0-tabla-core-lazy-cache";
-
+  var VERSION="3.0.0-direct-connector-fast";
   var REQS=[
     {key:"academico",short:"Aca",label:"Académico",aliases:["academico","académico","aprobacionAcademica","aprobacion_academica"]},
     {key:"documentacion",short:"Doc",label:"Documentación académica",aliases:["documentacion","documentación","documentacionacademica","documentación académica","documentos"]},
@@ -49,69 +45,70 @@ Función:
   var TG_USER=["_telegramUser","telegramUser","TelegramUser","telegramuser","usuarioTelegram","UsuarioTelegram","usuariotelegram","telegram","Telegram"];
   var TG_ID=["_telegramChatId","telegramChatId","TelegramChatId","telegramchatid","chatIdTelegram","ChatIdTelegram","chatidtelegram","chatId","ChatId","chatid"];
 
-  var cache={
-    baseKey:"",
-    baseRows:[],
-    filterKey:"",
-    filterRows:[],
-    pageKey:"",
-    pageResult:null,
-    optionsKey:"",
-    options:null,
-    periodsKey:"",
-    periods:[]
-  };
+  var cache;
+  var decoratedMemo;
+
+  function resetCache(){
+    cache={
+      revision:"",baseKey:"",baseRows:[],filterKey:"",filterRows:[],pageKey:"",pageResult:null,
+      optionsKey:"",options:null,periodsKey:"",periods:[]
+    };
+    decoratedMemo=typeof WeakMap==="function"?new WeakMap():null;
+  }
+  resetCache();
 
   function text(value){return String(value==null?"":value).trim();}
   function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();}
   function compact(value){return norm(value).replace(/[^a-z0-9]/g,"");}
   function enc(value){return encodeURIComponent(text(value));}
-  function json(value){try{return JSON.stringify(value||"");}catch(error){return String(value||"");}}
+  function array(value){return Array.isArray(value)?value:[];}
+
+  function connector(){
+    return window.ConTabla||window.BDLocalTabla||(
+      window.BDLocalConexiones&&typeof window.BDLocalConexiones.get==="function"
+        ?window.BDLocalConexiones.get("tabla")
+        :null
+    );
+  }
 
   function dataEngine(){return window.BL2DataEngine||null;}
+  function bl2Repo(){return window.BL2EstudiantesRepo||null;}
   function normalizer(){return window.BL2StudentNormalizer||null;}
   function reqEngine(){return window.BL2RequirementsEngine||window.StatsRules||null;}
-  function bl2Repo(){return window.BL2EstudiantesRepo||null;}
   function pager(){return window.BL2PaginationService||null;}
+  function repo(){return window.ExcelLocalRepo||null;}
 
-  function repo(){
-    if(!window.ExcelLocalRepo)throw new Error("ExcelLocalRepo no disponible. Primero carga Base Local.");
-    return window.ExcelLocalRepo;
+  function source(){
+    if(connector()&&typeof connector().listStudents==="function"){return "ConTablaDirect";}
+    if(dataEngine()&&typeof dataEngine().listStudents==="function"){return "BL2DataEngine";}
+    if(bl2Repo()&&typeof bl2Repo().buscar==="function"){return "BL2";}
+    return "ExcelLocalRepo";
   }
 
-  function hasCore(){return !!(dataEngine()&&typeof dataEngine().listStudents==="function");}
-  function hasBL2Repo(){return !!(bl2Repo()&&typeof bl2Repo().buscar==="function");}
-  function source(){return hasCore()?"BL2DataEngine":(hasBL2Repo()?"BL2":"ExcelLocalRepo");}
-
-  function clearCache(){
-    cache={baseKey:"",baseRows:[],filterKey:"",filterRows:[],pageKey:"",pageResult:null,optionsKey:"",options:null,periodsKey:"",periods:[]};
+  function revision(){
+    var api=connector();
+    try{
+      if(api&&typeof api.revision==="function"){return text(api.revision());}
+      if(api&&typeof api.status==="function"){return text((api.status()||{}).revision);}
+    }catch(error){}
+    return source();
   }
+
+  function clearCache(){resetCache();}
 
   function reqKey(value){return ALIAS[compact(value)]||compact(value);}
-
   function reqFilters(value){
     var out=[];
-    var map={};
-
+    var seen={};
     function add(item){
       var key=reqKey(item);
-      if(key&&!map[key]&&key!=="todos"&&key!=="all"){
-        map[key]=true;
-        out.push(key);
-      }
+      if(key&&!seen[key]&&key!=="todos"&&key!=="all"){seen[key]=true;out.push(key);}
     }
-
-    if(Array.isArray(value)){
-      value.forEach(add);
-    }else if(value&&typeof value==="object"){
-      Object.keys(value).forEach(function(key){if(value[key])add(key);});
-    }else if(text(value)){
-      text(value).split(/[|,;\s]+/).forEach(add);
-    }
-
+    if(Array.isArray(value)){value.forEach(add);}
+    else if(value&&typeof value==="object"){Object.keys(value).forEach(function(key){if(value[key])add(key);});}
+    else if(text(value)){text(value).split(/[|,;\s]+/).forEach(add);}
     return out;
   }
-
   function reqFiltersFromOpts(opts){
     opts=opts||{};
     return reqFilters(opts.requirements||opts.activeRequirements||opts.requirementFilters||opts.reqFilters||opts.filtrosRequisitos||opts.requisitosActivos||"");
@@ -119,170 +116,118 @@ Función:
 
   function makeBaseKey(opts){
     opts=opts||{};
-    return [
-      source(),
-      enc(opts.periodId),
-      enc(opts.division),
-      enc(opts.matricula==null?"ACTIVO":opts.matricula),
-      enc(opts.search),
-      opts.force===true?"force":""
-    ].join("|");
+    return [source(),revision(),enc(opts.periodId),enc(opts.matricula==null?"ACTIVO":opts.matricula)].join("|");
   }
-
   function makeFilterKey(opts){
     opts=opts||{};
     return [
-      makeBaseKey(opts),
-      enc(opts.career||opts.carrera),
-      enc(opts.status||opts.estado),
-      enc(reqFiltersFromOpts(opts).join(","))
+      makeBaseKey(opts),enc(opts.division),enc(opts.career||opts.carrera),enc(opts.status||opts.estado),
+      enc(opts.search),enc(reqFiltersFromOpts(opts).join(","))
     ].join("|");
   }
-
-  function makePageKey(opts){
-    opts=opts||{};
-    return [makeFilterKey(opts),Number(opts.page||1)||1,Number(opts.pageSize||100)||100].join("|");
-  }
-
+  function makePageKey(opts){return [makeFilterKey(opts),Number(opts.page||1)||1,Number(opts.pageSize||100)||100].join("|");}
   function makeOptionsKey(opts){
     opts=opts||{};
-    return [source(),enc(opts.periodId),enc(opts.matricula==null?"ACTIVO":opts.matricula),enc(opts.division)].join("|");
+    return [source(),revision(),enc(opts.periodId),enc(opts.matricula==null?"ACTIVO":opts.matricula),enc(opts.division)].join("|");
   }
 
-  function estadoMatricula(value){
-    return norm(value||"ACTIVO")==="retirado"?"RETIRADO":"ACTIVO";
+  function fieldMap(row){
+    row=row||{};
+    if(row._tablaFieldMap){return row._tablaFieldMap;}
+    var map={};
+    Object.keys(row).forEach(function(key){
+      if(key==="_tablaFieldMap"){return;}
+      var normalized=compact(key);
+      if(normalized&&!Object.prototype.hasOwnProperty.call(map,normalized)){map[normalized]=row[key];}
+    });
+    try{Object.defineProperty(row,"_tablaFieldMap",{value:map,writable:true,configurable:true,enumerable:false});}
+    catch(error){row._tablaFieldMap=map;}
+    return map;
   }
 
   function pick(row,aliases,fallback){
     row=row||{};
     aliases=aliases||[];
-
-    var keys=Object.keys(row);
     var i;
-    var j;
     var value;
-
-    for(i=0;i<aliases.length;i++){
+    for(i=0;i<aliases.length;i+=1){
       if(Object.prototype.hasOwnProperty.call(row,aliases[i])){
         value=row[aliases[i]];
-        if(value!=null&&text(value)!=="")return value;
+        if(value!=null&&text(value)!==""){return value;}
       }
     }
-
-    for(i=0;i<aliases.length;i++){
-      for(j=0;j<keys.length;j++){
-        if(compact(keys[j])===compact(aliases[i])){
-          value=row[keys[j]];
-          if(value!=null&&text(value)!=="")return value;
-        }
-      }
+    var map=fieldMap(row);
+    for(i=0;i<aliases.length;i+=1){
+      value=map[compact(aliases[i])];
+      if(value!=null&&text(value)!==""){return value;}
     }
-
     return fallback;
   }
 
   function reqDef(key){
     key=reqKey(key);
-    for(var i=0;i<REQS.length;i++){
-      if(REQS[i].key===key)return REQS[i];
-    }
+    for(var i=0;i<REQS.length;i+=1){if(REQS[i].key===key){return REQS[i];}}
     return {key:key,short:key,label:key,aliases:[key]};
-  }
-
-  function telegramInfo(row){
-    row=row||{};
-    var user=text(pick(row,TG_USER,"")).replace(/^@+/,"");
-    var chatId=text(pick(row,TG_ID,""));
-
-    return {user:user,chatId:chatId,hasTelegram:!!(user||chatId),canSendByBot:!!chatId};
-  }
-
-  function telegramUrl(row){
-    var info=telegramInfo(row);
-    if(info.user)return "https://t.me/"+encodeURIComponent(info.user);
-    if(info.chatId)return "tg://user?id="+encodeURIComponent(info.chatId);
-    return "";
   }
 
   function valueOf(row,key){
     row=row||{};
     key=reqKey(key);
-
     var def=reqDef(key);
+    var direct=pick(row,[key].concat(def.aliases||[]),null);
+    if(direct!=null&&text(direct)!==""){return direct;}
     var value;
-
     try{
       if(reqEngine()&&typeof reqEngine().valueOf==="function"){
         value=reqEngine().valueOf(row,key);
-        if(value!=null&&text(value)!=="")return value;
+        if(value!=null&&text(value)!==""){return value;}
       }
     }catch(error){}
-
     try{
       if(normalizer()&&typeof normalizer().value==="function"){
         value=normalizer().value(row,key);
-        if(value!=null&&text(value)!=="")return value;
+        if(value!=null&&text(value)!==""){return value;}
       }
     }catch(error2){}
-
-    if(Object.prototype.hasOwnProperty.call(row,key))return row[key];
-
-    return pick(row,def.aliases||[key],"");
+    return "";
   }
 
   function estadoCelda(value){
     try{
       if(reqEngine()&&typeof reqEngine().cellStatus==="function"){
         var status=reqEngine().cellStatus(value);
-        if(status)return status;
+        if(status){return status;}
       }
     }catch(error){}
-
     var key=norm(value);
-
-    if(["si","sí","s","ok","cumple","aprobado","aprobada","1","true","x","validado","validada","completo","completa"].indexOf(key)>=0)return "cumple";
-    if(!key||key==="pendiente"||key==="por revisar"||key==="sin registrar")return "pendiente";
-
+    if(["si","sí","s","ok","cumple","aprobado","aprobada","1","true","x","validado","validada","completo","completa"].indexOf(key)>=0){return "cumple";}
+    if(!key||key==="pendiente"||key==="por revisar"||key==="sin registrar"){return "pendiente";}
     return "no_cumple";
   }
-
-  function estadoLabel(status){
-    return status==="cumple"?"Cumple":(status==="pendiente"?"Pendiente":"No cumple");
-  }
+  function estadoLabel(status){return status==="cumple"?"Cumple":(status==="pendiente"?"Pendiente":"No cumple");}
+  function estadoMatricula(value){return norm(value||"ACTIVO")==="retirado"?"RETIRADO":"ACTIVO";}
 
   function applicableRequirements(row){
+    row=row||{};
+    if(Array.isArray(row._tablaApplicableReqs)){return row._tablaApplicableReqs;}
     var list=[];
-
     try{
       if(reqEngine()&&typeof reqEngine().requirementsForStudent==="function"){
-        list=reqEngine().requirementsForStudent(row||{})||[];
+        list=reqEngine().requirementsForStudent(row)||[];
       }
-    }catch(error){
-      list=[];
-    }
-
-    if(!Array.isArray(list)||!list.length)list=REQS.slice();
-
-    var map={};
+    }catch(error){list=[];}
+    if(!Array.isArray(list)||!list.length){list=REQS.slice();}
+    var seen={};
     var out=[];
-
     list.forEach(function(item){
-      var def;
-
-      if(typeof item==="string"){
-        def=reqDef(item);
-      }else{
-        def=Object.assign({},reqDef(item.key||item.id||item.field||item.campo||item.label),item);
-      }
-
+      var def=typeof item==="string"?reqDef(item):Object.assign({},reqDef(item.key||item.id||item.field||item.campo||item.label),item);
       def.key=reqKey(def.key||def.id||def.field||def.campo||def.label);
-
-      if(!def.key||NOTE[def.key]||map[def.key])return;
-
-      map[def.key]=true;
+      if(!def.key||NOTE[def.key]||seen[def.key]){return;}
+      seen[def.key]=true;
       out.push(def);
     });
-
+    try{Object.defineProperty(row,"_tablaApplicableReqs",{value:out,writable:true,configurable:true,enumerable:false});}
+    catch(error2){row._tablaApplicableReqs=out;}
     return out;
   }
 
@@ -290,267 +235,147 @@ Función:
     var def=reqDef(key);
     var raw=valueOf(row,def.key);
     var status=estadoCelda(raw);
-
-    return {
-      key:def.key,
-      short:def.short,
-      label:def.label,
-      value:text(raw),
-      estado:status,
-      estadoLabel:estadoLabel(status),
-      missing:status!=="cumple"
-    };
+    return {key:def.key,short:def.short,label:def.label,value:text(raw),estado:status,estadoLabel:estadoLabel(status),missing:status!=="cumple"};
   }
 
   function requirementStatusMap(row){
-    var out={};
+    row=ensureRequirementState(row||{});
+    return Object.assign({},row._reqStatusMap||{});
+  }
 
-    applicableRequirements(row).forEach(function(req){
-      out[req.key]=requirementInfo(row,req.key);
-    });
-
-    return out;
+  function num(value){
+    var raw=text(value).replace(",",".").replace(/[^0-9.\-]/g,"");
+    if(!raw){return null;}
+    var n=Number(raw);
+    return isNaN(n)?null:n;
+  }
+  function firstNum(row,aliases){return num(pick(row||{},aliases||[],""));}
+  function noteInfo(row){
+    row=row||{};
+    var art=firstNum(row,["_notart","notart","Notart","N-Art","NART","notaArticulo","nota_articulo","articulo","Artículo","Articulo"]);
+    var def=firstNum(row,["_notdef","notdef","Notdef","N-Def","NDEF","notaDefensa","nota_defensa","defensa","Defensa"]);
+    var fin=firstNum(row,["_notafinal","notafinal","Notafinal","N-Fin","NFIN","notaFinal","nota_final","final"]);
+    if(fin==null&&art!=null&&def!=null){fin=Number((art*0.7+def*0.3).toFixed(2));}
+    return {
+      articulo:art,defensa:def,final:fin,
+      faltaArticulo:art==null||art<7,faltaDefensa:def==null||def<7,sinArticulo:art==null,
+      noAprueba:art==null||art<7||def==null||def<7||(fin!=null&&fin<7)
+    };
   }
 
   function ensureRequirementState(row){
     row=row||{};
-
-    if(row._tablaReqReady)return row;
-
+    if(row._tablaReqReady){return row;}
     var reqs=applicableRequirements(row);
     var map={};
     var missing=[];
     var no=0;
     var pend=0;
-
     reqs.forEach(function(req){
       var info=requirementInfo(row,req.key);
       map[req.key]=info;
-
       if(info.missing){
         missing.push(info);
-        if(info.estado==="no_cumple")no+=1;
-        else if(info.estado==="pendiente")pend+=1;
+        if(info.estado==="no_cumple"){no+=1;}else if(info.estado==="pendiente"){pend+=1;}
       }
     });
-
     var id=no?"no_cumple":(pend?"pendiente":"cumple");
-
     row._reqStatusMap=map;
     row._requisitosFaltantes=missing;
     row._estadoGeneral={
-      id:id,
-      label:id==="cumple"?"Cumple todo":(id==="pendiente"?"Con pendientes":"No cumple"),
-      ok:Math.max(0,reqs.length-missing.length),
-      no:no,
-      pend:pend,
-      approved:id==="cumple",
-      missingRequirements:missing,
-      pendingRequirements:missing.filter(function(item){return item.estado==="pendiente";}),
-      applicableRequirements:reqs
+      id:id,label:id==="cumple"?"Cumple todo":(id==="pendiente"?"Con pendientes":"No cumple"),
+      ok:Math.max(0,reqs.length-missing.length),no:no,pend:pend,approved:id==="cumple",
+      missingRequirements:missing,pendingRequirements:missing.filter(function(item){return item.estado==="pendiente";}),applicableRequirements:reqs
     };
     row._notasInfo=noteInfo(row);
     row._tablaReqReady=true;
-
     return row;
   }
 
-  function missingRequirements(row){
-    row=ensureRequirementState(row||{});
-    return (row._requisitosFaltantes||[]).slice();
-  }
-
-  function hasAnyMissing(row){
-    row=ensureRequirementState(row||{});
-    return (row._requisitosFaltantes||[]).length>0;
-  }
-
-  function num(value){
-    var raw=text(value).replace(",",".").replace(/[^0-9.\-]/g,"");
-    if(!raw)return null;
-
-    var n=Number(raw);
-    return isNaN(n)?null:n;
-  }
-
-  function firstNum(row,aliases){
-    return num(pick(row||{},aliases||[],""));
-  }
-
-  function noteInfo(row){
-    row=row||{};
-
-    var art=firstNum(row,["_notart","notart","Notart","N-Art","NART","notaArticulo","nota_articulo","articulo","Artículo","Articulo"]);
-    var def=firstNum(row,["_notdef","notdef","Notdef","N-Def","NDEF","notaDefensa","nota_defensa","defensa","Defensa"]);
-    var fin=firstNum(row,["_notafinal","notafinal","Notafinal","N-Fin","NFIN","notaFinal","nota_final","final"]);
-
-    if(fin==null&&art!=null&&def!=null)fin=Number((art*0.7+def*0.3).toFixed(2));
-
-    return {
-      articulo:art,
-      defensa:def,
-      final:fin,
-      faltaArticulo:art==null||art<7,
-      faltaDefensa:def==null||def<7,
-      sinArticulo:art==null,
-      noAprueba:art==null||art<7||def==null||def<7||(fin!=null&&fin<7)
-    };
-  }
-
+  function missingRequirements(row){return (ensureRequirementState(row||{})._requisitosFaltantes||[]).slice();}
+  function hasAnyMissing(row){return missingRequirements(row).length>0;}
   function noteFilterMatches(row,key){
     var info=row&&row._notasInfo?row._notasInfo:noteInfo(row||{});
-
-    if(key==="nota_articulo")return !!info.faltaArticulo;
-    if(key==="nota_defensa")return !!info.faltaDefensa;
-    if(key==="sin_articulo")return !!info.sinArticulo;
-    if(key==="no_aprueba")return !!info.noAprueba;
-
+    if(key==="nota_articulo"){return !!info.faltaArticulo;}
+    if(key==="nota_defensa"){return !!info.faltaDefensa;}
+    if(key==="sin_articulo"){return !!info.sinArticulo;}
+    if(key==="no_aprueba"){return !!info.noAprueba;}
     return false;
   }
-
   function hasRequirementMissing(row,key){
     key=reqKey(key);
-
-    if(key==="falta")return hasAnyMissing(row);
-    if(NOTE[key])return noteFilterMatches(row,key);
-
+    if(key==="falta"){return hasAnyMissing(row);}
+    if(NOTE[key]){return noteFilterMatches(row,key);}
     row=ensureRequirementState(row||{});
-
-    if(!row._reqStatusMap[key]){
-      row._reqStatusMap[key]=requirementInfo(row,key);
-    }
-
-    return !!(row._reqStatusMap[key]&&row._reqStatusMap[key].missing);
+    if(!row._reqStatusMap[key]){row._reqStatusMap[key]=requirementInfo(row,key);}
+    return !!row._reqStatusMap[key].missing;
   }
-
   function matchesRequirementFilters(row,filters){
     filters=reqFilters(filters);
-
-    if(!filters.length)return true;
-
+    if(!filters.length){return true;}
     var specific=filters.filter(function(key){return key!=="falta";});
-
-    if(!specific.length)return hasAnyMissing(row);
-
-    return specific.every(function(key){
-      return hasRequirementMissing(row,key);
-    });
+    if(!specific.length){return hasAnyMissing(row);}
+    return specific.every(function(key){return hasRequirementMissing(row,key);});
   }
-
-  function estadoEstudiante(row){
-    row=ensureRequirementState(row||{});
-    return Object.assign({},row._estadoGeneral);
-  }
-
-  function snapshot(){
-    return repo().getSnapshot?repo().getSnapshot():{periods:[],students:[]};
-  }
+  function estadoEstudiante(row){return Object.assign({},ensureRequirementState(row||{})._estadoGeneral);}
 
   function periodId(item){
     item=item||{};
-    if(typeof item!=="object")return text(item);
-    return text(item.id||item.periodoId||item.periodId||item.value||item.key||item.codigo||item.label||item.periodoLabel||item.nombre||item.name);
+    return typeof item!=="object"?text(item):text(item.id||item.periodoId||item.periodId||item.value||item.key||item.codigo||item.label||item.periodoLabel||item.nombre||item.name);
   }
-
   function periodLabel(item){
     item=item||{};
-    if(typeof item!=="object")return text(item);
-    return text(item.label||item.periodoLabel||item.nombre||item.name||item.descripcion||item.id||item.periodoId||item.periodId||item.value||item.key);
+    return typeof item!=="object"?text(item):text(item.label||item.periodoLabel||item.nombre||item.name||item.descripcion||item.id||item.periodoId||item.periodId||item.value||item.key);
   }
-
   function normalizePeriod(item){
     var id=periodId(item);
     var label=periodLabel(item)||id;
-
-    if(!id&&!label)return null;
-
-    return {id:id||label,value:id||label,label:label||id,raw:item};
+    return !id&&!label?null:{id:id||label,value:id||label,label:label||id,raw:item};
   }
 
   function rawPeriods(){
-    try{
-      if(dataEngine()&&typeof dataEngine().listPeriods==="function")return dataEngine().listPeriods()||[];
-    }catch(error){}
-
-    try{
-      if(hasBL2Repo()&&typeof bl2Repo().listPeriods==="function")return bl2Repo().listPeriods()||[];
-    }catch(error2){}
-
-    try{
-      if(repo().listPeriods)return repo().listPeriods()||[];
-      return snapshot().periods||[];
-    }catch(error3){
-      return [];
-    }
+    var api=connector();
+    try{if(api&&typeof api.listPeriods==="function"){return api.listPeriods()||[];}}catch(error){}
+    try{if(dataEngine()&&typeof dataEngine().listPeriods==="function"){return dataEngine().listPeriods()||[];}}catch(error2){}
+    try{if(bl2Repo()&&typeof bl2Repo().listPeriods==="function"){return bl2Repo().listPeriods()||[];}}catch(error3){}
+    try{if(repo()&&typeof repo().listPeriods==="function"){return repo().listPeriods()||[];}}catch(error4){}
+    return [];
   }
 
   function periods(){
-    var raw=rawPeriods();
-    var key=source()+"|"+json(raw);
-    var map={};
+    var key=source()+"|"+revision();
+    if(cache.periodsKey===key){return cache.periods.slice();}
+    var seen={};
     var out=[];
-
-    if(cache.periodsKey===key&&Array.isArray(cache.periods))return cache.periods.slice();
-
-    raw.forEach(function(item){
-      var period=normalizePeriod(item);
-      var key2;
-
-      if(!period)return;
-
-      key2=compact(period.id||period.label);
-      if(!key2||map[key2])return;
-
-      map[key2]=true;
-      out.push(period);
+    rawPeriods().forEach(function(item){
+      var p=normalizePeriod(item);
+      var id=p?compact(p.id||p.label):"";
+      if(!p||!id||seen[id]){return;}
+      seen[id]=true;
+      out.push(p);
     });
-
     out.sort(function(a,b){return text(a.label||a.id).localeCompare(text(b.label||b.id),"es");});
-
     cache.periodsKey=key;
     cache.periods=out.slice();
-
     return out;
   }
 
   function periodTokens(value){
     var out=[];
-
-    function add(item){
-      item=text(item);
-      if(item)out.push(item);
-    }
-
+    function add(item){item=text(item);if(item){out.push(item);}}
     if(value&&typeof value==="object"){
       ["id","periodoId","periodId","value","key","codigo","label","periodoLabel","nombre","name","descripcion","raw"].forEach(function(key){add(value[key]);});
-    }else{
-      add(value);
-    }
-
+    }else{add(value);}
     return out;
   }
-
-  function sameToken(a,b){
-    return !!(text(a)&&text(b)&&(text(a)===text(b)||norm(a)===norm(b)||compact(a)===compact(b)));
-  }
-
+  function sameToken(a,b){return !!(text(a)&&text(b)&&(text(a)===text(b)||norm(a)===norm(b)||compact(a)===compact(b)));}
   function samePeriod(a,b){
-    if(!text(b))return true;
-    if(!text(a))return false;
-
-    try{
-      if(window.BLPeriodosCanon&&typeof window.BLPeriodosCanon.samePeriod==="function"&&window.BLPeriodosCanon.samePeriod(a,b))return true;
-    }catch(error){}
-
+    if(!text(b)){return true;}
+    if(!text(a)){return false;}
+    try{if(window.BLPeriodosCanon&&typeof window.BLPeriodosCanon.samePeriod==="function"&&window.BLPeriodosCanon.samePeriod(a,b)){return true;}}catch(error){}
     var A=periodTokens(a);
     var B=periodTokens(b);
-
-    for(var i=0;i<A.length;i++){
-      for(var j=0;j<B.length;j++){
-        if(sameToken(A[i],B[j]))return true;
-      }
-    }
-
+    for(var i=0;i<A.length;i+=1){for(var j=0;j<B.length;j+=1){if(sameToken(A[i],B[j])){return true;}}}
     return false;
   }
 
@@ -558,94 +383,66 @@ Función:
     row=row||{};
     return text(row._bl2PeriodoId||row.periodoId||row.ultimoPeriodoId||row.periodId||row.idPeriodo||row._periodoId);
   }
-
   function rowPeriodLabel(row){
     row=row||{};
     return text(row._bl2Periodo||row.periodoLabel||row.periodo||row.Periodo||row._periodo||rowPeriodId(row));
   }
-
-  function rowPeriodTokens(row){
-    row=row||{};
-    return [row._periodoId,row._periodo,row._bl2PeriodoId,row._bl2Periodo,row.periodoId,row.periodId,row.idPeriodo,row.ultimoPeriodoId,row.periodoLabel,row.periodo,row.Periodo].filter(function(value){return text(value);});
-  }
-
   function rowMatchesPeriod(row,wanted){
-    if(!text(wanted))return true;
-    return rowPeriodTokens(row).some(function(value){return samePeriod(value,wanted);});
+    if(!text(wanted)){return true;}
+    var tokens=[row&&row._periodoId,row&&row._periodo,row&&row._bl2PeriodoId,row&&row._bl2Periodo,row&&row.periodoId,row&&row.periodId,row&&row.idPeriodo,row&&row.ultimoPeriodoId,row&&row.periodoLabel,row&&row.periodo,row&&row.Periodo];
+    return tokens.some(function(value){return text(value)&&samePeriod(value,wanted);});
   }
 
   function divisionOf(row){
     row=row||{};
-
-    if(row._bl2Division)return row._bl2Division;
-
-    try{
-      if(window.BLDivisionesService&&typeof window.BLDivisionesService.studentDivision==="function"){
-        return window.BLDivisionesService.studentDivision(row);
-      }
-    }catch(error){}
-
+    if(row._bl2Division){return row._bl2Division;}
+    try{if(window.BLDivisionesService&&typeof window.BLDivisionesService.studentDivision==="function"){return window.BLDivisionesService.studentDivision(row);}}catch(error){}
     var list=Array.isArray(row.divisiones)?row.divisiones:[];
-
     return text(list[0]||row.division||row.Division||row["División"]||row.divisionPrincipal||"Sin división")||"Sin división";
   }
-
   function hasDivision(row,division){
-    if(!text(division))return true;
-
-    try{
-      if(window.BLDivisionesService&&typeof window.BLDivisionesService.hasDivision==="function"){
-        return window.BLDivisionesService.hasDivision(row,division);
-      }
-    }catch(error){}
-
-    if(row&&row._bl2Division)return norm(row._bl2Division)===norm(division);
-
+    if(!text(division)){return true;}
+    if(row&&row._bl2Division){return norm(row._bl2Division)===norm(division);}
     return norm(divisionOf(row))===norm(division);
-  }
-
-  function normalizeRow(row){
-    if(normalizer()&&typeof normalizer().normalize==="function"){
-      try{return normalizer().normalize(row||{},{clone:true});}catch(error){}
-    }
-
-    return Object.assign({},row||{});
   }
 
   function abreviarCarrera(value){
     var original=text(value)||"SIN CARRERA";
     var key=norm(original);
     var prefix=key.indexOf("universitaria")>=0||key.indexOf("universitario")>=0||key.indexOf("licenciatura")>=0?"U.":"T.";
-
-    if(key.indexOf("administr")>=0)return prefix+" Admin";
-    if(key.indexOf("enfermer")>=0)return prefix+" Enf";
-    if(key.indexOf("software")>=0||key.indexOf("desarrollo")>=0)return prefix+" Software";
-    if(key.indexOf("marketing")>=0||key.indexOf("mercad")>=0)return prefix+" Mkt";
-    if(key.indexOf("alimento")>=0)return prefix+" Alimentos";
-    if(key.indexOf("talento")>=0||key.indexOf("humano")>=0)return prefix+" Tal. Hum";
-    if(key.indexOf("redes")>=0||key.indexOf("fibra")>=0)return prefix+" Redes";
-    if(key.indexOf("electron")>=0)return prefix+" Electr";
-    if(original.length<=18)return original;
-
+    if(key.indexOf("administr")>=0){return prefix+" Admin";}
+    if(key.indexOf("enfermer")>=0){return prefix+" Enf";}
+    if(key.indexOf("software")>=0||key.indexOf("desarrollo")>=0){return prefix+" Software";}
+    if(key.indexOf("marketing")>=0||key.indexOf("mercad")>=0){return prefix+" Mkt";}
+    if(key.indexOf("alimento")>=0){return prefix+" Alimentos";}
+    if(key.indexOf("talento")>=0||key.indexOf("humano")>=0){return prefix+" Tal. Hum";}
+    if(key.indexOf("redes")>=0||key.indexOf("fibra")>=0){return prefix+" Redes";}
+    if(key.indexOf("electron")>=0){return prefix+" Electr";}
+    if(original.length<=18){return original;}
     return original.split(/\s+/).filter(function(word){return word.length>3;}).slice(0,2).join(" ")||original.slice(0,18);
   }
 
-  function buildSearchText(row){
-    return norm([
-      row._cedula,row._nombres,row._carrera,row._carreraCorta,row._division,
-      row._correo,row._correoPersonal,row._correoInstitucional,row._celular,
-      row._telegramUser,row._telegramChatId,row._periodo,row._periodoId,
-      row.periodoLabel,row.periodoId,row.periodo,row._estadoMatricula
-    ].join(" "));
+  function telegramInfo(row){
+    row=row||{};
+    var user=text(pick(row,TG_USER,"")).replace(/^@+/,"");
+    var chatId=text(pick(row,TG_ID,""));
+    return {user:user,chatId:chatId,hasTelegram:!!(user||chatId),canSendByBot:!!chatId};
+  }
+  function telegramUrl(row){
+    var info=telegramInfo(row);
+    if(info.user){return "https://t.me/"+encodeURIComponent(info.user);}
+    if(info.chatId){return "tg://user?id="+encodeURIComponent(info.chatId);}
+    return "";
   }
 
   function decorate(row){
-    var r=normalizeRow(row);
+    row=row||{};
+    if(decoratedMemo&&typeof row==="object"&&decoratedMemo.has(row)){return decoratedMemo.get(row);}
+    var r=Object.assign({},row);
     var tg=telegramInfo(r);
-
     r._estadoMatricula=estadoMatricula(r._bl2EstadoMatricula||r.estadoMatricula||r.EstadoMatricula||r.matricula);
     r._cedula=text(r._bl2Id||r.cedula||r.Cedula||r.numeroIdentificacion||r.NumeroIdentificacion||r.identificacion||r.Identificacion);
-    r._nombres=text(r._bl2Nombre||r.nombres||r.Nombres||r.nombre||r.Nombre||r.estudiante||r.Estudiante)||"SIN NOMBRE";
+    r._nombres=text(r._bl2Nombre||r.nombres||r.Nombres||r.nombreCompleto||r.nombre||r.Nombre||r.estudiante||r.Estudiante)||"SIN NOMBRE";
     r._carrera=text(r._bl2Carrera||r.nombrecarrera||r.nombreCarrera||r.NombreCarrera||r.carrera||r.Carrera)||"SIN CARRERA";
     r._carreraCorta=abreviarCarrera(r._carrera);
     r._division=divisionOf(r);
@@ -659,333 +456,183 @@ Función:
     r._telegramChatId=tg.chatId;
     r._telegramTiene=tg.hasTelegram;
     r._telegramBot=tg.canSendByBot;
-    r._searchText=buildSearchText(r);
+    r._searchText=norm([r._cedula,r._nombres,r._carrera,r._carreraCorta,r._division,r._correo,r._celular,r._telegramUser,r._telegramChatId,r._periodo,r._periodoId,r._estadoMatricula].join(" "));
     r._tablaReqReady=false;
-
+    if(decoratedMemo&&typeof row==="object"){decoratedMemo.set(row,r);}
     return r;
   }
 
-  function rowsFromCore(opts){
-    var result=dataEngine().listStudents({
-      periodId:opts.periodId||"",
-      division:opts.division||"",
-      matricula:opts.matricula==null?"ACTIVO":opts.matricula,
-      search:opts.search||"",
-      limit:0,
-      force:opts.force===true
-    })||{};
-
-    return (result.rows||[]).map(decorate);
-  }
-
-  function rowsFromRepo(opts){
-    var result=bl2Repo().buscar({
-      periodId:opts.periodId||"",
-      division:opts.division||"",
-      matricula:opts.matricula==null?"ACTIVO":opts.matricula,
-      search:opts.search||"",
-      limit:0
-    })||{};
-
-    return (result.rows||[]).map(decorate);
-  }
-
-  function rowsFromExcel(opts){
-    var matricula=opts.matricula==null?"ACTIVO":text(opts.matricula);
-    var rows=[];
-
-    try{
-      if(repo().filterStudents){
-        rows=repo().filterStudents({periodoId:opts.periodId||"",periodId:opts.periodId||"",estadoMatricula:matricula,matricula:matricula,division:opts.division||""});
-      }else if(repo().listStudentsByStatus&&matricula!==undefined){
-        rows=repo().listStudentsByStatus(matricula||"");
-      }else if(repo().listAllStudents){
-        rows=repo().listAllStudents();
-      }else{
-        rows=snapshot().students||[];
-      }
-    }catch(error){
-      rows=[];
+  function sourceRows(opts){
+    opts=opts||{};
+    var query={periodId:opts.periodId||"",periodoId:opts.periodId||"",matricula:opts.matricula==null?"ACTIVO":opts.matricula,limit:0};
+    var api=connector();
+    var result;
+    if(api&&typeof api.listStudents==="function"){
+      result=api.listStudents(query)||{};
+      return array(result.rows).map(decorate);
     }
-
-    return (rows||[]).map(decorate);
+    if(dataEngine()&&typeof dataEngine().listStudents==="function"){
+      result=dataEngine().listStudents(query)||{};
+      return array(result.rows).map(decorate);
+    }
+    if(bl2Repo()&&typeof bl2Repo().buscar==="function"){
+      result=bl2Repo().buscar(query)||{};
+      return array(result.rows).map(decorate);
+    }
+    if(repo()){
+      try{
+        if(typeof repo().getStudents==="function"){return array(repo().getStudents(query)).map(decorate);}
+        if(typeof repo().listAllStudents==="function"){return array(repo().listAllStudents()).map(decorate);}
+      }catch(error){}
+    }
+    return [];
   }
 
   function baseRows(opts){
     opts=opts||{};
-
     var key=makeBaseKey(opts);
-    var rows=[];
-
-    if(cache.baseKey===key&&Array.isArray(cache.baseRows))return cache.baseRows;
-
-    try{
-      if(hasCore()){
-        rows=rowsFromCore(opts);
-        cache.baseKey=key;
-        cache.baseRows=rows;
-        return rows;
-      }
-    }catch(error){
-      console.warn("[TablaCore] BL2DataEngine falló",error);
-    }
-
-    try{
-      if(hasBL2Repo()){
-        rows=rowsFromRepo(opts);
-        cache.baseKey=key;
-        cache.baseRows=rows;
-        return rows;
-      }
-    }catch(error2){
-      console.warn("[TablaCore] BL2EstudiantesRepo falló",error2);
-    }
-
-    rows=rowsFromExcel(opts);
+    if(cache.baseKey===key){return cache.baseRows;}
+    var rows=sourceRows(opts);
+    cache.revision=revision();
     cache.baseKey=key;
     cache.baseRows=rows;
-
     return rows;
   }
 
   function normalizeStatusFilter(status){
     status=text(status);
-    if(status==="pendiente")return "pendiente";
-    if(status==="no cumple")return "no_cumple";
-    if(status==="cumple todo")return "cumple";
+    if(status==="pendiente"){return "pendiente";}
+    if(status==="no cumple"){return "no_cumple";}
+    if(status==="cumple todo"){return "cumple";}
     return status;
   }
 
   function filterAll(opts){
     opts=opts||{};
-
     var key=makeFilterKey(opts);
+    if(cache.filterKey===key){return cache.filterRows;}
     var query=norm(opts.search);
-    var period=text(opts.periodId);
+    var wantedPeriod=text(opts.periodId);
     var division=text(opts.division);
     var career=text(opts.career||opts.carrera);
     var status=normalizeStatusFilter(opts.status||opts.estado);
     var matricula=opts.matricula==null?"ACTIVO":text(opts.matricula);
     var filters=reqFiltersFromOpts(opts);
-    var rows;
-
-    if(cache.filterKey===key&&Array.isArray(cache.filterRows))return cache.filterRows;
-
-    rows=baseRows(opts).filter(function(row){
-      if(matricula&&row._estadoMatricula!==matricula)return false;
-      if(period&&!rowMatchesPeriod(row,period))return false;
-      if(division&&!hasDivision(row,division))return false;
-      if(career&&row._carrera!==career)return false;
-      if(query&&String(row._searchText||"").indexOf(query)<0)return false;
-
-      if(status){
-        ensureRequirementState(row);
-        if(!row._estadoGeneral||row._estadoGeneral.id!==status)return false;
-      }
-
-      if(filters.length&&!matchesRequirementFilters(row,filters))return false;
-
+    var rows=baseRows(opts).filter(function(row){
+      if(matricula&&row._estadoMatricula!==matricula){return false;}
+      if(wantedPeriod&&!rowMatchesPeriod(row,wantedPeriod)){return false;}
+      if(division&&!hasDivision(row,division)){return false;}
+      if(career&&row._carrera!==career){return false;}
+      if(query&&String(row._searchText||"").indexOf(query)<0){return false;}
+      if(status){ensureRequirementState(row);if(!row._estadoGeneral||row._estadoGeneral.id!==status){return false;}}
+      if(filters.length&&!matchesRequirementFilters(row,filters)){return false;}
       return true;
     });
-
     cache.filterKey=key;
     cache.filterRows=rows;
-
     return rows;
   }
 
-  function filter(opts){return filterAll(opts);}
-
   function listOptions(values){
     var map={};
-
-    (values||[]).forEach(function(value){
-      value=text(value);
-      if(value)map[value]=true;
-    });
-
+    array(values).forEach(function(value){value=text(value);if(value){map[value]=true;}});
     return Object.keys(map).sort(function(a,b){return a.localeCompare(b,"es");});
   }
-
-  function careers(list){
-    return listOptions((list||baseRows({matricula:"ACTIVO",limit:0})).map(function(row){return row._carrera||"SIN CARRERA";}));
-  }
-
+  function careers(list){return listOptions(array(list||baseRows({matricula:"ACTIVO"})).map(function(row){return row._carrera||"SIN CARRERA";}));}
   function divisions(list,opts){
     opts=opts||{};
-
-    if(!list&&hasBL2Repo()&&typeof bl2Repo().listDivisions==="function"){
-      try{return bl2Repo().listDivisions({periodId:opts.periodId||"",matricula:opts.matricula==null?"ACTIVO":opts.matricula})||[];}catch(error){}
-    }
-
-    var rows=list||baseRows({periodId:opts.periodId||"",matricula:opts.matricula==null?"ACTIVO":opts.matricula,limit:0});
-
-    try{
-      if(window.BLDivisionesService&&typeof window.BLDivisionesService.listDivisionsWithEmpty==="function"){
-        return window.BLDivisionesService.listDivisionsWithEmpty(rows,"");
-      }
-    }catch(error2){}
-
-    return listOptions(rows.map(function(row){return divisionOf(row);}));
+    var rows=list||baseRows({periodId:opts.periodId||"",matricula:opts.matricula==null?"ACTIVO":opts.matricula});
+    return listOptions(array(rows).map(function(row){return divisionOf(row);}));
   }
-
   function options(opts){
     opts=opts||{};
-
     var key=makeOptionsKey(opts);
-    var rows;
+    if(cache.optionsKey===key&&cache.options){return {divisions:cache.options.divisions.slice(),careers:cache.options.careers.slice()};}
     var divisionMap={};
     var careerMap={};
-
-    if(cache.optionsKey===key&&cache.options){
-      return {divisions:(cache.options.divisions||[]).slice(),careers:(cache.options.careers||[]).slice()};
-    }
-
-    rows=baseRows({periodId:opts.periodId||"",matricula:opts.matricula==null?"ACTIVO":opts.matricula,division:"",search:""});
-
-    rows.forEach(function(row){
+    baseRows({periodId:opts.periodId||"",matricula:opts.matricula==null?"ACTIVO":opts.matricula}).forEach(function(row){
       var div=text(row._division||divisionOf(row))||"Sin división";
       divisionMap[div]=true;
-
-      if(!text(opts.division)||hasDivision(row,opts.division)){
-        careerMap[text(row._carrera)||"SIN CARRERA"]=true;
-      }
+      if(!text(opts.division)||hasDivision(row,opts.division)){careerMap[text(row._carrera)||"SIN CARRERA"]=true;}
     });
-
     cache.optionsKey=key;
     cache.options={
       divisions:Object.keys(divisionMap).sort(function(a,b){return a.localeCompare(b,"es");}),
       careers:Object.keys(careerMap).sort(function(a,b){return a.localeCompare(b,"es");})
     };
-
     return {divisions:cache.options.divisions.slice(),careers:cache.options.careers.slice()};
   }
 
   function buildPager(total,opts){
     opts=opts||{};
-
     var size=Number(opts.pageSize||100)||100;
     var pages=Math.max(1,Math.ceil(total/size));
     var page=Math.min(Math.max(1,Number(opts.page||1)||1),pages);
     var offset=(page-1)*size;
     var built;
-
     if(pager()&&typeof pager().build==="function"){
       try{
         built=pager().build(total,{page:page,pageSize:size});
-        built.page=page;
-        built.pageSize=size;
-        built.offset=offset;
-        built.pages=pages;
-        built.total=total;
-        built.hasPrev=page>1;
-        built.hasNext=page<pages;
-        built.label=total+" registros";
-        return built;
+        return Object.assign({},built,{page:page,pageSize:size,offset:offset,pages:pages,total:total,hasPrev:page>1,hasNext:page<pages,label:total+" registros"});
       }catch(error){}
     }
-
     return {page:page,pageSize:size,offset:offset,total:total,pages:pages,hasPrev:page>1,hasNext:page<pages,label:total+" registros"};
   }
 
   function summary(list){
-    list=Array.isArray(list)?list:[];
-
+    list=array(list);
     var careerMap={};
     var count={total:list.length,cumple:0,pendiente:0,no_cumple:0,carreras:0,faltan:0};
-
     list.forEach(function(row){
       ensureRequirementState(row);
-
       var id=row._estadoGeneral&&row._estadoGeneral.id?row._estadoGeneral.id:"no_cumple";
-
-      if(!Object.prototype.hasOwnProperty.call(count,id))count[id]=0;
+      if(!Object.prototype.hasOwnProperty.call(count,id)){count[id]=0;}
       count[id]+=1;
-
-      if((row._requisitosFaltantes||[]).length)count.faltan+=1;
-
+      if((row._requisitosFaltantes||[]).length){count.faltan+=1;}
       careerMap[text(row._carrera)||"SIN CARRERA"]=true;
     });
-
     count.carreras=Object.keys(careerMap).length;
-
     return count;
   }
 
   function page(opts){
     opts=opts||{};
-
     var key=makePageKey(opts);
-    var rows;
-    var pagination;
-    var pageRows;
-    var result;
-
     if(cache.pageKey===key&&cache.pageResult){
       return {
-        rows:cache.pageResult.rows.slice(),
-        allRows:cache.pageResult.allRows.slice(),
-        total:cache.pageResult.total,
-        pagination:Object.assign({},cache.pageResult.pagination),
-        summary:Object.assign({},cache.pageResult.summary),
-        source:cache.pageResult.source
+        rows:cache.pageResult.rows.slice(),allRows:cache.pageResult.allRows.slice(),total:cache.pageResult.total,
+        pagination:Object.assign({},cache.pageResult.pagination),summary:Object.assign({},cache.pageResult.summary),source:cache.pageResult.source
       };
     }
-
-    rows=filterAll(opts);
-    pagination=buildPager(rows.length,opts);
-    pageRows=rows.slice(pagination.offset,pagination.offset+pagination.pageSize);
-
-    result={
-      rows:pageRows,
-      allRows:rows,
-      total:rows.length,
-      pagination:pagination,
-      summary:summary(rows),
-      source:source()
+    var rows=filterAll(opts);
+    var pagination=buildPager(rows.length,opts);
+    var result={
+      rows:rows.slice(pagination.offset,pagination.offset+pagination.pageSize),allRows:rows,total:rows.length,
+      pagination:pagination,summary:summary(rows),source:source()
     };
-
     cache.pageKey=key;
     cache.pageResult=result;
-
     return {
-      rows:result.rows.slice(),
-      allRows:result.allRows.slice(),
-      total:result.total,
-      pagination:Object.assign({},result.pagination),
-      summary:Object.assign({},result.summary),
-      source:result.source
+      rows:result.rows.slice(),allRows:result.allRows.slice(),total:result.total,
+      pagination:Object.assign({},result.pagination),summary:Object.assign({},result.summary),source:result.source
     };
   }
 
   function requirementSummary(list){
     var out={};
-
-    REQS.forEach(function(req){
-      out[req.key]={key:req.key,short:req.short,label:req.label,total:0};
-    });
-
-    (Array.isArray(list)?list:[]).forEach(function(row){
+    REQS.forEach(function(req){out[req.key]={key:req.key,short:req.short,label:req.label,total:0};});
+    array(list).forEach(function(row){
       ensureRequirementState(row);
-
-      Object.keys(out).forEach(function(key){
-        if(hasRequirementMissing(row,key))out[key].total+=1;
-      });
+      Object.keys(out).forEach(function(key){if(hasRequirementMissing(row,key)){out[key].total+=1;}});
     });
-
     return out;
   }
 
   function whatsappUrl(row){
     var phone=text(row&&row._celular).replace(/[^0-9]/g,"");
-    var message;
-
-    if(!phone)return "";
-
-    if(phone.length===10&&phone.charAt(0)==="0")phone="593"+phone.slice(1);
-
-    message="Saludos, "+((row&&row._nombres)||"estudiante")+". Desde el área de Titulación se informa que existen novedades en su proceso.";
-
+    if(!phone){return "";}
+    if(phone.length===10&&phone.charAt(0)==="0"){phone="593"+phone.slice(1);}
+    var message="Saludos, "+((row&&row._nombres)||"estudiante")+". Desde el área de Titulación se informa que existen novedades en su proceso.";
     return "https://wa.me/"+phone+"?text="+encodeURIComponent(message);
   }
 
@@ -1000,7 +647,7 @@ Función:
     careers:careers,
     divisions:divisions,
     options:options,
-    filter:filter,
+    filter:filterAll,
     page:page,
     summary:summary,
     requirementSummary:requirementSummary,
@@ -1021,6 +668,7 @@ Función:
     divisionOf:divisionOf,
     samePeriod:samePeriod,
     source:source,
+    revision:revision,
     clearCache:clearCache,
     _ensureRequirementState:ensureRequirementState
   };
