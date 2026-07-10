@@ -2,9 +2,9 @@
 # Nombre completo: bdlocal-integrity.yml
 # Ruta o ubicación: /.github/workflows/bdlocal-integrity.yml
 # Función o funciones:
-# - Ejecutar la certificación estática de BDLocal en cada cambio de main.
-# - Validar sintaxis, colecciones Firebase, IDs, Telegram y mantenimiento.
-# - No instalar Electron ni conectarse a Firebase.
+# - Ejecutar certificación y auditoría integral en cada cambio de main.
+# - Validar sintaxis, dependencias, Electron, Firebase, XML y conexiones.
+# - No instalar Electron ni conectarse a Firebase o Google Sheets.
 # =========================================================
 name: BDLocal Integrity
 
@@ -32,6 +32,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package.json
 
-      - name: Run BDLocal certification
-        run: node scripts/verify-bdlocal.js
+      - name: Run complete static audit
+        run: npm test
