@@ -7,16 +7,18 @@ Función o funciones:
 - Mostrar Estudiantes como colección personal y de Telegram.
 - Delegar compare/download académicos en BL2FirebaseGuard.
 - Cargar la lectura automática, limitada y local de Telegram.
-- Impedir que la interfaz antigua revierta la colección académica al guardar cuota.
+- Cargar el mantenimiento manual de identidades Firebase.
+- Impedir que la interfaz antigua revierta la colección académica.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="3.3.1-telegram-loader";
+  var VERSION="3.4.0-firebase-maintenance-loader";
   var MAX=25;
   var installed=false;
   var bound=false;
   var telegramLoading=null;
+  var repairLoading=null;
 
   function text(v){return String(v==null?"":v).trim();}
   function limit(v){v=Math.floor(Number(v||MAX));return Math.min(MAX,Math.max(1,v||MAX));}
@@ -30,6 +32,7 @@ Función o funciones:
       documentIdStrategy:"periodoId__cedula",academicDocumentIdStrategy:"periodoId__cedula",
       personDocumentIdStrategy:"cedula",excludeTelegramFromAcademic:true,
       telegramAutoPull:true,telegramMaxReads:25,telegramRecheckDays:7,
+      identityRepairManualOnly:true,identityRepairScanLimit:15,identityRepairMaxCorrections:10,
       batchSize:25,maxBatchSize:25,deleteAllowed:false,
       previewBeforePull:true,backupBeforePull:true,protectLocalPending:true
     };
@@ -40,9 +43,7 @@ Función o funciones:
     cfg.firebase=Object.assign({},cfg.firebase||{},firebaseConfig());
     try{
       var store=window.BDLocalConfigStore;
-      if(store&&store.patchConfig){
-        store.patchConfig({sync:{mode:"manual",manualOnly:true,automatic:false,syncOnIdle:false,syncOnClose:false,maxBatchSize:25},firebase:firebaseConfig()});
-      }
+      if(store&&store.patchConfig){store.patchConfig({sync:{mode:"manual",manualOnly:true,automatic:false,syncOnIdle:false,syncOnClose:false,maxBatchSize:25},firebase:firebaseConfig()});}
     }catch(error){}
     return cfg.firebase;
   }
@@ -55,8 +56,7 @@ Función o funciones:
     if(academic&&!document.getElementById("bdlc-firebase-person-collection")){
       var field=academic.closest?academic.closest(".bdlc-field"):academic.parentNode;
       if(field&&field.parentNode){
-        var node=document.createElement("div");
-        node.className="bdlc-field";
+        var node=document.createElement("div");node.className="bdlc-field";
         node.innerHTML='<label class="bdlc-label">Colección persona y Telegram</label><input id="bdlc-firebase-person-collection" class="bdlc-input" value="Estudiantes" readonly>';
         field.parentNode.insertBefore(node,field.nextSibling);
       }
@@ -67,6 +67,7 @@ Función o funciones:
       if(title&&text(title.textContent)==="Firebase"&&description&&text(description.textContent)!==message){description.textContent=message;}
     });
     if(window.BDLFirebaseTelegramPull&&window.BDLFirebaseTelegramPull.renderUI){window.BDLFirebaseTelegramPull.renderUI();}
+    if(window.BDLFirebaseIdentityRepair&&window.BDLFirebaseIdentityRepair.mount){window.BDLFirebaseIdentityRepair.mount(document.getElementById("bl2-maintenance-slot"));}
   }
 
   function selectedPeriod(){
@@ -142,28 +143,26 @@ Función o funciones:
     store.setSheetsConfig({enabled:current.enabled,appsScriptUrl:current.appsScriptUrl,token:text(field.value),spreadsheetId:current.spreadsheetId,sheetName:current.sheetName,batchSize:current.batchSize});
   }
 
-  function scriptExists(src){
-    return Array.prototype.some.call(document.scripts||[],function(script){var declared=script.getAttribute("src")||script.getAttribute("data-bl2-loader-src")||"";return declared===src||text(script.src).slice(-src.length)===src;});
-  }
-  function loadTelegramModule(){
-    if(window.BDLFirebaseTelegramPull){return Promise.resolve(window.BDLFirebaseTelegramPull);}
-    if(telegramLoading){return telegramLoading;}
-    var sources=["sync/bdl.firebase.telegram-pull.js","../BDLocal/sync/bdl.firebase.telegram-pull.js"];
-    telegramLoading=new Promise(function(resolve,reject){
+  function scriptExists(src){return Array.prototype.some.call(document.scripts||[],function(script){var declared=script.getAttribute("src")||script.getAttribute("data-bl2-loader-src")||"";return declared===src||text(script.src).slice(-src.length)===src;});}
+  function loadModule(globalName,sources,getLoading,setLoading){
+    if(window[globalName]){return Promise.resolve(window[globalName]);}
+    if(getLoading()){return getLoading();}
+    var pending=new Promise(function(resolve,reject){
       function next(){
         var src=sources.shift();
-        if(!src){reject(new Error("No se pudo cargar el módulo Telegram."));return;}
-        if(scriptExists(src)&&window.BDLFirebaseTelegramPull){resolve(window.BDLFirebaseTelegramPull);return;}
-        var script=document.createElement("script");
-        script.src=src;script.async=false;script.setAttribute("data-bdl-telegram-loader",src);
-        script.onload=function(){if(window.BDLFirebaseTelegramPull){resolve(window.BDLFirebaseTelegramPull);}else if(sources.length){next();}else{reject(new Error("El módulo Telegram no se registró."));}};
+        if(!src){reject(new Error("No se pudo cargar "+globalName+"."));return;}
+        if(scriptExists(src)&&window[globalName]){resolve(window[globalName]);return;}
+        var script=document.createElement("script");script.src=src;script.async=false;script.setAttribute("data-bdl-module-loader",globalName);
+        script.onload=function(){if(window[globalName]){resolve(window[globalName]);}else if(sources.length){next();}else{reject(new Error(globalName+" no se registró."));}};
         script.onerror=function(){if(sources.length){next();}else{reject(new Error("No se pudo cargar: "+src));}};
         document.body.appendChild(script);
       }
       next();
-    }).catch(function(error){try{console.warn("[BDLocalSyncFixups]",error);}catch(inner){}return null;}).finally(function(){telegramLoading=null;});
-    return telegramLoading;
+    }).catch(function(error){try{console.warn("[BDLocalSyncFixups]",error);}catch(inner){}return null;}).finally(function(){setLoading(null);});
+    setLoading(pending);return pending;
   }
+  function loadTelegramModule(){return loadModule("BDLFirebaseTelegramPull",["sync/bdl.firebase.telegram-pull.js","../BDLocal/sync/bdl.firebase.telegram-pull.js"],function(){return telegramLoading;},function(value){telegramLoading=value;});}
+  function loadIdentityRepairModule(){return loadModule("BDLFirebaseIdentityRepair",["maintenance/bdl.firebase.identity-repair.js","../BDLocal/maintenance/bdl.firebase.identity-repair.js"],function(){return repairLoading;},function(value){repairLoading=value;});}
 
   function bind(){
     if(bound){return;}bound=true;
@@ -171,9 +170,7 @@ Función o funciones:
       var button=e.target&&e.target.closest?e.target.closest("[data-bdlc-action]"):null;
       var action=button?text(button.getAttribute("data-bdlc-action")):"";
       if(action==="save-sheets"){saveSheets();}
-      if(action==="save-firebase"){
-        window.setTimeout(function(){enforce();patchVisibleConfig();},0);
-      }
+      if(action==="save-firebase"){window.setTimeout(function(){enforce();patchVisibleConfig();},0);}
     },true);
     if(window.MutationObserver){new MutationObserver(patchVisibleConfig).observe(document.body,{childList:true,subtree:true});}
   }
@@ -183,17 +180,18 @@ Función o funciones:
     var manager=patchManager(),legacy=patchSync(),ui=patchUI();
     installed=manager||legacy||ui||installed;
     loadTelegramModule().then(function(module){if(module&&module.renderUI){module.renderUI();}});
-    return {ok:installed,manager:manager,legacy:legacy,ui:ui,academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes",telegramModule:!!window.BDLFirebaseTelegramPull};
+    loadIdentityRepairModule().then(function(module){if(module&&module.mount){module.mount(document.getElementById("bl2-maintenance-slot"));}});
+    return {ok:installed,manager:manager,legacy:legacy,ui:ui,academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes",telegramModule:!!window.BDLFirebaseTelegramPull,identityRepairModule:!!window.BDLFirebaseIdentityRepair};
   }
 
   window.BDLocalSyncFixups={
     version:VERSION,compatibilityOnly:true,manualOnly:true,maxBatchSize:MAX,install:install,
     enforceFirebaseSplit:enforce,patchFirebaseUI:patchVisibleConfig,requestTarget:request,confirmedTarget:confirmed,
-    saveSheetsAccess:saveSheets,loadTelegramModule:loadTelegramModule,
-    status:function(){return {version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager&&window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync&&window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge&&window.BDLSyncUIBridge.__singleSyncGateInstalled),academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes",telegramModule:!!window.BDLFirebaseTelegramPull};}
+    saveSheetsAccess:saveSheets,loadTelegramModule:loadTelegramModule,loadIdentityRepairModule:loadIdentityRepairModule,
+    status:function(){return {version:VERSION,installed:installed,manager:!!(window.BDLocalSyncManager&&window.BDLocalSyncManager.__singleSyncGateInstalled),legacy:!!(window.BL2Sync&&window.BL2Sync.__singleSyncGateInstalled),ui:!!(window.BDLSyncUIBridge&&window.BDLSyncUIBridge.__singleSyncGateInstalled),academicCollection:"EstudiantesPeriodo",personCollection:"Estudiantes",telegramModule:!!window.BDLFirebaseTelegramPull,identityRepairModule:!!window.BDLFirebaseIdentityRepair};}
   };
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",install);
   window.addEventListener("bl2:ready",install);
-  window.addEventListener("bl2:app-refreshed",function(){enforce();patchVisibleConfig();loadTelegramModule();});
+  window.addEventListener("bl2:app-refreshed",function(){enforce();patchVisibleConfig();loadTelegramModule();loadIdentityRepairModule();});
 })(window,document);
