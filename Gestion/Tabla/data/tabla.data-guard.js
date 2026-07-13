@@ -1,1505 +1,613 @@
 /* =========================================================
 Nombre completo: tabla.data-guard.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/data/tabla.data-guard.js
-Función o funciones:
-- Conservar la última caché válida ante vacíos temporales de BDLocal.
-- Aceptar vacíos únicamente cuando un borrado fue confirmado.
-- Instalar adaptadores de emergencia sin reemplazar conectores oficiales.
-- Agrupar eventos de Base Local y solicitar una sola actualización de Tabla.
-Con qué se conecta:
-- tabla.constants.js, tabla.utils.js y tabla.events.js.
-- tabla.data-source.js y tabla.data-normalizer.js.
-- BDLocalConUtils, BDLocalScreenDeps, ConTabla y BDLocalTabla.
+Ruta: /Gestion/Tabla/data/tabla.data-guard.js
+Función:
+- Conservar únicamente envelopes completos y coherentes de Tabla.
+- Evitar mezclar períodos, estudiantes y requisitos de revisiones distintas.
+- Marcar como stale la última revisión válida cuando una lectura nueva falla.
+- Escuchar cambios de Base Local y solicitar una nueva lectura oficial.
+- No instalar adaptadores globales ni reemplazar conectores existentes.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "3.0.0-atomic-envelope";
+  var SOURCE = "TablaDataGuard";
+  var EMPTY_CONFIRM_TTL = 10000;
 
-  var FALLBACK_SOURCE =
-    "TablaDataGuardFallback";
+  var C = window.TablaConstants || {};
+  var U = window.TablaUtils || {};
+  var E = window.TablaEvents || null;
+  var S = window.TablaDataSource || null;
 
-  var EMPTY_CONFIRM_TTL =
-    10000;
-
-  var C =
-    window.TablaConstants ||
-    {};
-
-  var U =
-    window.TablaUtils ||
-    {};
-
-  var E =
-    window.TablaEvents ||
-    null;
-
-  var N =
-    window.TablaDataNormalizer ||
-    {};
-
-  var S =
-    window.TablaDataSource ||
-    null;
+  var state = {
+    installed: false,
+    ready: false,
+    captures: 0,
+    accepted: 0,
+    preserved: 0,
+    refreshes: 0,
+    failures: 0,
+    revision: 0,
+    lastEvent: "",
+    lastError: "",
+    lastAcceptedAt: "",
+    lastPreserved: false,
+    staleReason: "",
+    allowEmptyUntil: 0,
+    captureTimer: null,
+    requestTimer: null,
+    task: null,
+    stopBase: null
+  };
 
   function text(value){
     return U.text
       ? U.text(value)
-      : String(
-          value == null
-            ? ""
-            : value
-        ).trim();
+      : String(value == null ? "" : value).trim();
   }
 
-  function normalizeKey(value){
-    return U.normalizeKey
-      ? U.normalizeKey(value)
-      : text(value)
-          .toLowerCase()
-          .replace(
-            /[^a-z0-9]+/g,
-            ""
-          );
+  function array(value){
+    return Array.isArray(value) ? value : [];
+  }
+
+  function object(value){
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : {};
+  }
+
+  function now(){
+    return U.nowIso ? U.nowIso() : new Date().toISOString();
+  }
+
+  function clone(value){
+    if(Array.isArray(value)){
+      return value.map(clone);
+    }
+
+    if(value && typeof value === "object"){
+      var output = {};
+      Object.keys(value).forEach(function(key){
+        output[key] = clone(value[key]);
+      });
+      return output;
+    }
+
+    return value;
   }
 
   function emptyEnvelope(){
     return {
       meta: {
-        source:
-          "tabla-data-guard",
-
-        updatedAt:
-          ""
+        source: SOURCE,
+        revision: 0,
+        stale: false,
+        fallbackUsed: false,
+        updatedAt: ""
       },
-
-      periods:
-        [],
-
-      students:
-        [],
-
-      requirements:
-        [],
-
-      summaries:
-        {},
-
-      diagnostics:
-        []
+      periods: [],
+      students: [],
+      requirements: [],
+      summaries: {},
+      diagnostics: [],
+      revision: 0,
+      source: SOURCE
     };
   }
+
+  var lastGood = emptyEnvelope();
 
   function normalizeEnvelope(value){
-    if(
-      N &&
-      typeof N.normalizeEnvelope ===
-        "function"
-    ){
-      return N.normalizeEnvelope(
-        value || {}
-      );
-    }
+    value = object(value);
 
-    value =
-      value &&
-      typeof value === "object"
-        ? value
-        : {};
+    var meta = object(value.meta);
+    var revision = Number(
+      value.revision ||
+      meta.revision ||
+      meta.cacheRevision ||
+      0
+    );
 
     return {
-      meta:
-        value.meta &&
-        typeof value.meta ===
-          "object"
-          ? Object.assign(
-              {},
-              value.meta
-            )
-          : {},
-
-      periods:
-        Array.isArray(
-          value.periods
-        )
-          ? value
-              .periods
-              .slice()
-          : [],
-
-      students:
-        Array.isArray(
-          value.students
-        )
-          ? value
-              .students
-              .slice()
-          : [],
-
-      requirements:
-        Array.isArray(
-          value.requirements
-        )
-          ? value
-              .requirements
-              .slice()
-          : [],
-
-      summaries:
-        value.summaries &&
-        typeof value.summaries ===
-          "object"
-          ? Object.assign(
-              {},
-              value.summaries
-            )
-          : {},
-
-      diagnostics:
-        Array.isArray(
-          value.diagnostics
-        )
-          ? value
-              .diagnostics
-              .slice()
-          : []
+      meta: Object.assign({}, meta, {
+        revision: revision,
+        stale: meta.stale === true,
+        fallbackUsed: meta.fallbackUsed === true
+      }),
+      periods: array(value.periods).slice(),
+      students: array(value.students || value.rows).slice(),
+      requirements: array(value.requirements || value.requisitos).slice(),
+      summaries: Object.assign({}, object(value.summaries)),
+      diagnostics: array(value.diagnostics).slice(),
+      revision: revision,
+      source: text(value.source || meta.source || "")
     };
   }
 
-  function hasData(envelope){
-    envelope =
-      envelope ||
-      {};
-
-    return !!(
-      (
-        Array.isArray(
-          envelope.periods
-        ) &&
-        envelope.periods.length
-      ) ||
-      (
-        Array.isArray(
-          envelope.students
-        ) &&
-        envelope.students.length
-      ) ||
-      (
-        Array.isArray(
-          envelope.requirements
-        ) &&
-        envelope.requirements.length
-      )
+  function envelopeRevision(envelope){
+    envelope = object(envelope);
+    return Number(
+      envelope.revision ||
+      envelope.meta && envelope.meta.revision ||
+      0
     );
   }
 
-  function permissionTemplate(){
-    return {
-      periods:
-        false,
-
-      students:
-        false,
-
-      requirements:
-        false,
-
-      summaries:
-        false,
-
-      diagnostics:
-        false
-    };
+  function isConfirmedEmpty(){
+    return state.allowEmptyUntil > Date.now();
   }
 
-  function permissions(value){
-    var output =
-      permissionTemplate();
+  function trustedSource(envelope){
+    envelope = object(envelope);
+    var source = text(envelope.source || envelope.meta && envelope.meta.source);
 
-    function enableAll(){
-      Object.keys(output)
-        .forEach(function(key){
-          output[key] = true;
-        });
-    }
-
-    function enable(raw){
-      var clean =
-        normalizeKey(raw);
-
-      if(!clean){
-        return;
-      }
-
-      if(
-        [
-          "all",
-          "todo",
-          "todos",
-          "true"
-        ].indexOf(clean) >= 0
-      ){
-        enableAll();
-      }
-
-      if(
-        clean.indexOf(
-          "period"
-        ) >= 0
-      ){
-        output.periods = true;
-      }
-
-      if(
-        /student|estudiante|alumno/
-          .test(clean)
-      ){
-        output.students = true;
-      }
-
-      if(
-        /require|requisito/
-          .test(clean)
-      ){
-        output.requirements = true;
-      }
-
-      if(
-        /summar|resumen/
-          .test(clean)
-      ){
-        output.summaries = true;
-      }
-
-      if(
-        /diagnostic/
-          .test(clean)
-      ){
-        output.diagnostics = true;
-      }
-    }
-
-    if(value === true){
-      enableAll();
-    }else if(
-      typeof value === "string"
-    ){
-      value
-        .split(/[|,;\s]+/)
-        .forEach(enable);
-    }else if(
-      Array.isArray(value)
-    ){
-      value.forEach(enable);
-    }else if(
-      value &&
-      typeof value === "object"
-    ){
-      Object.keys(output)
-        .forEach(function(key){
-          output[key] =
-            value[key] ===
-            true;
-        });
-
-      if(value.all === true){
-        enableAll();
-      }
-    }
-
-    return output;
+    return !source || [
+      "ConTabla",
+      "BDLocalConnectionClient"
+    ].indexOf(source) >= 0;
   }
 
-  function mergePermissions(){
-    var output =
-      permissionTemplate();
-
-    Array.prototype.slice
-      .call(arguments)
-      .forEach(function(value){
-        var current =
-          permissions(value);
-
-        Object.keys(output)
-          .forEach(function(key){
-            output[key] =
-              output[key] ||
-              current[key];
-          });
-      });
-
-    return output;
-  }
-
-  function anyPermission(value){
-    return Object.keys(
-      value || {}
-    ).some(function(key){
-      return (
-        value[key] === true
-      );
-    });
-  }
-
-  function permissionsFromOperation(
-    detail,
-    eventName
-  ){
-    detail =
-      detail &&
-      typeof detail === "object"
-        ? detail
-        : {};
-
-    var output =
-      mergePermissions(
-        detail.allowEmpty,
-        detail.emptyAllowed,
-        detail.confirmedEmpty,
-        detail.emptyConfirmed,
-        detail.deletedScopes,
-        detail.scopes
-      );
-
-    var operation =
-      normalizeKey(
-        [
-          eventName,
-          detail.action,
-          detail.operation,
-          detail.type,
-          detail.reason,
-          detail.source,
-          detail.entity,
-          detail.collection,
-          detail.table
-        ].join(" ")
-      );
-
-    var deletion =
-      detail.deletionConfirmed ===
-        true ||
-      detail.deleted ===
-        true ||
-      detail.cleared ===
-        true ||
-      detail.successfulDeletion ===
-        true ||
-      /delete|remove|clear|empty|truncate|borrar|eliminar|vaciar/
-        .test(operation);
-
-    if(
-      detail.success === false ||
-      detail.ok === false ||
-      !deletion
-    ){
-      return output;
-    }
-
-    if(
-      /period/
-        .test(operation)
-    ){
-      output.periods = true;
-      output.students = true;
-      output.requirements = true;
-      output.summaries = true;
-    }
-
-    if(
-      /student|estudiante|alumno/
-        .test(operation)
-    ){
-      output.students = true;
-      output.summaries = true;
-    }
-
-    if(
-      /require|requisito/
-        .test(operation)
-    ){
-      output.requirements = true;
-      output.summaries = true;
-    }
-
-    return anyPermission(output)
-      ? output
-      : permissions(true);
-  }
-
-  var lastGood =
-    emptyEnvelope();
-
-  var state = {
-    installed:
-      false,
-
-    revision:
-      0,
-
-    captures:
-      0,
-
-    refreshes:
-      0,
-
-    preserved:
-      0,
-
-    lastEvent:
-      "",
-
-    lastError:
-      "",
-
-    lastPreserved:
-      false,
-
-    pendingEmpty:
-      null,
-
-    captureTimer:
-      null,
-
-    requestTimer:
-      null,
-
-    stopBase:
-      null
-  };
-
-  function pendingPermissions(){
-    if(!state.pendingEmpty){
-      return permissionTemplate();
-    }
-
-    if(
-      Date.now() >
-      state.pendingEmpty.expiresAt
-    ){
-      state.pendingEmpty = null;
-      return permissionTemplate();
-    }
-
-    return state
-      .pendingEmpty
-      .value;
-  }
-
-  function confirmEmpty(
-    scopes,
-    ttl
-  ){
-    var value =
-      permissions(
-        scopes == null
-          ? true
-          : scopes
-      );
-
-    state.pendingEmpty = {
-      value: value,
-      createdAt: Date.now(),
-
-      expiresAt:
-        Date.now() +
-        Math.max(
-          1000,
-          Number(ttl) ||
-          EMPTY_CONFIRM_TTL
-        )
-    };
-
-    return Object.assign(
-      {},
-      value
-    );
-  }
-
-  function mergeEnvelope(
-    fresh,
-    allowed
-  ){
-    fresh =
-      normalizeEnvelope(
-        fresh
-      );
-
-    allowed =
-      mergePermissions(
-        allowed,
-        pendingPermissions()
-      );
-
-    var output = {
-      meta:
-        Object.assign(
-          {},
-          lastGood.meta ||
-          {},
-          fresh.meta ||
-          {}
-        ),
-
-      periods:
-        fresh.periods.length ||
-        allowed.periods
-          ? fresh.periods.slice()
-          : lastGood
-              .periods
-              .slice(),
-
-      students:
-        fresh.students.length ||
-        allowed.students
-          ? fresh.students.slice()
-          : lastGood
-              .students
-              .slice(),
-
-      requirements:
-        fresh.requirements.length ||
-        allowed.requirements
-          ? fresh
-              .requirements
-              .slice()
-          : lastGood
-              .requirements
-              .slice(),
-
-      summaries:
-        Object.keys(
-          fresh.summaries ||
-          {}
-        ).length ||
-        allowed.summaries
-          ? Object.assign(
-              {},
-              fresh.summaries ||
-              {}
-            )
-          : Object.assign(
-              {},
-              lastGood.summaries ||
-              {}
-            ),
-
-      diagnostics:
-        fresh.diagnostics.length ||
-        allowed.diagnostics
-          ? fresh
-              .diagnostics
-              .slice()
-          : lastGood
-              .diagnostics
-              .slice()
-    };
-
-    var preserved = (
-      (
-        !fresh.periods.length &&
-        !allowed.periods &&
-        lastGood.periods.length
-      ) ||
-      (
-        !fresh.students.length &&
-        !allowed.students &&
-        lastGood.students.length
-      ) ||
-      (
-        !fresh.requirements.length &&
-        !allowed.requirements &&
-        lastGood.requirements.length
-      )
-    );
-
-    state.lastPreserved =
-      !!preserved;
-
-    if(preserved){
-      state.preserved += 1;
-    }
-
-    if(
-      anyPermission(allowed)
-    ){
-      state.pendingEmpty = null;
-    }
-
-    return output;
-  }
-
-  function readFresh(force){
-    try{
-      if(
-        S &&
-        typeof S.readEnvelope ===
-          "function"
-      ){
-        return normalizeEnvelope(
-          S.readEnvelope({
-            force:
-              force === true
-          })
-        );
-      }
-    }catch(error){
-      state.lastError =
-        error &&
-        error.message
-          ? error.message
-          : text(error);
-    }
-
-    try{
-      if(
-        window.BDLocalConUtils &&
-        typeof window.BDLocalConUtils
-          .readCache ===
-          "function"
-      ){
-        return normalizeEnvelope(
-          window.BDLocalConUtils
-            .readCache(
-              force === true
-            )
-        );
-      }
-    }catch(error){}
-
-    try{
-      if(
-        window.BDLocalScreenDeps &&
-        typeof window.BDLocalScreenDeps
-          .readCache ===
-          "function"
-      ){
-        return normalizeEnvelope(
-          window.BDLocalScreenDeps
-            .readCache(
-              force === true
-            )
-        );
-      }
-    }catch(error){}
-
-    return emptyEnvelope();
-  }
-
-  function stableCache(options){
-    options =
-      options ||
-      {};
-
-    var allowed =
-      mergePermissions(
-        options.allowEmpty,
-        pendingPermissions()
-      );
-
-    var fresh =
-      readFresh(
-        options.force === true
-      );
-
-    if(hasData(fresh)){
-      lastGood =
-        mergeEnvelope(
-          fresh,
-          allowed
-        );
-
-      state.revision += 1;
-
-      return lastGood;
-    }
-
-    if(
-      !hasData(lastGood) ||
-      anyPermission(allowed)
-    ){
-      lastGood =
-        mergeEnvelope(
-          fresh,
-          allowed
-        );
-
-      state.revision += 1;
-
-      return lastGood;
-    }
-
-    state.lastPreserved = true;
-    state.preserved += 1;
-
-    return lastGood;
-  }
-
-  function filterRows(
-    rows,
-    options
-  ){
-    rows =
-      Array.isArray(rows)
-        ? rows
-        : [];
-
-    options =
-      options ||
-      {};
-
-    var periodId = text(
-      options.periodId ||
-      options.periodoId
-    );
-
-    var matricula = text(
-      options.matricula
-    );
-
-    var search = text(
-      options.search ||
-      options.query
-    ).toLowerCase();
-
-    var limit =
-      Number(
-        options.limit ||
+  function rowRevisions(rows){
+    var found = Object.create(null);
+
+    array(rows).forEach(function(row){
+      row = object(row);
+      var revision = Number(
+        row._revision ||
+        row.revision ||
+        row.cacheRevision ||
         0
       );
 
-    var output =
-      rows.filter(
-        function(row){
-          if(
-            periodId &&
-            U.samePeriod &&
-            !U.samePeriod(
-              row._periodoId ||
-              row.periodoId,
+      if(revision){
+        found[revision] = true;
+      }
+    });
 
-              periodId
-            )
-          ){
-            return false;
-          }
-
-          if(
-            matricula &&
-            text(
-              row._matricula ||
-              row.matricula
-            ).toUpperCase() !==
-              matricula.toUpperCase()
-          ){
-            return false;
-          }
-
-          if(
-            search &&
-            text(
-              row._search ||
-              [
-                row._cedula,
-                row._nombres,
-                row._carrera,
-                row._correo,
-                row._telegramUser
-              ].join(" ")
-            )
-              .toLowerCase()
-              .indexOf(search) < 0
-          ){
-            return false;
-          }
-
-          return true;
-        }
-      );
-
-    return limit > 0
-      ? output.slice(
-          0,
-          limit
-        )
-      : output;
+    return Object.keys(found).map(Number);
   }
 
-  function fallbackApi(){
+  function validateEnvelope(envelope, options){
+    envelope = normalizeEnvelope(envelope);
+    options = object(options);
+
+    var allowEmpty = options.allowEmpty === true || isConfirmedEmpty();
+    var revision = envelopeRevision(envelope);
+    var errors = [];
+    var studentRevisions = rowRevisions(envelope.students);
+    var requirementRevisions = rowRevisions(envelope.requirements);
+
+    if(envelope.meta.fallbackUsed){
+      errors.push("fuente de respaldo no autorizada");
+    }
+
+    if(envelope.meta.stale && options.acceptStale !== true){
+      errors.push("el envelope recibido ya está marcado como stale");
+    }
+
+    if(!trustedSource(envelope)){
+      errors.push("fuente distinta de ConTabla");
+    }
+
+    if(!allowEmpty){
+      if(!envelope.periods.length){ errors.push("sin períodos"); }
+      if(!envelope.students.length){ errors.push("sin estudiantes"); }
+      if(!envelope.requirements.length){ errors.push("sin requisitos"); }
+      if(!revision){ errors.push("sin revisión identificable"); }
+    }
+
+    if(
+      state.revision > 0 &&
+      revision > 0 &&
+      revision < state.revision
+    ){
+      errors.push("revisión anterior a la última aceptada");
+    }
+
+    if(studentRevisions.length > 1){
+      errors.push("estudiantes de varias revisiones");
+    }
+
+    if(requirementRevisions.length > 1){
+      errors.push("requisitos de varias revisiones");
+    }
+
+    if(
+      revision &&
+      studentRevisions.length === 1 &&
+      studentRevisions[0] !== revision
+    ){
+      errors.push("revisión de estudiantes distinta del envelope");
+    }
+
+    if(
+      revision &&
+      requirementRevisions.length === 1 &&
+      requirementRevisions[0] !== revision
+    ){
+      errors.push("revisión de requisitos distinta del envelope");
+    }
+
     return {
-      __tablaFallback:
-        true,
-
-      version:
-        VERSION,
-
-      source:
-        FALLBACK_SOURCE,
-
-      ready:
-        function(){
-          return Promise.resolve(
-            window.TablaDataGuard
-          );
-        },
-
-      refresh:
-        function(options){
-          return refresh(
-            options
-          );
-        },
-
-      listPeriods:
-        function(){
-          return stableCache()
-            .periods
-            .slice();
-        },
-
-      getPeriods:
-        function(){
-          return stableCache()
-            .periods
-            .slice();
-        },
-
-      periods:
-        function(){
-          return stableCache()
-            .periods
-            .slice();
-        },
-
-      listStudents:
-        function(options){
-          var cache =
-            stableCache();
-
-          var rows =
-            filterRows(
-              cache.students,
-              options || {}
-            );
-
-          return {
-            ok:
-              true,
-
-            rows:
-              rows,
-
-            total:
-              rows.length,
-
-            periodList:
-              cache
-                .periods
-                .slice(),
-
-            source:
-              FALLBACK_SOURCE
-          };
-        },
-
-      getStudents:
-        function(options){
-          return filterRows(
-            stableCache().students,
-            options || {}
-          );
-        },
-
-      rows:
-        function(options){
-          return filterRows(
-            stableCache().students,
-            options || {}
-          );
-        },
-
-      getRows:
-        function(options){
-          return filterRows(
-            stableCache().students,
-            options || {}
-          );
-        },
-
-      listarEstudiantes:
-        function(options){
-          return filterRows(
-            stableCache().students,
-            options || {}
-          );
-        },
-
-      getSnapshot:
-        function(){
-          return stableCache();
-        },
-
-      all:
-        function(options){
-          return filterRows(
-            stableCache().students,
-            options || {}
-          );
-        },
-
-      listar:
-        function(options){
-          return filterRows(
-            stableCache().students,
-            options || {}
-          );
-        },
-
-      buscar:
-        function(options){
-          var rows =
-            filterRows(
-              stableCache().students,
-              options || {}
-            );
-
-          return {
-            ok:
-              true,
-
-            rows:
-              rows,
-
-            total:
-              rows.length,
-
-            source:
-              FALLBACK_SOURCE
-          };
-        },
-
-      getStudentByCedula:
-        function(
-          cedula,
-          periodId
-        ){
-          cedula =
-            U.normalizeCedula
-              ? U.normalizeCedula(
-                  cedula
-                )
-              : text(cedula);
-
-          return filterRows(
-            stableCache().students,
-            {
-              periodId:
-                periodId ||
-                "",
-
-              matricula:
-                ""
-            }
-          ).filter(
-            function(row){
-              var current =
-                U.normalizeCedula
-                  ? U.normalizeCedula(
-                      row._cedula ||
-                      row.cedula
-                    )
-                  : text(
-                      row._cedula ||
-                      row.cedula
-                    );
-
-              return (
-                current === cedula
-              );
-            }
-          )[0] || null;
-        }
+      ok: errors.length === 0,
+      errors: errors,
+      envelope: envelope,
+      revision: revision,
+      allowEmpty: allowEmpty
     };
   }
 
-  function fillMissing(
-    target,
-    fallback
-  ){
-    target =
-      target &&
-      typeof target === "object"
-        ? target
-        : {};
+  function markFresh(envelope){
+    envelope = normalizeEnvelope(envelope);
 
-    var existingKeys =
-      Object.keys(target);
+    envelope.meta = Object.assign({}, envelope.meta, {
+      source: text(envelope.meta.source || envelope.source) || "ConTabla",
+      revision: envelopeRevision(envelope),
+      stale: false,
+      fallbackUsed: false,
+      guardedBy: SOURCE,
+      guardedAt: now()
+    });
 
-    var protectedMetadata = [
-      "__tablaFallback",
-      "source",
-      "version"
-    ];
+    envelope.revision = envelope.meta.revision;
+    envelope.source = envelope.meta.source;
+    envelope.stale = false;
+    envelope.staleReason = "";
 
-    Object.keys(fallback)
-      .forEach(function(key){
-        if(
-          existingKeys.length &&
-          protectedMetadata
-            .indexOf(key) >= 0
-        ){
-          return;
-        }
-
-        if(target[key] == null){
-          target[key] =
-            fallback[key];
-        }
-      });
-
-    return target;
+    return envelope;
   }
 
-  function installFallbackAdapters(){
-    var fallback =
-      fallbackApi();
+  function markStale(envelope, reason){
+    envelope = clone(envelope || emptyEnvelope());
 
-    window.BL2DataEngine =
-      fillMissing(
-        window.BL2DataEngine ||
-        {},
-        fallback
-      );
+    envelope.meta = Object.assign({}, object(envelope.meta), {
+      stale: true,
+      staleReason: text(reason) || "La lectura más reciente no fue aceptada.",
+      guardedBy: SOURCE,
+      guardedAt: now(),
+      preservedRevision: envelopeRevision(envelope)
+    });
 
-    window.ExcelLocalRepo =
-      fillMissing(
-        window.ExcelLocalRepo ||
-        {},
-        fallback
-      );
+    envelope.stale = true;
+    envelope.staleReason = envelope.meta.staleReason;
 
-    window.BL2EstudiantesRepo =
-      fillMissing(
-        window.BL2EstudiantesRepo ||
-        {},
-        fallback
-      );
-
-    state.installed = true;
-
-    return fallback;
+    return envelope;
   }
 
-  function requestTabla(
-    reason,
-    delay
-  ){
-    if(state.requestTimer){
-      window.clearTimeout(
-        state.requestTimer
-      );
-    }
-
-    state.requestTimer =
-      window.setTimeout(
-        function(){
-          state.requestTimer = null;
-
-          if(
-            E &&
-            typeof E.dataUpdated ===
-              "function"
-          ){
-            E.dataUpdated({
-              reason:
-                reason ||
-                "data-guard",
-
-              revision:
-                state.revision
-            });
-          }
-
-          if(
-            window.TablaApp &&
-            typeof window.TablaApp
-              .request === "function"
-          ){
-            window.TablaApp.request(
-              false,
-              30
-            );
-          }
-        },
-
-        Math.max(
-          0,
-          Number(delay) || 0
-        )
-      );
+  function hasLastGood(){
+    return !!(
+      lastGood.periods.length ||
+      lastGood.students.length ||
+      lastGood.requirements.length
+    );
   }
 
-  function capture(
-    reason,
-    force,
-    allowed
-  ){
-    state.lastEvent =
-      text(
-        reason ||
-        "capture"
-      );
-
+  function acceptEnvelope(value, options){
+    var validation = validateEnvelope(value, options || {});
     state.captures += 1;
 
-    if(
-      S &&
-      typeof S.invalidate ===
-        "function" &&
-      force === true
-    ){
-      S.invalidate();
+    if(validation.ok){
+      lastGood = markFresh(validation.envelope);
+      state.accepted += 1;
+      state.revision = validation.revision;
+      state.lastAcceptedAt = now();
+      state.lastError = "";
+      state.lastPreserved = false;
+      state.staleReason = "";
+      state.ready = true;
+
+      if(validation.allowEmpty){
+        state.allowEmptyUntil = 0;
+      }
+
+      return clone(lastGood);
     }
 
-    var cache =
-      stableCache({
-        force:
-          force === true,
+    state.failures += 1;
+    state.lastError = validation.errors.join("; ");
+    state.staleReason = state.lastError;
+    state.lastPreserved = hasLastGood();
 
-        allowEmpty:
-          allowed
-      });
+    if(hasLastGood()){
+      state.preserved += 1;
+      return markStale(lastGood, state.lastError);
+    }
 
-    installFallbackAdapters();
-
-    requestTabla(
-      reason,
-      (
-        C.delays &&
-        C.delays.guardRequest
-      ) ||
-      40
-    );
-
-    return cache;
+    return markStale(emptyEnvelope(), state.lastError);
   }
 
-  function scheduleCapture(
-    reason,
-    force,
-    allowed
-  ){
-    if(state.captureTimer){
-      window.clearTimeout(
-        state.captureTimer
-      );
+  function sourceEnvelope(){
+    if(!S || typeof S.readEnvelope !== "function"){
+      return emptyEnvelope();
     }
 
-    state.captureTimer =
-      window.setTimeout(
-        function(){
-          state.captureTimer = null;
+    return S.readEnvelope();
+  }
 
-          capture(
-            reason,
-            force,
-            allowed
-          );
-        },
+  function readCache(options){
+    options = object(options);
 
-        (
-          C.delays &&
-          C.delays.guardCapture
-        ) ||
-        120
-      );
+    var current = sourceEnvelope();
+
+    if(current && current.meta && current.meta.loading === true){
+      return hasLastGood()
+        ? markStale(lastGood, "Tabla está actualizando el envelope oficial.")
+        : markStale(emptyEnvelope(), "Tabla todavía no termina de cargar el envelope oficial.");
+    }
+
+    return acceptEnvelope(current, options);
+  }
+
+  function requestTabla(reason, envelope){
+    if(state.requestTimer){
+      window.clearTimeout(state.requestTimer);
+    }
+
+    state.requestTimer = window.setTimeout(function(){
+      state.requestTimer = null;
+
+      var detail = {
+        reason: reason || "data-guard",
+        revision: envelopeRevision(envelope || lastGood),
+        stale: !!(envelope && envelope.meta && envelope.meta.stale),
+        source: SOURCE
+      };
+
+      if(E && typeof E.dataUpdated === "function"){
+        E.dataUpdated(detail);
+      }
+
+      if(E && typeof E.requestRender === "function"){
+        E.requestRender(detail);
+      }
+
+      if(
+        window.TablaApp &&
+        typeof window.TablaApp.request === "function"
+      ){
+        window.TablaApp.request(false, 30);
+      }
+    }, Math.max(0, Number(C.delays && C.delays.guardRequest || 40)));
+  }
+
+  function resolveResultEnvelope(result){
+    result = object(result);
+
+    if(result.envelope){
+      return result.envelope;
+    }
+
+    if(result.data && result.data.envelope){
+      return result.data.envelope;
+    }
+
+    return sourceEnvelope();
+  }
+
+  function loadOfficial(reason, options){
+    options = object(options);
+    state.lastEvent = text(reason || "load-official");
+
+    if(state.task){
+      return state.task;
+    }
+
+    var operation;
+
+    if(options.refresh === true){
+      state.refreshes += 1;
+
+      if(!S || typeof S.refresh !== "function"){
+        operation = Promise.reject(
+          new Error("TablaDataSource.refresh no está disponible.")
+        );
+      }else{
+        operation = S.refresh({
+          full: true,
+          immediate: true,
+          force: true,
+          source: options.source || "TablaDataGuard.refresh"
+        });
+      }
+    }else if(S && typeof S.ready === "function"){
+      operation = S.ready();
+    }else{
+      operation = Promise.resolve(sourceEnvelope());
+    }
+
+    state.task = Promise.resolve(operation)
+      .then(function(result){
+        var envelope = resolveResultEnvelope(result);
+        var accepted = acceptEnvelope(envelope, {
+          allowEmpty: options.allowEmpty === true
+        });
+
+        requestTabla(state.lastEvent, accepted);
+        return accepted;
+      })
+      .catch(function(error){
+        state.failures += 1;
+        state.lastError = text(error && error.message || error);
+        state.staleReason = state.lastError;
+        state.lastPreserved = hasLastGood();
+
+        var preserved = hasLastGood()
+          ? markStale(lastGood, state.lastError)
+          : markStale(emptyEnvelope(), state.lastError);
+
+        if(hasLastGood()){
+          state.preserved += 1;
+        }
+
+        requestTabla(state.lastEvent, preserved);
+        return preserved;
+      })
+      .finally(function(){
+        state.task = null;
+      });
+
+    return state.task;
+  }
+
+  function capture(reason, force, allowed){
+    state.lastEvent = text(reason || "capture");
+
+    if(force === true){
+      loadOfficial(state.lastEvent, {
+        refresh: true,
+        allowEmpty: allowed === true
+      });
+
+      return hasLastGood()
+        ? markStale(lastGood, "Actualización de Base Local en curso.")
+        : readCache({allowEmpty: allowed === true});
+    }
+
+    var envelope = readCache({allowEmpty: allowed === true});
+    requestTabla(state.lastEvent, envelope);
+    return envelope;
+  }
+
+  function scheduleCapture(reason, force, allowed){
+    if(state.captureTimer){
+      window.clearTimeout(state.captureTimer);
+    }
+
+    state.captureTimer = window.setTimeout(function(){
+      state.captureTimer = null;
+
+      if(force === true){
+        loadOfficial(reason || "base-event", {
+          refresh: true,
+          allowEmpty: allowed === true
+        });
+      }else{
+        capture(reason || "base-event", false, allowed);
+      }
+    }, Math.max(0, Number(C.delays && C.delays.guardCapture || 120)));
   }
 
   function refresh(options){
-    options =
-      options ||
-      {};
+    options = object(options);
 
-    state.refreshes += 1;
+    return loadOfficial("manual-refresh", {
+      refresh: true,
+      allowEmpty:
+        options.allowEmpty === true ||
+        options.confirmedEmpty === true,
+      source: options.source || "TablaDataGuard.refresh"
+    });
+  }
 
-    var allowed =
-      mergePermissions(
-        options.allowEmpty,
+  function confirmEmpty(scopes, ttl){
+    state.allowEmptyUntil = Date.now() + Math.max(
+      1000,
+      Number(ttl) || EMPTY_CONFIRM_TTL
+    );
 
-        permissionsFromOperation(
-          options,
-          "refresh-options"
-        )
-      );
+    return {
+      confirmed: true,
+      scopes: scopes == null ? "all" : scopes,
+      expiresAt: state.allowEmptyUntil
+    };
+  }
 
-    var task =
-      S &&
-      typeof S.refresh ===
-        "function"
-        ? S.refresh(
-            Object.assign(
-              {},
-              options,
-              {
-                source:
-                  options.source ||
-                  "TablaDataGuard.refresh",
-
-                full:
-                  options.full !==
-                  false,
-
-                immediate:
-                  options.immediate !==
-                  false,
-
-                allowEmpty:
-                  anyPermission(
-                    allowed
-                  )
-              }
-            )
-          )
-        : Promise.resolve(
-            null
-          );
-
-    return Promise.resolve(task)
-      .catch(function(error){
-        state.lastError =
-          error &&
-          error.message
-            ? error.message
-            : text(error);
-
-        return {
-          ok: false,
-          error: error
-        };
-      })
-      .then(function(result){
-        var resultAllowed =
-          mergePermissions(
-            allowed,
-
-            permissionsFromOperation(
-              result || {},
-              "refresh-result"
-            ),
-
-            permissionsFromOperation(
-              result &&
-              result.result ||
-              {},
-
-              "refresh-inner-result"
-            )
-          );
-
-        return capture(
-          "manual-refresh",
-          true,
-          resultAllowed
-        );
-      });
+  function install(){
+    state.installed = true;
+    return window.TablaDataGuard;
   }
 
   function handleBaseEvent(info){
-    info =
-      info ||
-      {};
+    info = object(info);
+    var detail = object(info.detail);
 
-    var detail =
-      info.detail ||
-      {};
-
-    var allowed =
-      mergePermissions(
-        permissionsFromOperation(
-          detail,
-          info.name
-        ),
-
-        permissionsFromOperation(
-          detail.meta ||
-          {},
-
-          info.name +
-          ":meta"
-        )
-      );
+    var allowEmpty =
+      detail.allowEmpty === true ||
+      detail.confirmedEmpty === true ||
+      detail.deletionConfirmed === true;
 
     scheduleCapture(
-      info.name ||
-      "base-event",
+      info.name || "base-event",
       true,
-      allowed
+      allowEmpty
     );
+  }
+
+  function clear(){
+    lastGood = emptyEnvelope();
+    state.ready = false;
+    state.revision = 0;
+    state.lastError = "";
+    state.staleReason = "";
+    state.lastPreserved = false;
+    state.allowEmptyUntil = 0;
+
+    if(S && typeof S.invalidate === "function"){
+      S.invalidate();
+    }
+  }
+
+  function status(){
+    return {
+      ok: state.ready && !state.lastError,
+      version: VERSION,
+      installed: state.installed,
+      ready: state.ready,
+      source: SOURCE,
+      revision: state.revision,
+      periods: lastGood.periods.length,
+      students: lastGood.students.length,
+      requirements: lastGood.requirements.length,
+      captures: state.captures,
+      accepted: state.accepted,
+      refreshes: state.refreshes,
+      failures: state.failures,
+      preserved: state.preserved,
+      lastEvent: state.lastEvent,
+      lastError: state.lastError,
+      lastAcceptedAt: state.lastAcceptedAt,
+      lastPreserved: state.lastPreserved,
+      staleReason: state.staleReason,
+      confirmedEmpty: isConfirmedEmpty(),
+      taskActive: !!state.task,
+      globalAdaptersInstalled: false
+    };
   }
 
   function boot(){
-    capture(
-      "initial",
-      false,
-      false
-    );
+    install();
 
-    if(
-      E &&
-      typeof E.listenBase ===
-        "function"
-    ){
-      state.stopBase =
-        E.listenBase(
-          handleBaseEvent
-        );
-
-      return;
+    if(E && typeof E.listenBase === "function"){
+      state.stopBase = E.listenBase(handleBaseEvent);
+    }else{
+      array(C.baseEvents).forEach(function(name){
+        window.addEventListener(name, function(event){
+          handleBaseEvent({
+            name: name,
+            detail: event && event.detail || {}
+          });
+        });
+      });
     }
 
-    (
-      C.baseEvents ||
-      []
-    ).forEach(
-      function(name){
-        window.addEventListener(
-          name,
-
-          function(event){
-            handleBaseEvent({
-              name:
-                name,
-
-              detail:
-                event &&
-                event.detail ||
-                {},
-
-              event:
-                event
-            });
-          }
-        );
-      }
-    );
+    loadOfficial("initial", {
+      refresh: false
+    });
   }
 
   window.TablaDataGuard = {
-    version:
-      VERSION,
-
-    source:
-      FALLBACK_SOURCE,
-
-    install:
-      installFallbackAdapters,
-
-    refresh:
-      refresh,
-
-    readCache:
-      stableCache,
-
-    capture:
-      capture,
-
-    confirmEmpty:
-      confirmEmpty,
-
-    confirmDeletion:
-      confirmEmpty,
-
-    allowEmptyOnce:
-      confirmEmpty,
-
-    clear:
-      function(){
-        lastGood =
-          emptyEnvelope();
-
-        state.pendingEmpty =
-          null;
-
-        state.revision += 1;
-
-        state.lastPreserved =
-          false;
-
-        if(
-          S &&
-          typeof S.invalidate ===
-            "function"
-        ){
-          S.invalidate();
-        }
-      },
-
-    status:
-      function(){
-        return {
-          ok:
-            true,
-
-          version:
-            VERSION,
-
-          installed:
-            state.installed,
-
-          periods:
-            lastGood
-              .periods
-              .length,
-
-          students:
-            lastGood
-              .students
-              .length,
-
-          requirements:
-            lastGood
-              .requirements
-              .length,
-
-          source:
-            text(
-              lastGood.meta &&
-              lastGood.meta.source
-            ) ||
-            FALLBACK_SOURCE,
-
-          revision:
-            state.revision,
-
-          captures:
-            state.captures,
-
-          refreshes:
-            state.refreshes,
-
-          preserved:
-            state.preserved,
-
-          lastEvent:
-            state.lastEvent,
-
-          lastError:
-            state.lastError,
-
-          lastPreserved:
-            state.lastPreserved,
-
-          pendingEmpty:
-            state.pendingEmpty
-              ? Object.assign(
-                  {},
-                  state
-                    .pendingEmpty
-                    .value
-                )
-              : null
-        };
-      }
+    version: VERSION,
+    source: SOURCE,
+    install: install,
+    refresh: refresh,
+    readCache: readCache,
+    capture: capture,
+    confirmEmpty: confirmEmpty,
+    confirmDeletion: confirmEmpty,
+    allowEmptyOnce: confirmEmpty,
+    clear: clear,
+    status: status
   };
 
   boot();
