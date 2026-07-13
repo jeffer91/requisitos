@@ -1,12 +1,21 @@
 /* =========================================================
 Nombre completo: cone.stats.js
 Ruta o ubicación: /Requisitos/BDLocal/conexiones/cone.stats.js
+
 Función o funciones:
 - Conectar Stats directamente con la caché central ya normalizada.
 - Filtrar estudiantes y requisitos sin solicitar una reconstrucción completa.
-- Memorizar resúmenes por revisión de caché y período.
+- Relacionar en memoria los requisitos con cada estudiante por cédula y período.
+- Memorizar índices y resúmenes por revisión de caché.
 - Ejecutar refresco ligero por defecto y refresco completo solo cuando se solicita.
 - Mantener el adaptador legacy usado por pantallas y botones antiguos.
+
+Corrección:
+- Antes, students() devolvía estudiantes sin integrar current.requirements.
+- Stats calculaba requisitos sobre campos vacíos y marcaba a todos como no aprobados.
+- Ahora cada estudiante se entrega con sus requisitos integrados temporalmente.
+- No se escribe ni se modifica información en la base de datos.
+
 Con qué se conecta:
 - conexiones/cone.index.js.
 - conexiones/cone.utils.js.
@@ -15,7 +24,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.2.0-cache-first";
+  var VERSION = "1.3.0-requirements-hydration";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
 
@@ -26,6 +35,8 @@ Con qué se conecta:
   var memo = {
     token: "",
     summaries: Object.create(null),
+    requirementsByCedula: Object.create(null),
+    requirementsIndexed: false,
     calculations: 0
   };
 
@@ -35,8 +46,63 @@ Con qué se conecta:
       : String(value == null ? "" : value).trim();
   }
 
+  function normalizeKey(value){
+    if(typeof U.normalizeKey === "function"){
+      return U.normalizeKey(value);
+    }
+
+    return text(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+  }
+
+  function normalizeCedula(value){
+    if(typeof U.normalizeCedula === "function"){
+      return U.normalizeCedula(value);
+    }
+
+    var result = text(value)
+      .replace(/[^0-9A-Za-z]/g, "");
+
+    return /^\d{9}$/.test(result)
+      ? "0" + result
+      : result;
+  }
+
+  function canonicalPeriodId(value){
+    if(typeof U.canonicalPeriodId === "function"){
+      return U.canonicalPeriodId(value);
+    }
+
+    return text(value);
+  }
+
+  function samePeriod(a, b){
+    if(typeof U.samePeriod === "function"){
+      return U.samePeriod(a, b);
+    }
+
+    a = canonicalPeriodId(a);
+    b = canonicalPeriodId(b);
+
+    return (
+      !b ||
+      a === b ||
+      normalizeKey(a) === normalizeKey(b)
+    );
+  }
+
   function cache(){
     return U.readCache();
+  }
+
+  function resetMemo(){
+    memo.token = "";
+    memo.summaries = Object.create(null);
+    memo.requirementsByCedula = Object.create(null);
+    memo.requirementsIndexed = false;
   }
 
   function cacheToken(current){
@@ -64,6 +130,8 @@ Con qué se conecta:
     if(memo.token !== token){
       memo.token = token;
       memo.summaries = Object.create(null);
+      memo.requirementsByCedula = Object.create(null);
+      memo.requirementsIndexed = false;
     }
 
     return token;
@@ -71,16 +139,293 @@ Con qué se conecta:
 
   function periods(){
     var rows = cache().periods || [];
+
     return rows.slice();
+  }
+
+  function cedulaOf(row){
+    row = row || {};
+
+    return normalizeCedula(
+      row.cedula ||
+      row.numeroIdentificacion ||
+      row.NumeroIdentificacion ||
+      row.identificacion ||
+      row.Identificacion ||
+      row.Cedula ||
+      row["Cédula"] ||
+      row._cedula ||
+      row._bl2Id ||
+      ""
+    );
+  }
+
+  function periodOf(row){
+    row = row || {};
+
+    return canonicalPeriodId(
+      row.periodoId ||
+      row.periodId ||
+      row.periodoCanonicoId ||
+      row.ultimoPeriodoId ||
+      row.idPeriodo ||
+      row._periodoId ||
+      row._bl2PeriodoId ||
+      ""
+    );
+  }
+
+  function requirementKey(row){
+    row = row || {};
+
+    var nested =
+      row.requisito &&
+      typeof row.requisito === "object"
+        ? row.requisito
+        : null;
+
+    return text(
+      row.requisitoKey ||
+      row.requirementKey ||
+      row.key ||
+      row.campo ||
+      row.field ||
+      row.nombre ||
+      row.codigo ||
+      (
+        nested &&
+        (
+          nested.requisitoKey ||
+          nested.key ||
+          nested.nombre ||
+          nested.codigo ||
+          nested.id
+        )
+      ) ||
+      (
+        typeof row.requisito === "string"
+          ? row.requisito
+          : ""
+      )
+    );
+  }
+
+  function requirementValue(row){
+    row = row || {};
+
+    if(
+      row.valor !== undefined &&
+      row.valor !== null
+    ){
+      return row.valor;
+    }
+
+    if(
+      row.value !== undefined &&
+      row.value !== null
+    ){
+      return row.value;
+    }
+
+    if(
+      row.estado !== undefined &&
+      row.estado !== null
+    ){
+      if(
+        row.estado &&
+        typeof row.estado === "object"
+      ){
+        return (
+          row.estado.id ||
+          row.estado.value ||
+          row.estado.label ||
+          ""
+        );
+      }
+
+      return row.estado;
+    }
+
+    if(
+      row.cumple !== undefined &&
+      row.cumple !== null
+    ){
+      return row.cumple;
+    }
+
+    if(
+      row.aprobado !== undefined &&
+      row.aprobado !== null
+    ){
+      return row.aprobado;
+    }
+
+    if(
+      row.resultado !== undefined &&
+      row.resultado !== null
+    ){
+      return row.resultado;
+    }
+
+    return "";
+  }
+
+  function buildRequirementsIndex(current){
+    ensureMemo(current);
+
+    if(memo.requirementsIndexed){
+      return memo.requirementsByCedula;
+    }
+
+    memo.requirementsByCedula =
+      Object.create(null);
+
+    (current.requirements || []).forEach(function(row){
+      row = row || {};
+
+      var cedula = cedulaOf(row);
+
+      if(!cedula){
+        return;
+      }
+
+      if(!memo.requirementsByCedula[cedula]){
+        memo.requirementsByCedula[cedula] = [];
+      }
+
+      memo.requirementsByCedula[cedula].push(row);
+    });
+
+    memo.requirementsIndexed = true;
+
+    return memo.requirementsByCedula;
+  }
+
+  function requirementMatchesStudent(
+    requirement,
+    studentPeriodId
+  ){
+    var requirementPeriod =
+      periodOf(requirement);
+
+    if(
+      !studentPeriodId ||
+      !requirementPeriod
+    ){
+      return true;
+    }
+
+    return samePeriod(
+      requirementPeriod,
+      studentPeriodId
+    );
+  }
+
+  function attachRequirementValue(
+    student,
+    requirement
+  ){
+    var key = requirementKey(requirement);
+    var normalizedKey = normalizeKey(key);
+    var value = requirementValue(requirement);
+
+    if(key){
+      student[key] = value;
+    }
+
+    if(normalizedKey){
+      student[normalizedKey] = value;
+    }
+
+    if(
+      requirement.requisitoKey &&
+      text(requirement.requisitoKey)
+    ){
+      student[
+        text(requirement.requisitoKey)
+      ] = value;
+    }
+
+    if(
+      requirement.requirementKey &&
+      text(requirement.requirementKey)
+    ){
+      student[
+        text(requirement.requirementKey)
+      ] = value;
+    }
+  }
+
+  function hydrateStudent(
+    row,
+    requirementsIndex
+  ){
+    row = row || {};
+
+    var student =
+      Object.assign({}, row);
+
+    var cedula =
+      cedulaOf(row);
+
+    var periodoId =
+      periodOf(row);
+
+    var rows =
+      cedula &&
+      requirementsIndex[cedula]
+        ? requirementsIndex[cedula]
+        : [];
+
+    var matched =
+      rows.filter(function(requirement){
+        return requirementMatchesStudent(
+          requirement,
+          periodoId
+        );
+      });
+
+    matched.forEach(function(requirement){
+      attachRequirementValue(
+        student,
+        requirement
+      );
+    });
+
+    student.requisitos =
+      matched.map(function(requirement){
+        return Object.assign(
+          {},
+          requirement
+        );
+      });
+
+    student._bdlRequirementsHydrated = true;
+    student._bdlRequirementsCount =
+      matched.length;
+
+    return student;
   }
 
   function students(options){
     var current = cache();
 
-    return U.filterStudents(
+    ensureMemo(current);
+
+    var filtered = U.filterStudents(
       current.students || [],
       options || {}
     );
+
+    var requirementsIndex =
+      buildRequirementsIndex(current);
+
+    return filtered.map(function(row){
+      return hydrateStudent(
+        row,
+        requirementsIndex
+      );
+    });
   }
 
   function requirements(options){
@@ -88,51 +433,30 @@ Con qué se conecta:
 
     var current = cache();
 
-    var periodoId = U.canonicalPeriodId(
+    var periodoId = canonicalPeriodId(
       options.periodoId ||
       options.periodId ||
       ""
     );
 
-    var cedula =
-      typeof U.normalizeCedula === "function"
-        ? U.normalizeCedula(
-          options.cedula ||
-          options.numeroIdentificacion ||
-          ""
-        )
-        : text(
-          options.cedula ||
-          options.numeroIdentificacion ||
-          ""
-        );
+    var cedula = normalizeCedula(
+      options.cedula ||
+      options.numeroIdentificacion ||
+      ""
+    );
 
     return (current.requirements || []).filter(function(row){
       row = row || {};
 
-      var rowPeriod = U.canonicalPeriodId(
-        row.periodoId ||
-        row.periodId ||
-        row.periodoCanonicoId ||
-        ""
-      );
+      var rowPeriod =
+        periodOf(row);
 
       var rowCedula =
-        typeof U.normalizeCedula === "function"
-          ? U.normalizeCedula(
-            row.cedula ||
-            row.numeroIdentificacion ||
-            ""
-          )
-          : text(
-            row.cedula ||
-            row.numeroIdentificacion ||
-            ""
-          );
+        cedulaOf(row);
 
       if(
         periodoId &&
-        !U.samePeriod(
+        !samePeriod(
           rowPeriod,
           periodoId
         )
@@ -152,11 +476,12 @@ Con qué se conecta:
   }
 
   function summary(periodoId){
-    periodoId = U.canonicalPeriodId(
+    periodoId = canonicalPeriodId(
       periodoId || ""
     );
 
     var current = cache();
+
     ensureMemo(current);
 
     var memoKey =
@@ -178,17 +503,23 @@ Con qué se conecta:
       }
     );
 
-    var requirementRows = requirements({
-      periodoId: periodoId
-    });
+    var requirementRows =
+      requirements({
+        periodoId: periodoId
+      });
 
     var activos = 0;
     var retirados = 0;
 
-    var careerMap = Object.create(null);
-    var divisionMap = Object.create(null);
+    var careerMap =
+      Object.create(null);
+
+    var divisionMap =
+      Object.create(null);
 
     rows.forEach(function(row){
+      row = row || {};
+
       var estado = text(
         row.estadoMatricula ||
         row._estadoMatricula ||
@@ -219,19 +550,17 @@ Con qué se conecta:
 
       if(carrera){
         var carreraKey =
-          typeof U.normalizeKey === "function"
-            ? U.normalizeKey(carrera)
-            : carrera.toLowerCase();
+          normalizeKey(carrera);
 
-        careerMap[carreraKey] = carrera;
+        careerMap[carreraKey] =
+          carrera;
       }
 
       var divisionKey =
-        typeof U.normalizeKey === "function"
-          ? U.normalizeKey(division)
-          : division.toLowerCase();
+        normalizeKey(division);
 
-      divisionMap[divisionKey] = division;
+      divisionMap[divisionKey] =
+        division;
     });
 
     var result = {
@@ -240,8 +569,10 @@ Con qué se conecta:
       totalActivos: activos,
       totalRetirados: retirados,
       totalRequisitos: requirementRows.length,
-      totalCarreras: Object.keys(careerMap).length,
-      totalDivisiones: Object.keys(divisionMap).length,
+      totalCarreras:
+        Object.keys(careerMap).length,
+      totalDivisiones:
+        Object.keys(divisionMap).length,
       source: "BDLocalConStats",
 
       cacheRevision: Number(
@@ -254,7 +585,9 @@ Con qué se conecta:
         new Date().toISOString()
     };
 
-    memo.summaries[memoKey] = result;
+    memo.summaries[memoKey] =
+      result;
+
     memo.calculations += 1;
 
     return Object.assign(
@@ -279,7 +612,9 @@ Con qué se conecta:
     if(explicitFull){
       request = Object.assign(
         {
-          source: "cone.stats.refresh.full",
+          source:
+            "cone.stats.refresh.full",
+
           mode: "full",
           full: true,
           immediate: true,
@@ -294,7 +629,9 @@ Con qué se conecta:
     }else{
       request = Object.assign(
         {
-          source: "cone.stats.refresh.light",
+          source:
+            "cone.stats.refresh.light",
+
           mode: "light",
           light: true,
           immediate: false
@@ -310,8 +647,7 @@ Con qué se conecta:
 
     return HUB.refreshCache(request)
       .then(function(result){
-        memo.token = "";
-        memo.summaries = Object.create(null);
+        resetMemo();
 
         return result;
       });
@@ -339,7 +675,7 @@ Con qué se conecta:
   }
 
   function stats(periodoId){
-    periodoId = U.canonicalPeriodId(
+    periodoId = canonicalPeriodId(
       periodoId || ""
     );
 
@@ -348,13 +684,15 @@ Con qué se conecta:
       matricula: ""
     });
 
-    var requirementRows = requirements({
-      periodoId: periodoId
-    });
+    var requirementRows =
+      requirements({
+        periodoId: periodoId
+      });
 
     return {
       periodoId: periodoId,
       estudiantes: studentRows,
+      rows: studentRows,
       requisitos: requirementRows,
       resumen: summary(periodoId),
       source: "BDLocalConStats"
@@ -363,7 +701,9 @@ Con qué se conecta:
 
   var api = {
     version: VERSION,
-    source: "BDLocal/conexiones/cone.stats.js",
+    source:
+      "BDLocal/conexiones/cone.stats.js",
+
     ready: HUB.ready,
 
     refresh: refresh,
@@ -385,6 +725,7 @@ Con qué se conecta:
       return {
         ok: true,
         rows: rows,
+        estudiantes: rows,
         total: rows.length,
         periodList: periods(),
         source: "BDLocalConStats"
@@ -406,6 +747,8 @@ Con qué se conecta:
     status: function(){
       var current = cache();
 
+      ensureMemo(current);
+
       return {
         ok: true,
         version: VERSION,
@@ -426,8 +769,18 @@ Con qué se conecta:
             ? current.requirements.length
             : 0,
 
+        indexedStudents:
+          Object.keys(
+            memo.requirementsByCedula
+          ).length,
+
+        requirementsIndexed:
+          memo.requirementsIndexed,
+
         cachedSummaries:
-          Object.keys(memo.summaries).length,
+          Object.keys(
+            memo.summaries
+          ).length,
 
         calculations:
           memo.calculations
@@ -443,26 +796,26 @@ Con qué se conecta:
   window.BDLocalStats = api;
   window.ConStats = api;
 
-  window.BDLLegacyAdapter = Object.assign(
-    {},
-    window.BDLLegacyAdapter || {},
-    {
-      version: VERSION,
-      source: "BDLocalConStats",
-      refresh: refresh,
-      refreshFull: refreshFull,
+  window.BDLLegacyAdapter =
+    Object.assign(
+      {},
+      window.BDLLegacyAdapter || {},
+      {
+        version: VERSION,
+        source: "BDLocalConStats",
+        refresh: refresh,
+        refreshFull: refreshFull,
 
-      getSnapshot: function(){
-        return cache();
+        getSnapshot: function(){
+          return cache();
+        }
       }
-    }
-  );
+    );
 
   window.addEventListener(
     "bdlocal:conexiones-cache-updated",
     function(){
-      memo.token = "";
-      memo.summaries = Object.create(null);
+      resetMemo();
     }
   );
 })(window);

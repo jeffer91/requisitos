@@ -3,10 +3,9 @@ Nombre completo: global.chart.js
 Ruta o ubicación: /Requisitos/Global/global.chart.js
 Función o funciones:
 - Renderizar gráficos de barras sin librerías externas.
-- Mostrar la cantidad de graduados por período académico.
+- Mostrar etiquetas completas, incluso en períodos académicos largos.
 - Generar SVG reutilizable en pantalla y en el PDF institucional.
-- Adaptar automáticamente el tamaño del gráfico al número de registros.
-- Mantener una API reutilizable para futuros gráficos del módulo Global.
+- Adaptar automáticamente orientación, márgenes y altura.
 Con qué se conecta:
 - global.app.js
 - global.pdf.js
@@ -15,12 +14,14 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.0.0";
+  var VERSION = "1.1.0-full-labels";
   var SVG_NS = "http://www.w3.org/2000/svg";
 
   function text(value){
     return String(
-      value == null ? "" : value
+      value == null
+        ? ""
+        : value
     ).trim();
   }
 
@@ -86,21 +87,25 @@ Con qué se conecta:
       item = item || {};
 
       return {
-        index: index,
+        index:
+          index,
 
-        label: text(
-          item[labelKey] != null
-            ? item[labelKey]
-            : item.label
-        ),
+        label:
+          text(
+            item[labelKey] != null
+              ? item[labelKey]
+              : item.label
+          ),
 
-        value: number(
-          item[valueKey] != null
-            ? item[valueKey]
-            : item.value
-        ),
+        value:
+          number(
+            item[valueKey] != null
+              ? item[valueKey]
+              : item.value
+          ),
 
-        raw: item
+        raw:
+          item
       };
     }).filter(function(item){
       return !!item.label;
@@ -210,6 +215,114 @@ Con qué se conecta:
     );
   }
 
+  function wrapWords(
+    value,
+    maxChars,
+    maxLines
+  ){
+    var words =
+      text(value)
+        .split(/\s+/)
+        .filter(Boolean);
+
+    maxChars = Math.max(
+      10,
+      Number(maxChars || 32)
+    );
+
+    maxLines = Math.max(
+      1,
+      Number(maxLines || 3)
+    );
+
+    var lines = [];
+    var current = "";
+
+    words.forEach(function(word){
+      var candidate =
+        current
+          ? current + " " + word
+          : word;
+
+      if(candidate.length <= maxChars){
+        current = candidate;
+      }else{
+        if(current){
+          lines.push(current);
+        }
+
+        current = word;
+      }
+    });
+
+    if(current){
+      lines.push(current);
+    }
+
+    if(lines.length > maxLines){
+      var retained =
+        lines.slice(
+          0,
+          maxLines
+        );
+
+      retained[maxLines - 1] =
+        retained[maxLines - 1] +
+        " " +
+        lines
+          .slice(maxLines)
+          .join(" ");
+
+      lines = retained;
+    }
+
+    return lines.length
+      ? lines
+      : [""];
+  }
+
+  function svgTextLines(
+    lines,
+    x,
+    y,
+    options
+  ){
+    options = options || {};
+
+    var anchor =
+      options.anchor ||
+      "start";
+
+    var className =
+      options.className ||
+      "global-chart-category";
+
+    var lineHeight =
+      Number(
+        options.lineHeight || 17
+      );
+
+    return ""
+      + '<text class="' + esc(className) + '"'
+      + ' x="' + x + '"'
+      + ' y="' + y + '"'
+      + ' text-anchor="' + esc(anchor) + '">'
+
+      + lines.map(function(line, index){
+        return ""
+          + '<tspan x="' + x + '"'
+          + ' dy="' + (
+            index === 0
+              ? 0
+              : lineHeight
+          ) + '">'
+          + esc(line)
+          + "</tspan>";
+      }).join("")
+
+      + "</text>";
+  }
+
   function emptySVG(options){
     options = options || {};
 
@@ -252,33 +365,65 @@ Con qué se conecta:
       + "</svg>";
   }
 
-  function buildVerticalBarSVG(data, options){
+  function buildVerticalBarSVG(
+    data,
+    options
+  ){
     options = options || {};
 
-    var rows = normalizeData(
-      data,
-      options
-    );
+    var rows =
+      normalizeData(
+        data,
+        options
+      );
 
     if(!rows.length){
       return emptySVG(options);
     }
 
+    var fullLabels =
+      options.fullLabels === true;
+
     var width = Math.max(
-      640,
+      720,
       Number(options.width || 980)
     );
 
+    var longest = Math.max.apply(
+      Math,
+      rows.map(function(row){
+        return row.label.length;
+      })
+    );
+
+    var bottomMargin =
+      fullLabels
+        ? clamp(
+          105 + longest * 2.2,
+          145,
+          230
+        )
+        : 110;
+
     var height = Math.max(
-      340,
-      Number(options.height || 430)
+      400,
+      Number(
+        options.height ||
+        (
+          430 +
+          (
+            bottomMargin -
+            110
+          )
+        )
+      )
     );
 
     var margin = {
-      top: 36,
+      top: 42,
       right: 30,
-      bottom: 110,
-      left: 70
+      bottom: bottomMargin,
+      left: 72
     };
 
     var plotWidth =
@@ -370,18 +515,21 @@ Con qué se conecta:
     rows.forEach(function(row, index){
       var x =
         margin.left +
-        (slotWidth * index) +
+        slotWidth * index +
         (
-          (slotWidth - barWidth) /
-          2
+          (
+            slotWidth -
+            barWidth
+          ) / 2
         );
 
-      var barHeight = maxValue
-        ? (
-          row.value /
-          maxValue
-        ) * plotHeight
-        : 0;
+      var barHeight =
+        maxValue
+          ? (
+            row.value /
+            maxValue
+          ) * plotHeight
+          : 0;
 
       var y =
         margin.top +
@@ -389,17 +537,21 @@ Con qué se conecta:
         barHeight;
 
       var center =
-        x + (barWidth / 2);
+        x +
+        barWidth / 2;
 
       var labelY =
         margin.top +
         plotHeight +
-        22;
+        28;
 
-      var label = shorten(
-        row.label,
-        options.maxLabelLength || 26
-      );
+      var label =
+        fullLabels
+          ? row.label
+          : shorten(
+            row.label,
+            options.maxLabelLength || 26
+          );
 
       parts.push(
         '<g class="global-chart-bar-group"'
@@ -461,46 +613,117 @@ Con qué se conecta:
     return parts.join("");
   }
 
-  function buildHorizontalBarSVG(data, options){
+  function buildHorizontalBarSVG(
+    data,
+    options
+  ){
     options = options || {};
 
-    var rows = normalizeData(
-      data,
-      options
-    );
+    var rows =
+      normalizeData(
+        data,
+        options
+      );
 
     if(!rows.length){
       return emptySVG(options);
     }
 
+    var fullLabels =
+      options.fullLabels === true;
+
     var width = Math.max(
-      680,
+      760,
       Number(options.width || 980)
     );
 
+    var longest = Math.max.apply(
+      Math,
+      rows.map(function(row){
+        return row.label.length;
+      })
+    );
+
+    var labelChars = clamp(
+      Number(options.labelChars || 34),
+      20,
+      50
+    );
+
+    var maxLines = clamp(
+      Number(options.maxLabelLines || 3),
+      1,
+      5
+    );
+
+    var leftMargin =
+      fullLabels
+        ? clamp(
+          230 +
+          Math.min(
+            longest,
+            70
+          ) * 2.2,
+          270,
+          390
+        )
+        : 250;
+
+    var wrapped =
+      rows.map(function(row){
+        return fullLabels
+          ? wrapWords(
+            row.label,
+            labelChars,
+            maxLines
+          )
+          : [
+            shorten(
+              row.label,
+              options.maxLabelLength || 38
+            )
+          ];
+      });
+
+    var maxLineCount = Math.max.apply(
+      Math,
+      wrapped.map(function(lines){
+        return lines.length;
+      })
+    );
+
     var rowHeight = clamp(
-      Number(options.rowHeight || 54),
-      42,
-      80
+      Number(
+        options.rowHeight ||
+        (
+          50 +
+          (
+            maxLineCount -
+            1
+          ) * 15
+        )
+      ),
+      48,
+      95
     );
 
     var height = Math.max(
-      300,
+      320,
       Number(
         options.height ||
         (
           rows.length *
           rowHeight +
-          100
+          110
         )
       )
     );
 
     var margin = {
-      top: 30,
-      right: 80,
-      bottom: 50,
-      left: 250
+      top: 34,
+      right: 90,
+      bottom: 52,
+      left: leftMargin
     };
 
     var plotWidth =
@@ -532,9 +755,9 @@ Con qué se conecta:
       plotHeight / rows.length;
 
     var barHeight = clamp(
-      slotHeight * 0.58,
+      slotHeight * 0.48,
       16,
-      34
+      32
     );
 
     var parts = [];
@@ -591,28 +814,41 @@ Con qué se conecta:
     rows.forEach(function(row, index){
       var y =
         margin.top +
-        (slotHeight * index) +
+        slotHeight * index +
         (
-          (slotHeight - barHeight) /
-          2
+          (
+            slotHeight -
+            barHeight
+          ) / 2
         );
 
-      var centerY =
+      var barWidth =
+        maxValue
+          ? (
+            row.value /
+            maxValue
+          ) * plotWidth
+          : 0;
+
+      var lineHeight = 16;
+      var labelLines = wrapped[index];
+
+      var labelBlockHeight =
+        (
+          labelLines.length -
+          1
+        ) * lineHeight;
+
+      var labelY =
         y +
-        (barHeight / 2) +
+        barHeight / 2 +
+        5 -
+        labelBlockHeight / 2;
+
+      var valueY =
+        y +
+        barHeight / 2 +
         5;
-
-      var barWidth = maxValue
-        ? (
-          row.value /
-          maxValue
-        ) * plotWidth
-        : 0;
-
-      var label = shorten(
-        row.label,
-        options.maxLabelLength || 38
-      );
 
       parts.push(
         '<g class="global-chart-bar-group"'
@@ -630,12 +866,18 @@ Con qué se conecta:
       );
 
       parts.push(
-        '<text class="global-chart-category"'
-        + ' x="' + (margin.left - 14) + '"'
-        + ' y="' + centerY + '"'
-        + ' text-anchor="end">'
-        + esc(label)
-        + "</text>"
+        svgTextLines(
+          labelLines,
+          margin.left - 14,
+          labelY,
+          {
+            anchor: "end",
+            className:
+              "global-chart-category",
+            lineHeight:
+              lineHeight
+          }
+        )
       );
 
       parts.push(
@@ -649,8 +891,12 @@ Con qué se conecta:
 
       parts.push(
         '<text class="global-chart-value"'
-        + ' x="' + (margin.left + barWidth + 12) + '"'
-        + ' y="' + centerY + '"'
+        + ' x="' + (
+          margin.left +
+          barWidth +
+          12
+        ) + '"'
+        + ' y="' + valueY + '"'
         + ' text-anchor="start">'
         + formatInteger(row.value)
         + "</text>"
@@ -675,9 +921,35 @@ Con qué se conecta:
   function buildBarSVG(data, options){
     options = options || {};
 
-    var orientation = text(
-      options.orientation
-    ).toLowerCase();
+    var orientation =
+      text(
+        options.orientation
+      ).toLowerCase();
+
+    if(orientation === "auto"){
+      var rows =
+        normalizeData(
+          data,
+          options
+        );
+
+      var longest =
+        rows.reduce(
+          function(max, row){
+            return Math.max(
+              max,
+              row.label.length
+            );
+          },
+          0
+        );
+
+      orientation =
+        rows.length >= 6 ||
+        longest >= 24
+          ? "horizontal"
+          : "vertical";
+    }
 
     if(orientation === "horizontal"){
       return buildHorizontalBarSVG(
@@ -695,18 +967,21 @@ Con qué se conecta:
   function buildCardHTML(data, options){
     options = options || {};
 
-    var title = text(
-      options.title || "Gráfico"
-    );
+    var title =
+      text(
+        options.title || "Gráfico"
+      );
 
-    var description = text(
-      options.description || ""
-    );
+    var description =
+      text(
+        options.description || ""
+      );
 
-    var svg = buildBarSVG(
-      data,
-      options
-    );
+    var svg =
+      buildBarSVG(
+        data,
+        options
+      );
 
     return ""
       + '<section class="global-chart-card"'
@@ -755,9 +1030,10 @@ Con qué se conecta:
       };
     }
 
-    var data = Array.isArray(options.data)
-      ? options.data
-      : [];
+    var data =
+      Array.isArray(options.data)
+        ? options.data
+        : [];
 
     mount.innerHTML =
       buildCardHTML(
@@ -774,10 +1050,11 @@ Con qué se conecta:
       ok: true,
       mount: mount,
 
-      rows: normalizeData(
-        data,
-        options
-      ).length,
+      rows:
+        normalizeData(
+          data,
+          options
+        ).length,
 
       svg:
         mount.querySelector("svg"),
@@ -790,13 +1067,15 @@ Con qué se conecta:
   function render(target, options){
     options = options || {};
 
-    var type = text(
-      options.type || "bar"
-    ).toLowerCase();
+    var type =
+      text(
+        options.type || "bar"
+      ).toLowerCase();
 
     if(type !== "bar"){
       return {
         ok: false,
+
         error:
           "Tipo de gráfico no compatible: " +
           type
@@ -872,6 +1151,12 @@ Con qué se conecta:
       niceMax:
         niceMax,
 
+      shorten:
+        shorten,
+
+      wrapWords:
+        wrapWords,
+
       esc:
         esc
     }
@@ -885,7 +1170,9 @@ Con qué se conecta:
           detail: {
             ok: true,
             version: VERSION,
-            at: new Date().toISOString()
+            at:
+              new Date()
+                .toISOString()
           }
         }
       )
