@@ -1,0 +1,437 @@
+--- a/Global/global.core.js
++++ b/Global/global.core.js
+@@ -12,11 +12,19 @@
+   "use strict";
+ 
+   var VERSION =
+-    "1.2.0-hydrated-global";
++    "1.3.0-period-availability";
+ 
+   var config =
+     window.GlobalConfig ||
+     {};
++
++  /*
++   * Después de finalizar un período académico se reservan
++   * dos meses completos para el proceso de titulación.
++   * El período se habilita desde el primer día del mes
++   * siguiente a esos dos meses completos.
++   */
++  var TITULATION_PROCESS_MONTHS = 2;
+ 
+   var state = {
+     ready:
+@@ -320,6 +328,221 @@
+           .contarUnicoPorPeriodo !==
+         false
+     };
++  }
++
++  function periodSourceText(period){
++    if(
++      period &&
++      typeof period === "object"
++    ){
++      return text(
++        period.periodoCanonicoLabel ||
++        period.periodoLabel ||
++        period.label ||
++        period.nombre ||
++        period.name ||
++        period.periodoCanonicoId ||
++        period.periodoId ||
++        period.periodId ||
++        period.id ||
++        period.value ||
++        period.key
++      );
++    }
++
++    return text(period);
++  }
++
++  function periodEnd(period){
++    var source =
++      norm(
++        periodSourceText(period)
++      );
++
++    if(!source){
++      return null;
++    }
++
++    var monthIndexes = {
++      enero: 0,
++      febrero: 1,
++      marzo: 2,
++      abril: 3,
++      mayo: 4,
++      junio: 5,
++      julio: 6,
++      agosto: 7,
++      septiembre: 8,
++      setiembre: 8,
++      octubre: 9,
++      noviembre: 10,
++      diciembre: 11
++    };
++
++    var candidates = [];
++    var match;
++    var words = /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+(?:de(?:l)?\s+)?((?:19|20)\d{2})\b/g;
++    var yearMonth = /\b((?:19|20)\d{2})[-\/.](0?[1-9]|1[0-2])\b/g;
++    var monthYear = /\b(0?[1-9]|1[0-2])[-\/.]((?:19|20)\d{2})\b/g;
++
++    while((match = words.exec(source))){
++      candidates.push({
++        index: match.index,
++        month: monthIndexes[match[1]],
++        year: Number(match[2])
++      });
++    }
++
++    while((match = yearMonth.exec(source))){
++      candidates.push({
++        index: match.index,
++        month: Number(match[2]) - 1,
++        year: Number(match[1])
++      });
++    }
++
++    while((match = monthYear.exec(source))){
++      candidates.push({
++        index: match.index,
++        month: Number(match[1]) - 1,
++        year: Number(match[2])
++      });
++    }
++
++    if(!candidates.length){
++      return null;
++    }
++
++    candidates.sort(function(a, b){
++      return a.index - b.index;
++    });
++
++    var result =
++      candidates[
++        candidates.length - 1
++      ];
++
++    if(
++      !Number.isFinite(result.year) ||
++      !Number.isFinite(result.month) ||
++      result.month < 0 ||
++      result.month > 11
++    ){
++      return null;
++    }
++
++    return {
++      year: result.year,
++      month: result.month,
++      source: periodSourceText(period)
++    };
++  }
++
++  function periodAvailabilityDate(period){
++    var end = periodEnd(period);
++
++    if(!end){
++      return null;
++    }
++
++    return new Date(
++      end.year,
++      end.month +
++        TITULATION_PROCESS_MONTHS +
++        1,
++      1
++    );
++  }
++
++  function validReferenceDate(value){
++    var date =
++      value instanceof Date
++        ? new Date(value.getTime())
++        : new Date();
++
++    if(
++      !Number.isFinite(
++        date.getTime()
++      )
++    ){
++      date = new Date();
++    }
++
++    return new Date(
++      date.getFullYear(),
++      date.getMonth(),
++      date.getDate()
++    );
++  }
++
++  function isPeriodAvailable(
++    period,
++    referenceDate
++  ){
++    var availableFrom =
++      periodAvailabilityDate(period);
++
++    /*
++     * Un texto que no puede interpretarse con seguridad
++     * se conserva visible para evitar pérdida silenciosa
++     * de información institucional.
++     */
++    if(!availableFrom){
++      return true;
++    }
++
++    return (
++      validReferenceDate(referenceDate)
++        .getTime() >=
++      availableFrom.getTime()
++    );
++  }
++
++  function comparePeriods(a, b){
++    var endA = periodEnd(a);
++    var endB = periodEnd(b);
++
++    if(endA && endB){
++      var valueA =
++        endA.year * 12 +
++        endA.month;
++
++      var valueB =
++        endB.year * 12 +
++        endB.month;
++
++      if(valueA !== valueB){
++        return valueA - valueB;
++      }
++    }else if(endA){
++      return -1;
++    }else if(endB){
++      return 1;
++    }
++
++    return periodSourceText(a)
++      .localeCompare(
++        periodSourceText(b),
++        "es",
++        {
++          sensitivity: "base"
++        }
++      );
++  }
++
++  function availablePeriodList(
++    periods,
++    referenceDate
++  ){
++    return array(periods)
++      .filter(function(period){
++        return isPeriodAvailable(
++          period,
++          referenceDate
++        );
++      })
++      .slice()
++      .sort(comparePeriods);
+   }
+ 
+   function normalizePeriod(period){
+@@ -696,6 +919,96 @@
+     }catch(error){}
+ 
+     return key(a) === key(b);
++  }
++
++  function rowPeriodIsAvailable(
++    row,
++    periods,
++    referenceDate
++  ){
++    row = row || {};
++
++    var rowId = text(
++      row._globalPeriodoId ||
++      rowPeriodId(row)
++    );
++
++    var rowLabel = text(
++      row._globalPeriodoLabel ||
++      rowPeriodLabel(row)
++    );
++
++    var matched = null;
++
++    array(periods).some(function(period){
++      var id = periodSourceText({
++        periodoLabel:
++          period.periodoLabel ||
++          period.label ||
++          period.nombre,
++
++        periodoId:
++          period.periodoId ||
++          period.id ||
++          period.value
++      });
++
++      var periodIdValue = text(
++        period.periodoId ||
++        period.id ||
++        period.value ||
++        period.key
++      );
++
++      var periodLabelValue = text(
++        period.periodoLabel ||
++        period.label ||
++        period.nombre ||
++        id
++      );
++
++      if(
++        (
++          rowId &&
++          (
++            samePeriod(
++              periodIdValue,
++              rowId
++            ) ||
++            samePeriod(
++              periodLabelValue,
++              rowId
++            )
++          )
++        ) ||
++        (
++          rowLabel &&
++          (
++            samePeriod(
++              periodIdValue,
++              rowLabel
++            ) ||
++            samePeriod(
++              periodLabelValue,
++              rowLabel
++            )
++          )
++        )
++      ){
++        matched = period;
++        return true;
++      }
++
++      return false;
++    });
++
++    return isPeriodAvailable(
++      matched || {
++        periodoId: rowId,
++        periodoLabel: rowLabel
++      },
++      referenceDate
++    );
+   }
+ 
+   function identityKey(row){
+@@ -2186,6 +2499,11 @@
+     var graduateSettings =
+       graduationConfig();
+ 
++    var visiblePeriods =
++      availablePeriodList(
++        snapshot.periods
++      );
++
+     return {
+       ok:
+         true,
+@@ -2295,7 +2613,7 @@
+       },
+ 
+       periods:
+-        snapshot.periods,
++        visiblePeriods,
+ 
+       careers:
+         snapshot.careers,
+@@ -2305,7 +2623,7 @@
+ 
+       catalogs: {
+         periods:
+-          snapshot.periods,
++          visiblePeriods,
+ 
+         careers:
+           snapshot.careers,
+@@ -2411,6 +2729,15 @@
+       snapshot.students
+         .filter(function(row){
+           if(
++            !rowPeriodIsAvailable(
++              row,
++              snapshot.periods
++            )
++          ){
++            return false;
++          }
++
++          if(
+             !insidePeriodRange(
+               row,
+               filters
+@@ -2508,6 +2835,12 @@
+       Object.create(null);
+ 
+     snapshot.students
++      .filter(function(row){
++        return rowPeriodIsAvailable(
++          row,
++          snapshot.periods
++        );
++      })
+       .forEach(function(row){
+         var division =
+           text(
+@@ -2524,8 +2857,9 @@
+ 
+     return {
+       periods:
+-        snapshot.periods
+-          .slice(),
++        availablePeriodList(
++          snapshot.periods
++        ),
+ 
+       careers:
+         snapshot.careers
+@@ -2713,7 +3047,22 @@
+         normalizeStudent,
+ 
+       hydrateStudents:
+-        hydrateStudents
++        hydrateStudents,
++
++      periodEnd:
++        periodEnd,
++
++      periodAvailabilityDate:
++        periodAvailabilityDate,
++
++      isPeriodAvailable:
++        isPeriodAvailable,
++
++      availablePeriodList:
++        availablePeriodList,
++
++      rowPeriodIsAvailable:
++        rowPeriodIsAvailable
+     }
+   };
+ 
