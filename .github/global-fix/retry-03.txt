@@ -1,1 +1,2 @@
 Tercera validación con inserción PDF por anclas reales.
+Forzar nueva ejecución del flujo de Global.
