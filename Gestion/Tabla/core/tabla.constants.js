@@ -1,24 +1,18 @@
 /* =========================================================
 Nombre completo: tabla.constants.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/core/tabla.constants.js
-Función o funciones:
-- Centralizar constantes, eventos, filtros y alias de campos de Tabla.
-- Evitar valores duplicados entre datos, interfaz, comunicación e historial.
-- Exponer una configuración inmutable mediante window.TablaConstants.
-Con qué se conecta:
-- Todos los módulos de la carpeta Tabla.
+Ruta: /Gestion/Tabla/core/tabla.constants.js
+Función:
+- Centralizar constantes, filtros, eventos y alias de Tabla.
+- Definir la política académica REGULAR/PVC igual que Ficha.
+- Separar requisitos aplicables de campos finales de aprobación.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "3.0.0-period-policy";
 
   function deepFreeze(value){
-    if(
-      !value ||
-      typeof value !== "object" ||
-      Object.isFrozen(value)
-    ){
+    if(!value || typeof value !== "object" || Object.isFrozen(value)){
       return value;
     }
 
@@ -26,12 +20,80 @@ Con qué se conecta:
       deepFreeze(value[key]);
     });
 
-    try{
-      Object.freeze(value);
-    }catch(error){}
-
+    try{ Object.freeze(value); }catch(error){}
     return value;
   }
+
+  function requirement(key, field, label, aliases, group){
+    return {
+      key: key,
+      field: field || key,
+      label: label || key,
+      aliases: Array.isArray(aliases) ? aliases.slice() : [key],
+      group: group || "requisito"
+    };
+  }
+
+  var BASE_REQUIREMENTS = [
+    requirement("academico", "academico", "Académico", [
+      "academico", "Académico", "Academico"
+    ]),
+    requirement("documentacion", "documentacion", "Documentación académica", [
+      "documentacion", "Documentación", "Documentacion",
+      "documentacionacademica", "documentacionAcademica"
+    ]),
+    requirement("financiero", "financiero", "Financiero", [
+      "financiero", "Financiero", "deuda", "pagos"
+    ]),
+    requirement("practicasvinculacion", "practicasVinculacion", "Prácticas preprofesionales", [
+      "practicasvinculacion", "practicasVinculacion",
+      "PrácticasVinculacion", "PracticasVinculacion",
+      "practicas", "practicaspreprofesionales"
+    ]),
+    requirement("vinculacion", "vinculacion", "Vinculación con la sociedad", [
+      "vinculacion", "Vinculación", "Vinculacion"
+    ]),
+    requirement("seguimientograduados", "seguimientoGraduados", "Seguimiento a graduados", [
+      "seguimientograduados", "seguimientoGraduados",
+      "SeguimientoGraduados", "graduados"
+    ]),
+    requirement("ingles", "ingles", "Segunda lengua / Inglés", [
+      "ingles", "Inglés", "Ingles", "segundaLengua"
+    ]),
+    requirement("actualizaciondatos", "actualizacionDatos", "Actualización de datos", [
+      "actualizaciondatos", "actualizacionDatos",
+      "ActualizaciónDatos", "ActualizacionDatos", "datos"
+    ])
+  ];
+
+  var REGULAR_REQUIREMENTS = [
+    requirement("titulacion", "titulacion", "Titulación", [
+      "titulacion", "Titulación", "Titulacion"
+    ], "regular")
+  ];
+
+  var FINAL_REQUIREMENTS = [
+    requirement(
+      "aprobaciontitulacion",
+      "aprobacionTitulacion",
+      "Aprobación de titulación",
+      [
+        "aprobaciontitulacion", "aprobacionTitulacion",
+        "AprobacionTitulacion", "AprobaciónTitulación"
+      ],
+      "final"
+    ),
+    requirement(
+      "aprobacioncomplexivoproyecto",
+      "aprobacionComplexivoProyecto",
+      "Aprobación de complexivo/proyecto",
+      [
+        "aprobacioncomplexivoproyecto", "aprobacionComplexivoProyecto",
+        "AprobacionComplexivoProyecto", "AprobaciónComplexivoProyecto"
+      ],
+      "final"
+    )
+  ];
 
   var constants = {
     version: VERSION,
@@ -52,58 +114,29 @@ Con qué se conecta:
     },
 
     storage: {
-      centralCache:
-        "REQ_BDLOCAL_CONEXIONES_CACHE_V1",
-
-      legacySnapshot:
-        "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1",
-
-      oldSnapshot:
-        "REQ_EXCEL_LOCAL_V1:snapshot",
-
-      history:
-        "tabla.telegram.historial.v1",
-
-      selection:
-        "tabla.telegram.selection.v1"
+      centralCache: "REQ_BDLOCAL_CONEXIONES_CACHE_V1",
+      legacySnapshot: "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1",
+      oldSnapshot: "REQ_EXCEL_LOCAL_V1:snapshot",
+      history: "tabla.telegram.historial.v1",
+      selection: "tabla.telegram.selection.v1"
     },
 
     events: {
-      ready:
-        "tabla:ready",
-
-      dataUpdated:
-        "tabla:data-updated",
-
-      filtersChanged:
-        "tabla:filters-changed",
-
-      pageChanged:
-        "tabla:page-changed",
-
-      stateChanged:
-        "tabla:state-changed",
-
-      renderRequested:
-        "tabla:render-requested",
-
-      rendered:
-        "tabla:rendered",
-
-      historyUpdated:
-        "tabla:history-updated",
-
-      selectionUpdated:
-        "tabla:selection-updated",
-
-      statusChanged:
-        "tabla:status-changed",
-
-      error:
-        "tabla:error"
+      ready: "tabla:ready",
+      dataUpdated: "tabla:data-updated",
+      filtersChanged: "tabla:filters-changed",
+      pageChanged: "tabla:page-changed",
+      stateChanged: "tabla:state-changed",
+      renderRequested: "tabla:render-requested",
+      rendered: "tabla:rendered",
+      historyUpdated: "tabla:history-updated",
+      selectionUpdated: "tabla:selection-updated",
+      statusChanged: "tabla:status-changed",
+      error: "tabla:error"
     },
 
     baseEvents: [
+      "bdlocal:data-updated",
       "bdlocal:conexiones-cache-updated",
       "bdlocal:screen-data-updated",
       "bdlocal:screen-deps-ready",
@@ -113,13 +146,8 @@ Con qué se conecta:
     ],
 
     sources: [
-      "ConTabla",
-      "BDLocalTabla",
-      "BDLocalConexiones",
-      "BDLocalScreenDeps",
-      "BL2DataEngine",
-      "BL2EstudiantesRepo",
-      "ExcelLocalRepo"
+      "BDLocalConnectionClient",
+      "ConTabla"
     ],
 
     matricula: {
@@ -131,14 +159,38 @@ Con qué se conecta:
     generalStatus: {
       ok: "cumple",
       pending: "pendiente",
-      failed: "no_cumple"
+      failed: "no_cumple",
+      noData: "sin_dato"
     },
 
     requirementStatus: {
       ok: "cumple",
       pending: "pendiente",
-      failed: "no_cumple"
+      failed: "no_cumple",
+      notApplicable: "no_aplica",
+      noData: "sin_dato"
     },
+
+    periodTypes: {
+      regular: "REGULAR",
+      pvc: "PVC"
+    },
+
+    periodPolicy: {
+      regularPatterns: [
+        ["octubre", "marzo"],
+        ["abril", "septiembre"]
+      ],
+      baseKeys: BASE_REQUIREMENTS.map(function(item){ return item.key; }),
+      regularOnlyKeys: REGULAR_REQUIREMENTS.map(function(item){ return item.key; }),
+      finalKeys: FINAL_REQUIREMENTS.map(function(item){ return item.key; })
+    },
+
+    baseRequirements: BASE_REQUIREMENTS,
+    regularOnlyRequirements: REGULAR_REQUIREMENTS,
+    finalRequirements: FINAL_REQUIREMENTS,
+
+    requirements: BASE_REQUIREMENTS.concat(REGULAR_REQUIREMENTS),
 
     defaultState: {
       periodId: "",
@@ -166,294 +218,105 @@ Con qué se conecta:
     },
 
     messageTypes: [
-      {
-        value: "requisitos",
-        label: "Falta req."
-      },
-      {
-        value: "urgente",
-        label: "Urgente"
-      },
-      {
-        value: "ultimo",
-        label: "Último aviso"
-      },
-      {
-        value: "regularizar",
-        label: "Regularizar"
-      },
-      {
-        value: "nota_articulo",
-        label: "Falta N-Art"
-      },
-      {
-        value: "nota_defensa",
-        label: "Falta N-Def"
-      },
-      {
-        value: "sin_articulo",
-        label: "Sin artículo"
-      },
-      {
-        value: "no_aprueba",
-        label: "No aprueba"
-      },
-      {
-        value: "perdio",
-        label: "Perdió"
-      },
-      {
-        value: "alerta",
-        label: "Alerta"
-      },
-      {
-        value: "cronograma",
-        label: "Cronograma"
-      },
-      {
-        value: "libre",
-        label: "Personal"
-      }
-    ],
-
-    requirements: [
-      {
-        key: "academico",
-        field: "academico",
-        label: "Académico",
-        aliases: [
-          "academico",
-          "Académico",
-          "Academico"
-        ]
-      },
-      {
-        key: "documentacion",
-        field: "documentacion",
-        label: "Documentación académica",
-        aliases: [
-          "documentacion",
-          "Documentación",
-          "Documentacion",
-          "documentacionacademica"
-        ]
-      },
-      {
-        key: "financiero",
-        field: "financiero",
-        label: "Financiero",
-        aliases: [
-          "financiero",
-          "Financiero",
-          "deuda",
-          "pagos"
-        ]
-      },
-      {
-        key: "titulacion",
-        field: "titulacion",
-        label: "Titulación",
-        aliases: [
-          "titulacion",
-          "Titulación",
-          "Titulacion",
-          "aprobacionTitulacion"
-        ]
-      },
-      {
-        key: "practicasvinculacion",
-        field: "practicasVinculacion",
-        label: "Prácticas preprofesionales",
-        aliases: [
-          "practicasvinculacion",
-          "practicasVinculacion",
-          "PrácticasVinculacion",
-          "PracticasVinculacion",
-          "practicas",
-          "practicaspreprofesionales"
-        ]
-      },
-      {
-        key: "vinculacion",
-        field: "vinculacion",
-        label: "Vinculación con la sociedad",
-        aliases: [
-          "vinculacion",
-          "Vinculación",
-          "Vinculacion"
-        ]
-      },
-      {
-        key: "seguimientograduados",
-        field: "seguimientoGraduados",
-        label: "Seguimiento a graduados",
-        aliases: [
-          "seguimientograduados",
-          "seguimientoGraduados",
-          "SeguimientoGraduados",
-          "graduados"
-        ]
-      },
-      {
-        key: "ingles",
-        field: "ingles",
-        label: "Segunda lengua / Inglés",
-        aliases: [
-          "ingles",
-          "Inglés",
-          "Ingles",
-          "segundaLengua"
-        ]
-      },
-      {
-        key: "actualizaciondatos",
-        field: "actualizacionDatos",
-        label: "Actualización de datos",
-        aliases: [
-          "actualizaciondatos",
-          "actualizacionDatos",
-          "ActualizaciónDatos",
-          "ActualizacionDatos",
-          "datos"
-        ]
-      }
+      {value: "requisitos", label: "Falta req."},
+      {value: "urgente", label: "Urgente"},
+      {value: "ultimo", label: "Último aviso"},
+      {value: "regularizar", label: "Regularizar"},
+      {value: "nota_articulo", label: "Falta N-Art"},
+      {value: "nota_defensa", label: "Falta N-Def"},
+      {value: "sin_articulo", label: "Sin artículo"},
+      {value: "no_aprueba", label: "No aprueba"},
+      {value: "perdio", label: "Perdió"},
+      {value: "alerta", label: "Alerta"},
+      {value: "cronograma", label: "Cronograma"},
+      {value: "libre", label: "Personal"}
     ],
 
     aliases: {
       id: [
-        "id",
-        "_id",
-        "studentId",
-        "estudianteId",
-        "personaId",
-        "_bl2Id"
+        "id", "_id", "studentId", "estudianteId", "personaId",
+        "_bl2Id", "idEstudiantePeriodo"
       ],
 
       cedula: [
-        "_cedula",
-        "cedula",
-        "Cédula",
-        "Cedula",
-        "numeroIdentificacion",
-        "NumeroIdentificacion",
-        "numeroidentificacion",
-        "identificacion",
-        "Identificacion"
+        "_cedula", "cedula", "Cédula", "Cedula",
+        "numeroIdentificacion", "NumeroIdentificacion",
+        "numeroidentificacion", "identificacion", "Identificacion"
       ],
 
       names: [
-        "_nombres",
-        "Nombres",
-        "nombres",
-        "nombre",
-        "Nombre",
-        "estudiante"
+        "_nombres", "Nombres", "nombres", "nombreCompleto",
+        "nombre", "Nombre", "estudiante", "apellidosNombres"
       ],
 
       career: [
-        "_carrera",
-        "NombreCarrera",
-        "nombreCarrera",
-        "nombrecarrera",
-        "Carrera",
-        "carrera"
+        "_carrera", "NombreCarrera", "nombreCarrera",
+        "nombrecarrera", "Carrera", "carrera"
       ],
 
       careerCode: [
-        "CodigoCarrera",
-        "codigoCarrera",
-        "codigocarrera",
-        "codigo",
-        "codCarrera"
+        "_codigoCarrera", "CodigoCarrera", "codigoCarrera",
+        "codigocarrera", "codigo", "codCarrera"
       ],
 
       periodId: [
-        "_periodoId",
-        "periodoCanonicoId",
-        "periodoId",
-        "periodId",
-        "ultimoPeriodoId",
-        "idPeriodo",
-        "_bl2PeriodoId"
+        "_periodoId", "periodoCanonicoId", "periodoId",
+        "periodId", "ultimoPeriodoId", "idPeriodo", "_bl2PeriodoId"
       ],
 
       periodLabel: [
-        "_periodo",
-        "periodoCanonicoLabel",
-        "periodoLabel",
-        "periodLabel",
-        "periodo",
-        "Periodo",
-        "_bl2Periodo"
+        "_periodo", "_periodoNormalizado", "periodoCanonicoLabel",
+        "periodoLabel", "periodLabel", "periodo", "Periodo", "_bl2Periodo"
       ],
 
       division: [
-        "_division",
-        "_bl2Division",
-        "division",
-        "Division",
-        "División",
-        "divisionActual"
+        "_division", "_bl2Division", "division",
+        "Division", "División", "divisionActual"
       ],
 
       matricula: [
-        "matricula",
-        "Matricula",
-        "Matrícula",
-        "estadoMatricula",
-        "EstadoMatricula",
-        "estado_matricula",
-        "statusMatricula"
+        "_matricula", "_estadoMatricula", "matricula",
+        "Matricula", "Matrícula", "estadoMatricula",
+        "EstadoMatricula", "estado_matricula", "statusMatricula"
       ],
 
       email: [
-        "_correo",
-        "CorreoPersonal",
-        "correoPersonal",
-        "CorreoInstitucional",
-        "correoInstitucional",
-        "correo",
-        "email",
-        "Email"
+        "_correo", "_correoPersonal", "_correoInstitucional",
+        "CorreoPersonal", "correoPersonal",
+        "CorreoInstitucional", "correoInstitucional",
+        "correo", "email", "Email"
+      ],
+
+      personalEmail: [
+        "_correoPersonal", "CorreoPersonal", "correoPersonal",
+        "correopersonal", "correo", "email", "Email"
+      ],
+
+      institutionalEmail: [
+        "_correoInstitucional", "CorreoInstitucional",
+        "correoInstitucional", "correoinstitucional",
+        "emailInstitucional", "EmailInstitucional"
       ],
 
       phone: [
-        "_celular",
-        "Celular",
-        "celular",
-        "telefono",
-        "Teléfono",
-        "whatsapp",
-        "movil"
+        "_celular", "Celular", "celular", "telefono",
+        "Teléfono", "Telefono", "whatsapp", "WhatsApp",
+        "movil", "numeroCelular"
       ],
 
       telegramUser: [
-        "_telegramUser",
-        "telegramUser",
-        "TelegramUser",
-        "telegramuser",
-        "usuarioTelegram",
-        "UsuarioTelegram",
-        "usuariotelegram",
-        "telegram",
-        "Telegram"
+        "_telegramUser", "telegramUser", "TelegramUser",
+        "telegramuser", "usuarioTelegram", "UsuarioTelegram",
+        "usuariotelegram", "telegram", "Telegram"
       ],
 
       telegramChatId: [
-        "_telegramChatId",
-        "telegramChatId",
-        "TelegramChatId",
-        "telegramchatid",
-        "chatIdTelegram",
-        "ChatIdTelegram",
-        "chatidtelegram",
-        "chatId",
-        "ChatId",
-        "chatid"
+        "_telegramChatId", "telegramChatId", "TelegramChatId",
+        "telegramchatid", "chatIdTelegram", "ChatIdTelegram",
+        "chatidtelegram", "chatId", "ChatId", "chatid"
       ]
     }
   };
 
-  window.TablaConstants =
-    deepFreeze(constants);
+  window.TablaConstants = deepFreeze(constants);
 })(window);
