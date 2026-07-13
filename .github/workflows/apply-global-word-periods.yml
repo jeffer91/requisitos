@@ -1,0 +1,74 @@
+name: Apply Global Word and period rules
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/global-fix/**"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-global-fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply corrected Global files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -d .github/global-fix ]; then
+            echo "Los recursos temporales ya fueron retirados."
+            exit 0
+          fi
+
+          git apply --whitespace=nowarn .github/global-fix/global.core.js.patch
+          git apply --whitespace=nowarn .github/global-fix/global.pdf.js.patch
+          git apply --whitespace=nowarn .github/global-fix/global.app.js.patch
+
+          cat .github/global-fix/global.word.js.b64.part-* \
+            | tr -d '\n\r' \
+            | base64 --decode \
+            > Global/global.word.js
+
+          node --check Global/global.core.js
+          node --check Global/global.pdf.js
+          node --check Global/global.app.js
+          node --check Global/global.word.js
+
+          grep -q 'function isPeriodAvailable' Global/global.core.js
+          grep -q 'function availablePeriodList' Global/global.core.js
+          grep -q 'Mpde. Martha Tomalá' Global/global.pdf.js
+          grep -q 'Mgt. Jefferson Villarreal' Global/global.pdf.js
+          grep -q 'window.GlobalWord' Global/global.word.js
+          grep -q '".docx"' Global/global.word.js
+          grep -q 'function generateWord' Global/global.app.js
+
+          rm -rf .github/global-fix
+
+      - name: Commit corrected Global files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Global/global.core.js Global/global.pdf.js Global/global.app.js Global/global.word.js .github/global-fix
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios pendientes en Global."
+            exit 0
+          fi
+
+          git commit -m "Implementa Word y periodos inteligentes en Global"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
