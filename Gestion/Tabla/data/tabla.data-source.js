@@ -1,1053 +1,363 @@
 /* =========================================================
 Nombre completo: tabla.data-source.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/data/tabla.data-source.js
-Función o funciones:
-- Ser la única puerta de entrada de Tabla hacia BDLocal.
-- Leer períodos, estudiantes y requisitos desde el conector oficial.
-- Unir los requisitos por cédula y período antes de normalizar estudiantes.
-- Mantener compatibilidad con conectores y adaptadores antiguos.
+Ruta: /Gestion/Tabla/data/tabla.data-source.js
+Función:
+- Ser la única puerta de entrada de Tabla hacia Base Local.
+- Cargar BDLocalConnectionClient para la pantalla tabla.
+- Leer períodos, estudiantes y requisitos desde un solo envelope.
+- Mantener las interfaces usadas por tabla.app.js y tabla.data-guard.js.
 ========================================================= */
-(function(window){
+(function(window, document){
   "use strict";
 
-  var VERSION =
-    "2.1.0-requirements-envelope";
+  var VERSION = "3.0.0-official-client";
+  var SCREEN = "tabla";
+  var SOURCE = "ConTabla";
+  var U = window.TablaUtils || {};
+  var N = window.TablaDataNormalizer || {};
 
-  var C =
-    window.TablaConstants ||
-    {};
-
-  var U =
-    window.TablaUtils ||
-    {};
-
-  var N =
-    window.TablaDataNormalizer ||
-    {};
-
-  var memo = {
-    connector:
-      null,
-
-    connectorName:
-      "",
-
-    envelope:
-      null,
-
-    token:
-      "",
-
-    reads:
-      0,
-
-    refreshes:
-      0,
-
-    failures:
-      0,
-
-    updatedAt:
-      ""
+  var state = {
+    clientPromise: null,
+    envelopePromise: null,
+    envelope: null,
+    reads: 0,
+    refreshes: 0,
+    failures: 0,
+    lastError: "",
+    updatedAt: "",
+    revision: 0
   };
 
   function text(value){
-    return U.text
-      ? U.text(value)
-      : String(
-          value == null
-            ? ""
-            : value
-        ).trim();
+    return U.text ? U.text(value) : String(value == null ? "" : value).trim();
   }
 
-  function safeParse(
-    value,
-    fallback
-  ){
-    if(U.safeParse){
-      return U.safeParse(
-        value,
-        fallback
-      );
-    }
-
-    try{
-      return JSON.parse(value);
-    }catch(error){
-      return fallback;
-    }
+  function object(value){
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
   }
 
-  function storageValue(key){
-    try{
-      return window.localStorage
-        .getItem(key) || "";
-    }catch(error){
-      return "";
-    }
+  function array(value){
+    return Array.isArray(value) ? value : [];
   }
 
-  function isFallback(api){
-    return !!(
-      api &&
-      (
-        api.__tablaFallback === true ||
-        text(api.source) ===
-          "TablaDataGuardFallback"
-      )
-    );
+  function now(){
+    return U.nowIso ? U.nowIso() : new Date().toISOString();
   }
 
-  function candidates(){
-    var list = [];
+  function waitFor(test, label, timeout){
+    timeout = Math.max(500, Number(timeout || 15000));
+    var started = Date.now();
 
-    function add(name, api){
-      if(
-        !api ||
-        typeof api !== "object" ||
-        isFallback(api)
-      ){
-        return;
-      }
-
-      if(
-        list.some(function(item){
-          return item.api === api;
-        })
-      ){
-        return;
-      }
-
-      list.push({
-        name:
-          name,
-
-        api:
-          api
-      });
-    }
-
-    add(
-      "ConTabla",
-      window.ConTabla
-    );
-
-    add(
-      "BDLocalTabla",
-      window.BDLocalTabla
-    );
-
-    try{
-      if(
-        window.BDLocalConexiones &&
-        typeof window
-          .BDLocalConexiones
-          .get === "function"
-      ){
-        add(
-          "BDLocalConexiones.get(tabla)",
-          window.BDLocalConexiones
-            .get("tabla")
-        );
-      }
-    }catch(error){}
-
-    add(
-      "BDLocalScreenDeps",
-      window.BDLocalScreenDeps
-    );
-
-    add(
-      "BL2DataEngine",
-      window.BL2DataEngine
-    );
-
-    add(
-      "BL2EstudiantesRepo",
-      window.BL2EstudiantesRepo
-    );
-
-    add(
-      "ExcelLocalRepo",
-      window.ExcelLocalRepo
-    );
-
-    return list;
-  }
-
-  function connector(force){
-    if(
-      !force &&
-      memo.connector &&
-      !isFallback(
-        memo.connector
-      )
-    ){
-      return memo.connector;
-    }
-
-    var selected =
-      candidates()[0] ||
-      null;
-
-    memo.connector =
-      selected
-        ? selected.api
-        : null;
-
-    memo.connectorName =
-      selected
-        ? selected.name
-        : "";
-
-    return memo.connector;
-  }
-
-  function method(api, names){
-    api = api || {};
-
-    names =
-      Array.isArray(names)
-        ? names
-        : [names];
-
-    for(
-      var i = 0;
-      i < names.length;
-      i += 1
-    ){
-      if(
-        typeof api[names[i]] ===
-        "function"
-      ){
-        return {
-          name:
-            names[i],
-
-          fn:
-            api[names[i]]
-        };
-      }
-    }
-
-    return null;
-  }
-
-  function invoke(
-    api,
-    names,
-    args
-  ){
-    var found =
-      method(api, names);
-
-    return found
-      ? found.fn.apply(
-          api,
-          Array.isArray(args)
-            ? args
-            : []
-        )
-      : undefined;
-  }
-
-  function unwrapRows(result){
-    if(Array.isArray(result)){
-      return result;
-    }
-
-    if(
-      result &&
-      Array.isArray(result.rows)
-    ){
-      return result.rows;
-    }
-
-    if(
-      result &&
-      Array.isArray(
-        result.students
-      )
-    ){
-      return result.students;
-    }
-
-    if(
-      result &&
-      result.data &&
-      Array.isArray(
-        result.data.rows
-      )
-    ){
-      return result.data.rows;
-    }
-
-    if(
-      result &&
-      result.data &&
-      Array.isArray(
-        result.data.students
-      )
-    ){
-      return result.data.students;
-    }
-
-    return [];
-  }
-
-  function unwrapPeriods(result){
-    if(Array.isArray(result)){
-      return result;
-    }
-
-    if(
-      result &&
-      Array.isArray(
-        result.periods
-      )
-    ){
-      return result.periods;
-    }
-
-    if(
-      result &&
-      Array.isArray(
-        result.periodList
-      )
-    ){
-      return result.periodList;
-    }
-
-    if(
-      result &&
-      Array.isArray(result.rows)
-    ){
-      return result.rows;
-    }
-
-    return [];
-  }
-
-  function unwrapRequirements(
-    result
-  ){
-    if(
-      result &&
-      Array.isArray(
-        result.requirements
-      )
-    ){
-      return result.requirements;
-    }
-
-    if(
-      result &&
-      Array.isArray(
-        result.requisitos
-      )
-    ){
-      return result.requisitos;
-    }
-
-    if(
-      result &&
-      result.data &&
-      Array.isArray(
-        result.data.requirements
-      )
-    ){
-      return result.data.requirements;
-    }
-
-    if(
-      result &&
-      result.data &&
-      Array.isArray(
-        result.data.requisitos
-      )
-    ){
-      return result.data.requisitos;
-    }
-
-    return [];
-  }
-
-  function normalizeEnvelope(raw){
-    if(N.normalizeEnvelope){
-      return N.normalizeEnvelope(
-        raw || {}
-      );
-    }
-
-    raw =
-      raw &&
-      typeof raw === "object"
-        ? raw
-        : {};
-
-    return {
-      meta:
-        raw.meta || {},
-
-      periods:
-        Array.isArray(raw.periods)
-          ? raw.periods
-          : [],
-
-      students:
-        Array.isArray(raw.students)
-          ? raw.students
-          : [],
-
-      requirements:
-        Array.isArray(
-          raw.requirements
-        )
-          ? raw.requirements
-          : [],
-
-      summaries:
-        raw.summaries || {},
-
-      diagnostics:
-        Array.isArray(
-          raw.diagnostics
-        )
-          ? raw.diagnostics
-          : []
-    };
-  }
-
-  function localEnvelope(){
-    var raw = null;
-
-    try{
-      if(
-        window.BDLocalConUtils &&
-        typeof window
-          .BDLocalConUtils
-          .readCache === "function"
-      ){
-        raw =
-          window.BDLocalConUtils
-            .readCache();
-      }
-    }catch(error){}
-
-    if(!raw){
-      try{
-        if(
-          window.BDLocalScreenDeps &&
-          typeof window
-            .BDLocalScreenDeps
-            .readCache === "function"
-        ){
-          raw =
-            window.BDLocalScreenDeps
-              .readCache();
+    return new Promise(function(resolve, reject){
+      function check(){
+        var value = null;
+        try{ value = test(); }catch(error){ value = null; }
+        if(value){ resolve(value); return; }
+        if(Date.now() - started >= timeout){
+          reject(new Error("No se pudo preparar " + label + "."));
+          return;
         }
-      }catch(error){}
-    }
-
-    if(!raw){
-      var storage =
-        C.storage || {};
-
-      raw =
-        safeParse(
-          storageValue(
-            storage.centralCache ||
-            "REQ_BDLOCAL_CONEXIONES_CACHE_V1"
-          ),
-          null
-        ) ||
-        safeParse(
-          storageValue(
-            storage.oldSnapshot ||
-            "REQ_EXCEL_LOCAL_V1:snapshot"
-          ),
-          null
-        ) ||
-        {};
-    }
-
-    return normalizeEnvelope(raw);
+        window.setTimeout(check, 40);
+      }
+      check();
+    });
   }
 
-  function envelopeToken(
-    envelope
-  ){
-    envelope = envelope || {};
-
-    var meta =
-      envelope.meta || {};
-
-    return [
-      text(meta.revision),
-      text(meta.updatedAt),
-      text(meta.source),
-
-      Array.isArray(
-        envelope.periods
-      )
-        ? envelope.periods.length
-        : 0,
-
-      Array.isArray(
-        envelope.students
-      )
-        ? envelope.students.length
-        : 0,
-
-      Array.isArray(
-        envelope.requirements
-      )
-        ? envelope.requirements.length
-        : 0
-    ].join("|");
-  }
-
-  function readEnvelope(options){
-    options = options || {};
-
-    var fresh =
-      localEnvelope();
-
-    var token =
-      envelopeToken(fresh);
-
-    memo.reads += 1;
-
-    if(
-      !options.force &&
-      memo.envelope &&
-      token === memo.token
-    ){
-      return memo.envelope;
-    }
-
-    memo.envelope =
-      fresh;
-
-    memo.token =
-      token;
-
-    memo.updatedAt =
-      U.nowIso
-        ? U.nowIso()
-        : new Date()
-            .toISOString();
-
-    return memo.envelope;
-  }
-
-  function normalizePeriodList(
-    rows
-  ){
-    return (
-      Array.isArray(rows)
-        ? rows
-        : []
-    )
-      .map(function(item){
-        return N.normalizePeriod
-          ? N.normalizePeriod(item)
-          : item;
-      })
-      .filter(Boolean);
-  }
-
-  function readPeriods(options){
-    options = options || {};
-
-    var api =
-      connector(
-        options.forceConnector ===
-        true
-      );
-
-    var result;
-
+  function clientScriptUrl(){
     try{
-      result =
-        invoke(
-          api,
-          [
-            "listPeriods",
-            "getPeriods",
-            "periods",
-            "periodos"
-          ],
-          []
-        );
+      return new URL("../../BDLocal/conexiones/cone.client.js", document.baseURI).href;
     }catch(error){
-      memo.failures += 1;
-      result = null;
+      return "../../BDLocal/conexiones/cone.client.js";
     }
-
-    if(
-      result &&
-      typeof result.then ===
-        "function"
-    ){
-      return result
-        .then(function(value){
-          var periods =
-            unwrapPeriods(value);
-
-          return normalizePeriodList(
-            periods.length
-              ? periods
-              : readEnvelope(
-                  options
-                ).periods
-          );
-        })
-        .catch(function(){
-          memo.failures += 1;
-
-          return normalizePeriodList(
-            readEnvelope(
-              options
-            ).periods
-          );
-        });
-    }
-
-    var periods =
-      unwrapPeriods(result);
-
-    return normalizePeriodList(
-      periods.length
-        ? periods
-        : readEnvelope(
-            options
-          ).periods
-    );
   }
 
-  function normalizeStudentsWithRequirements(
-    rows,
-    options,
-    sourceResult
-  ){
-    rows =
-      Array.isArray(rows)
-        ? rows
-        : [];
+  function existingClientScript(url){
+    return Array.prototype.slice.call(document.scripts || []).some(function(script){
+      try{ return new URL(script.src, document.baseURI).href === url; }
+      catch(error){ return script.src === url; }
+    });
+  }
 
-    options = options || {};
+  function loadClient(){
+    if(window.BDLocalConnectionClient){
+      return Promise.resolve(window.BDLocalConnectionClient);
+    }
+    if(state.clientPromise){ return state.clientPromise; }
 
-    var envelope =
-      readEnvelope(options);
+    var url = clientScriptUrl();
+    if(existingClientScript(url)){
+      state.clientPromise = waitFor(function(){
+        return window.BDLocalConnectionClient;
+      }, "BDLocalConnectionClient", 15000);
+      return state.clientPromise;
+    }
 
-    var requirements =
-      unwrapRequirements(
-        sourceResult
+    state.clientPromise = new Promise(function(resolve, reject){
+      var script = document.createElement("script");
+      script.src = url;
+      script.async = false;
+      script.defer = false;
+      script.setAttribute("data-bdl-screen", SCREEN);
+      script.setAttribute("data-tabla-owned-client", "true");
+      script.onload = function(){
+        waitFor(function(){
+          return window.BDLocalConnectionClient;
+        }, "BDLocalConnectionClient", 15000).then(resolve, reject);
+      };
+      script.onerror = function(){
+        reject(new Error("No se pudo cargar el cliente oficial de Base Local."));
+      };
+      (document.head || document.documentElement).appendChild(script);
+    }).catch(function(error){
+      state.clientPromise = null;
+      throw error;
+    });
+
+    return state.clientPromise;
+  }
+
+  function normalizeResponse(response){
+    response = object(response);
+    if(response.ok === false){
+      throw new Error(
+        text(response.error && response.error.message || response.message) ||
+        "Base Local rechazó la lectura de Tabla."
       );
-
-    if(!requirements.length){
-      requirements =
-        Array.isArray(
-          envelope.requirements
-        )
-          ? envelope.requirements
-          : [];
     }
 
-    if(N.normalizeEnvelope){
-      var normalized =
-        N.normalizeEnvelope({
-          meta:
-            envelope.meta || {},
+    var data = object(response.data);
+    var responseMeta = object(response.meta);
+    var dataMeta = object(data.meta);
+    var revision = Number(
+      response.revision || responseMeta.revision || dataMeta.revision || 0
+    );
 
-          periods:
-            envelope.periods || [],
+    var raw = {
+      meta: Object.assign({}, responseMeta, dataMeta, {
+        source: text(responseMeta.source || dataMeta.source || response.source) || SOURCE,
+        revision: revision,
+        fallbackUsed: responseMeta.fallbackUsed === true || dataMeta.fallbackUsed === true,
+        stale: responseMeta.stale === true || dataMeta.stale === true
+      }),
+      periods: array(data.periods || data.periodList || response.periods),
+      students: array(data.students || data.rows || response.students || response.rows),
+      requirements: array(
+        data.requirements || data.requisitos || response.requirements || response.requisitos
+      ),
+      summaries: object(data.summaries || response.summaries),
+      diagnostics: array(data.diagnostics || response.diagnostics)
+    };
 
-          students:
-            rows,
+    if(raw.meta.fallbackUsed){
+      throw new Error("Tabla recibió una fuente de respaldo no autorizada.");
+    }
+    if(raw.meta.stale){
+      throw new Error("Tabla recibió información marcada como desactualizada.");
+    }
+    if(text(raw.meta.source) !== SOURCE && text(response.source) !== SOURCE){
+      throw new Error("Tabla recibió datos desde una fuente distinta de ConTabla.");
+    }
+    if(!raw.periods.length){ throw new Error("ConTabla no entregó períodos."); }
+    if(!raw.students.length){ throw new Error("ConTabla no entregó estudiantes."); }
+    if(!raw.requirements.length){ throw new Error("ConTabla no entregó requisitos."); }
 
-          requirements:
-            requirements,
+    var normalized = N.normalizeEnvelope ? N.normalizeEnvelope(raw) : raw;
+    normalized = object(normalized);
+    normalized.meta = Object.assign({}, raw.meta, object(normalized.meta), {
+      source: SOURCE,
+      revision: revision,
+      fallbackUsed: false,
+      stale: false
+    });
+    normalized.periods = array(normalized.periods);
+    normalized.students = array(normalized.students);
+    normalized.requirements = array(normalized.requirements);
+    normalized.summaries = object(normalized.summaries);
+    normalized.diagnostics = array(normalized.diagnostics);
+    normalized.revision = revision;
+    normalized.source = SOURCE;
+    return normalized;
+  }
 
-          summaries:
-            envelope.summaries || {},
+  function fetchEnvelope(options){
+    options = object(options);
+    if(state.envelopePromise && options.force !== true){ return state.envelopePromise; }
+    if(state.envelope && options.force !== true){ return Promise.resolve(state.envelope); }
 
-          diagnostics:
-            envelope.diagnostics || []
+    state.envelopePromise = loadClient()
+      .then(function(client){
+        if(!client || typeof client.read !== "function"){
+          throw new Error("BDLocalConnectionClient.read no está disponible.");
+        }
+        return client.read(SCREEN, {
+          matricula: "",
+          force: options.force === true,
+          source: options.source || "TablaDataSource.read"
         });
+      })
+      .then(normalizeResponse)
+      .then(function(envelope){
+        state.envelope = envelope;
+        state.revision = Number(envelope.revision || envelope.meta.revision || 0);
+        state.updatedAt = now();
+        state.lastError = "";
+        state.reads += 1;
+        return state.envelope;
+      })
+      .catch(function(error){
+        state.failures += 1;
+        state.lastError = text(error && error.message || error);
+        throw error;
+      })
+      .finally(function(){ state.envelopePromise = null; });
 
-      return normalized &&
-        Array.isArray(
-          normalized.students
-        )
-          ? normalized.students
-          : [];
-    }
+    return state.envelopePromise;
+  }
 
-    return N.normalizeStudents
-      ? N.normalizeStudents(
-          rows,
-          options
+  function periodIdOf(row){
+    row = object(row);
+    return U.canonicalPeriodId
+      ? U.canonicalPeriodId(
+          row._periodoId || row.periodoId || row.periodId ||
+          row.periodoCanonicoId || row.ultimoPeriodoId || ""
         )
-      : rows.slice();
+      : text(row._periodoId || row.periodoId || row.periodId || "");
+  }
+
+  function samePeriod(a, b){
+    return U.samePeriod ? U.samePeriod(a, b) : (!text(b) || text(a) === text(b));
+  }
+
+  function filterRows(rows, options){
+    rows = array(rows);
+    options = object(options);
+    var periodId = text(options.periodId || options.periodoId);
+    var matricula = text(options.matricula).toUpperCase();
+    var search = text(options.search || options.query).toLowerCase();
+
+    var output = rows.filter(function(row){
+      row = object(row);
+      if(periodId && !samePeriod(periodIdOf(row), periodId)){ return false; }
+      if(matricula && text(
+        row._matricula || row._estadoMatricula || row.estadoMatricula || row.matricula
+      ).toUpperCase() !== matricula){ return false; }
+      if(search && text(
+        row._search || [
+          row._cedula, row._nombres, row._carrera, row._correo,
+          row._celular, row._telegramUser, row._telegramChatId
+        ].join(" ")
+      ).toLowerCase().indexOf(search) < 0){ return false; }
+      return true;
+    });
+
+    var limit = Math.max(0, Number(options.limit || 0));
+    return limit > 0 ? output.slice(0, limit) : output;
+  }
+
+  function readPeriods(){
+    return fetchEnvelope().then(function(envelope){ return envelope.periods.slice(); });
   }
 
   function readStudents(options){
-    options =
-      Object.assign(
-        {},
-        options || {}
-      );
-
-    var api =
-      connector(
-        options.forceConnector ===
-        true
-      );
-
-    var result;
-
-    try{
-      result =
-        invoke(
-          api,
-          [
-            "listStudents",
-            "getStudents",
-            "rows",
-            "getRows",
-            "listarEstudiantes",
-            "filterStudents",
-            "buscar",
-            "all",
-            "listar"
-          ],
-          [options]
-        );
-    }catch(error){
-      memo.failures += 1;
-      result = null;
-    }
-
-    function normalizeResult(value){
-      var rows =
-        unwrapRows(value);
-
-      if(
-        !rows.length &&
-        value == null
-      ){
-        rows =
-          readEnvelope(
-            options
-          ).students;
-      }
-
-      return normalizeStudentsWithRequirements(
-        rows,
-        options,
-        value
-      );
-    }
-
-    if(
-      result &&
-      typeof result.then ===
-        "function"
-    ){
-      return result
-        .then(normalizeResult)
-        .catch(function(){
-          memo.failures += 1;
-
-          var envelope =
-            readEnvelope(options);
-
-          return normalizeStudentsWithRequirements(
-            envelope.students,
-            options,
-            envelope
-          );
-        });
-    }
-
-    return normalizeResult(result);
+    return fetchEnvelope().then(function(envelope){
+      return filterRows(envelope.students, options || {});
+    });
   }
 
   function ready(){
-    var api =
-      connector(true);
-
-    var tasks = [];
-
-    if(
-      window.BDLScreenDepsReady &&
-      typeof window
-        .BDLScreenDepsReady
-        .then === "function"
-    ){
-      tasks.push(
-        window.BDLScreenDepsReady
-          .catch(function(){
-            return null;
-          })
-      );
-    }
-
-    try{
-      var result =
-        invoke(
-          api,
-          ["ready"],
-          []
-        );
-
-      if(
-        result &&
-        typeof result.then ===
-          "function"
-      ){
-        tasks.push(
-          result.catch(function(){
-            return null;
-          })
-        );
-      }
-    }catch(error){}
-
-    try{
-      if(
-        window.BDLocalScreenDeps &&
-        typeof window
-          .BDLocalScreenDeps
-          .ready === "function"
-      ){
-        var deps =
-          window.BDLocalScreenDeps
-            .ready();
-
-        if(
-          deps &&
-          typeof deps.then ===
-            "function"
-        ){
-          tasks.push(
-            deps.catch(function(){
-              return null;
-            })
-          );
-        }
-      }
-    }catch(error){}
-
-    return Promise.all(tasks)
-      .then(function(){
-        connector(true);
-        return status();
-      });
+    return loadClient()
+      .then(function(client){
+        return typeof client.ready === "function" ? client.ready(SCREEN) : client;
+      })
+      .then(function(){ return fetchEnvelope(); })
+      .then(status);
   }
 
   function refresh(options){
-    options =
-      Object.assign(
-        {
-          source:
-            "TablaDataSource.refresh",
+    options = Object.assign({
+      full: true,
+      immediate: true,
+      force: true,
+      source: "TablaDataSource.refresh"
+    }, options || {});
 
-          full:
-            true,
-
-          immediate:
-            true
-        },
-        options || {}
-      );
-
-    memo.refreshes += 1;
-
-    var api =
-      connector(true);
-
-    var task;
-
-    try{
-      task =
-        invoke(
-          api,
-          [
-            "refresh",
-            "actualizar",
-            "reload"
-          ],
-          [options]
-        );
-
-      if(
-        task === undefined &&
-        window.BDLocalConexiones &&
-        typeof window
-          .BDLocalConexiones
-          .refreshCache === "function"
-      ){
-        task =
-          window.BDLocalConexiones
-            .refreshCache(options);
-      }
-    }catch(error){
-      memo.failures += 1;
-
-      task =
-        Promise.reject(error);
-    }
-
-    return Promise.resolve(task)
-      .catch(function(error){
-        memo.failures += 1;
-
-        return {
-          ok: false,
-          error: error
-        };
+    state.refreshes += 1;
+    return loadClient()
+      .then(function(client){
+        if(!client || typeof client.refresh !== "function"){
+          throw new Error("BDLocalConnectionClient.refresh no está disponible.");
+        }
+        return client.refresh(SCREEN, options);
       })
-      .then(function(result){
+      .then(function(response){
+        if(response && response.ok === false){
+          throw new Error(
+            text(response.error && response.error.message) ||
+            "No se pudo actualizar Tabla desde Base Local."
+          );
+        }
         invalidate();
-
-        var envelope =
-          readEnvelope({
-            force: true
-          });
-
-        return {
-          ok:
-            !(
-              result &&
-              result.ok === false
-            ),
-
-          result:
-            result || null,
-
-          envelope:
-            envelope,
-
-          source:
-            sourceName()
-        };
+        return fetchEnvelope({force: true, source: "TablaDataSource.after-refresh"});
+      })
+      .then(function(envelope){
+        return {ok: true, envelope: envelope, revision: envelope.revision, source: SOURCE};
+      })
+      .catch(function(error){
+        state.failures += 1;
+        state.lastError = text(error && error.message || error);
+        throw error;
       });
   }
 
-  function sourceName(){
-    var api =
-      connector(false);
-
-    var envelope =
-      readEnvelope();
-
-    return (
-      text(
-        api &&
-        api.source
-      ) ||
-      memo.connectorName ||
-      text(
-        envelope.meta &&
-        envelope.meta.source
-      ) ||
-      "Base Local"
-    );
+  function invalidate(){
+    state.envelope = null;
+    state.envelopePromise = null;
   }
 
-  function invalidate(){
-    memo.envelope = null;
-    memo.token = "";
-    memo.connector = null;
-    memo.connectorName = "";
+  function readEnvelope(){
+    return state.envelope || {
+      meta: {source: SOURCE, revision: 0, fallbackUsed: false, stale: false, loading: true},
+      periods: [],
+      students: [],
+      requirements: [],
+      summaries: {},
+      diagnostics: [],
+      revision: 0,
+      source: SOURCE
+    };
   }
 
   function status(){
-    var envelope =
-      readEnvelope();
-
-    var api =
-      connector(false);
-
+    var envelope = readEnvelope();
     return {
-      ok:
-        !!api ||
-        !!envelope,
-
-      version:
-        VERSION,
-
-      connector:
-        memo.connectorName,
-
-      source:
-        sourceName(),
-
-      periods:
-        envelope.periods.length,
-
-      students:
-        envelope.students.length,
-
-      requirements:
-        envelope.requirements.length,
-
-      reads:
-        memo.reads,
-
-      refreshes:
-        memo.refreshes,
-
-      failures:
-        memo.failures,
-
-      updatedAt:
-        memo.updatedAt
+      ok: !state.lastError && !!state.envelope,
+      version: VERSION,
+      connector: "BDLocalConnectionClient",
+      source: SOURCE,
+      revision: state.revision,
+      periods: array(envelope.periods).length,
+      students: array(envelope.students).length,
+      requirements: array(envelope.requirements).length,
+      reads: state.reads,
+      refreshes: state.refreshes,
+      failures: state.failures,
+      lastError: state.lastError,
+      updatedAt: state.updatedAt
     };
   }
 
   window.TablaDataSource = {
-    version:
-      VERSION,
-
-    ready:
-      ready,
-
-    connector:
-      connector,
-
-    source:
-      sourceName,
-
-    readEnvelope:
-      readEnvelope,
-
-    readCache:
-      readEnvelope,
-
-    readPeriods:
-      readPeriods,
-
-    listPeriods:
-      readPeriods,
-
-    readStudents:
-      readStudents,
-
-    listStudents:
-      readStudents,
-
-    refresh:
-      refresh,
-
-    invalidate:
-      invalidate,
-
-    status:
-      status
+    version: VERSION,
+    ready: ready,
+    source: function(){ return SOURCE; },
+    readEnvelope: readEnvelope,
+    readCache: readEnvelope,
+    readPeriods: readPeriods,
+    listPeriods: readPeriods,
+    readStudents: readStudents,
+    listStudents: readStudents,
+    refresh: refresh,
+    invalidate: invalidate,
+    status: status
   };
-})(window);
+})(window, document);
