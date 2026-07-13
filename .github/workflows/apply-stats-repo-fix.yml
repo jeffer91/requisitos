@@ -73,16 +73,18 @@ jobs:
 
           print("cone.stats.js verificado correctamente.")
 
-      - name: Commit Stats correction
+      - name: Commit correction and remove temporary workflow
         shell: bash
         run: |
-          if git diff --quiet -- Stats/stats.core.js; then
-            echo "No hay cambios pendientes en stats.core.js."
+          rm -f .github/workflows/apply-stats-repo-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Stats/stats.core.js .github/workflows/apply-stats-repo-fix.yml
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios pendientes."
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Stats/stats.core.js
           git commit -m "Hace que Stats use BDLocalStats"
           git push origin HEAD:main
