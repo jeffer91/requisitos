@@ -1,20 +1,17 @@
 /* =========================================================
 Nombre completo: tabla.message.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/communication/tabla.message.js
-Función o funciones:
-- Generar mensajes institucionales para todos los canales de Tabla.
-- Centralizar tipos, asuntos, variables y responsables de requisitos.
-- Consumir los campos normalizados sin modificar al estudiante original.
-Con qué se conecta:
-- tabla.constants.js
-- tabla.utils.js
-- tabla.data-normalizer.js
-- tabla.telegram.js, tabla.actions.js y tabla.mass-sender.js
+Ruta: /Gestion/Tabla/communication/tabla.message.js
+Función:
+- Generar el mismo mensaje institucional para todos los canales de Tabla.
+- Usar únicamente requisitos aplicables al tipo de período.
+- Comunicar como faltantes solo los estados no_cumple confirmados.
+- Separar incumplimientos de datos pendientes de validación.
+- Excluir campos finales y Titulación cuando el período es PVC.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "3.0.0-confirmed-missing-only";
   var C = window.TablaConstants || {};
   var U = window.TablaUtils || {};
   var N = window.TablaDataNormalizer || {};
@@ -64,106 +61,38 @@ Con qué se conecta:
   };
 
   var FALLBACK_REQUIREMENTS = [
-    {
-      key: "academico",
-      field: "academico",
-      label: "Académico",
-      aliases: [
-        "academico",
-        "Académico",
-        "Academico"
-      ]
-    },
-    {
-      key: "documentacion",
-      field: "documentacion",
-      label: "Documentación académica",
-      aliases: [
-        "documentacion",
-        "Documentación",
-        "Documentacion",
-        "documentacionacademica"
-      ]
-    },
-    {
-      key: "financiero",
-      field: "financiero",
-      label: "Financiero",
-      aliases: [
-        "financiero",
-        "Financiero",
-        "deuda",
-        "pagos"
-      ]
-    },
-    {
-      key: "titulacion",
-      field: "titulacion",
-      label: "Titulación",
-      aliases: [
-        "titulacion",
-        "Titulación",
-        "Titulacion",
-        "aprobacionTitulacion"
-      ]
-    },
-    {
-      key: "practicasvinculacion",
-      field: "practicasVinculacion",
-      label: "Prácticas preprofesionales",
-      aliases: [
-        "practicasvinculacion",
-        "practicasVinculacion",
-        "PrácticasVinculacion",
-        "PracticasVinculacion",
-        "practicas",
-        "practicaspreprofesionales"
-      ]
-    },
-    {
-      key: "vinculacion",
-      field: "vinculacion",
-      label: "Vinculación con la sociedad",
-      aliases: [
-        "vinculacion",
-        "Vinculación",
-        "Vinculacion"
-      ]
-    },
-    {
-      key: "seguimientograduados",
-      field: "seguimientoGraduados",
-      label: "Seguimiento a graduados",
-      aliases: [
-        "seguimientograduados",
-        "seguimientoGraduados",
-        "SeguimientoGraduados",
-        "graduados"
-      ]
-    },
-    {
-      key: "ingles",
-      field: "ingles",
-      label: "Segunda lengua / Inglés",
-      aliases: [
-        "ingles",
-        "Inglés",
-        "Ingles",
-        "segundaLengua"
-      ]
-    },
-    {
-      key: "actualizaciondatos",
-      field: "actualizacionDatos",
-      label: "Actualización de datos",
-      aliases: [
-        "actualizaciondatos",
-        "actualizacionDatos",
-        "ActualizaciónDatos",
-        "ActualizacionDatos",
-        "datos"
-      ]
-    }
+    req("academico", "academico", "Académico", [
+      "academico", "Académico", "Academico"
+    ]),
+    req("documentacion", "documentacion", "Documentación académica", [
+      "documentacion", "Documentación", "Documentacion",
+      "documentacionacademica", "documentacionAcademica"
+    ]),
+    req("financiero", "financiero", "Financiero", [
+      "financiero", "Financiero", "deuda", "pagos"
+    ]),
+    req("practicasvinculacion", "practicasVinculacion", "Prácticas preprofesionales", [
+      "practicasvinculacion", "practicasVinculacion",
+      "PrácticasVinculacion", "PracticasVinculacion",
+      "practicas", "practicaspreprofesionales"
+    ]),
+    req("vinculacion", "vinculacion", "Vinculación con la sociedad", [
+      "vinculacion", "Vinculación", "Vinculacion"
+    ]),
+    req("seguimientograduados", "seguimientoGraduados", "Seguimiento a graduados", [
+      "seguimientograduados", "seguimientoGraduados",
+      "SeguimientoGraduados", "graduados"
+    ]),
+    req("ingles", "ingles", "Segunda lengua / Inglés", [
+      "ingles", "Inglés", "Ingles", "segundaLengua"
+    ]),
+    req("actualizaciondatos", "actualizacionDatos", "Actualización de datos", [
+      "actualizaciondatos", "actualizacionDatos",
+      "ActualizaciónDatos", "ActualizacionDatos", "datos"
+    ]),
+    req("titulacion", "titulacion", "Titulación", [
+      "titulacion", "Titulación", "Titulacion"
+    ], "regular")
   ];
 
   var TYPE_LABELS = {
@@ -187,11 +116,7 @@ Con qué se conecta:
   function text(value){
     return U.text
       ? U.text(value)
-      : String(
-          value == null
-            ? ""
-            : value
-        ).trim();
+      : String(value == null ? "" : value).trim();
   }
 
   function key(value){
@@ -199,350 +124,301 @@ Con qué se conecta:
       ? U.normalizeKey(value)
       : text(value)
           .normalize("NFD")
-          .replace(
-            /[\u0300-\u036f]/g,
-            ""
-          )
-          .replace(
-            /[^a-z0-9]+/gi,
-            ""
-          )
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/gi, "")
           .toLowerCase();
   }
 
+  function array(value){
+    return Array.isArray(value) ? value : [];
+  }
+
+  function req(id, field, label, aliases, group){
+    return {
+      key: id,
+      field: field || id,
+      label: label || id,
+      aliases: array(aliases).slice(),
+      group: group || "requisito"
+    };
+  }
+
   function canonicalType(value){
-    var normalized =
-      key(
-        value ||
-        "requisitos"
-      );
+    var normalized = key(value || "requisitos");
 
-    if(normalized === "falta"){
-      return "requisitos";
-    }
+    if(normalized === "falta"){ return "requisitos"; }
+    if(normalized === "ultimoaviso"){ return "ultimo"; }
+    if(normalized === "personal"){ return "libre"; }
 
-    if(
-      normalized ===
-      "ultimoaviso"
-    ){
-      return "ultimo";
-    }
+    return normalized || "requisitos";
+  }
 
-    if(normalized === "personal"){
-      return "libre";
-    }
-
-    return (
-      normalized ||
-      "requisitos"
+  function definitionKey(item){
+    item = item || {};
+    return key(
+      item.key ||
+      item.field ||
+      item.requisitoKey ||
+      item.requirementKey ||
+      item.label ||
+      item.nombre ||
+      ""
     );
+  }
+
+  function isFinalRequirement(item){
+    if(N.isFinalRequirement){
+      return N.isFinalRequirement(item);
+    }
+
+    return array(C.periodPolicy && C.periodPolicy.finalKeys)
+      .map(key)
+      .indexOf(definitionKey(item)) >= 0;
   }
 
   function definitions(){
-    var base =
-      Array.isArray(
-        C.requirements
-      ) &&
-      C.requirements.length
-        ? C.requirements
-        : FALLBACK_REQUIREMENTS;
+    var configured = array(C.requirements);
+    var base = configured.length ? configured : FALLBACK_REQUIREMENTS;
 
-    return base.map(function(item){
-      var definition =
-        Object.assign(
-          {},
-          item || {}
-        );
+    return base
+      .filter(function(item){
+        return !isFinalRequirement(item);
+      })
+      .map(function(item){
+        item = Object.assign({}, item || {});
+        var id = definitionKey(item);
+        var responsible = RESPONSABLES[id] || {};
 
-      var id =
-        key(
-          definition.key ||
-          definition.field ||
-          definition.label
-        );
-
-      var responsible =
-        RESPONSABLES[id] ||
-        {};
-
-      definition.key =
-        definition.key ||
-        id;
-
-      definition.field =
-        definition.field ||
-        definition.key;
-
-      definition.label =
-        definition.label ||
-        definition.key ||
-        "Requisito";
-
-      definition.aliases =
-        Array.isArray(
-          definition.aliases
-        )
-          ? definition.aliases.slice()
-          : [definition.key];
-
-      definition.contacto =
-        text(
-          definition.contacto ||
-          responsible.contacto ||
-          "Área correspondiente"
-        );
-
-      definition.correo =
-        text(
-          definition.correo ||
-          responsible.correo ||
-          ""
-        );
-
-      return definition;
-    });
+        return {
+          key: item.key || id,
+          field: item.field || item.key || id,
+          label: text(item.label || item.key || "Requisito"),
+          aliases: array(item.aliases).length
+            ? item.aliases.slice()
+            : [item.key || id],
+          group: item.group || "requisito",
+          contacto: text(item.contacto || responsible.contacto || "Área correspondiente"),
+          correo: text(item.correo || responsible.correo || "")
+        };
+      });
   }
 
-  var REQ_DEFS =
-    definitions();
+  var REQ_DEFS = definitions();
 
   function definitionFor(value){
-    var wanted = key(value);
-    var found = null;
-
-    REQ_DEFS.some(
-      function(definition){
-        if(
-          key(definition.key) ===
-            wanted ||
-          key(definition.field) ===
-            wanted ||
-          key(definition.label) ===
-            wanted ||
-          definition.aliases.some(
-            function(alias){
-              return (
-                key(alias) ===
-                wanted
-              );
-            }
-          )
-        ){
-          found = definition;
-          return true;
-        }
-
-        return false;
-      }
+    var wanted = definitionKey(
+      value && typeof value === "object" ? value : {key: value}
     );
 
-    return found;
+    return REQ_DEFS.filter(function(definition){
+      return (
+        key(definition.key) === wanted ||
+        key(definition.field) === wanted ||
+        key(definition.label) === wanted ||
+        definition.aliases.map(key).indexOf(wanted) >= 0
+      );
+    })[0] || null;
   }
 
   function statusOf(item){
-    var value =
-      item &&
-      typeof item === "object"
-        ? (
-            item.estado ||
-            item.status ||
-            item.value
-          )
-        : item;
+    var value = item;
 
-    var normalized =
-      key(value);
+    if(item && typeof item === "object"){
+      value =
+        item.estado != null ? item.estado :
+        item.status != null ? item.status :
+        item.value != null ? item.value :
+        item.valor;
+    }
 
-    if(
-      [
-        "cumple",
-        "cumplido",
-        "aprobado",
-        "aprobada",
-        "si",
-        "ok",
-        "true",
-        "1"
-      ].indexOf(normalized) >= 0
-    ){
+    if(N.statusFromValue){
+      return N.statusFromValue(value);
+    }
+
+    var normalized = key(value);
+
+    if(!normalized){ return "sin_dato"; }
+
+    if([
+      "cumple", "cumplido", "cumplida", "aprobado", "aprobada",
+      "si", "s", "ok", "true", "1", "validado", "validada",
+      "completo", "completa"
+    ].indexOf(normalized) >= 0){
       return "cumple";
     }
 
+    if([
+      "noaplica", "na", "noaplicable"
+    ].indexOf(normalized) >= 0){
+      return "no_aplica";
+    }
+
     if(
-      normalized.indexOf(
-        "nocumple"
-      ) >= 0 ||
+      normalized.indexOf("nocumple") >= 0 ||
+      normalized.indexOf("reprob") >= 0 ||
       [
-        "no",
-        "reprobado",
-        "reprobada",
-        "falta",
-        "faltante",
-        "false",
-        "0"
+        "no", "n", "falta", "faltante", "false", "0",
+        "incumple", "incompleto", "incompleta", "rechazado", "rechazada"
       ].indexOf(normalized) >= 0
     ){
       return "no_cumple";
+    }
+
+    if([
+      "pendiente", "revision", "enrevision", "porvalidar",
+      "procesando", "enproceso"
+    ].indexOf(normalized) >= 0){
+      return "pendiente";
     }
 
     return "pendiente";
   }
 
   function statusLabel(status){
-    if(status === "cumple"){
-      return "Cumple";
-    }
-
-    if(status === "no_cumple"){
-      return "No cumple";
-    }
-
+    if(status === "cumple"){ return "Cumple"; }
+    if(status === "no_cumple"){ return "No cumple"; }
+    if(status === "no_aplica"){ return "No aplica"; }
+    if(status === "sin_dato"){ return "Sin dato"; }
     return "Pendiente";
   }
 
-  function rawRequirements(row){
-    if(N.requirementsFor){
-      return N.requirementsFor(
-        row || {}
-      );
+  function isPVC(row){
+    row = row || {};
+
+    if(row._esPVC === true){ return true; }
+    if(row._esRegular === true){ return false; }
+
+    if(N.classifyStudent){
+      return N.classifyStudent(row).isPVC === true;
     }
 
-    return REQ_DEFS.map(
-      function(definition){
-        var value =
-          U.pick
-            ? U.pick(
-                row || {},
-                definition.aliases,
-                ""
-              )
-            : "";
-
-        return {
-          key:
-            definition.key,
-
-          field:
-            definition.field,
-
-          label:
-            definition.label,
-
-          value:
-            text(value),
-
-          estado:
-            statusOf(value)
-        };
-      }
-    );
+    return key(row._tipoPeriodo) === "pvc";
   }
 
-  function attachResponsible(item){
-    item =
-      Object.assign(
-        {},
-        item || {}
-      );
+  function requirementApplies(row, item){
+    item = item || {};
 
-    var definition =
-      definitionFor(
-        item.key ||
-        item.field ||
-        item.label
-      ) ||
-      {};
+    if(item.applies === false){ return false; }
+    if(isFinalRequirement(item)){ return false; }
+    if(statusOf(item) === "no_aplica"){ return false; }
+    if(isPVC(row) && definitionKey(item) === "titulacion"){
+      return false;
+    }
 
-    var status =
-      statusOf(
-        item.estado ||
-        item.status ||
-        item.value
-      );
+    return true;
+  }
+
+  function fallbackRequirements(row){
+    return REQ_DEFS.map(function(definition){
+      var value = U.pick
+        ? U.pick(row || {}, definition.aliases, "")
+        : "";
+
+      return Object.assign({}, definition, {
+        value: text(value),
+        rawValue: value,
+        estado: statusOf(value),
+        status: statusOf(value)
+      });
+    });
+  }
+
+  function rawRequirements(row){
+    row = row || {};
+
+    if(Array.isArray(row._requisitosAplicables)){
+      return row._requisitosAplicables.slice();
+    }
+
+    if(Array.isArray(row._requisitos)){
+      return row._requisitos.slice();
+    }
+
+    if(N.requirementsFor){
+      return N.requirementsFor(row);
+    }
+
+    return fallbackRequirements(row);
+  }
+
+  function attachResponsible(row, item){
+    item = Object.assign({}, item || {});
+    var definition = definitionFor(item) || {};
+    var status = statusOf(item);
 
     return {
-      key:
-        item.key ||
-        definition.key ||
-        key(item.label),
-
-      field:
-        item.field ||
-        definition.field ||
-        item.key ||
-        "",
-
-      label:
-        text(
-          item.label ||
-          definition.label ||
-          item.key ||
-          "Requisito"
-        ),
-
-      value:
-        text(item.value),
-
-      estado:
-        status,
-
-      estadoLabel:
-        text(
-          item.estadoLabel
-        ) ||
-        statusLabel(status),
-
-      contacto:
-        text(
-          item.contacto ||
-          definition.contacto ||
-          "Área correspondiente"
-        ),
-
-      correo:
-        text(
-          item.correo ||
-          definition.correo ||
-          ""
-        )
+      key: item.key || definition.key || definitionKey(item),
+      field: item.field || definition.field || item.key || "",
+      label: text(item.label || definition.label || item.key || "Requisito"),
+      aliases: array(item.aliases).length
+        ? item.aliases.slice()
+        : array(definition.aliases).slice(),
+      group: item.group || definition.group || "requisito",
+      value: text(
+        item.value != null ? item.value :
+        item.valor != null ? item.valor :
+        item.rawValue
+      ),
+      estado: status,
+      status: status,
+      estadoLabel: text(item.estadoLabel) || statusLabel(status),
+      contacto: text(item.contacto || definition.contacto || "Área correspondiente"),
+      correo: text(item.correo || definition.correo || ""),
+      applies: requirementApplies(row, item)
     };
   }
 
   function listarRequisitos(row){
-    return rawRequirements(
-      row || {}
-    ).map(
-      attachResponsible
-    );
+    row = row || {};
+
+    return rawRequirements(row)
+      .map(function(item){
+        return attachResponsible(row, item);
+      })
+      .filter(function(item){
+        return item.applies;
+      });
   }
 
-  function listarRequisitosPendientes(
-    row
-  ){
-    if(
-      row &&
-      Array.isArray(
-        row._requisitosFaltantes
-      ) &&
-      row._requisitosFaltantes
-        .length
-    ){
-      return row
-        ._requisitosFaltantes
-        .map(attachResponsible)
-        .filter(function(item){
-          return (
-            item.estado !==
-            "cumple"
-          );
-        });
+  function listarRequisitosPendientes(row){
+    row = row || {};
+
+    var source;
+
+    if(Array.isArray(row._requisitosFaltantes)){
+      source = row._requisitosFaltantes;
+    }else if(N.missingRequirements){
+      source = N.missingRequirements(row);
+    }else{
+      source = rawRequirements(row);
     }
 
-    return listarRequisitos(row)
+    return array(source)
+      .map(function(item){
+        return attachResponsible(row, item);
+      })
+      .filter(function(item){
+        return item.applies && item.estado === "no_cumple";
+      });
+  }
+
+  function listarRequisitosSinDato(row){
+    row = row || {};
+
+    var source = Array.isArray(row._requisitosSinDato)
+      ? row._requisitosSinDato
+      : N.noDataRequirements
+        ? N.noDataRequirements(row)
+        : rawRequirements(row);
+
+    return array(source)
+      .map(function(item){
+        return attachResponsible(row, item);
+      })
       .filter(function(item){
         return (
-          item.estado !==
-          "cumple"
+          item.applies &&
+          (item.estado === "sin_dato" || item.estado === "pendiente")
         );
       });
   }
@@ -550,214 +426,85 @@ Con qué se conecta:
   function datosEstudiante(row){
     row = row || {};
 
-    var telegram =
-      N.telegramInfo
-        ? N.telegramInfo(row)
-        : {
-            user:
-              text(
-                row._telegramUser ||
-                row.telegramUser ||
-                row.telegram
-              ),
-
-            chatId:
-              text(
-                row._telegramChatId ||
-                row.telegramChatId ||
-                row.chatId
-              )
-          };
+    var telegram = N.telegramInfo
+      ? N.telegramInfo(row)
+      : {
+          user: text(row._telegramUser || row.telegramUser || row.telegram),
+          chatId: text(row._telegramChatId || row.telegramChatId || row.chatId)
+        };
 
     return {
-      nombre:
-        text(
-          row._nombres ||
-          row.nombres ||
-          row.Nombres ||
-          row.nombre ||
-          row.estudiante
-        ) ||
-        "estudiante",
-
-      cedula:
-        text(
-          row._cedula ||
-          row.cedula ||
-          row.numeroIdentificacion ||
-          row.numeroidentificacion
-        ),
-
-      carrera:
-        text(
-          row._carrera ||
-          row.NombreCarrera ||
-          row.nombreCarrera ||
-          row.carrera
-        ),
-
-      carreraCorta:
-        text(
-          row._carreraCorta
-        ),
-
-      periodo:
-        text(
-          row._periodo ||
-          row.periodoLabel ||
-          row.periodo ||
-          row._bl2Periodo ||
-          row._periodoId
-        ),
-
-      periodoId:
-        text(
-          row._periodoId ||
-          row.periodoId ||
-          row.periodId ||
-          row._bl2PeriodoId
-        ),
-
-      division:
-        text(
-          row._division ||
-          row.division ||
-          row._bl2Division
-        ),
-
-      correo:
-        text(
-          row._correo ||
-          row.correo ||
-          row.email ||
-          row.Email
-        ),
-
-      celular:
-        text(
-          row._celular ||
-          row.celular ||
-          row.whatsapp ||
-          row.telefono
-        ),
-
-      telegramUser:
-        text(telegram.user),
-
-      telegramChatId:
-        text(telegram.chatId),
-
-      telegram:
-        text(
-          telegram.chatId ||
-          telegram.user
-        )
+      nombre: text(
+        row._nombres || row.nombres || row.Nombres ||
+        row.nombre || row.estudiante
+      ) || "estudiante",
+      cedula: text(
+        row._cedula || row.cedula || row.numeroIdentificacion ||
+        row.numeroidentificacion
+      ),
+      carrera: text(
+        row._carrera || row.NombreCarrera || row.nombreCarrera || row.carrera
+      ),
+      carreraCorta: text(row._carreraCorta),
+      periodo: text(
+        row._periodo || row.periodoLabel || row.periodo ||
+        row._bl2Periodo || row._periodoId
+      ),
+      periodoId: text(
+        row._periodoId || row.periodoId || row.periodId || row._bl2PeriodoId
+      ),
+      tipoPeriodo: text(row._tipoPeriodo || (isPVC(row) ? "PVC" : "REGULAR")),
+      division: text(row._division || row.division || row._bl2Division),
+      correo: text(row._correo || row.correo || row.email || row.Email),
+      celular: text(row._celular || row.celular || row.whatsapp || row.telefono),
+      telegramUser: text(telegram.user),
+      telegramChatId: text(telegram.chatId),
+      telegram: text(telegram.chatId || telegram.user)
     };
   }
 
-  function aplicarVariables(
-    template,
-    row
-  ){
-    var data =
-      datosEstudiante(
-        row || {}
-      );
+  function aplicarVariables(template, row){
+    var data = datosEstudiante(row || {});
 
-    return String(
-      template == null
-        ? ""
-        : template
-    )
-      .replace(
-        /{{\s*NOMBRE\s*}}/gi,
-        data.nombre
-      )
-      .replace(
-        /{{\s*CEDULA\s*}}/gi,
-        data.cedula ||
-        "—"
-      )
-      .replace(
-        /{{\s*CARRERA\s*}}/gi,
-        data.carrera ||
-        "—"
-      )
-      .replace(
-        /{{\s*PERIODO\s*}}/gi,
-        data.periodo ||
-        "—"
-      )
-      .replace(
-        /{{\s*DIVISION\s*}}/gi,
-        data.division ||
-        "—"
-      )
-      .replace(
-        /{{\s*TELEGRAM\s*}}/gi,
-        data.telegram ||
-        "—"
-      )
+    return String(template == null ? "" : template)
+      .replace(/{{\s*NOMBRE\s*}}/gi, data.nombre)
+      .replace(/{{\s*CEDULA\s*}}/gi, data.cedula || "—")
+      .replace(/{{\s*CARRERA\s*}}/gi, data.carrera || "—")
+      .replace(/{{\s*PERIODO\s*}}/gi, data.periodo || "—")
+      .replace(/{{\s*TIPO_PERIODO\s*}}/gi, data.tipoPeriodo || "—")
+      .replace(/{{\s*DIVISION\s*}}/gi, data.division || "—")
+      .replace(/{{\s*TELEGRAM\s*}}/gi, data.telegram || "—")
       .trim();
   }
 
   function firma(options){
     options = options || {};
-
-    return (
-      text(options.firma) ||
-      DEFAULT_FIRMA
-    );
+    return text(options.firma) || DEFAULT_FIRMA;
   }
 
   function tipoLabel(tipo){
-    return (
-      TYPE_LABELS[
-        canonicalType(tipo)
-      ] ||
-      TYPE_LABELS.requisitos
-    );
+    return TYPE_LABELS[canonicalType(tipo)] || TYPE_LABELS.requisitos;
   }
 
-  function contactosPorPendientes(
-    pendientes
-  ){
-    var seen =
-      Object.create(null);
-
+  function contactosPorPendientes(pendientes){
+    var seen = Object.create(null);
     var output = [];
 
-    (
-      Array.isArray(pendientes)
-        ? pendientes
-        : []
-    ).forEach(function(item){
-      item =
-        attachResponsible(item);
+    array(pendientes).forEach(function(item){
+      item = item || {};
 
-      if(!item.correo){
+      if(statusOf(item) !== "no_cumple" || !text(item.correo)){
         return;
       }
 
-      var identity =
-        key(
-          item.contacto +
-          "|" +
-          item.correo
-        );
-
-      if(seen[identity]){
-        return;
-      }
-
+      var identity = key(item.contacto + "|" + item.correo);
+      if(seen[identity]){ return; }
       seen[identity] = true;
 
       output.push(
-        item.label +
-        ":\n" +
-        item.contacto +
-        "\n" +
-        item.correo
+        text(item.label) + ":\n" +
+        text(item.contacto || "Área correspondiente") + "\n" +
+        text(item.correo)
       );
     });
 
@@ -768,182 +515,105 @@ Con qué se conecta:
     if(type === "notaarticulo"){
       return "Se registra una novedad relacionada con la nota de artículo académico. Debe revisar si la nota no consta registrada o si no alcanza la calificación mínima requerida.";
     }
-
     if(type === "notadefensa"){
       return "Se registra una novedad relacionada con la nota de defensa. Debe revisar si la nota no consta registrada o si no alcanza la calificación mínima requerida.";
     }
-
     if(type === "sinarticulo"){
       return "Se registra que no consta el cumplimiento o registro del artículo académico dentro del proceso de titulación.";
     }
-
     if(type === "noaprueba"){
       return "Se registra que actualmente no cumple con las condiciones mínimas de aprobación del proceso de titulación. Debe revisar su situación de forma inmediata.";
     }
-
     if(type === "perdio"){
       return "Según la revisión registrada, su proceso consta como no aprobado o perdido en el período indicado. Debe comunicarse para recibir orientación sobre los siguientes pasos.";
     }
-
     return "";
   }
 
   function detailFor(row, tipo){
-    var type =
-      canonicalType(tipo);
-
-    var pending =
-      listarRequisitosPendientes(
-        row || {}
-      );
-
+    var type = canonicalType(tipo);
+    var pending = listarRequisitosPendientes(row || {});
+    var noData = listarRequisitosSinDato(row || {});
     var lines = [];
-    var special =
-      specialDetail(type);
+    var special = specialDetail(type);
 
     if(special){
       lines.push(special);
 
-      if(
-        [
-          "notaarticulo",
-          "notadefensa",
-          "sinarticulo",
-          "noaprueba"
-        ].indexOf(type) >= 0
-      ){
-        pending =
-          pending.filter(
-            function(item){
-              return (
-                key(item.key) ===
-                "titulacion"
-              );
-            }
-          );
+      if([
+        "notaarticulo", "notadefensa", "sinarticulo", "noaprueba"
+      ].indexOf(type) >= 0){
+        pending = pending.filter(function(item){
+          return definitionKey(item) === "titulacion";
+        });
       }
 
       return {
-        lines:
-          lines,
-
-        pending:
-          pending
+        lines: lines,
+        pending: pending,
+        noData: noData
       };
     }
 
-    if(type === "alerta"){
-      lines.push(
-        "Su caso requiere revisión especial por parte del área correspondiente."
-      );
-    }else if(type === "urgente"){
-      lines.push(
-        "Su proceso requiere atención urgente, debido a que existen novedades que pueden afectar su continuidad."
-      );
-    }else if(type === "ultimo"){
-      lines.push(
-        "Este mensaje corresponde a un último aviso de regularización de pendientes registrados en su proceso."
-      );
-    }else if(
-      type === "regularizar"
-    ){
-      lines.push(
-        "Debe regularizar la siguiente información para continuar con su proceso."
-      );
-    }else{
-      lines.push(
-        "Se identifican novedades pendientes que deben ser regularizadas para continuar con su proceso."
-      );
-    }
-
-    lines.push(
-      "",
-      "Detalle:"
-    );
-
     if(pending.length){
-      pending.forEach(
-        function(item){
-          lines.push(
-            "* " +
-            item.label +
-            (
-              item.value
-                ? (
-                    " — Estado registrado: " +
-                    item.value
-                  )
-                : ""
-            )
-          );
-        }
+      if(type === "alerta"){
+        lines.push("Su caso requiere revisión especial por parte del área correspondiente.");
+      }else if(type === "urgente"){
+        lines.push("Su proceso requiere atención urgente, debido a que existen incumplimientos confirmados que pueden afectar su continuidad.");
+      }else if(type === "ultimo"){
+        lines.push("Este mensaje corresponde a un último aviso de regularización de incumplimientos registrados en su proceso.");
+      }else if(type === "regularizar"){
+        lines.push("Debe regularizar los siguientes requisitos para continuar con su proceso.");
+      }else{
+        lines.push("Se identifican requisitos incumplidos que deben ser regularizados para continuar con su proceso.");
+      }
+
+      lines.push("", "Detalle:");
+
+      pending.forEach(function(item){
+        lines.push(
+          "* " + item.label +
+          (item.value ? " — Estado registrado: " + item.value : "")
+        );
+      });
+    }else if(noData.length){
+      lines.push(
+        "No se identifican requisitos incumplidos en la información disponible. Sin embargo, existen datos pendientes de validación antes de confirmar el estado final de su proceso.",
+        "",
+        "Información pendiente de validación:"
       );
+
+      noData.forEach(function(item){
+        lines.push("* " + item.label);
+      });
     }else{
       lines.push(
-        "* No se identifican requisitos faltantes en la base revisada, pero se solicita validar la información registrada."
+        "No se identifican requisitos incumplidos ni información pendiente de validación en la base revisada."
       );
     }
 
     return {
-      lines:
-        lines,
-
-      pending:
-        pending
+      lines: lines,
+      pending: pending,
+      noData: noData
     };
   }
 
-  function baseMensaje(
-    row,
-    tipo,
-    options
-  ){
-    var data =
-      datosEstudiante(
-        row || {}
-      );
-
-    var detail =
-      detailFor(
-        row || {},
-        tipo
-      );
-
-    var contacts =
-      contactosPorPendientes(
-        detail.pending
-      );
+  function baseMensaje(row, tipo, options){
+    var data = datosEstudiante(row || {});
+    var detail = detailFor(row || {}, tipo);
+    var contacts = contactosPorPendientes(detail.pending);
 
     var lines = [
-      "Saludos, " +
-        data.nombre +
-        ".",
-
+      "Saludos, " + data.nombre + ".",
       "",
-
       "Desde el área de Titulación se informa que, al revisar su proceso correspondiente al período " +
-        (
-          data.periodo ||
-          "—"
-        ) +
+        (data.periodo || "—") +
         ", se registra la siguiente información:",
-
       "",
-
-      "Cédula: " +
-        (
-          data.cedula ||
-          "—"
-        ),
-
-      "Carrera: " +
-        (
-          data.carrera ||
-          "—"
-        ),
-
+      "Cédula: " + (data.cedula || "—"),
+      "Carrera: " + (data.carrera || "—"),
       "",
-
       detail.lines.join("\n")
     ];
 
@@ -954,10 +624,10 @@ Con qué se conecta:
         "",
         contacts.join("\n\n")
       );
-    }else{
+    }else if(detail.noData.length){
       lines.push(
         "",
-        "Por favor, revise la información y comuníquese con el área correspondiente para validar su situación."
+        "La información pendiente debe ser validada antes de realizar una gestión de regularización."
       );
     }
 
@@ -973,93 +643,38 @@ Con qué se conecta:
     return lines.join("\n");
   }
 
-  function generarMensajeRequisitos(
-    row,
-    options
-  ){
-    return baseMensaje(
-      row,
-      "requisitos",
-      options
-    );
+  function generarMensajeRequisitos(row, options){
+    return baseMensaje(row, "requisitos", options);
   }
 
-  function generarMensajeTipo(
-    row,
-    tipo,
-    options
-  ){
-    return baseMensaje(
-      row,
-      tipo ||
-        "requisitos",
-      options
-    );
+  function generarMensajeTipo(row, tipo, options){
+    return baseMensaje(row, tipo || "requisitos", options);
   }
 
-  function generarMensajeCronograma(
-    row,
-    contenido,
-    options
-  ){
-    var data =
-      datosEstudiante(
-        row || {}
-      );
-
-    var body =
-      aplicarVariables(
-        contenido,
-        row || {}
-      );
+  function generarMensajeCronograma(row, contenido, options){
+    var data = datosEstudiante(row || {});
+    var body = aplicarVariables(contenido, row || {});
 
     return [
-      "Saludos, " +
-        data.nombre +
-        ".",
-
+      "Saludos, " + data.nombre + ".",
       "",
-
       "Desde el área de Titulación se comparte información correspondiente al período " +
-        (
-          data.periodo ||
-          "—"
-        ) +
+        (data.periodo || "—") +
         ":",
-
       "",
-
-      body ||
-        "[Escriba aquí el cronograma o la información que desea comunicar.]",
-
+      body || "[Escriba aquí el cronograma o la información que desea comunicar.]",
       "",
-
       "Para orientación general sobre el proceso de titulación, puede comunicarse al " +
         CONTACTO_GENERAL +
         ".",
-
       "",
-
       firma(options)
     ].join("\n");
   }
 
-  function generarMensajeLibre(
-    row,
-    contenido,
-    options
-  ){
-    var data =
-      datosEstudiante(
-        row || {}
-      );
-
-    var body =
-      aplicarVariables(
-        contenido,
-        row || {}
-      );
-
+  function generarMensajeLibre(row, contenido, options){
+    var data = datosEstudiante(row || {});
+    var body = aplicarVariables(contenido, row || {});
     options = options || {};
 
     if(options.envolver === false){
@@ -1067,44 +682,26 @@ Con qué se conecta:
     }
 
     return [
-      "Saludos, " +
-        data.nombre +
-        ".",
-
+      "Saludos, " + data.nombre + ".",
       "",
-
-      body ||
-        "[Escriba aquí el mensaje que desea enviar.]",
-
+      body || "[Escriba aquí el mensaje que desea enviar.]",
       "",
-
       "Para orientación general sobre el proceso de titulación, puede comunicarse al " +
         CONTACTO_GENERAL +
         ".",
-
       "",
-
       firma(options)
     ].join("\n");
   }
 
-  function generarMensaje(
-    row,
-    tipo,
-    payload,
-    options
-  ){
-    var type =
-      canonicalType(tipo);
-
+  function generarMensaje(row, tipo, payload, options){
+    var type = canonicalType(tipo);
     payload = payload || {};
 
     if(type === "cronograma"){
       return generarMensajeCronograma(
         row,
-        payload.texto ||
-          payload.mensaje ||
-          "",
+        payload.texto || payload.mensaje || "",
         options
       );
     }
@@ -1112,106 +709,47 @@ Con qué se conecta:
     if(type === "libre"){
       return generarMensajeLibre(
         row,
-        payload.texto ||
-          payload.mensaje ||
-          "",
+        payload.texto || payload.mensaje || "",
         options
       );
     }
 
-    return generarMensajeTipo(
-      row,
-      type,
-      options
-    );
+    return generarMensajeTipo(row, type, options);
   }
 
   function asunto(row, tipo){
-    var data =
-      datosEstudiante(
-        row || {}
-      );
-
-    var subject =
-      tipoLabel(
-        tipo ||
-        "requisitos"
-      ) +
-      " - Proceso de titulación";
+    var data = datosEstudiante(row || {});
+    var subject = tipoLabel(tipo || "requisitos") + " - Proceso de titulación";
 
     if(data.periodo){
-      subject +=
-        " - " +
-        data.periodo;
+      subject += " - " + data.periodo;
     }
 
     return subject;
   }
 
   window.TablaMessage = {
-    version:
-      VERSION,
-
-    CONTACTO_GENERAL:
-      CONTACTO_GENERAL,
-
-    REQ_DEFS:
-      REQ_DEFS.map(
-        function(item){
-          return Object.assign(
-            {},
-            item,
-            {
-              aliases:
-                item.aliases.slice()
-            }
-          );
-        }
-      ),
-
-    TIPO_LABELS:
-      Object.assign(
-        {},
-        TYPE_LABELS
-      ),
-
-    canonicalType:
-      canonicalType,
-
-    tipoLabel:
-      tipoLabel,
-
-    datosEstudiante:
-      datosEstudiante,
-
-    listarRequisitos:
-      listarRequisitos,
-
-    listarRequisitosPendientes:
-      listarRequisitosPendientes,
-
-    contactosPorPendientes:
-      contactosPorPendientes,
-
-    aplicarVariables:
-      aplicarVariables,
-
-    generarMensajeRequisitos:
-      generarMensajeRequisitos,
-
-    generarMensajeTipo:
-      generarMensajeTipo,
-
-    generarMensajeCronograma:
-      generarMensajeCronograma,
-
-    generarMensajeLibre:
-      generarMensajeLibre,
-
-    generarMensaje:
-      generarMensaje,
-
-    asunto:
-      asunto
+    version: VERSION,
+    CONTACTO_GENERAL: CONTACTO_GENERAL,
+    REQ_DEFS: REQ_DEFS.map(function(item){
+      return Object.assign({}, item, {
+        aliases: item.aliases.slice()
+      });
+    }),
+    TIPO_LABELS: Object.assign({}, TYPE_LABELS),
+    canonicalType: canonicalType,
+    tipoLabel: tipoLabel,
+    datosEstudiante: datosEstudiante,
+    listarRequisitos: listarRequisitos,
+    listarRequisitosPendientes: listarRequisitosPendientes,
+    listarRequisitosSinDato: listarRequisitosSinDato,
+    contactosPorPendientes: contactosPorPendientes,
+    aplicarVariables: aplicarVariables,
+    generarMensajeRequisitos: generarMensajeRequisitos,
+    generarMensajeTipo: generarMensajeTipo,
+    generarMensajeCronograma: generarMensajeCronograma,
+    generarMensajeLibre: generarMensajeLibre,
+    generarMensaje: generarMensaje,
+    asunto: asunto
   };
 })(window);
