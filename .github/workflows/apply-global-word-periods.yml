@@ -22,25 +22,37 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Apply corrected Global files
+      - name: Apply Global Core period rules
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ ! -d .github/global-fix ]; then
-            echo "Los recursos temporales ya fueron retirados."
-            exit 0
-          fi
-
           git apply --whitespace=nowarn .github/global-fix/global.core.js.patch
+
+      - name: Apply Global PDF signatures
+        shell: bash
+        run: |
+          set -euo pipefail
           git apply --whitespace=nowarn .github/global-fix/global.pdf.js.patch
+
+      - name: Apply Global App Word connection
+        shell: bash
+        run: |
+          set -euo pipefail
           git apply --whitespace=nowarn .github/global-fix/global.app.js.patch
 
+      - name: Build Global Word generator
+        shell: bash
+        run: |
+          set -euo pipefail
           cat .github/global-fix/global.word.js.b64.part-* \
             | tr -d '\n\r' \
             | base64 --decode \
             > Global/global.word.js
 
+      - name: Validate Global JavaScript and requirements
+        shell: bash
+        run: |
+          set -euo pipefail
           node --check Global/global.core.js
           node --check Global/global.pdf.js
           node --check Global/global.app.js
@@ -54,6 +66,9 @@ jobs:
           grep -q '".docx"' Global/global.word.js
           grep -q 'function generateWord' Global/global.app.js
 
+      - name: Remove temporary Global resources
+        shell: bash
+        run: |
           rm -rf .github/global-fix
 
       - name: Commit corrected Global files
