@@ -1,23 +1,25 @@
 name: Apply Stats repository fix
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
-      - ".github/workflows/apply-stats-repo-fix.yml"
+      - ".github/trigger-stats-fix.txt"
 
 permissions:
   contents: write
 
 jobs:
   apply-stats-fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout pull request branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Patch Stats and verify connection
@@ -73,18 +75,17 @@ jobs:
 
           print("cone.stats.js verificado correctamente.")
 
-      - name: Commit correction and remove temporary workflow
+      - name: Commit correction to pull request branch
         shell: bash
         run: |
-          rm -f .github/workflows/apply-stats-repo-fix.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Stats/stats.core.js .github/workflows/apply-stats-repo-fix.yml
+          git add Stats/stats.core.js
 
           if git diff --cached --quiet; then
-            echo "No hay cambios pendientes."
+            echo "No hay cambios pendientes en Stats."
             exit 0
           fi
 
           git commit -m "Hace que Stats use BDLocalStats"
-          git push origin HEAD:main
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
