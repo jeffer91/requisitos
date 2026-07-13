@@ -1,19 +1,16 @@
 /* =========================================================
 Nombre completo: tabla.render-summary.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/ui/tabla.render-summary.js
-Función o funciones:
+Ruta: /Gestion/Tabla/ui/tabla.render-summary.js
+Función:
 - Mostrar el resumen compacto superior de Tabla.
-- Mantener compatibilidad temporal con los antiguos indicadores KPI.
+- Diferenciar incumplimientos confirmados de datos pendientes de validación.
+- Mantener compatibilidad con los antiguos indicadores KPI.
 - Centralizar mensajes de estado, éxito, advertencia y error.
-Con qué se conecta:
-- tabla.utils.js
-- tabla.app.js
-- tabla.html
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "3.0.0-functional-status-summary";
   var U = window.TablaUtils || {};
 
   function el(id){
@@ -23,78 +20,46 @@ Con qué se conecta:
   function text(value){
     return U.text
       ? U.text(value)
-      : String(
-          value == null
-            ? ""
-            : value
-        ).trim();
+      : String(value == null ? "" : value).trim();
+  }
+
+  function number(value){
+    value = Number(value || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
   }
 
   function setText(id, value){
     var node = el(id);
-
     if(node){
-      node.textContent =
-        value;
+      node.textContent = value;
     }
   }
 
   function status(message, type){
-    var box =
-      el("tabla-status");
+    var box = el("tabla-status");
+    if(!box){ return; }
 
-    if(!box){
-      return;
-    }
-
-    box.textContent =
-      text(message);
-
-    box.className =
-      "tabla-status" +
-      (
-        type
-          ? " " + type
-          : ""
-      );
+    box.textContent = text(message);
+    box.className = "tabla-status" + (type ? " " + type : "");
   }
 
-  function summaryMessage(
-    summary,
-    pagination,
-    state
-  ){
-    summary =
-      summary || {};
+  function studentWord(total){
+    return total === 1 ? "estudiante" : "estudiantes";
+  }
 
-    pagination =
-      pagination || {};
+  function summaryMessage(summary, pagination, state){
+    summary = summary || {};
+    pagination = pagination || {};
+    state = state || {};
 
-    state =
-      state || {};
+    var total = number(summary.total || pagination.total);
+    var shown = Array.isArray(state.rows) ? state.rows.length : 0;
+    var periodLabel = text(state.periodLabel || state.periodId);
+    var failed = number(summary.faltantes || summary.no_cumple);
+    var noData = number(summary.sinDato || summary.pendiente);
+    var complete = number(summary.cumple);
 
-    var total =
-      Number(
-        summary.total ||
-        pagination.total ||
-        0
-      );
-
-    var shown =
-      Array.isArray(state.rows)
-        ? state.rows.length
-        : 0;
-
-    var periodLabel =
-      text(
-        state.periodLabel ||
-        state.periodId
-      );
-
-    if(
-      !state.periodId &&
-      !total
-    ){
+    if(!state.periodId && !total){
       return "Seleccione un período o cambie los filtros para consultar estudiantes.";
     }
 
@@ -103,148 +68,55 @@ Con qué se conecta:
     }
 
     var message =
-      "Mostrando " +
-      shown +
-      " de " +
-      total +
-      " estudiante(s)";
+      "Mostrando " + shown + " de " + total + " " + studentWord(total);
 
     if(periodLabel){
-      message +=
-        " del período " +
-        periodLabel;
+      message += " del período " + periodLabel;
     }
 
     message += ". ";
-
-    message +=
-      Number(
-        summary.faltantes ||
-        0
-      ) +
-      " tienen requisitos pendientes";
-
-    message +=
-      " y " +
-      Number(
-        summary.cumple ||
-        0
-      ) +
-      " cumplen todo.";
+    message += failed + " con incumplimientos confirmados";
+    message += ", " + noData + " con información pendiente de validación";
+    message += " y " + complete + " que cumplen todos los requisitos.";
 
     return message;
   }
 
-  function render(
-    summary,
-    pagination,
-    state
-  ){
-    summary =
-      summary || {};
+  function render(summary, pagination, state){
+    summary = summary || {};
 
-    setText(
-      "tabla-kpi-total",
-      Number(
-        summary.total ||
-        0
-      )
-    );
+    setText("tabla-kpi-total", number(summary.total));
+    setText("tabla-kpi-ok", number(summary.cumple));
+    setText("tabla-kpi-pend", number(summary.sinDato || summary.pendiente));
+    setText("tabla-kpi-no", number(summary.faltantes || summary.no_cumple));
+    setText("tabla-kpi-carreras", number(summary.carreras));
 
-    setText(
-      "tabla-kpi-ok",
-      Number(
-        summary.cumple ||
-        0
-      )
-    );
-
-    setText(
-      "tabla-kpi-pend",
-      Number(
-        summary.pendiente ||
-        0
-      )
-    );
-
-    setText(
-      "tabla-kpi-no",
-      Number(
-        summary.no_cumple ||
-        0
-      )
-    );
-
-    setText(
-      "tabla-kpi-carreras",
-      Number(
-        summary.carreras ||
-        0
-      )
-    );
-
-    var compact =
-      el("tabla-summary");
-
-    var message =
-      summaryMessage(
-        summary,
-        pagination,
-        state
-      );
+    var message = summaryMessage(summary, pagination, state);
+    var compact = el("tabla-summary");
 
     if(compact){
-      compact.textContent =
-        message;
+      compact.textContent = message;
     }
 
     return message;
   }
 
   window.TablaRenderSummary = {
-    version:
-      VERSION,
-
-    render:
-      render,
-
-    message:
-      summaryMessage,
-
-    status:
-      status,
-
-    loading:
-      function(message){
-        status(
-          message ||
-          "Cargando tabla...",
-          ""
-        );
-      },
-
-    success:
-      function(message){
-        status(
-          message,
-          "ok"
-        );
-      },
-
-    warning:
-      function(message){
-        status(
-          message,
-          "warn"
-        );
-      },
-
-    error:
-      function(message){
-        status(
-          message,
-          "warn"
-        );
-      }
+    version: VERSION,
+    render: render,
+    message: summaryMessage,
+    status: status,
+    loading: function(message){
+      status(message || "Cargando tabla...", "");
+    },
+    success: function(message){
+      status(message, "ok");
+    },
+    warning: function(message){
+      status(message, "warn");
+    },
+    error: function(message){
+      status(message, "warn");
+    }
   };
 })(window, document);
