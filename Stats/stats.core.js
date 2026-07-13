@@ -534,8 +534,13 @@ Con qué se conecta:
   }
 
   function excelRepo(){
-    return window.ExcelLocalRepo || null;
-  }
+  return (
+    window.BDLocalStats ||
+    window.ConStats ||
+    window.ExcelLocalRepo ||
+    null
+  );
+}
 
   function requirementLists(){
     var r = rules();
