@@ -1,0 +1,147 @@
+--- a/Global/global.app.js
++++ b/Global/global.app.js
+@@ -7,18 +7,19 @@
+ - Construir el menú lateral desde global.config.js.
+ - Renderizar tablas inteligentes para cada sección.
+ - Mostrar el total, la tabla y el gráfico de graduados por período.
+-- Enviar la sección y los filtros actuales al PDF institucional.
++- Enviar la sección y los filtros actuales al PDF y Word institucionales.
+ Con qué se conecta:
+ - global.config.js
+ - global.core.js
+ - global.table.js
+ - global.chart.js
+ - global.pdf.js
++- global.word.js
+ ========================================================= */
+ (function(window, document){
+   "use strict";
+ 
+-  var VERSION = "1.1.0-graduados";
++  var VERSION = "1.2.0-pdf-word";
+   var config = window.GlobalConfig || {};
+   var activeSection = "resumen";
+   var booted = false;
+@@ -1691,6 +1692,88 @@
+     });
+   }
+ 
++  function generateWord(){
++    var filters =
++      currentFilters();
++
++    setState(
++      "Preparando Word",
++      "loading"
++    );
++
++    return loadData().then(function(data){
++      data =
++        data ||
++        lastData;
++
++      emit("global:word-requested", {
++        section: activeSection,
++        filters: filters,
++        data: data,
++        at: new Date().toISOString()
++      });
++
++      if(
++        !window.GlobalWord ||
++        typeof window.GlobalWord.generate !== "function"
++      ){
++        setState(
++          "Word no disponible",
++          "warning"
++        );
++
++        window.alert(
++          "GlobalWord no está disponible. Revisa que global.word.js esté cargado."
++        );
++
++        return false;
++      }
++
++      return Promise.resolve(
++        window.GlobalWord.generate({
++          section: activeSection,
++          filters: filters,
++          data: data
++        })
++      ).then(function(result){
++        setState(
++          result === false
++            ? "Word no generado"
++            : "Word descargado",
++
++          result === false
++            ? "warning"
++            : "success"
++        );
++
++        return result;
++      });
++    }).catch(function(error){
++      setState(
++        "Error Word",
++        "error"
++      );
++
++      window.alert(
++        "No se pudo generar el Word institucional: " +
++        (
++          error && error.message
++            ? error.message
++            : error
++        )
++      );
++
++      try{
++        console.error(
++          "[GlobalApp] Error al generar Word",
++          error
++        );
++      }catch(consoleError){}
++
++      return false;
++    });
++  }
++
+   function bind(){
+     var menu =
+       $("#globalMenu");
+@@ -1703,6 +1786,9 @@
+ 
+     var pdfButton =
+       $("#globalBtnPdf");
++
++    var wordButton =
++      $("#globalBtnWord");
+ 
+     if(menu){
+       menu.addEventListener(
+@@ -1789,6 +1875,13 @@
+         generatePdf
+       );
+     }
++
++    if(wordButton){
++      wordButton.addEventListener(
++        "click",
++        generateWord
++      );
++    }
+   }
+ 
+   function boot(){
+@@ -1815,6 +1908,9 @@
+     generatePdf:
+       generatePdf,
+ 
++    generateWord:
++      generateWord,
++
+     clearFilters:
+       clearFilters,
+ 
