@@ -1,1 +1,2 @@
 Activar corrección puntual de Stats.
+Segundo intento con búsqueda segura del bloque.
