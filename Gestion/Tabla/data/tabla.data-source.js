@@ -5,12 +5,13 @@ Función:
 - Ser la única puerta de entrada de Tabla hacia Base Local.
 - Cargar BDLocalConnectionClient para la pantalla tabla.
 - Leer períodos, estudiantes y requisitos desde un solo envelope.
-- Mantener las interfaces usadas por tabla.app.js y tabla.data-guard.js.
+- Entregar a la pantalla únicamente el envelope validado por TablaDataGuard.
+- Diferenciar invalidación visual de invalidación real de datos.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "3.0.0-official-client";
+  var VERSION = "3.1.0-guarded-read-flow";
   var SCREEN = "tabla";
   var SOURCE = "ConTabla";
   var U = window.TablaUtils || {};
@@ -21,7 +22,10 @@ Función:
     envelopePromise: null,
     envelope: null,
     reads: 0,
+    guardedReads: 0,
     refreshes: 0,
+    invalidations: 0,
+    hardInvalidations: 0,
     failures: 0,
     lastError: "",
     updatedAt: "",
@@ -52,13 +56,20 @@ Función:
       function check(){
         var value = null;
         try{ value = test(); }catch(error){ value = null; }
-        if(value){ resolve(value); return; }
+
+        if(value){
+          resolve(value);
+          return;
+        }
+
         if(Date.now() - started >= timeout){
           reject(new Error("No se pudo preparar " + label + "."));
           return;
         }
+
         window.setTimeout(check, 40);
       }
+
       check();
     });
   }
@@ -73,8 +84,11 @@ Función:
 
   function existingClientScript(url){
     return Array.prototype.slice.call(document.scripts || []).some(function(script){
-      try{ return new URL(script.src, document.baseURI).href === url; }
-      catch(error){ return script.src === url; }
+      try{
+        return new URL(script.src, document.baseURI).href === url;
+      }catch(error){
+        return script.src === url;
+      }
     });
   }
 
@@ -82,13 +96,18 @@ Función:
     if(window.BDLocalConnectionClient){
       return Promise.resolve(window.BDLocalConnectionClient);
     }
-    if(state.clientPromise){ return state.clientPromise; }
+
+    if(state.clientPromise){
+      return state.clientPromise;
+    }
 
     var url = clientScriptUrl();
+
     if(existingClientScript(url)){
       state.clientPromise = waitFor(function(){
         return window.BDLocalConnectionClient;
       }, "BDLocalConnectionClient", 15000);
+
       return state.clientPromise;
     }
 
@@ -99,14 +118,17 @@ Función:
       script.defer = false;
       script.setAttribute("data-bdl-screen", SCREEN);
       script.setAttribute("data-tabla-owned-client", "true");
+
       script.onload = function(){
         waitFor(function(){
           return window.BDLocalConnectionClient;
         }, "BDLocalConnectionClient", 15000).then(resolve, reject);
       };
+
       script.onerror = function(){
         reject(new Error("No se pudo cargar el cliente oficial de Base Local."));
       };
+
       (document.head || document.documentElement).appendChild(script);
     }).catch(function(error){
       state.clientPromise = null;
@@ -118,6 +140,7 @@ Función:
 
   function normalizeResponse(response){
     response = object(response);
+
     if(response.ok === false){
       throw new Error(
         text(response.error && response.error.message || response.message) ||
@@ -136,8 +159,12 @@ Función:
       meta: Object.assign({}, responseMeta, dataMeta, {
         source: text(responseMeta.source || dataMeta.source || response.source) || SOURCE,
         revision: revision,
-        fallbackUsed: responseMeta.fallbackUsed === true || dataMeta.fallbackUsed === true,
-        stale: responseMeta.stale === true || dataMeta.stale === true
+        fallbackUsed:
+          responseMeta.fallbackUsed === true ||
+          dataMeta.fallbackUsed === true,
+        stale:
+          responseMeta.stale === true ||
+          dataMeta.stale === true
       }),
       periods: array(data.periods || data.periodList || response.periods),
       students: array(data.students || data.rows || response.students || response.rows),
@@ -151,15 +178,26 @@ Función:
     if(raw.meta.fallbackUsed){
       throw new Error("Tabla recibió una fuente de respaldo no autorizada.");
     }
+
     if(raw.meta.stale){
       throw new Error("Tabla recibió información marcada como desactualizada.");
     }
+
     if(text(raw.meta.source) !== SOURCE && text(response.source) !== SOURCE){
       throw new Error("Tabla recibió datos desde una fuente distinta de ConTabla.");
     }
-    if(!raw.periods.length){ throw new Error("ConTabla no entregó períodos."); }
-    if(!raw.students.length){ throw new Error("ConTabla no entregó estudiantes."); }
-    if(!raw.requirements.length){ throw new Error("ConTabla no entregó requisitos."); }
+
+    if(!raw.periods.length){
+      throw new Error("ConTabla no entregó períodos.");
+    }
+
+    if(!raw.students.length){
+      throw new Error("ConTabla no entregó estudiantes.");
+    }
+
+    if(!raw.requirements.length){
+      throw new Error("ConTabla no entregó requisitos.");
+    }
 
     var normalized = N.normalizeEnvelope ? N.normalizeEnvelope(raw) : raw;
     normalized = object(normalized);
@@ -176,19 +214,27 @@ Función:
     normalized.diagnostics = array(normalized.diagnostics);
     normalized.revision = revision;
     normalized.source = SOURCE;
+
     return normalized;
   }
 
   function fetchEnvelope(options){
     options = object(options);
-    if(state.envelopePromise && options.force !== true){ return state.envelopePromise; }
-    if(state.envelope && options.force !== true){ return Promise.resolve(state.envelope); }
+
+    if(state.envelopePromise && options.force !== true){
+      return state.envelopePromise;
+    }
+
+    if(state.envelope && options.force !== true){
+      return Promise.resolve(state.envelope);
+    }
 
     state.envelopePromise = loadClient()
       .then(function(client){
         if(!client || typeof client.read !== "function"){
           throw new Error("BDLocalConnectionClient.read no está disponible.");
         }
+
         return client.read(SCREEN, {
           matricula: "",
           force: options.force === true,
@@ -209,13 +255,52 @@ Función:
         state.lastError = text(error && error.message || error);
         throw error;
       })
-      .finally(function(){ state.envelopePromise = null; });
+      .finally(function(){
+        state.envelopePromise = null;
+      });
 
     return state.envelopePromise;
   }
 
+  function dataGuard(){
+    return window.TablaDataGuard || null;
+  }
+
+  function guardedEnvelope(options){
+    options = object(options);
+
+    return fetchEnvelope(options).then(function(){
+      var guard = dataGuard();
+
+      if(!guard || typeof guard.readCache !== "function"){
+        throw new Error(
+          "TablaDataGuard no está disponible para validar la lectura oficial."
+        );
+      }
+
+      var envelope = object(guard.readCache({
+        allowEmpty: options.allowEmpty === true
+      }));
+      var meta = object(envelope.meta);
+      var periods = array(envelope.periods);
+      var students = array(envelope.students || envelope.rows);
+      var requirements = array(envelope.requirements || envelope.requisitos);
+
+      if(meta.stale === true && !periods.length && !students.length && !requirements.length){
+        throw new Error(
+          text(meta.staleReason || envelope.staleReason) ||
+          "TablaDataGuard no dispone de una revisión válida para mostrar."
+        );
+      }
+
+      state.guardedReads += 1;
+      return envelope;
+    });
+  }
+
   function periodIdOf(row){
     row = object(row);
+
     return U.canonicalPeriodId
       ? U.canonicalPeriodId(
           row._periodoId || row.periodoId || row.periodId ||
@@ -231,22 +316,45 @@ Función:
   function filterRows(rows, options){
     rows = array(rows);
     options = object(options);
+
     var periodId = text(options.periodId || options.periodoId);
     var matricula = text(options.matricula).toUpperCase();
     var search = text(options.search || options.query).toLowerCase();
 
     var output = rows.filter(function(row){
       row = object(row);
-      if(periodId && !samePeriod(periodIdOf(row), periodId)){ return false; }
-      if(matricula && text(
-        row._matricula || row._estadoMatricula || row.estadoMatricula || row.matricula
-      ).toUpperCase() !== matricula){ return false; }
-      if(search && text(
-        row._search || [
-          row._cedula, row._nombres, row._carrera, row._correo,
-          row._celular, row._telegramUser, row._telegramChatId
-        ].join(" ")
-      ).toLowerCase().indexOf(search) < 0){ return false; }
+
+      if(periodId && !samePeriod(periodIdOf(row), periodId)){
+        return false;
+      }
+
+      if(
+        matricula &&
+        text(
+          row._matricula || row._estadoMatricula ||
+          row.estadoMatricula || row.matricula
+        ).toUpperCase() !== matricula
+      ){
+        return false;
+      }
+
+      if(
+        search &&
+        text(
+          row._search || [
+            row._cedula,
+            row._nombres,
+            row._carrera,
+            row._correo,
+            row._celular,
+            row._telegramUser,
+            row._telegramChatId
+          ].join(" ")
+        ).toLowerCase().indexOf(search) < 0
+      ){
+        return false;
+      }
+
       return true;
     });
 
@@ -255,11 +363,13 @@ Función:
   }
 
   function readPeriods(){
-    return fetchEnvelope().then(function(envelope){ return envelope.periods.slice(); });
+    return guardedEnvelope().then(function(envelope){
+      return array(envelope.periods).slice();
+    });
   }
 
   function readStudents(options){
-    return fetchEnvelope().then(function(envelope){
+    return guardedEnvelope().then(function(envelope){
       return filterRows(envelope.students, options || {});
     });
   }
@@ -269,7 +379,9 @@ Función:
       .then(function(client){
         return typeof client.ready === "function" ? client.ready(SCREEN) : client;
       })
-      .then(function(){ return fetchEnvelope(); })
+      .then(function(){
+        return guardedEnvelope();
+      })
       .then(status);
   }
 
@@ -282,11 +394,13 @@ Función:
     }, options || {});
 
     state.refreshes += 1;
+
     return loadClient()
       .then(function(client){
         if(!client || typeof client.refresh !== "function"){
           throw new Error("BDLocalConnectionClient.refresh no está disponible.");
         }
+
         return client.refresh(SCREEN, options);
       })
       .then(function(response){
@@ -296,11 +410,24 @@ Función:
             "No se pudo actualizar Tabla desde Base Local."
           );
         }
-        invalidate();
-        return fetchEnvelope({force: true, source: "TablaDataSource.after-refresh"});
+
+        invalidate({hard: true, source: "TablaDataSource.refresh"});
+
+        return fetchEnvelope({
+          force: true,
+          source: "TablaDataSource.after-refresh"
+        });
+      })
+      .then(function(){
+        return guardedEnvelope();
       })
       .then(function(envelope){
-        return {ok: true, envelope: envelope, revision: envelope.revision, source: SOURCE};
+        return {
+          ok: true,
+          envelope: envelope,
+          revision: envelope.revision,
+          source: SOURCE
+        };
       })
       .catch(function(error){
         state.failures += 1;
@@ -309,14 +436,29 @@ Función:
       });
   }
 
-  function invalidate(){
+  function invalidate(options){
+    options = options === true ? {hard: true} : object(options);
+    state.invalidations += 1;
+
+    if(options.hard !== true && options.force !== true && options.clear !== true){
+      return false;
+    }
+
+    state.hardInvalidations += 1;
     state.envelope = null;
     state.envelopePromise = null;
+    return true;
   }
 
   function readEnvelope(){
     return state.envelope || {
-      meta: {source: SOURCE, revision: 0, fallbackUsed: false, stale: false, loading: true},
+      meta: {
+        source: SOURCE,
+        revision: 0,
+        fallbackUsed: false,
+        stale: false,
+        loading: true
+      },
       periods: [],
       students: [],
       requirements: [],
@@ -329,17 +471,31 @@ Función:
 
   function status(){
     var envelope = readEnvelope();
+    var guard = dataGuard();
+    var guardStatus = guard && typeof guard.status === "function"
+      ? guard.status()
+      : null;
+
     return {
-      ok: !state.lastError && !!state.envelope,
+      ok:
+        !state.lastError &&
+        !!state.envelope &&
+        !!guardStatus &&
+        guardStatus.ready === true,
       version: VERSION,
       connector: "BDLocalConnectionClient",
+      guard: guardStatus ? guardStatus.source : "",
+      guardReady: !!(guardStatus && guardStatus.ready),
       source: SOURCE,
       revision: state.revision,
       periods: array(envelope.periods).length,
       students: array(envelope.students).length,
       requirements: array(envelope.requirements).length,
       reads: state.reads,
+      guardedReads: state.guardedReads,
       refreshes: state.refreshes,
+      invalidations: state.invalidations,
+      hardInvalidations: state.hardInvalidations,
       failures: state.failures,
       lastError: state.lastError,
       updatedAt: state.updatedAt
@@ -358,6 +514,7 @@ Función:
     listStudents: readStudents,
     refresh: refresh,
     invalidate: invalidate,
+    clear: function(){ return invalidate({hard: true, clear: true}); },
     status: status
   };
 })(window, document);
