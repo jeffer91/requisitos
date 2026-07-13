@@ -1,630 +1,557 @@
 /* =========================================================
 Nombre completo: tabla.data-normalizer.js
-Ruta o ubicación: /Requisitos/Gestion/Tabla/data/tabla.data-normalizer.js
-Función o funciones:
-- Normalizar períodos, estudiantes, requisitos y datos de contacto.
-- Crear los campos internos usados por Tabla sin alterar los datos originales.
-- Unificar estados de matrícula, requisitos, Telegram y búsqueda.
-- Vincular los requisitos separados de BDLocal con cada estudiante.
-Con qué se conecta:
-- tabla.constants.js
-- tabla.utils.js
-- BLDivisionesService y BLCampos cuando están disponibles.
+Ruta: /Gestion/Tabla/data/tabla.data-normalizer.js
+Función:
+- Normalizar períodos, estudiantes, contactos y requisitos.
+- Aplicar la política REGULAR/PVC utilizada por Ficha.
+- Excluir campos finales de los requisitos normales.
+- Diferenciar cumple, no_cumple, no_aplica, pendiente y sin_dato.
+- Vincular requisitos por cédula y período exactos.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.1";
-
-  var C =
-    window.TablaConstants ||
-    {};
-
-  var U =
-    window.TablaUtils ||
-    {};
-
-  var ALIASES =
-    C.aliases ||
-    {};
-
-  var REQUIREMENTS =
-    Array.isArray(C.requirements)
-      ? C.requirements
-      : [];
+  var VERSION = "3.0.0-regular-pvc";
+  var C = window.TablaConstants || {};
+  var U = window.TablaUtils || {};
+  var ALIASES = C.aliases || {};
+  var STATUS = C.requirementStatus || {};
+  var TYPES = C.periodTypes || {regular: "REGULAR", pvc: "PVC"};
 
   function text(value){
-    return U.text
-      ? U.text(value)
-      : String(
-          value == null
-            ? ""
-            : value
-        ).trim();
+    return U.text ? U.text(value) : String(value == null ? "" : value).trim();
+  }
+
+  function array(value){
+    return Array.isArray(value) ? value : [];
+  }
+
+  function object(value){
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
   }
 
   function key(value){
-    return U.normalizeKey
-      ? U.normalizeKey(value)
-      : text(value)
-          .toLowerCase()
-          .replace(
-            /[^a-z0-9]+/g,
-            ""
-          );
+    if(U.normalizeKey){ return U.normalizeKey(value); }
+    return text(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
   }
 
-  function pick(
-    row,
-    aliases,
-    fallback
-  ){
-    return U.pick
-      ? U.pick(
-          row,
-          aliases,
-          fallback
-        )
-      : fallback;
+  function normalizeCedula(value){
+    return U.normalizeCedula
+      ? U.normalizeCedula(value)
+      : text(value).replace(/[^0-9A-Za-z]/g, "");
+  }
+
+  function canonicalPeriod(value){
+    return U.canonicalPeriodId
+      ? U.canonicalPeriodId(value)
+      : text(value);
+  }
+
+  function pick(row, aliases, fallback){
+    row = object(row);
+    aliases = array(aliases);
+
+    if(U.pick){
+      return U.pick(row, aliases, fallback);
+    }
+
+    var names = Object.keys(row);
+    var wanted = aliases.map(key);
+    var i;
+
+    for(i = 0; i < aliases.length; i += 1){
+      if(
+        Object.prototype.hasOwnProperty.call(row, aliases[i]) &&
+        row[aliases[i]] != null &&
+        text(row[aliases[i]]) !== ""
+      ){
+        return row[aliases[i]];
+      }
+    }
+
+    for(i = 0; i < names.length; i += 1){
+      if(
+        wanted.indexOf(key(names[i])) >= 0 &&
+        row[names[i]] != null &&
+        text(row[names[i]]) !== ""
+      ){
+        return row[names[i]];
+      }
+    }
+
+    return fallback;
+  }
+
+  function findField(row, aliases){
+    row = object(row);
+    aliases = array(aliases);
+    var names = Object.keys(row);
+    var wanted = aliases.map(key);
+    var i;
+
+    for(i = 0; i < aliases.length; i += 1){
+      if(Object.prototype.hasOwnProperty.call(row, aliases[i])){
+        return {found: true, value: row[aliases[i]], field: aliases[i]};
+      }
+    }
+
+    for(i = 0; i < names.length; i += 1){
+      if(wanted.indexOf(key(names[i])) >= 0){
+        return {found: true, value: row[names[i]], field: names[i]};
+      }
+    }
+
+    return {found: false, value: "", field: ""};
   }
 
   function statusFromValue(value){
+    if(value && typeof value === "object"){
+      value = value.estado != null
+        ? value.estado
+        : value.status != null
+          ? value.status
+          : value.value != null
+            ? value.value
+            : value.valor;
+    }
+
     var clean = key(value);
 
     if(!clean){
-      return "pendiente";
+      return STATUS.noData || "sin_dato";
     }
 
     if(
       [
-        "si",
-        "s",
-        "ok",
-        "cumple",
-        "cumplido",
-        "aprobado",
-        "aprobada",
-        "1",
-        "true",
-        "x",
-        "validado",
-        "validada",
-        "completo",
-        "completa"
+        "noaplica", "na", "n/a", "notapplicable",
+        "noaplicable", "noaplicaesteperiodo"
       ].indexOf(clean) >= 0
     ){
-      return "cumple";
+      return STATUS.notApplicable || "no_aplica";
     }
 
     if(
-      clean.indexOf(
-        "nocumple"
-      ) >= 0 ||
-      clean.indexOf(
-        "reprob"
-      ) >= 0 ||
       [
-        "no",
-        "n",
-        "0",
-        "false",
-        "falta",
-        "faltante",
-        "incompleto",
-        "incompleta"
+        "si", "s", "ok", "cumple", "cumplido", "cumplida",
+        "aprobado", "aprobada", "1", "true", "x",
+        "validado", "validada", "completo", "completa"
       ].indexOf(clean) >= 0
     ){
-      return "no_cumple";
+      return STATUS.ok || "cumple";
     }
 
-    return "pendiente";
+    if(
+      clean.indexOf("nocumple") >= 0 ||
+      clean.indexOf("reprob") >= 0 ||
+      [
+        "no", "n", "0", "false", "falta", "faltante",
+        "incompleto", "incompleta", "incumple", "rechazado",
+        "rechazada", "pendienteporcumplir"
+      ].indexOf(clean) >= 0
+    ){
+      return STATUS.failed || "no_cumple";
+    }
+
+    if(
+      [
+        "pendiente", "revision", "enrevision", "porvalidar",
+        "procesando", "enproceso"
+      ].indexOf(clean) >= 0
+    ){
+      return STATUS.pending || "pendiente";
+    }
+
+    return STATUS.pending || "pendiente";
   }
 
-  function requirementValueFromList(
-    row,
-    definition
-  ){
-    row = row || {};
-    definition = definition || {};
-
-    var list =
-      Array.isArray(row.requisitos)
-        ? row.requisitos
-        : Array.isArray(row.requirements)
-          ? row.requirements
-          : Array.isArray(row._requisitos)
-            ? row._requisitos
-            : [];
-
-    if(!list.length){
-      return "";
+  function statusLabel(status){
+    switch(status){
+      case "cumple": return "Cumple";
+      case "no_cumple": return "No cumple";
+      case "no_aplica": return "No aplica";
+      case "sin_dato": return "Sin dato";
+      default: return "Pendiente";
     }
+  }
 
-    var acceptedKeys = [
+  function definitionKeys(definition){
+    definition = object(definition);
+    return [
       definition.key,
       definition.field,
       definition.label
-    ]
-      .concat(
-        Array.isArray(
-          definition.aliases
-        )
-          ? definition.aliases
-          : []
-      )
-      .map(function(value){
-        return key(value);
-      })
+    ].concat(array(definition.aliases))
+      .map(key)
       .filter(Boolean);
+  }
 
-    for(
-      var index = 0;
-      index < list.length;
-      index += 1
-    ){
-      var item =
-        list[index] ||
-        {};
+  function isFinalRequirement(value){
+    var currentKey = key(
+      value && typeof value === "object"
+        ? value.key || value.field || value.requisitoKey || value.nombre || value.label
+        : value
+    );
 
+    return array(
+      C.periodPolicy && C.periodPolicy.finalKeys
+    ).map(key).indexOf(currentKey) >= 0;
+  }
+
+  function requirementValueFromList(row, definition){
+    row = object(row);
+    definition = object(definition);
+
+    var list = Array.isArray(row.requisitos)
+      ? row.requisitos
+      : Array.isArray(row.requirements)
+        ? row.requirements
+        : Array.isArray(row._requisitosRaw)
+          ? row._requisitosRaw
+          : [];
+
+    var accepted = definitionKeys(definition);
+    var i;
+
+    for(i = 0; i < list.length; i += 1){
+      var item = object(list[i]);
       var itemKeys = [
         item.requisitoKey,
+        item.requirementKey,
         item.key,
+        item.field,
         item.nombre,
-        item.label,
-        item.field
-      ]
-        .map(function(value){
-          return key(value);
-        })
-        .filter(Boolean);
+        item.label
+      ].map(key).filter(Boolean);
 
-      var matches =
-        itemKeys.some(function(itemKey){
-          return (
-            acceptedKeys.indexOf(
-              itemKey
-            ) >= 0
-          );
-        });
-
-      if(!matches){
+      if(!itemKeys.some(function(itemKey){ return accepted.indexOf(itemKey) >= 0; })){
         continue;
       }
 
-      var value =
-        item.valor != null &&
-        text(item.valor) !== ""
-          ? item.valor
-          : item.estado != null &&
-            text(item.estado) !== ""
-            ? item.estado
-            : item.value != null &&
-              text(item.value) !== ""
-              ? item.value
-              : item.status;
+      var value = item.valor != null
+        ? item.valor
+        : item.estado != null
+          ? item.estado
+          : item.value != null
+            ? item.value
+            : item.status;
 
-      if(
-        value != null &&
-        text(value) !== ""
-      ){
-        return value;
-      }
+      return {
+        found: true,
+        value: value,
+        source: "requirements",
+        raw: item
+      };
     }
 
-    return "";
+    return {found: false, value: "", source: "", raw: null};
   }
 
-  function requirementValue(
-    row,
-    definition
-  ){
-    var valueFromList =
-      requirementValueFromList(
-        row,
-        definition
-      );
+  function requirementValue(row, definition){
+    row = object(row);
+    definition = object(definition);
 
-    if(
-      text(valueFromList) !== ""
-    ){
-      return valueFromList;
-    }
+    var fromList = requirementValueFromList(row, definition);
+    if(fromList.found){ return fromList; }
 
     try{
       if(
         window.BLCampos &&
-        typeof window.BLCampos
-          .getValue === "function"
+        typeof window.BLCampos.getValue === "function"
       ){
-        var official =
-          window.BLCampos
-            .getValue(
-              row,
-              definition.field ||
-              definition.key,
-              ""
-            );
+        var official = window.BLCampos.getValue(
+          row,
+          definition.field || definition.key,
+          undefined
+        );
 
-        if(
-          official != null &&
-          text(official) !== ""
-        ){
-          return official;
+        if(official !== undefined && official !== null && text(official) !== ""){
+          return {
+            found: true,
+            value: official,
+            source: "BLCampos",
+            raw: null
+          };
         }
       }
     }catch(error){}
 
-    return pick(
+    var direct = findField(
       row,
-      definition.aliases ||
-      [definition.key],
-      ""
+      array(definition.aliases).concat([
+        definition.key,
+        definition.field
+      ])
     );
+
+    return {
+      found: direct.found,
+      value: direct.value,
+      source: direct.found ? "student" : "",
+      raw: null,
+      field: direct.field
+    };
   }
 
-  function requirementLabel(
-    definition
-  ){
+  function requirementLabel(definition){
+    definition = object(definition);
+
     try{
       if(
         window.BLCampos &&
-        typeof window.BLCampos
-          .requirementLabel ===
-          "function"
+        typeof window.BLCampos.requirementLabel === "function"
       ){
-        return (
-          text(
-            window.BLCampos
-              .requirementLabel(
-                definition.key,
-                definition.label
-              )
-          ) ||
-          definition.label
-        );
+        return text(
+          window.BLCampos.requirementLabel(
+            definition.key,
+            definition.label
+          )
+        ) || definition.label || definition.key;
       }
     }catch(error){}
 
-    return (
-      definition.label ||
-      definition.key
-    );
+    return definition.label || definition.key;
   }
 
-  function normalizeRequirement(
-    row,
-    definition
-  ){
-    var value =
-      requirementValue(
-        row || {},
-        definition || {}
-      );
+  function normalizedPeriodText(value){
+    return text(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  }
 
-    var status =
-      statusFromValue(value);
+  function classifyPeriod(value){
+    var raw = value && typeof value === "object"
+      ? text(
+          pick(
+            value,
+            array(ALIASES.periodLabel).concat(array(ALIASES.periodId)),
+            ""
+          )
+        )
+      : text(value);
+
+    var normalized = normalizedPeriodText(raw);
+    var patterns = array(
+      C.periodPolicy && C.periodPolicy.regularPatterns
+    );
+
+    if(!patterns.length){
+      patterns = [
+        ["octubre", "marzo"],
+        ["abril", "septiembre"]
+      ];
+    }
+
+    var regular = patterns.some(function(pattern){
+      return array(pattern).every(function(token){
+        return normalized.indexOf(normalizedPeriodText(token)) >= 0;
+      });
+    });
 
     return {
-      key:
-        definition.key ||
-        key(definition.label),
+      id: regular ? (TYPES.regular || "REGULAR") : (TYPES.pvc || "PVC"),
+      label: regular ? "Regular" : "PVC",
+      isRegular: regular,
+      isPVC: !regular,
+      pattern: regular ? "REGULAR" : "PVC",
+      raw: raw,
+      normalized: normalized
+    };
+  }
 
-      field:
-        definition.field ||
-        definition.key ||
-        "",
+  function classifyStudent(row){
+    row = object(row);
+    var periodValue = pick(
+      row,
+      array(ALIASES.periodLabel).concat(array(ALIASES.periodId)),
+      ""
+    );
+    return classifyPeriod(periodValue);
+  }
 
-      label:
-        requirementLabel(
-          definition
-        ),
+  function applicableDefinitions(row){
+    var output = array(C.baseRequirements).slice();
+    if(classifyStudent(row).isRegular){
+      output = output.concat(array(C.regularOnlyRequirements));
+    }
 
-      value:
-        text(value),
+    return output.filter(function(definition){
+      return !isFinalRequirement(definition);
+    });
+  }
 
-      estado:
-        status,
+  function normalizeRequirement(row, definition){
+    definition = object(definition);
+    var result = requirementValue(row || {}, definition);
+    var status = statusFromValue(result.found ? result.value : "");
 
-      estadoLabel:
-        status === "cumple"
-          ? "Cumple"
-          : status === "no_cumple"
-            ? "No cumple"
-            : "Pendiente"
+    return {
+      key: definition.key || key(definition.label),
+      field: definition.field || definition.key || "",
+      label: requirementLabel(definition),
+      aliases: array(definition.aliases).slice(),
+      group: definition.group || "requisito",
+      value: text(result.value),
+      rawValue: result.value,
+      estado: status,
+      status: status,
+      estadoLabel: statusLabel(status),
+      found: result.found,
+      source: result.source || "",
+      applies: status !== "no_aplica",
+      cumple: status === "cumple",
+      missing: status === "no_cumple",
+      noData: status === "sin_dato",
+      pending: status === "pendiente"
     };
   }
 
   function requirementsFor(row){
-    return REQUIREMENTS.map(
-      function(definition){
-        return normalizeRequirement(
-          row || {},
-          definition
-        );
-      }
-    );
+    return applicableDefinitions(row).map(function(definition){
+      return normalizeRequirement(row || {}, definition);
+    });
   }
 
   function missingRequirements(row){
-    if(
-      row &&
-      Array.isArray(
-        row._requisitosFaltantes
-      )
-    ){
-      return row
-        ._requisitosFaltantes
-        .slice();
+    if(row && Array.isArray(row._requisitosFaltantes)){
+      return row._requisitosFaltantes.slice();
     }
 
-    return requirementsFor(row)
-      .filter(function(item){
-        return (
-          item.estado !==
-          "cumple"
-        );
-      });
+    return requirementsFor(row).filter(function(item){
+      return item.estado === "no_cumple";
+    });
   }
 
-  function generalStatus(
-    requirements
-  ){
-    requirements =
-      Array.isArray(requirements)
-        ? requirements
-        : [];
+  function noDataRequirements(row){
+    if(row && Array.isArray(row._requisitosSinDato)){
+      return row._requisitosSinDato.slice();
+    }
+
+    return requirementsFor(row).filter(function(item){
+      return item.estado === "sin_dato" || item.estado === "pendiente";
+    });
+  }
+
+  function generalStatus(requirements){
+    requirements = array(requirements).filter(function(item){
+      return item && item.estado !== "no_aplica";
+    });
 
     if(!requirements.length){
       return "pendiente";
     }
 
-    if(
-      requirements.every(
-        function(item){
-          return (
-            item.estado ===
-            "cumple"
-          );
-        }
-      )
-    ){
-      return "cumple";
-    }
-
-    if(
-      requirements.some(
-        function(item){
-          return (
-            item.estado ===
-            "no_cumple"
-          );
-        }
-      )
-    ){
+    if(requirements.some(function(item){ return item.estado === "no_cumple"; })){
       return "no_cumple";
     }
 
-    return "pendiente";
+    if(
+      requirements.some(function(item){
+        return item.estado === "sin_dato" || item.estado === "pendiente";
+      })
+    ){
+      return "pendiente";
+    }
+
+    return requirements.every(function(item){ return item.estado === "cumple"; })
+      ? "cumple"
+      : "pendiente";
   }
 
   function normalizeMatricula(value){
     var clean = key(value);
 
-    if(!clean){
-      return "ACTIVO";
-    }
+    if(!clean){ return "ACTIVO"; }
+    if(/retir|inactiv|desert|anulad|baja/.test(clean)){ return "RETIRADO"; }
+    if(/activ|matriculad|vigente|regular/.test(clean)){ return "ACTIVO"; }
 
-    if(
-      /retir|inactiv|desert|anulad|baja/
-        .test(clean)
-    ){
-      return "RETIRADO";
-    }
-
-    if(
-      /activ|matriculad|vigente|regular/
-        .test(clean)
-    ){
-      return "ACTIVO";
-    }
-
-    return text(value)
-      .toUpperCase();
+    return text(value).toUpperCase();
   }
 
   function shortCareer(value){
-    var original =
-      text(value);
+    var original = text(value);
+    var shortened = original
+      .replace(/^UNIVERSITARIA\s+EN\s+/i, "")
+      .replace(/^TECNOLOG[IÍ]A\s+SUPERIOR\s+EN\s+/i, "")
+      .replace(/^T[EÉ]CNICO\s+SUPERIOR\s+EN\s+/i, "")
+      .replace(/\s+(ONLINE|PRESENCIAL|H[IÍ]BRIDA)$/i, "")
+      .trim();
 
-    var shortened =
-      original
-        .replace(
-          /^UNIVERSITARIA\s+EN\s+/i,
-          ""
-        )
-        .replace(
-          /^TECNOLOG[IÍ]A\s+SUPERIOR\s+EN\s+/i,
-          ""
-        )
-        .replace(
-          /^T[EÉ]CNICO\s+SUPERIOR\s+EN\s+/i,
-          ""
-        )
-        .replace(
-          /\s+(ONLINE|PRESENCIAL|H[IÍ]BRIDA)$/i,
-          ""
-        )
-        .trim();
-
-    return (
-      shortened ||
-      original
-    );
+    return shortened || original;
   }
 
   function resolveDivision(row){
-    var direct = text(
-      pick(
-        row,
-        ALIASES.division ||
-        [],
-        ""
-      )
-    );
+    row = object(row);
+    var direct = text(pick(row, ALIASES.division || [], ""));
 
     try{
       if(
         window.BLDivisionesService &&
-        typeof window.BLDivisionesService
-          .studentDivision ===
-          "function"
+        typeof window.BLDivisionesService.studentDivision === "function"
       ){
-        var resolved = text(
-          window.BLDivisionesService
-            .studentDivision(
-              row || {}
-            )
-        );
-
-        if(
-          resolved &&
-          key(resolved) !==
-            "sindivision"
-        ){
-          return resolved;
-        }
+        var resolved = text(window.BLDivisionesService.studentDivision(row));
+        if(resolved && key(resolved) !== "sindivision"){ return resolved; }
       }
     }catch(error){}
 
-    if(
-      direct &&
-      key(direct) !==
-        "sindivision"
-    ){
-      return direct;
-    }
-
-    if(
-      row &&
-      Array.isArray(row.divisiones) &&
-      row.divisiones.length
-    ){
-      return (
-        text(row.divisiones[0]) ||
-        "Sin división"
-      );
+    if(direct && key(direct) !== "sindivision"){ return direct; }
+    if(Array.isArray(row.divisiones) && row.divisiones.length){
+      return text(row.divisiones[0]) || "Sin división";
     }
 
     return "Sin división";
   }
 
   function normalizePeriod(period){
-    period =
-      period &&
-      typeof period === "object"
-        ? period
-        : {
-            id: period,
-            label: period
-          };
+    period = period && typeof period === "object"
+      ? period
+      : {id: period, label: period};
 
-    var id =
-      U.periodIdOf
-        ? U.periodIdOf(period)
-        : text(
-            period.id ||
-            period.periodoId ||
-            period.value
-          );
+    var id = U.periodIdOf
+      ? U.periodIdOf(period)
+      : text(period.id || period.periodoId || period.value);
 
-    var label =
-      U.periodLabelOf
-        ? U.periodLabelOf(period)
-        : text(
-            period.label ||
-            period.nombre ||
-            id
-          );
+    var label = U.periodLabelOf
+      ? U.periodLabelOf(period)
+      : text(period.label || period.nombre || period.periodoLabel || id);
 
-    if(!id){
-      return null;
-    }
+    if(!id){ return null; }
 
-    return Object.assign(
-      {},
-      period,
-      {
-        id: id,
-        value: id,
-        key: id,
-        label: label || id,
-        nombre: label || id,
-        periodoId: id,
-        periodId: id,
-        periodoLabel:
-          label || id,
+    var classification = classifyPeriod(label || id);
 
-        periodoCanonicoId:
-          id,
-
-        periodoCanonicoLabel:
-          label || id,
-
-        divisiones:
-          Array.isArray(
-            period.divisiones
-          )
-            ? period
-                .divisiones
-                .slice()
-            : [],
-
-        carrerasDetectadas:
-          Array.isArray(
-            period
-              .carrerasDetectadas
-          )
-            ? period
-                .carrerasDetectadas
-                .slice()
-            : []
-      }
-    );
+    return Object.assign({}, period, {
+      id: id,
+      value: id,
+      key: id,
+      label: label || id,
+      nombre: label || id,
+      periodoId: id,
+      periodId: id,
+      periodoLabel: label || id,
+      periodoCanonicoId: id,
+      periodoCanonicoLabel: label || id,
+      tipoPeriodo: classification.id,
+      isRegular: classification.isRegular,
+      isPVC: classification.isPVC,
+      divisiones: array(period.divisiones).slice(),
+      carrerasDetectadas: array(period.carrerasDetectadas).slice()
+    });
   }
 
   function telegramInfo(row){
-    row = row || {};
+    row = object(row);
 
-    var user =
-      U.normalizeTelegramUser
-        ? U.normalizeTelegramUser(
-            pick(
-              row,
-              ALIASES.telegramUser ||
-              [],
-              ""
-            )
-          )
-        : text(
-            pick(
-              row,
-              ALIASES.telegramUser ||
-              [],
-              ""
-            )
-          ).replace(
-            /^@+/,
-            ""
-          );
+    var userRaw = pick(row, ALIASES.telegramUser || [], "");
+    var user = U.normalizeTelegramUser
+      ? U.normalizeTelegramUser(userRaw)
+      : text(userRaw).replace(/^@+/, "");
 
-    var chatId = text(
-      pick(
-        row,
-        ALIASES.telegramChatId ||
-        [],
-        ""
-      )
-    );
+    var chatId = text(pick(row, ALIASES.telegramChatId || [], ""));
 
     return {
       user: user,
@@ -632,300 +559,139 @@ Con qué se conecta:
       chatId: chatId,
       hasUser: !!user,
       hasChatId: !!chatId,
-
-      hasTelegram:
-        !!(
-          user ||
-          chatId
-        ),
-
-      canOpen:
-        !!user,
-
-      canBot:
-        !!chatId,
-
-      label:
-        chatId
-          ? "Chat ID disponible"
-          : user
-            ? "@" + user
-            : "Sin Telegram",
-
-      url:
-        user
-          ? (
-              "https://t.me/" +
-              encodeURIComponent(
-                user
-              )
-            )
-          : ""
+      hasTelegram: !!(user || chatId),
+      canOpen: !!user,
+      canBot: !!chatId,
+      label: chatId ? "Chat ID disponible" : user ? "@" + user : "Sin Telegram",
+      url: user ? "https://t.me/" + encodeURIComponent(user) : ""
     };
   }
 
-  function normalizeStudent(
-    row,
-    options
-  ){
-    row =
-      row &&
-      typeof row === "object"
-        ? row
-        : {};
+  function normalizeStudent(row, options){
+    row = object(row);
+    options = object(options);
 
-    options =
-      options ||
-      {};
+    var cedula = normalizeCedula(pick(row, ALIASES.cedula || [], ""));
+    var names = text(pick(row, ALIASES.names || [], ""));
+    var career = text(pick(row, ALIASES.career || [], ""));
+    var careerCode = text(pick(row, ALIASES.careerCode || [], ""));
 
-    var cedula =
-      U.normalizeCedula
-        ? U.normalizeCedula(
-            pick(
-              row,
-              ALIASES.cedula ||
-              [],
-              ""
-            )
-          )
-        : text(
-            pick(
-              row,
-              ALIASES.cedula ||
-              [],
-              ""
-            )
-          );
-
-    var names = text(
-      pick(
-        row,
-        ALIASES.names ||
-        [],
-        ""
-      )
+    var periodId = canonicalPeriod(
+      pick(row, ALIASES.periodId || [], options.periodId || "")
     );
-
-    var career = text(
-      pick(
-        row,
-        ALIASES.career ||
-        [],
-        ""
-      )
-    );
-
-    var careerCode = text(
-      pick(
-        row,
-        ALIASES.careerCode ||
-        [],
-        ""
-      )
-    );
-
-    var periodId =
-      U.canonicalPeriodId
-        ? U.canonicalPeriodId(
-            pick(
-              row,
-              ALIASES.periodId ||
-              [],
-              options.periodId ||
-              ""
-            )
-          )
-        : text(
-            pick(
-              row,
-              ALIASES.periodId ||
-              [],
-              options.periodId ||
-              ""
-            )
-          );
 
     var periodLabel = text(
       pick(
         row,
-        ALIASES.periodLabel ||
-        [],
-        options.periodLabel ||
-        periodId
+        ALIASES.periodLabel || [],
+        options.periodLabel || periodId
       )
     );
 
-    var email =
-      U.normalizeEmail
-        ? U.normalizeEmail(
-            pick(
-              row,
-              ALIASES.email ||
-              [],
-              ""
-            )
-          )
-        : text(
-            pick(
-              row,
-              ALIASES.email ||
-              [],
-              ""
-            )
-          );
+    var personalEmailRaw = pick(row, ALIASES.personalEmail || [], "");
+    var institutionalEmailRaw = pick(row, ALIASES.institutionalEmail || [], "");
+    var emailRaw = pick(row, ALIASES.email || [], personalEmailRaw || institutionalEmailRaw);
 
-    var phoneRaw = text(
-      pick(
-        row,
-        ALIASES.phone ||
-        [],
-        ""
-      )
-    );
+    var personalEmail = U.normalizeEmail
+      ? U.normalizeEmail(personalEmailRaw)
+      : text(personalEmailRaw);
 
-    var phone =
-      U.normalizePhone
-        ? U.normalizePhone(
-            phoneRaw
-          )
-        : phoneRaw;
+    var institutionalEmail = U.normalizeEmail
+      ? U.normalizeEmail(institutionalEmailRaw)
+      : text(institutionalEmailRaw);
 
-    var telegram =
-      telegramInfo(row);
+    var email = U.normalizeEmail
+      ? U.normalizeEmail(emailRaw)
+      : text(emailRaw);
 
-    var reqs =
-      requirementsFor(row);
+    var phoneRaw = text(pick(row, ALIASES.phone || [], ""));
+    var phone = U.normalizePhone ? U.normalizePhone(phoneRaw) : phoneRaw;
+    var telegram = telegramInfo(row);
+    var division = resolveDivision(row);
 
-    var missing =
-      reqs.filter(
-        function(item){
-          return (
-            item.estado !==
-            "cumple"
-          );
-        }
+    var periodProbe = Object.assign({}, row, {
+      _periodo: periodLabel || periodId,
+      _periodoId: periodId
+    });
+
+    var classification = classifyStudent(periodProbe);
+    var reqs = requirementsFor(periodProbe);
+    var missing = reqs.filter(function(item){ return item.estado === "no_cumple"; });
+    var noData = reqs.filter(function(item){
+      return item.estado === "sin_dato" || item.estado === "pendiente";
+    });
+    var noApply = reqs.filter(function(item){ return item.estado === "no_aplica"; });
+
+    if(classification.isPVC){
+      noApply = noApply.concat(
+        array(C.regularOnlyRequirements).map(function(definition){
+          return {
+            key: definition.key,
+            field: definition.field || definition.key,
+            label: requirementLabel(definition),
+            aliases: array(definition.aliases).slice(),
+            group: definition.group || "regular",
+            value: "",
+            rawValue: "",
+            estado: "no_aplica",
+            status: "no_aplica",
+            estadoLabel: "No aplica",
+            found: false,
+            source: "period-policy",
+            applies: false,
+            cumple: false,
+            missing: false,
+            noData: false,
+            pending: false
+          };
+        })
       );
-
-    var id = text(
-      pick(
-        row,
-        ALIASES.id ||
-        [],
-        ""
-      )
-    );
-
-    var division =
-      resolveDivision(row);
-
-    var matricula =
-      normalizeMatricula(
-        pick(
-          row,
-          ALIASES.matricula ||
-          [],
-          ""
-        )
-      );
-
-    if(!id){
-      id = [
-        cedula,
-        periodId,
-        careerCode ||
-          key(career)
-      ]
-        .filter(Boolean)
-        .join("::");
     }
 
-    var normalized =
-      Object.assign(
-        {},
-        row,
-        {
-          _id:
-            id,
+    var id = text(pick(row, ALIASES.id || [], ""));
+    if(!id){
+      id = [cedula, periodId, careerCode || key(career)].filter(Boolean).join("::");
+    }
 
-          _bl2Id:
-            id,
+    var matricula = normalizeMatricula(pick(row, ALIASES.matricula || [], ""));
 
-          _cedula:
-            cedula,
-
-          _nombres:
-            names,
-
-          _carrera:
-            career,
-
-          _carreraCorta:
-            shortCareer(
-              career
-            ),
-
-          _codigoCarrera:
-            careerCode,
-
-          _periodoId:
-            periodId,
-
-          _bl2PeriodoId:
-            periodId,
-
-          _periodo:
-            periodLabel ||
-            periodId,
-
-          _bl2Periodo:
-            periodLabel ||
-            periodId,
-
-          _division:
-            division,
-
-          _bl2Division:
-            division,
-
-          _matricula:
-            matricula,
-
-          _correo:
-            email,
-
-          _celular:
-            phone,
-
-          _celularOriginal:
-            phoneRaw,
-
-          _telegramUser:
-            telegram.user,
-
-          _telegramChatId:
-            telegram.chatId,
-
-          _telegramTiene:
-            telegram.hasTelegram,
-
-          _telegramBot:
-            telegram.canBot,
-
-          _tablaTelegramInfo:
-            telegram,
-
-          _requisitos:
-            reqs,
-
-          _requisitosFaltantes:
-            missing,
-
-          _estadoGeneral:
-            generalStatus(
-              reqs
-            )
-        }
-      );
+    var normalized = Object.assign({}, row, {
+      _id: id,
+      _bl2Id: id,
+      _cedula: cedula,
+      _nombres: names,
+      _carrera: career,
+      _carreraCorta: shortCareer(career),
+      _codigoCarrera: careerCode,
+      _periodoId: periodId,
+      _bl2PeriodoId: periodId,
+      _periodo: periodLabel || periodId,
+      _bl2Periodo: periodLabel || periodId,
+      _tipoPeriodo: classification.id,
+      _periodoClasificacion: classification,
+      _esRegular: classification.isRegular,
+      _esPVC: classification.isPVC,
+      _division: division,
+      _bl2Division: division,
+      _matricula: matricula,
+      _correoPersonal: personalEmail,
+      _correoInstitucional: institutionalEmail,
+      _correo: email || personalEmail || institutionalEmail,
+      _celular: phone,
+      _celularOriginal: phoneRaw,
+      _telegramUser: telegram.user,
+      _telegramChatId: telegram.chatId,
+      _telegramTiene: telegram.hasTelegram,
+      _telegramBot: telegram.canBot,
+      _tablaTelegramInfo: telegram,
+      _requisitosRaw: array(row.requisitos || row.requirements).slice(),
+      _requisitos: reqs,
+      _requisitosAplicables: reqs,
+      _requisitosFaltantes: missing,
+      _requisitosSinDato: noData,
+      _requisitosNoAplican: noApply,
+      _estadoGeneral: generalStatus(reqs)
+    });
 
     normalized._search = [
       cedula,
@@ -934,299 +700,146 @@ Con qué se conecta:
       careerCode,
       periodLabel,
       periodId,
+      classification.id,
       division,
+      personalEmail,
+      institutionalEmail,
       email,
       phone,
       telegram.user,
       telegram.chatId
-    ]
-      .join(" ")
-      .toLowerCase();
+    ].join(" ").toLowerCase();
 
     return normalized;
   }
 
-  function normalizeStudents(
-    rows,
-    options
-  ){
-    rows =
-      Array.isArray(rows)
-        ? rows
-        : [];
-
-    var normalized =
-      rows.map(function(row){
-        return normalizeStudent(
-          row,
-          options || {}
-        );
-      });
+  function normalizeStudents(rows, options){
+    rows = array(rows);
+    var normalized = rows.map(function(row){
+      return normalizeStudent(row, options || {});
+    });
 
     if(U.uniqueBy){
-      return U.uniqueBy(
-        normalized,
-
-        function(row, index){
-          return (
-            row._id ||
-            [
-              row._cedula,
-              row._periodoId,
-              index
-            ].join("::")
-          );
-        }
-      );
+      return U.uniqueBy(normalized, function(row, index){
+        return row._id || [row._cedula, row._periodoId, index].join("::");
+      });
     }
 
-    return normalized;
+    var seen = Object.create(null);
+    return normalized.filter(function(row, index){
+      var id = row._id || [row._cedula, row._periodoId, index].join("::");
+      if(seen[id]){ return false; }
+      seen[id] = true;
+      return true;
+    });
   }
 
-  function attachRequirements(
-    rows,
-    requirements
-  ){
-    rows =
-      Array.isArray(rows)
-        ? rows
-        : [];
-
-    requirements =
-      Array.isArray(requirements)
-        ? requirements
-        : [];
-
-    var grouped =
-      Object.create(null);
-
-    function identity(item){
-      item = item || {};
-
-      var cedula = text(
-        item._cedula ||
-        item.cedula ||
-        item.numeroIdentificacion ||
-        item.NumeroIdentificacion ||
-        ""
-      );
-
-      var periodId = text(
-        item._periodoId ||
-        item.periodoId ||
-        item.periodId ||
-        item.periodoCanonicoId ||
-        item.ultimoPeriodoId ||
-        ""
-      );
-
-      if(
-        !cedula ||
-        !periodId
-      ){
-        return "";
-      }
-
-      return (
-        key(cedula) +
-        "::" +
-        key(periodId)
-      );
-    }
-
-    requirements.forEach(
-      function(item){
-        var itemIdentity =
-          identity(item);
-
-        if(!itemIdentity){
-          return;
-        }
-
-        if(!grouped[itemIdentity]){
-          grouped[itemIdentity] = [];
-        }
-
-        grouped[itemIdentity]
-          .push(item);
-      }
+  function identity(item){
+    item = object(item);
+    var cedula = normalizeCedula(
+      item._cedula || item.cedula || item.numeroIdentificacion ||
+      item.NumeroIdentificacion || ""
     );
 
-    return rows.map(
-      function(row){
-        var studentIdentity =
-          identity(row);
-
-        var list =
-          studentIdentity
-            ? grouped[
-                studentIdentity
-              ] || []
-            : [];
-
-        if(!list.length){
-          return row;
-        }
-
-        return Object.assign(
-          {},
-          row,
-          {
-            requisitos:
-              list.slice(),
-
-            requirements:
-              list.slice()
-          }
-        );
-      }
+    var periodId = canonicalPeriod(
+      item._periodoId || item.periodoId || item.periodId ||
+      item.periodoCanonicoId || item.ultimoPeriodoId || ""
     );
+
+    return cedula && periodId ? cedula + "::" + periodId : "";
+  }
+
+  function attachRequirements(rows, requirements){
+    rows = array(rows);
+    requirements = array(requirements);
+    var grouped = Object.create(null);
+
+    requirements.forEach(function(item){
+      var itemIdentity = identity(item);
+      if(!itemIdentity || isFinalRequirement(item)){ return; }
+      if(!grouped[itemIdentity]){ grouped[itemIdentity] = []; }
+      grouped[itemIdentity].push(item);
+    });
+
+    return rows.map(function(row){
+      var list = grouped[identity(row)] || [];
+      return Object.assign({}, row, {
+        requisitos: list.slice(),
+        requirements: list.slice(),
+        _requisitosRaw: list.slice()
+      });
+    });
   }
 
   function normalizeEnvelope(cache){
-    cache =
-      cache &&
-      typeof cache === "object"
-        ? cache
-        : {};
+    cache = object(cache);
 
-    var rawRequirements =
-      Array.isArray(
-        cache.requirements
-      )
-        ? cache.requirements
-            .slice()
-        : Array.isArray(
-            cache.requisitos
-          )
-          ? cache.requisitos
-              .slice()
-          : [];
+    var rawRequirements = array(cache.requirements || cache.requisitos)
+      .filter(function(item){ return !isFinalRequirement(item); });
 
-    var rawStudents =
-      Array.isArray(
-        cache.students
-      )
-        ? cache.students
-        : Array.isArray(
-            cache.rows
-          )
-          ? cache.rows
-          : [];
+    var rawStudents = array(cache.students || cache.rows);
+    var periods = array(cache.periods).map(normalizePeriod).filter(Boolean);
+    var periodMap = Object.create(null);
 
-    var studentsWithRequirements =
-      attachRequirements(
-        rawStudents,
-        rawRequirements
+    periods.forEach(function(period){
+      periodMap[canonicalPeriod(period.periodoId || period.id)] = period.periodoLabel || period.label;
+    });
+
+    var studentsWithRequirements = attachRequirements(rawStudents, rawRequirements);
+    var students = studentsWithRequirements.map(function(row){
+      var rowPeriodId = canonicalPeriod(
+        pick(row, ALIASES.periodId || [], "")
       );
 
+      return normalizeStudent(row, {
+        periodId: rowPeriodId,
+        periodLabel: periodMap[rowPeriodId] || ""
+      });
+    });
+
     return {
-      meta:
-        cache.meta &&
-        typeof cache.meta ===
-          "object"
-          ? Object.assign(
-              {},
-              cache.meta
-            )
-          : {},
-
-      periods:
-        (
-          Array.isArray(
-            cache.periods
-          )
-            ? cache.periods
-            : []
-        )
-          .map(
-            normalizePeriod
-          )
-          .filter(Boolean),
-
-      students:
-        normalizeStudents(
-          studentsWithRequirements
-        ),
-
-      requirements:
-        rawRequirements,
-
-      summaries:
-        cache.summaries &&
-        typeof cache.summaries ===
-          "object"
-          ? Object.assign(
-              {},
-              cache.summaries
-            )
-          : {},
-
-      diagnostics:
-        Array.isArray(
-          cache.diagnostics
-        )
-          ? cache.diagnostics
-              .slice()
-          : []
+      meta: Object.assign({}, object(cache.meta)),
+      periods: periods,
+      students: students,
+      requirements: rawRequirements.slice(),
+      summaries: Object.assign({}, object(cache.summaries)),
+      diagnostics: array(cache.diagnostics).slice()
     };
   }
 
   function studentKey(row){
-    row = row || {};
-
+    row = object(row);
     return text(
       row._id ||
       [
         row._cedula,
         row._periodoId,
-        row._codigoCarrera ||
-          key(row._carrera)
+        row._codigoCarrera || key(row._carrera)
       ].join("::")
     );
   }
 
   window.TablaDataNormalizer = {
-    version:
-      VERSION,
-
-    statusFromValue:
-      statusFromValue,
-
-    normalizeRequirement:
-      normalizeRequirement,
-
-    requirementsFor:
-      requirementsFor,
-
-    missingRequirements:
-      missingRequirements,
-
-    generalStatus:
-      generalStatus,
-
-    normalizeMatricula:
-      normalizeMatricula,
-
-    normalizePeriod:
-      normalizePeriod,
-
-    normalizeStudent:
-      normalizeStudent,
-
-    normalizeStudents:
-      normalizeStudents,
-
-    normalizeEnvelope:
-      normalizeEnvelope,
-
-    telegramInfo:
-      telegramInfo,
-
-    studentKey:
-      studentKey,
-
-    shortCareer:
-      shortCareer
+    version: VERSION,
+    statusFromValue: statusFromValue,
+    statusLabel: statusLabel,
+    classifyPeriod: classifyPeriod,
+    classifyStudent: classifyStudent,
+    applicableDefinitions: applicableDefinitions,
+    isFinalRequirement: isFinalRequirement,
+    normalizeRequirement: normalizeRequirement,
+    requirementsFor: requirementsFor,
+    missingRequirements: missingRequirements,
+    noDataRequirements: noDataRequirements,
+    generalStatus: generalStatus,
+    normalizeMatricula: normalizeMatricula,
+    normalizePeriod: normalizePeriod,
+    normalizeStudent: normalizeStudent,
+    normalizeStudents: normalizeStudents,
+    attachRequirements: attachRequirements,
+    normalizeEnvelope: normalizeEnvelope,
+    telegramInfo: telegramInfo,
+    studentKey: studentKey,
+    shortCareer: shortCareer
   };
 })(window);
