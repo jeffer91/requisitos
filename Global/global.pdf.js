@@ -5,7 +5,7 @@ Función o funciones:
 - Generar el informe institucional de la sección activa de Global.
 - Aplicar e interpretar correctamente los filtros vigentes.
 - Crear portada blanca con bloque azul únicamente detrás del logo.
-- Incluir resumen ejecutivo, explicaciones, observaciones, tabla y gráfico.
+- Incluir resumen ejecutivo, explicaciones, observaciones, tabla, gráfico y firmas institucionales.
 - Abrir automáticamente la impresión del navegador al finalizar la carga.
 Con qué se conecta:
 - global.config.js
@@ -17,7 +17,7 @@ Con qué se conecta:
   "use strict";
 
   var VERSION =
-    "1.2.1-active-filters-only";
+    "1.3.0-signatures-and-word-model";
 
   var config =
     window.GlobalConfig || {};
@@ -1819,6 +1819,47 @@ Con qué se conecta:
       + "</section>";
   }
 
+  function institutionalSignatures(){
+    return [
+      {
+        nombre:
+          "Mpde. Martha Tomalá",
+
+        cargo:
+          "Secretaria General"
+      },
+      {
+        nombre:
+          "Mgt. Jefferson Villarreal",
+
+        cargo:
+          "Coordinador de Titulación y Eficiencia Terminal"
+      }
+    ];
+  }
+
+  function signatureBlock(){
+    return ""
+      + '<section class="signature-block"'
+      + ' aria-label="Firmas institucionales">'
+
+      + institutionalSignatures()
+        .map(function(signature){
+          return ""
+            + '<div class="signature-item">'
+            + '<strong class="signature-name">'
+            + esc(signature.nombre)
+            + "</strong>"
+            + '<span class="signature-role">'
+            + esc(signature.cargo)
+            + "</span>"
+            + "</div>";
+        })
+        .join("")
+
+      + "</section>";
+  }
+
   function institutionalCss(){
     var branding =
       config.branding || {};
@@ -2189,6 +2230,42 @@ Con qué se conecta:
       + "color:#66758a;"
       + "}"
 
+      + ".signature-block{"
+      + "margin-top:42px;"
+      + "padding-top:24px;"
+      + "min-height:235px;"
+      + "break-inside:avoid;"
+      + "page-break-inside:avoid;"
+      + "text-align:left;"
+      + "}"
+
+      + ".signature-item{"
+      + "width:300px;"
+      + "break-inside:avoid;"
+      + "page-break-inside:avoid;"
+      + "}"
+
+      + ".signature-item + .signature-item{"
+      + "margin-top:88px;"
+      + "}"
+
+      + ".signature-name,"
+      + ".signature-role{"
+      + "display:block;"
+      + "color:#000;"
+      + "font-size:10.5px;"
+      + "line-height:1.15;"
+      + "}"
+
+      + ".signature-name{"
+      + "font-weight:700;"
+      + "}"
+
+      + ".signature-role{"
+      + "font-weight:700;"
+      + "max-width:245px;"
+      + "}"
+
       + ".footer-note{"
       + "margin-top:14px;"
       + "color:#6d7a8d;"
@@ -2217,7 +2294,9 @@ Con qué se conecta:
 
       + ".report-block,"
       + ".metric-card,"
-      + ".info-card{"
+      + ".info-card,"
+      + ".signature-block,"
+      + ".signature-item{"
       + "break-inside:avoid;"
       + "}"
 
@@ -2528,6 +2607,8 @@ Con qué se conecta:
 
       + "</p>"
 
+      + signatureBlock()
+
       + "</section>"
 
       + "</main>"
@@ -2611,6 +2692,26 @@ Con qué se conecta:
       graduateChart,
 
     filterRows:
-      filterRows
+      filterRows,
+
+    label:
+      label,
+
+    tableExplanation:
+      tableExplanation,
+
+    getSignatures:
+      function(){
+        return institutionalSignatures()
+          .map(function(item){
+            return {
+              nombre: item.nombre,
+              cargo: item.cargo
+            };
+          });
+      },
+
+    signatureBlock:
+      signatureBlock
   };
 })(window, document);
