@@ -26,35 +26,37 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           core_path = Path("Stats/stats.core.js")
           core = core_path.read_text(encoding="utf-8")
 
-          old = '''  function excelRepo(){
-            return window.ExcelLocalRepo || null;
-          }'''
-
-          new = '''  function excelRepo(){
+          new = """  function excelRepo(){
             return (
               window.BDLocalStats ||
               window.ConStats ||
               window.ExcelLocalRepo ||
               null
             );
-          }'''
+          }"""
 
-          if new in core:
+          if "window.BDLocalStats ||" in core and "window.ConStats ||" in core:
               print("Stats ya usa BDLocalStats.")
-          elif old in core:
-              core_path.write_text(
-                  core.replace(old, new, 1),
-                  encoding="utf-8"
-              )
-              print("Bloque excelRepo actualizado.")
           else:
-              raise SystemExit(
-                  "No se encontró el bloque exacto function excelRepo()."
+              pattern = re.compile(
+                  r"(?m)^  function excelRepo\(\)\{\s*"
+                  r"return window\.ExcelLocalRepo \|\| null;\s*"
+                  r"^  \}"
               )
+              updated, count = pattern.subn(new, core, count=1)
+
+              if count != 1:
+                  raise SystemExit(
+                      "No se encontró una única función excelRepo() con el bloque antiguo."
+                  )
+
+              core_path.write_text(updated, encoding="utf-8")
+              print("Bloque excelRepo actualizado.")
 
           connection_path = Path("BDLocal/conexiones/cone.stats.js")
           connection = connection_path.read_text(encoding="utf-8")
