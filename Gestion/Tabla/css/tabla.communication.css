@@ -1,0 +1,347 @@
+/* =========================================================
+Nombre completo: tabla.communication.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/css/tabla.communication.css
+Función o funciones:
+- Diseñar Telegram individual, Telegram masivo e historial.
+- Mantener resúmenes, selecciones, vistas previas y tablas pequeñas.
+- Diferenciar estados enviados, fallidos, omitidos y preparados.
+Con qué se conecta:
+- tabla.html
+- tabla.telegram.js
+- tabla.mass.js
+- tabla.history.js
+========================================================= */
+
+.tabla-tg-info {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 14px;
+
+  padding:
+    10px
+    12px;
+
+  background: #f8fafc;
+  color: #334155;
+
+  font-weight: 900;
+}
+
+.tabla-tg-info small {
+  color: var(--muted);
+
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+#tabla-tg-dato {
+  overflow-wrap: anywhere;
+}
+
+#tabla-tg-preview,
+#tabla-mass-preview {
+  min-height: 240px;
+
+  background: #f8fafc;
+
+  font-family:
+    inherit;
+
+  white-space: pre-wrap;
+}
+
+.tabla-mass-body {
+  gap: 14px;
+}
+
+.tabla-mass-summary {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 8px;
+}
+
+.tabla-mass-summary span {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 999px;
+
+  padding:
+    6px
+    10px;
+
+  background: #f8fafc;
+  color: #334155;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tabla-mass-summary strong {
+  color: #0f172a;
+}
+
+.tabla-mass-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(
+      320px,
+      420px
+    )
+    minmax(
+      0,
+      1fr
+    );
+
+  gap: 14px;
+
+  align-items: start;
+}
+
+.tabla-mass-config {
+  position: sticky;
+
+  top: 0;
+
+  align-self: start;
+
+  display: grid;
+
+  gap: 12px;
+}
+
+.tabla-mass-select-actions {
+  display: flex;
+
+  gap: 8px;
+
+  flex-wrap: wrap;
+}
+
+.tabla-mass-select-actions button {
+  min-height: 34px;
+
+  padding:
+    0
+    11px;
+
+  font-size: 12px;
+}
+
+.tabla-check-line {
+  display: flex;
+
+  flex-direction: row;
+
+  align-items: flex-start;
+
+  gap: 8px;
+
+  border:
+    1px solid
+    #fed7aa;
+
+  border-radius: 14px;
+
+  padding:
+    10px
+    12px;
+
+  background: #fff7ed;
+  color: #9a3412;
+
+  line-height: 1.4;
+}
+
+.tabla-check-line input {
+  width: 16px;
+  min-width: 16px;
+
+  height: 16px;
+  min-height: 16px;
+
+  margin-top: 1px;
+
+  flex: 0 0 auto;
+}
+
+.tabla-mass-list-wrap,
+.tabla-history-list {
+  max-height: 560px;
+
+  overflow: auto;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 14px;
+
+  background: #fff;
+
+  scrollbar-width: thin;
+  scrollbar-color:
+    #cbd5e1
+    transparent;
+}
+
+.tabla-mass-list {
+  min-width: 0;
+}
+
+.tabla-mass-list .empty,
+.tabla-history-list .empty {
+  border: 0;
+}
+
+.tabla-mini-table {
+  width: 100%;
+  min-width: 680px;
+
+  border-collapse: collapse;
+
+  background: #fff;
+
+  font-size: 12px;
+}
+
+.tabla-mini-table th,
+.tabla-mini-table td {
+  border-bottom:
+    1px solid
+    var(--line);
+
+  padding: 8px;
+
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tabla-mini-table th {
+  position: sticky;
+
+  top: 0;
+  z-index: 2;
+
+  background: #f8fafc;
+  color: #334155;
+
+  font-size: 11px;
+  font-weight: 950;
+
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tabla-mini-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla-mini-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.tabla-mini-table th:first-child,
+.tabla-mini-table td:first-child {
+  width: 38px;
+
+  text-align: center;
+}
+
+.tabla-history-list
+.tabla-mini-table
+th:first-child,
+.tabla-history-list
+.tabla-mini-table
+td:first-child {
+  width: auto;
+
+  text-align: left;
+}
+
+.tabla-mini-table input[type="checkbox"] {
+  width: 16px;
+  min-width: 16px;
+
+  height: 16px;
+  min-height: 16px;
+
+  margin: 0;
+}
+
+.tabla-mini-table small {
+  color: var(--muted);
+
+  font-weight: 800;
+}
+
+.tabla-mass-note {
+  padding:
+    10px
+    12px;
+
+  border-top:
+    1px solid
+    var(--line);
+
+  background: #f8fafc;
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tabla-history-help {
+  margin: 0;
+
+  border:
+    1px solid
+    #dbeafe;
+
+  border-radius: 12px;
+
+  padding:
+    9px
+    11px;
+
+  background: #eff6ff;
+  color: #1e3a8a;
+
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+#tabla-history-clear {
+  color: var(--bad);
+}
+
+#tabla-history-clear:hover:not(:disabled) {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.tabla-history-list
+.pill,
+.tabla-mass-list
+.pill {
+  white-space: nowrap;
+}

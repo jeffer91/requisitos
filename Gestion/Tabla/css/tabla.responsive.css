@@ -1,0 +1,262 @@
+/* =========================================================
+Nombre completo: tabla.responsive.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/css/tabla.responsive.css
+Función o funciones:
+- Adaptar Tabla a computadoras pequeñas, tabletas y celulares.
+- Mantener tabla y modales utilizables sin cambiar la interfaz.
+- Evitar desbordamientos en filtros, menús y acciones.
+Con qué se conecta:
+- Todos los archivos CSS de Tabla.
+- tabla.html
+========================================================= */
+
+@media (max-width: 1200px) {
+  .tabla-filter-row {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          160px,
+          1fr
+        )
+      );
+  }
+
+  .tabla-app {
+    padding: 10px;
+  }
+
+  .tabla-table-info {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tabla-mass-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tabla-mass-config {
+    position: static;
+  }
+
+  .tabla-mass-list-wrap,
+  .tabla-history-list {
+    max-height: 500px;
+  }
+}
+
+@media (max-width: 900px) {
+  .tabla-career-short {
+    max-width: 210px;
+  }
+
+  .tabla-modal {
+    padding: 12px;
+  }
+
+  .tabla-modal-card {
+    max-height: 94vh;
+  }
+}
+
+@media (max-width: 760px) {
+  .tabla-app {
+    padding: 8px;
+  }
+
+  .tabla-app-compact {
+    gap: 8px;
+  }
+
+  .tabla-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tabla-filter-panel,
+  .tabla-req-panel,
+  .tabla-table-card {
+    padding: 10px;
+  }
+
+  .tabla-req-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tabla-head-actions {
+    width: 100%;
+  }
+
+  .tabla-head-actions > button,
+  .tabla-message-menu,
+  .tabla-message-menu > button {
+    width: 100%;
+
+    flex: 1;
+  }
+
+  .tabla-message-menu-panel {
+    right: auto;
+    left: 0;
+
+    width:
+      min(
+        290px,
+        calc(
+          100vw - 32px
+        )
+      );
+  }
+
+  .tabla-summary,
+  .tabla-status {
+    font-size: 13px;
+  }
+
+  .tabla-table-wrap,
+  .tabla-table-wrap-compact {
+    max-height: 62vh;
+  }
+
+  .tabla-pagination {
+    gap: 6px;
+  }
+
+  .tabla-pagination button {
+    flex:
+      1
+      1
+      calc(
+        50% - 6px
+      );
+  }
+
+  #tabla-page-label {
+    width: 100%;
+    min-width: 100%;
+
+    order: -1;
+  }
+
+  .tabla-modal {
+    align-items: flex-end;
+
+    padding: 10px;
+  }
+
+  .tabla-modal-card,
+  .tabla-modal-card-wide {
+    width: 100%;
+    max-height: 95vh;
+
+    border-radius:
+      18px
+      18px
+      12px
+      12px;
+  }
+
+  .tabla-modal-header {
+    padding:
+      14px
+      14px
+      10px;
+  }
+
+  .tabla-modal-body {
+    padding:
+      12px
+      14px;
+  }
+
+  .tabla-modal-actions {
+    justify-content: stretch;
+
+    padding:
+      10px
+      14px
+      14px;
+  }
+
+  .tabla-modal-actions button {
+    flex:
+      1
+      1
+      calc(
+        50% - 8px
+      );
+  }
+
+  .tabla-modal-actions
+  .icon-btn {
+    flex:
+      0
+      0
+      auto;
+  }
+
+  .tabla-mass-select-actions button {
+    flex: 1;
+  }
+
+  .tabla-mass-summary span {
+    width: 100%;
+
+    justify-content: space-between;
+  }
+
+  #tabla-tg-preview,
+  #tabla-mass-preview {
+    min-height: 190px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tabla-status,
+  .tabla-summary {
+    border-radius: 12px;
+
+    padding:
+      8px
+      10px;
+  }
+
+  .tabla-req-chips {
+    gap: 6px;
+  }
+
+  .tabla-req-chip {
+    flex:
+      1
+      1
+      auto;
+
+    padding:
+      0
+      8px;
+  }
+
+  .tabla-modal-actions button {
+    flex:
+      1
+      1
+      100%;
+  }
+
+  .tabla-mass-select-actions {
+    display: grid;
+
+    grid-template-columns: 1fr;
+  }
+
+  .tabla-message-menu-panel {
+    position: fixed;
+
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+
+    width: auto;
+  }
+}

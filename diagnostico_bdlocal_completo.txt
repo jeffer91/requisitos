@@ -1,0 +1,494 @@
+﻿DIAGNÓSTICO COMPLETO CARGA -> BDLOCAL
+Fecha: 07/12/2026 00:22:38
+Carpeta analizada: D:\requisitos
+Equipo: JEFF
+Usuario: jeffe
+
+============================================================
+1. PROCESOS ACTIVOS RELACIONADOS CON LA APP
+============================================================
+PID: 28240
+Nombre: node.exe
+Ejecutable: C:\nvm4w\nodejs\node.exe
+Comando: "C:\nvm4w\nodejs\\node.exe"  "C:\nvm4w\nodejs\\node_modules\npm\bin\npm-cli.js" start
+
+PID: 27776
+Nombre: node.exe
+Ejecutable: C:\nvm4w\nodejs\node.exe
+Comando: "node"   "D:\requisitos\node_modules\.bin\\..\electron\cli.js" .
+
+PID: 28232
+Nombre: electron.exe
+Ejecutable: D:\requisitos\node_modules\electron\dist\electron.exe
+Comando: D:\requisitos\node_modules\electron\dist\electron.exe .
+
+PID: 27380
+Nombre: electron.exe
+Ejecutable: D:\requisitos\node_modules\electron\dist\electron.exe
+Comando: "D:\requisitos\node_modules\electron\dist\electron.exe" --type=gpu-process --user-data-dir="C:\Users\jeffe\AppData\Roaming\requisitos-desktop" --gpu-preferences=UAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAOAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAABgAAAAAAAAAGAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --field-trial-handle=1860,i,1390847547064230782,9227320445512352487,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1856,i,11319089400956757551,3106068107341919270,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1840 /prefetch:2
+
+PID: 28584
+Nombre: electron.exe
+Ejecutable: D:\requisitos\node_modules\electron\dist\electron.exe
+Comando: "D:\requisitos\node_modules\electron\dist\electron.exe" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=es --service-sandbox-type=none --user-data-dir="C:\Users\jeffe\AppData\Roaming\requisitos-desktop" --field-trial-handle=1860,i,1390847547064230782,9227320445512352487,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1856,i,11319089400956757551,3106068107341919270,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2016 /prefetch:11
+
+PID: 28224
+Nombre: electron.exe
+Ejecutable: D:\requisitos\node_modules\electron\dist\electron.exe
+Comando: "D:\requisitos\node_modules\electron\dist\electron.exe" --type=renderer --user-data-dir="C:\Users\jeffe\AppData\Roaming\requisitos-desktop" --app-path="D:\requisitos" --enable-sandbox --video-capture-use-gpu-memory-buffer --lang=es --device-scale-factor=1.25 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=4 --time-ticks-at-unix-epoch=-1783795361662418 --launch-time-ticks=38167249796 --field-trial-handle=1860,i,1390847547064230782,9227320445512352487,262144 --enable-features=PdfUseShowSaveFilePicker --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,NetworkServiceSandbox,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1856,i,11319089400956757551,3106068107341919270,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2520 /prefetch:1
+
+============================================================
+2. PACKAGE.JSON Y ARRANQUE ELECTRON
+============================================================
+package.json: D:\requisitos\package.json
+Nombre: requisitos-desktop
+Versión: 1.2.0
+Main: electron/main.js
+
+Scripts:
+  start = electron .
+  dev = electron .
+  start:local = electron .
+  test = node scripts/verify-bdlocal.js && node scripts/audit-repository.js
+  test:bdlocal = node scripts/verify-bdlocal.js
+  test:electron = electron electron/smoke-main.js
+  diagnostico:bdlocal = powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1
+  diagnostico:bloqueo = powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bloqueo.ps1
+  audit:repo = node scripts/audit-repository.js
+  verify = npm test
+
+Ruta calculada del main: D:\requisitos\electron\main.js
+Existe main: True
+
+============================================================
+3. ARCHIVOS CRÍTICOS Y POSIBLES COPIAS
+============================================================
+============================================================
+ARCHIVO: bdl.screen-deps.js
+RUTA ESPERADA: D:\requisitos\BDLocal\adapters\bdl.screen-deps.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.4.0-central-cache-direct
+Modificado: 07/10/2026 18:51:17
+Tamaño: 30306 bytes
+SHA256: FBE74C55BEB409BA07453DF43854BC9B775D4F5248EAB0D8555892F42AAF33FB
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\adapters\bdl.screen-deps.js
+Versión: 1.4.0-central-cache-direct
+Modificado: 07/10/2026 18:51:17
+Tamaño: 30306 bytes
+SHA256: FBE74C55BEB409BA07453DF43854BC9B775D4F5248EAB0D8555892F42AAF33FB
+
+============================================================
+ARCHIVO: cone.index.js
+RUTA ESPERADA: D:\requisitos\BDLocal\conexiones\cone.index.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.5.0-v2-source-first
+Modificado: 07/12/2026 00:09:23
+Tamaño: 35028 bytes
+SHA256: 37DFDF9D39FCC782AD720131CFC7F61660716B5D0B9DEBE52E11F22BE5AB7182
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\conexiones\cone.index.js
+Versión: 1.5.0-v2-source-first
+Modificado: 07/12/2026 00:09:23
+Tamaño: 35028 bytes
+SHA256: 37DFDF9D39FCC782AD720131CFC7F61660716B5D0B9DEBE52E11F22BE5AB7182
+
+============================================================
+ARCHIVO: cone.utils.js
+RUTA ESPERADA: D:\requisitos\BDLocal\conexiones\cone.utils.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.6.0-canonical-student-id
+Modificado: 07/11/2026 22:55:26
+Tamaño: 34697 bytes
+SHA256: DF617DB73373AF838D349FFE94209EE34F05222E5E3F9AB74C4369F07BD19CF2
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\conexiones\cone.utils.js
+Versión: 1.6.0-canonical-student-id
+Modificado: 07/11/2026 22:55:26
+Tamaño: 34697 bytes
+SHA256: DF617DB73373AF838D349FFE94209EE34F05222E5E3F9AB74C4369F07BD19CF2
+
+============================================================
+ARCHIVO: cone.carga.js
+RUTA ESPERADA: D:\requisitos\BDLocal\conexiones\cone.carga.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.3.0-single-write-refresh
+Modificado: 07/10/2026 18:51:17
+Tamaño: 19237 bytes
+SHA256: 226AD2B07C0E0E32C425CB4625D9ECC79B25A7A96BED6CB0FB53732DF9B9CADD
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\conexiones\cone.carga.js
+Versión: 1.3.0-single-write-refresh
+Modificado: 07/10/2026 18:51:17
+Tamaño: 19237 bytes
+SHA256: 226AD2B07C0E0E32C425CB4625D9ECC79B25A7A96BED6CB0FB53732DF9B9CADD
+
+============================================================
+ARCHIVO: bl2.core.js
+RUTA ESPERADA: D:\requisitos\BDLocal\bl2.core.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: SIN VERSION DETECTADA
+Modificado: 07/11/2026 23:55:03
+Tamaño: 51607 bytes
+SHA256: BE717508DCDFA86638CA1547D51A71BFCE216563C8EBCF9EACC62EB8F2EC1F73
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\bl2.core.js
+Versión: SIN VERSION DETECTADA
+Modificado: 07/11/2026 23:55:03
+Tamaño: 51607 bytes
+SHA256: BE717508DCDFA86638CA1547D51A71BFCE216563C8EBCF9EACC62EB8F2EC1F73
+
+============================================================
+ARCHIVO: bl2.db.js
+RUTA ESPERADA: D:\requisitos\BDLocal\bl2.db.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: SIN VERSION DETECTADA
+Modificado: 07/10/2026 18:51:17
+Tamaño: 31306 bytes
+SHA256: 7DCC0054200A730BFA9CC156E7CA9E2141170C2076C55F59E98559D8488526D2
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\bl2.db.js
+Versión: SIN VERSION DETECTADA
+Modificado: 07/10/2026 18:51:17
+Tamaño: 31306 bytes
+SHA256: 7DCC0054200A730BFA9CC156E7CA9E2141170C2076C55F59E98559D8488526D2
+
+============================================================
+ARCHIVO: bl2.config.js
+RUTA ESPERADA: D:\requisitos\BDLocal\bl2.config.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.3.0-firebase-split-initial
+Modificado: 07/10/2026 18:51:17
+Tamaño: 13452 bytes
+SHA256: 18626E4B090F328CA6C7F1B11F4A77B92D0E77A87DAA55F305CF39B7474AC80E
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\bl2.config.js
+Versión: 1.3.0-firebase-split-initial
+Modificado: 07/10/2026 18:51:17
+Tamaño: 13452 bytes
+SHA256: 18626E4B090F328CA6C7F1B11F4A77B92D0E77A87DAA55F305CF39B7474AC80E
+
+============================================================
+ARCHIVO: bl2.config.v2.js
+RUTA ESPERADA: D:\requisitos\BDLocal\bl2.config.v2.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 2.2.0-firebase-split
+Modificado: 07/10/2026 18:51:17
+Tamaño: 7801 bytes
+SHA256: 39F7D6A4C3C9FD4511494E72CD89F08E198E3B6E9EDD2C6A882D98443CDFC7FB
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\bl2.config.v2.js
+Versión: 2.2.0-firebase-split
+Modificado: 07/10/2026 18:51:17
+Tamaño: 7801 bytes
+SHA256: 39F7D6A4C3C9FD4511494E72CD89F08E198E3B6E9EDD2C6A882D98443CDFC7FB
+
+============================================================
+ARCHIVO: bdl.v2.mirror.js
+RUTA ESPERADA: D:\requisitos\BDLocal\patches\bdl.v2.mirror.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.2.0-canonical-local-id
+Modificado: 07/10/2026 18:51:17
+Tamaño: 13490 bytes
+SHA256: 1C0A442BD3B77D9646C5A79DE825E37D2D919B74CABFD0286C2DD96F55FF28E0
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\patches\bdl.v2.mirror.js
+Versión: 1.2.0-canonical-local-id
+Modificado: 07/10/2026 18:51:17
+Tamaño: 13490 bytes
+SHA256: 1C0A442BD3B77D9646C5A79DE825E37D2D919B74CABFD0286C2DD96F55FF28E0
+
+============================================================
+ARCHIVO: bdl.service.estudiantes.js
+RUTA ESPERADA: D:\requisitos\BDLocal\services\bdl.service.estudiantes.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.2.0-canonical-student-id
+Modificado: 07/11/2026 22:59:52
+Tamaño: 26468 bytes
+SHA256: 9A932A6676C1EC265AEA19EAB077D7E2274DBEC4CC6801B22F163F263B53B281
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\services\bdl.service.estudiantes.js
+Versión: 1.2.0-canonical-student-id
+Modificado: 07/11/2026 22:59:52
+Tamaño: 26468 bytes
+SHA256: 9A932A6676C1EC265AEA19EAB077D7E2274DBEC4CC6801B22F163F263B53B281
+
+============================================================
+ARCHIVO: bdl.repo.matriculas.js
+RUTA ESPERADA: D:\requisitos\BDLocal\repositories\bdl.repo.matriculas.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.2.0-canonical-local-id
+Modificado: 07/10/2026 18:51:17
+Tamaño: 9481 bytes
+SHA256: CFD1B8E1E763619210C079BCC41B0670F90BF66F136717128AD2096E7B165310
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\repositories\bdl.repo.matriculas.js
+Versión: 1.2.0-canonical-local-id
+Modificado: 07/10/2026 18:51:17
+Tamaño: 9481 bytes
+SHA256: CFD1B8E1E763619210C079BCC41B0670F90BF66F136717128AD2096E7B165310
+
+============================================================
+ARCHIVO: bdl.repo.requisitos.js
+RUTA ESPERADA: D:\requisitos\BDLocal\repositories\bdl.repo.requisitos.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: 1.1.0-canonical-local-id
+Modificado: 07/10/2026 18:51:17
+Tamaño: 5021 bytes
+SHA256: 9B1540D28887F5781EECA1FE0C355D61E8DABD248ED220E833FBD80ADD0678A0
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\BDLocal\repositories\bdl.repo.requisitos.js
+Versión: 1.1.0-canonical-local-id
+Modificado: 07/10/2026 18:51:17
+Tamaño: 5021 bytes
+SHA256: 9B1540D28887F5781EECA1FE0C355D61E8DABD248ED220E833FBD80ADD0678A0
+
+============================================================
+ARCHIVO: carga.save.js
+RUTA ESPERADA: D:\requisitos\Carga\process\carga.save.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: SIN VERSION DETECTADA
+Modificado: 07/11/2026 18:11:49
+Tamaño: 23720 bytes
+SHA256: 6438CBAEF83FED5826C13418D8B5628944A9CFB8A3166F0AF57AD260C3273F7F
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\Carga\process\carga.save.js
+Versión: SIN VERSION DETECTADA
+Modificado: 07/11/2026 18:11:49
+Tamaño: 23720 bytes
+SHA256: 6438CBAEF83FED5826C13418D8B5628944A9CFB8A3166F0AF57AD260C3273F7F
+
+============================================================
+ARCHIVO: carga.index.js
+RUTA ESPERADA: D:\requisitos\Carga\carga.index.js
+============================================================
+Existe en ruta esperada: True
+Versión detectada: SIN VERSION DETECTADA
+Modificado: 07/10/2026 18:51:17
+Tamaño: 10389 bytes
+SHA256: 13BED65879A8D8217EF69DF163AF2BCD0A0AAF0F2C30A193DB2B74F2849D5C2F
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\Carga\carga.index.js
+Versión: SIN VERSION DETECTADA
+Modificado: 07/10/2026 18:51:17
+Tamaño: 10389 bytes
+SHA256: 13BED65879A8D8217EF69DF163AF2BCD0A0AAF0F2C30A193DB2B74F2849D5C2F
+
+============================================================
+ARCHIVO: carga.html
+RUTA ESPERADA: D:\requisitos\Carga\carga.html
+============================================================
+Existe en ruta esperada: True
+Versión detectada: SIN VERSION DETECTADA
+Modificado: 07/11/2026 17:58:06
+Tamaño: 16390 bytes
+SHA256: D79C81B48DA7AC61799B188F0AD0F60FB7B4511A197CC8540FEF95FED0994281
+
+COPIAS ENCONTRADAS DENTRO DEL PROYECTO:
+Ruta: D:\requisitos\Carga\carga.html
+Versión: SIN VERSION DETECTADA
+Modificado: 07/11/2026 17:58:06
+Tamaño: 16390 bytes
+SHA256: D79C81B48DA7AC61799B188F0AD0F60FB7B4511A197CC8540FEF95FED0994281
+
+============================================================
+4. COMPROBACIONES DE RUTAS DEL ADAPTADOR
+============================================================
+Adaptador: D:\requisitos\BDLocal\adapters\bdl.screen-deps.js
+Existe adaptador: True
+
+Ruta calculada cone.utils.js: D:\requisitos\BDLocal\conexiones\cone.utils.js
+Existe cone.utils.js: True
+
+Ruta calculada cone.index.js: D:\requisitos\BDLocal\conexiones\cone.index.js
+Existe cone.index.js: True
+
+Ruta divisiones service: D:\requisitos\BDLocal\adapters\bdl.divisiones.service.js
+Existe divisiones service: True
+
+Ruta divisiones fast-cache: D:\requisitos\BDLocal\adapters\bdl.divisiones.fast-cache.js
+Existe divisiones fast-cache: True
+
+============================================================
+5. VALIDACIÓN DEL CONTENIDO ACTUAL
+============================================================
+CONE.INDEX.JS
+Versión 1.5.0-v2-source-first: True
+Referencia BDLServiceEstudiantes: True
+Referencia BDLRepoRequisitos: True
+Referencia matriculas_periodo: True
+Carga bdl.service.index.js: True
+Carga bdl.service.estudiantes.js: True
+
+BL2.CORE.JS
+Tiene saveStudents: True
+Guarda STORE.estudiantes: True
+Tiene reconstrucción existing || student: True
+
+BDL.V2.MIRROR.JS
+Intercepta BL2DB.put: True
+Intercepta BL2DB.bulkPut: True
+Crea personas: True
+Crea matriculas: True
+Crea requisitos V2: True
+
+BDL.SCREEN-DEPS.JS
+Ruta correcta ../conexiones/cone.utils.js: True
+Ruta correcta ../conexiones/cone.index.js: True
+Ruta incorrecta ./conexiones/cone.utils.js: False
+Ruta incorrecta ./conexiones/cone.index.js: False
+
+============================================================
+6. REFERENCIAS EN HTML, JS Y JSON
+============================================================
+
+REFERENCIAS A: bdl.screen-deps.js
+  D:\requisitos\BDLocal\adapters\bdl.divisiones.fast-cache.js | línea 12 | - adapters/bdl.screen-deps.js.
+  D:\requisitos\BDLocal\adapters\bdl.divisiones.service.js | línea 13 | - adapters/bdl.screen-deps.js.
+  D:\requisitos\BDLocal\adapters\bdl.screen-deps.js | línea 2 | Nombre completo: bdl.screen-deps.js
+  D:\requisitos\BDLocal\adapters\bdl.screen-deps.js | línea 3 | Ruta o ubicación: /Requisitos/BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\BDLocal\bl2.html | línea 1093 | {src:"adapters/bdl.screen-deps.js",required:REQUIRED},
+  D:\requisitos\Carga\process\carga.save.js | línea 15 | - ../../BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\Carga\process\carga.save.js | línea 25 | "../../BDLocal/adapters/bdl.screen-deps.js";
+  D:\requisitos\Carga\carga.index.js | línea 16 | var ADAPTER_PATH = "../BDLocal/adapters/bdl.screen-deps.js";
+  D:\requisitos\Coordi\coordi.html | línea 11 | - ../BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\Coordi\coordi.html | línea 111 | <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  D:\requisitos\defart\defart.core.js | línea 15 | - ../BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\defart\defart.html | línea 98 | <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  D:\requisitos\Ficha\ficha.divisiones.fast.js | línea 11 | - ../BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\Ficha\ficha.html | línea 197 | <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  D:\requisitos\Gestion\Tabla\tabla.html | línea 329 | <script src="../../BDLocal/adapters/bdl.screen-deps.js"></script>
+  D:\requisitos\Global\global.core.js | línea 14 | - BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\Global\global.core.js | línea 196 | return loadScript("../BDLocal/adapters/bdl.screen-deps.js")
+  D:\requisitos\Global\global.html | línea 200 | <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  D:\requisitos\Infor\frontend\titulacion.html | línea 1 | <!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Infor · Informe de Titulación</title><link rel="stylesheet" href="titulacion.css"></head><body><main class="infor-app"><section class="infor-hero"><div><p class="infor-eyebrow">Unidad Titulación y Eficiencia Terminal</p><h1>Infor · Informe de Titulación</h1><p class="infor-lead">Selecciona el período, carga el Excel, pega cronogramas, une con BDLocal y genera el informe final.</p></div><div class="infor-hero-actions"><button id="infor-gemini-open" class="infor-icon-btn" type="button" title="Configurar Gemini" aria-label="Configurar Gemini">IA</button><span id="infor-gemini-state" class="infor-chip warn">Gemini sin clave</span></div></section><section id="infor-status" class="infor-status">Cargando Infor...</section><section class="infor-flow"><article class="infor-step"><span>1</span><strong>Período</strong><small>Regular o PVC automático</small></article><article class="infor-step"><span>2</span><strong>Insumos</strong><small>Excel, cronogramas y anexos</small></article><article class="infor-step"><span>3</span><strong>Exportar</strong><small>Word y PDF</small></article></section><section class="infor-grid infor-grid-main"><article class="infor-card"><div class="infor-card-head"><div><h2>1. Preparar informe</h2><p>Selecciona el período. Infor detecta si es Regular o PVC y prepara la modalidad.</p></div><span id="infor-period-type" class="infor-chip">Sin período</span></div><label class="infor-field">Período<select id="infor-periodo"><option value="">Selecciona un período</option></select></label><div class="infor-mini-grid infor-mini-grid-4"><article><span>Tipo detectado</span><strong id="infor-type-label">—</strong></article><article><span>Fuente estudiantes</span><strong id="infor-source-label">—</strong></article><article><span>Estudiantes activos</span><strong id="infor-students-count">0</strong></article><article><span>Nombre del informe</span><strong id="infor-report-name">—</strong></article></div><div class="infor-mode-box"><span>Modalidad automática</span><div id="infor-modalidades" class="infor-modalidades"><em>Selecciona un período.</em></div></div></article><article class="infor-card"><div class="infor-card-head"><div><h2>2. Cargar Excel</h2><p>Infor lee varias hojas, ignora hojas vacías y conserva las filas de estudiantes detectadas.</p></div><span id="infor-excel-state" class="infor-chip warn">Sin Excel</span></div><label class="infor-field">Archivo Excel<input id="infor-excel-file" type="file" accept=".xlsx,.xls,.csv"></label><div class="infor-mini-grid infor-mini-grid-4"><article><span>Archivo</span><strong id="infor-excel-name">—</strong></article><article><span>Hojas útiles</span><strong id="infor-excel-sheets">0</strong></article><article><span>Hojas ignoradas</span><strong id="infor-excel-ignored">0</strong></article><article><span>Filas detectadas</span><strong id="infor-excel-rows">0</strong></article></div><div id="infor-excel-preview" class="infor-preview-box"><div class="infor-empty">Sin Excel leído.</div></div></article></section><section class="infor-card"><div class="infor-card-head"><div><h2>3. Validar estudiantes</h2><p>Une Excel/BDLocal por cédula, corrige cédulas sin cero inicial y usa nombres normalizados como respaldo.</p></div><span id="infor-match-state" class="infor-chip warn">Sin unión</span></div><div class="infor-mini-grid infor-mini-grid-4"><article><span>Unidos</span><strong id="infor-match-unidos">0</strong></article><article><span>Pendientes</span><strong id="infor-match-pendientes">0</strong></article><article><span>Por cédula</span><strong id="infor-match-cedula">0</strong></article><article><span>Por nombre</span><strong id="infor-match-nombre">0</strong></article></div><div id="infor-match-preview" class="infor-preview-box"><div class="infor-empty">Carga un Excel para unir con BDLocal.</div></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>4. Cronogramas</h2><p>El texto se guarda por período y se interpreta como tabla.</p></div><span id="infor-cronograma-mode" class="infor-chip">Automático</span></div><div id="infor-cronogramas-regular" class="infor-cronograma-grid"><label class="infor-field">Cronograma Examen Complexivo<textarea id="infor-cronograma-complexivo"></textarea></label><label class="infor-field">Cronograma Trabajo de Titulación<textarea id="infor-cronograma-trabajo"></textarea></label></div><div id="infor-cronogramas-pvc" class="infor-cronograma-grid is-hidden"><label class="infor-field">Cronograma Artículo Académico PVC<textarea id="infor-cronograma-pvc"></textarea></label></div><div id="infor-cronograma-preview" class="infor-preview-grid"><div class="infor-empty">Pega un cronograma para ver la tabla interpretada.</div></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>5. Motor del informe</h2><p>Construye Regular/PVC, tablas, análisis, conclusiones y recomendaciones.</p></div><span id="infor-report-state" class="infor-chip warn">Sin motor</span></div><div class="infor-mini-grid infor-mini-grid-4"><article><span>Tipo informe</span><strong id="infor-report-kind">—</strong></article><article><span>Estudiantes</span><strong id="infor-report-total">0</strong></article><article><span>Aprobados</span><strong id="infor-report-approved">0</strong></article><article><span>Secciones</span><strong id="infor-report-sections">0</strong></article></div><div id="infor-report-preview" class="infor-preview-box"><div class="infor-empty">Presiona Procesar para construir el motor del informe.</div></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>6. Anexos</h2><p>Solo imágenes subidas por ti.</p></div><span id="infor-anexos-count" class="infor-chip">0 anexos</span></div><div class="infor-upload-row"><label class="infor-field">Imágenes de anexos<input id="infor-anexos-input" type="file" accept="image/*" multiple></label></div><div id="infor-anexos-list" class="infor-anexos-list"><div class="infor-empty">Sin anexos cargados.</div></div></section><section class="infor-card infor-process-card"><div><h2>7. Procesar y exportar</h2><p>Primero procesa. Cuando el motor esté listo, exporta Word o abre la vista para guardar PDF.</p><p id="infor-process-readiness" class="infor-muted">Selecciona un período para iniciar.</p></div><div class="infor-process-actions"><button id="infor-process" class="infor-primary" type="button">Procesar</button><button id="infor-export-word" type="button" disabled>Exportar Word</button><button id="infor-export-pdf" type="button" disabled>Exportar PDF</button></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>8. Revisión rápida</h2><p>Comprueba dependencias, estado del flujo y preparación para exportar.</p></div><button id="infor-qa-run" type="button">Revisar sistema</button></div><div id="infor-qa-results" class="infor-preview-box"><div class="infor-empty">La revisión se ejecutará automáticamente.</div></div></section><details class="infor-card infor-advanced"><summary>Diagnóstico avanzado</summary><pre id="infor-diagnostics">Sin diagnóstico.</pre></details></main><div id="infor-gemini-modal" class="infor-modal is-hidden" role="dialog" aria-modal="true" aria-label="Configurar Gemini"><div class="infor-modal-card"><div class="infor-card-head"><div><h2>Clave Gemini</h2><p>Se guarda localmente.</p></div><button id="infor-gemini-close" class="infor-icon-btn" type="button">×</button></div><label class="infor-field">API Key<input id="infor-gemini-key" type="password" autocomplete="off"></label><div class="infor-modal-actions"><button id="infor-gemini-clear" type="button">Quitar clave</button><button id="infor-gemini-save" class="infor-primary" type="button">Guardar</button></div></div></div><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="../../BDLocal/adapters/bdl.screen-deps.js"></script><script src="../../Stats/stats.rules.js"></script><script src="../core/infor.periodo.js"></script><script src="../core/infor.excel.js"></script><script src="../core/infor.regular.js"></script><script src="../core/infor.match.js"></script><script src="../core/infor.report.js"></script><script src="../core/infor.gemini.js"></script><script src="../sections/cronograma/cronograma.parser.js"></script><script src="../core/infor.state.js"></script><script src="../export/word/word.export.js"></script><script src="../export/pdf/pdf.from-word.js"></script><script src="titulacion.app.js"></script><script src="infor.excel-autoread.js"></script><script src="../core/infor.qa.js"></script></body></html>
+  D:\requisitos\Reportes\repo.html | línea 12 | - ../BDLocal/adapters/bdl.screen-deps.js
+  D:\requisitos\Reportes\repo.html | línea 21 | <script src="../BDLocal/adapters/bdl.screen-deps.js"></script><script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script><script src="repo.core.js"></script><script src="repo.export.js"></script><script src="repo.app.js"></script></body></html>
+  D:\requisitos\Stats\stats.html | línea 47 | <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  D:\requisitos\Titulacion\frontend\titulacion.html | línea 1 | <!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Informe de Titulación</title><link rel="stylesheet" href="titulacion.css"></head><body><main class="infor-app"><section class="infor-hero"><div><p class="infor-eyebrow">Unidad Titulación y Eficiencia Terminal</p><h1>Infor · Informe de Titulación</h1><p class="infor-lead">Selecciona el período, carga el Excel, pega cronogramas, une con BDLocal y genera el informe final.</p></div><div class="infor-hero-actions"><button id="infor-gemini-open" class="infor-icon-btn" type="button">IA</button><span id="infor-gemini-state" class="infor-chip warn">Gemini sin clave</span></div></section><section id="infor-status" class="infor-status">Cargando Infor...</section><section class="infor-flow"><article class="infor-step"><span>1</span><strong>Período</strong><small>Regular o PVC automático</small></article><article class="infor-step"><span>2</span><strong>Insumos</strong><small>Excel, cronogramas y anexos</small></article><article class="infor-step"><span>3</span><strong>Exportar</strong><small>Word y PDF</small></article></section><section class="infor-grid infor-grid-main"><article class="infor-card"><div class="infor-card-head"><div><h2>1. Preparar informe</h2><p>Selecciona el período. Infor detecta si es Regular o PVC.</p></div><span id="infor-period-type" class="infor-chip">Sin período</span></div><label class="infor-field">Período<select id="infor-periodo"><option value="">Selecciona un período</option></select></label><div class="infor-mini-grid infor-mini-grid-4"><article><span>Tipo detectado</span><strong id="infor-type-label">—</strong></article><article><span>Fuente estudiantes</span><strong id="infor-source-label">—</strong></article><article><span>Estudiantes activos</span><strong id="infor-students-count">0</strong></article><article><span>Nombre del informe</span><strong id="infor-report-name">—</strong></article></div><div class="infor-mode-box"><span>Modalidad automática</span><div id="infor-modalidades" class="infor-modalidades"><em>Selecciona un período.</em></div></div></article><article class="infor-card"><div class="infor-card-head"><div><h2>2. Cargar Excel</h2><p>Lee varias hojas y conserva las filas de estudiantes detectadas.</p></div><span id="infor-excel-state" class="infor-chip warn">Sin Excel</span></div><label class="infor-field">Archivo Excel<input id="infor-excel-file" type="file" accept=".xlsx,.xls,.csv"></label><div class="infor-mini-grid infor-mini-grid-4"><article><span>Archivo</span><strong id="infor-excel-name">—</strong></article><article><span>Hojas útiles</span><strong id="infor-excel-sheets">0</strong></article><article><span>Hojas ignoradas</span><strong id="infor-excel-ignored">0</strong></article><article><span>Filas detectadas</span><strong id="infor-excel-rows">0</strong></article></div><div id="infor-excel-preview" class="infor-preview-box"><div class="infor-empty">Sin Excel leído.</div></div></article></section><section class="infor-card"><div class="infor-card-head"><div><h2>3. Validar estudiantes</h2><p>Une Excel/BDLocal por cédula y usa nombres normalizados como respaldo.</p></div><span id="infor-match-state" class="infor-chip warn">Sin unión</span></div><div class="infor-mini-grid infor-mini-grid-4"><article><span>Unidos</span><strong id="infor-match-unidos">0</strong></article><article><span>Pendientes</span><strong id="infor-match-pendientes">0</strong></article><article><span>Por cédula</span><strong id="infor-match-cedula">0</strong></article><article><span>Por nombre</span><strong id="infor-match-nombre">0</strong></article></div><div id="infor-match-preview" class="infor-preview-box"><div class="infor-empty">Carga un Excel para unir con BDLocal.</div></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>4. Cronogramas</h2><p>El texto se guarda por período y se interpreta como tabla.</p></div><span id="infor-cronograma-mode" class="infor-chip">Automático</span></div><div id="infor-cronogramas-regular" class="infor-cronograma-grid"><label class="infor-field">Cronograma Examen Complexivo<textarea id="infor-cronograma-complexivo"></textarea></label><label class="infor-field">Cronograma Trabajo de Titulación<textarea id="infor-cronograma-trabajo"></textarea></label></div><div id="infor-cronogramas-pvc" class="infor-cronograma-grid is-hidden"><label class="infor-field">Cronograma Artículo Académico PVC<textarea id="infor-cronograma-pvc"></textarea></label></div><div id="infor-cronograma-preview" class="infor-preview-grid"><div class="infor-empty">Pega un cronograma para ver la tabla interpretada.</div></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>5. Motor del informe</h2><p>Construye tablas, análisis, conclusiones y recomendaciones.</p></div><span id="infor-report-state" class="infor-chip warn">Sin motor</span></div><div class="infor-mini-grid infor-mini-grid-4"><article><span>Tipo informe</span><strong id="infor-report-kind">—</strong></article><article><span>Estudiantes</span><strong id="infor-report-total">0</strong></article><article><span>Aprobados</span><strong id="infor-report-approved">0</strong></article><article><span>Secciones</span><strong id="infor-report-sections">0</strong></article></div><div id="infor-report-preview" class="infor-preview-box"><div class="infor-empty">Presiona Procesar para construir el motor del informe.</div></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>6. Anexos</h2><p>Solo imágenes subidas por ti.</p></div><span id="infor-anexos-count" class="infor-chip">0 anexos</span></div><div class="infor-upload-row"><label class="infor-field">Imágenes de anexos<input id="infor-anexos-input" type="file" accept="image/*" multiple></label></div><div id="infor-anexos-list" class="infor-anexos-list"><div class="infor-empty">Sin anexos cargados.</div></div></section><section class="infor-card infor-process-card"><div><h2>7. Procesar y exportar</h2><p>Primero procesa. Cuando el motor esté listo, exporta Word o PDF.</p><p id="infor-process-readiness" class="infor-muted">Selecciona un período para iniciar.</p></div><div class="infor-process-actions"><button id="infor-process" class="infor-primary" type="button">Procesar</button><button id="infor-export-word" type="button" disabled>Exportar Word</button><button id="infor-export-pdf" type="button" disabled>Exportar PDF</button></div></section><section class="infor-card"><div class="infor-card-head"><div><h2>8. Revisión rápida</h2><p>Comprueba dependencias y estado del flujo.</p></div><button id="infor-qa-run" type="button">Revisar sistema</button></div><div id="infor-qa-results" class="infor-preview-box"><div class="infor-empty">La revisión se ejecutará automáticamente.</div></div></section><details class="infor-card infor-advanced"><summary>Diagnóstico avanzado</summary><pre id="infor-diagnostics">Sin diagnóstico.</pre></details></main><div id="infor-gemini-modal" class="infor-modal is-hidden" role="dialog" aria-modal="true"><div class="infor-modal-card"><div class="infor-card-head"><div><h2>Clave Gemini</h2><p>Se guarda localmente.</p></div><button id="infor-gemini-close" class="infor-icon-btn" type="button">×</button></div><label class="infor-field">API Key<input id="infor-gemini-key" type="password" autocomplete="off"></label><div class="infor-modal-actions"><button id="infor-gemini-clear" type="button">Quitar clave</button><button id="infor-gemini-save" class="infor-primary" type="button">Guardar</button></div></div></div><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="../../BDLocal/adapters/bdl.screen-deps.js"></script><script src="../../Stats/stats.rules.js"></script><script src="../core/infor.periodo.js"></script><script src="../core/infor.excel.js"></script><script src="../core/infor.match.js"></script><script src="../core/infor.report.js"></script><script src="../core/infor.gemini.js"></script><script src="../sections/cronograma/cronograma.parser.js"></script><script src="../core/infor.state.js"></script><script src="../export/word/word.export.js"></script><script src="../export/pdf/pdf.from-word.js"></script><script src="titulacion.app.js"></script><script src="../core/infor.qa.js"></script></body></html>
+
+REFERENCIAS A: cone.index.js
+  D:\requisitos\BDLocal\adapters\bdl.screen-deps.js | línea 12 | - conexiones/cone.utils.js y conexiones/cone.index.js.
+  D:\requisitos\BDLocal\adapters\bdl.screen-deps.js | línea 1314 | "../conexiones/cone.index.js"
+  D:\requisitos\BDLocal\conexiones\cone.carga.js | línea 12 | - conexiones/cone.index.js.
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 2 | Nombre completo: cone.index.js
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 3 | Ruta o ubicación: /Requisitos/BDLocal/conexiones/cone.index.js
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 242 | * consulte las tablas V2 incluso cuando cone.index.js
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 1221 | "cone.index.js",
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 1780 | "cone.index.js",
+  D:\requisitos\BDLocal\conexiones\cone.stats.js | línea 11 | - conexiones/cone.index.js.
+  D:\requisitos\BDLocal\bl2.html | línea 1092 | {src:"conexiones/cone.index.js",required:REQUIRED},
+  D:\requisitos\scripts\audit-repository.js | línea 146 | const index="BDLocal/conexiones/cone.index.js";
+  D:\requisitos\scripts\audit-repository.js | línea 148 | if(!exists(index)){fail("Conectores","Falta cone.index.js.");return;}
+  D:\requisitos\scripts\verify-bdlocal.js | línea 74 | "BDLocal/conexiones/cone.index.js",
+
+REFERENCIAS A: cone.utils.js
+  D:\requisitos\BDLocal\adapters\bdl.divisiones.service.js | línea 12 | - conexiones/cone.utils.js.
+  D:\requisitos\BDLocal\adapters\bdl.screen-deps.js | línea 12 | - conexiones/cone.utils.js y conexiones/cone.index.js.
+  D:\requisitos\BDLocal\adapters\bdl.screen-deps.js | línea 1313 | "../conexiones/cone.utils.js",
+  D:\requisitos\BDLocal\conexiones\cone.carga.js | línea 13 | - conexiones/cone.utils.js.
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 15 | - conexiones/cone.utils.js.
+  D:\requisitos\BDLocal\conexiones\cone.stats.js | línea 12 | - conexiones/cone.utils.js.
+  D:\requisitos\BDLocal\conexiones\cone.utils.js | línea 2 | Nombre completo: cone.utils.js
+  D:\requisitos\BDLocal\conexiones\cone.utils.js | línea 3 | Ruta o ubicación: /Requisitos/BDLocal/conexiones/cone.utils.js
+  D:\requisitos\BDLocal\bl2.html | línea 1091 | {src:"conexiones/cone.utils.js",required:REQUIRED},
+
+REFERENCIAS A: bl2.config.v2.js
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 217 | * bl2.config.v2.js debe cargarse antes de abrir BL2DB.
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 230 | "../bl2.config.v2.js"
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 364 | "../bl2.config.v2.js",
+  D:\requisitos\BDLocal\migrations\bdl.migration.index.js | línea 9 | - BDLocal/bl2.config.v2.js
+  D:\requisitos\BDLocal\migrations\bdl.migration.v2.schema.js | línea 10 | - BDLocal/bl2.config.v2.js
+  D:\requisitos\BDLocal\bl2.config.v2.js | línea 2 | Nombre completo: bl2.config.v2.js
+  D:\requisitos\BDLocal\bl2.config.v2.js | línea 3 | Ruta o ubicación: /BDLocal/bl2.config.v2.js
+  D:\requisitos\BDLocal\bl2.html | línea 1033 | {src:"bl2.config.v2.js",required:REQUIRED},
+  D:\requisitos\Cr-def\cr-def.data.js | línea 12 | - ../BDLocal/bl2.config.v2.js
+  D:\requisitos\Cr-def\cr-def.html | línea 16 | - ../BDLocal/bl2.config.v2.js
+  D:\requisitos\Cr-def\cr-def.html | línea 216 | <script src="../BDLocal/bl2.config.v2.js"></script>
+  D:\requisitos\Cr-def\cr-def.js | línea 12 | - ../BDLocal/bl2.config.v2.js
+  D:\requisitos\defart\defart.html | línea 101 | <script src="../BDLocal/bl2.config.v2.js"></script>
+  D:\requisitos\scripts\verify-bdlocal.js | línea 60 | "BDLocal/bl2.config.v2.js",
+
+REFERENCIAS A: bl2.db.js
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 236 | "../bl2.db.js"
+  D:\requisitos\BDLocal\diagnostics\bdl.diagnostics.defensas.js | línea 10 | - BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\diagnostics\bdl.diagnostics.general.js | línea 11 | - BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\migrations\bdl.migration.index.js | línea 10 | - BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\migrations\bdl.migration.v2.schema.js | línea 11 | - BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\repositories\bdl.repo.index.js | línea 9 | - BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\repositories\bdl.repo.periodos.js | línea 10 | - BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\bl2.db.js | línea 2 | Archivo: bl2.db.js
+  D:\requisitos\BDLocal\bl2.db.js | línea 3 | Ruta: /BDLocal/bl2.db.js
+  D:\requisitos\BDLocal\bl2.html | línea 1034 | {src:"bl2.db.js",required:REQUIRED},
+  D:\requisitos\Cr-def\cr-def.data.js | línea 13 | - ../BDLocal/bl2.db.js
+  D:\requisitos\Cr-def\cr-def.html | línea 17 | - ../BDLocal/bl2.db.js
+  D:\requisitos\Cr-def\cr-def.html | línea 217 | <script src="../BDLocal/bl2.db.js"></script>
+  D:\requisitos\Cr-def\cr-def.js | línea 13 | - ../BDLocal/bl2.db.js
+  D:\requisitos\defart\defart.html | línea 102 | <script src="../BDLocal/bl2.db.js"></script>
+  D:\requisitos\scripts\verify-bdlocal.js | línea 61 | "BDLocal/bl2.db.js",
+
+REFERENCIAS A: bdl.v2.mirror.js
+  D:\requisitos\BDLocal\conexiones\cone.index.js | línea 286 | "../patches/bdl.v2.mirror.js"
+  D:\requisitos\BDLocal\patches\bdl.v2.mirror.js | línea 2 | Nombre completo: bdl.v2.mirror.js
+  D:\requisitos\BDLocal\patches\bdl.v2.mirror.js | línea 3 | Ruta o ubicación: /BDLocal/patches/bdl.v2.mirror.js
+  D:\requisitos\BDLocal\bl2.html | línea 1081 | {src:"patches/bdl.v2.mirror.js",required:REQUIRED},
+
+REFERENCIAS A: carga.save.js
+  D:\requisitos\Carga\process\carga.save.js | línea 2 | Nombre completo: carga.save.js
+  D:\requisitos\Carga\process\carga.save.js | línea 3 | Ruta o ubicación: /Requisitos/Carga/process/carga.save.js
+  D:\requisitos\Carga\carga.app.js | línea 18 | - process/carga.save.js
+  D:\requisitos\Carga\carga.html | línea 255 | <script defer src="./process/carga.save.js"></script>
+
+============================================================
+7. CARPETAS DUPLICADAS IMPORTANTES
+============================================================
+
+CARPETAS LLAMADAS: BDLocal
+  D:\requisitos\BDLocal
+
+CARPETAS LLAMADAS: Carga
+  D:\requisitos\Carga
+
+CARPETAS LLAMADAS: Ficha
+  D:\requisitos\Ficha
+
+CARPETAS LLAMADAS: Global
+  D:\requisitos\Global
+
+============================================================
+8. RESUMEN AUTOMÁTICO
+============================================================
+Todos los archivos críticos existen en sus rutas esperadas.
+
+Versión cone.index.js: 1.5.0-v2-source-first
+Versión bdl.screen-deps.js: 1.4.0-central-cache-direct
+Versión bdl.v2.mirror.js: 1.2.0-canonical-local-id
+
+FIN DEL DIAGNÓSTICO

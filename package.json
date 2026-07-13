@@ -1,0 +1,28 @@
+{
+  "name": "requisitos-desktop",
+  "version": "1.2.0",
+  "description": "Aplicación local de Requisitos con auditoría integral de BDLocal.",
+  "private": true,
+  "main": "electron/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "start:local": "electron .",
+    "test": "node scripts/verify-bdlocal.js && node scripts/audit-repository.js",
+    "test:bdlocal": "node scripts/verify-bdlocal.js",
+    "test:electron": "electron electron/smoke-main.js",
+    "diagnostico:bdlocal": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1",
+    "diagnostico:bloqueo": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bloqueo.ps1",
+    "audit:repo": "node scripts/audit-repository.js",
+    "verify": "npm test"
+  },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "electron": "43.1.0"
+  }
+}

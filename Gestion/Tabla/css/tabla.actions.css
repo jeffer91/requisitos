@@ -1,0 +1,144 @@
+/* =========================================================
+Nombre completo: tabla.actions.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/css/tabla.actions.css
+Función o funciones:
+- Diseñar el selector de mensajes y las acciones por estudiante.
+- Mostrar contadores de WhatsApp, Telegram y correo.
+- Mantener compacta la columna de último contacto.
+Con qué se conecta:
+- tabla.html
+- tabla.render-table.js
+- tabla.actions.js
+========================================================= */
+
+.tabla-message-select {
+  min-width: 116px;
+  min-height: 30px;
+  height: 30px;
+
+  border-radius: 999px;
+
+  padding:
+    3px
+    8px;
+
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.tabla-last-message {
+  display: inline-flex;
+
+  max-width: 160px;
+
+  overflow: hidden;
+
+  color: #475569;
+
+  font-size: 11px;
+  font-weight: 850;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabla-channel {
+  min-width: 46px;
+  min-height: 30px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 4px;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 999px;
+
+  padding:
+    3px
+    7px;
+
+  background: #fff;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tabla-channel:hover:not(:disabled) {
+  transform:
+    translateY(-1px);
+
+  box-shadow:
+    0 5px 12px
+    rgba(
+      15,
+      23,
+      42,
+      0.08
+    );
+}
+
+.tabla-channel small {
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.tabla-channel:disabled small {
+  color: inherit;
+}
+
+.tabla-career-short {
+  display: inline-block;
+
+  max-width: 260px;
+
+  overflow: hidden;
+
+  color: #334155;
+
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  vertical-align: middle;
+}
+
+.action-whats {
+  color: #15803d;
+}
+
+.action-whats:hover:not(:disabled) {
+  border-color: #86efac;
+  background: #ecfdf5;
+}
+
+.action-telegram {
+  color: #2563eb;
+}
+
+.action-telegram:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.action-mail {
+  color: #7c3aed;
+}
+
+.action-mail:hover:not(:disabled) {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+}
+
+.tabla-channel[data-action-busy="1"] {
+  cursor: progress;
+  opacity: 0.65;
+}

@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Tabla</title>
+
+  <!-- =====================================================
+  ESTILOS DE TABLA
+  El orden importa: base primero y responsive al final.
+  ====================================================== -->
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.base.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.header.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.filters.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.table.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.actions.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.modals.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.communication.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="css/tabla.responsive.css"
+  >
+</head>
+
+<body>
+  <main class="tabla-app tabla-app-compact">
+
+    <!-- Único mensaje superior.
+         Reemplaza las antiguas tarjetas KPI. -->
+    <section
+      id="tabla-status"
+      class="tabla-status"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      Cargando tabla...
+    </section>
+
+    <!-- ===================================================
+    FILTROS PRINCIPALES
+    ==================================================== -->
+
+    <section
+      class="tabla-panel tabla-filter-panel"
+      aria-label="Filtros principales de Tabla"
+    >
+      <div class="tabla-filter-row">
+
+        <label>
+          Período
+
+          <select id="tabla-periodo">
+            <option value="">
+              Seleccione un período
+            </option>
+          </select>
+        </label>
+
+        <label>
+          División
+
+          <select id="tabla-division">
+            <option value="">
+              Todas
+            </option>
+          </select>
+        </label>
+
+        <label>
+          Carrera
+
+          <select id="tabla-carrera">
+            <option value="">
+              Todas
+            </option>
+          </select>
+        </label>
+
+        <label class="tabla-search-field">
+          Buscar estudiante
+
+          <input
+            id="tabla-search"
+            type="search"
+            placeholder="Cédula, nombre, correo o Telegram..."
+            autocomplete="off"
+          >
+        </label>
+
+      </div>
+    </section>
+
+    <!-- ===================================================
+    FILTROS RÁPIDOS DE REQUISITOS
+    ==================================================== -->
+
+    <section
+      class="tabla-panel tabla-req-panel"
+      aria-label="Filtros rápidos por requisitos"
+    >
+      <div class="tabla-req-head">
+
+        <div>
+          <strong>Faltantes</strong>
+
+          <small>
+            Activa uno o varios requisitos para filtrar estudiantes.
+          </small>
+        </div>
+
+        <div class="tabla-head-actions">
+
+          <button
+            id="tabla-refresh"
+            class="tabla-btn-soft"
+            type="button"
+          >
+            Actualizar
+          </button>
+
+          <div class="tabla-message-menu">
+
+            <button
+              id="tabla-message-menu-toggle"
+              class="tabla-btn-primary"
+              type="button"
+              aria-expanded="false"
+              aria-controls="tabla-message-menu-panel"
+            >
+              Mensajes ▾
+            </button>
+
+            <div
+              id="tabla-message-menu-panel"
+              class="tabla-message-menu-panel"
+              role="menu"
+              hidden
+            >
+
+              <button
+                id="tabla-telegram-masivo"
+                type="button"
+                role="menuitem"
+              >
+                <span>Telegram masivo</span>
+
+                <small>
+                  Período seleccionado
+                </small>
+              </button>
+
+              <button
+                id="tabla-history-open"
+                type="button"
+                role="menuitem"
+              >
+                <span>Historial</span>
+
+                <small>
+                  Contadores y último contacto
+                </small>
+              </button>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="tabla-req-chips"
+        class="tabla-req-chips"
+      >
+
+        <button
+          type="button"
+          class="tabla-req-chip is-active"
+          data-req-filter="falta"
+          aria-pressed="true"
+          title="Uno o más requisitos faltantes"
+        >
+          Falta
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="academico"
+          aria-pressed="false"
+          title="Académico pendiente"
+        >
+          Aca
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="documentacion"
+          aria-pressed="false"
+          title="Documentación académica pendiente"
+        >
+          Doc
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="financiero"
+          aria-pressed="false"
+          title="Financiero pendiente"
+        >
+          Fin
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="titulacion"
+          aria-pressed="false"
+          title="Titulación pendiente"
+        >
+          Tit
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="practicasvinculacion"
+          aria-pressed="false"
+          title="Prácticas preprofesionales pendientes"
+        >
+          PP
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="vinculacion"
+          aria-pressed="false"
+          title="Vinculación con la sociedad pendiente"
+        >
+          Vinc
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="seguimientograduados"
+          aria-pressed="false"
+          title="Seguimiento a graduados pendiente"
+        >
+          Grad
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="ingles"
+          aria-pressed="false"
+          title="Segunda lengua o Inglés pendiente"
+        >
+          Ing
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="actualizaciondatos"
+          aria-pressed="false"
+          title="Actualización de datos pendiente"
+        >
+          Datos
+        </button>
+
+      </div>
+    </section>
+
+    <!-- ===================================================
+    TABLA PRINCIPAL
+    ==================================================== -->
+
+    <section
+      class="tabla-table-card tabla-message-table-card"
+      aria-label="Listado de estudiantes"
+    >
+      <div class="tabla-table-info">
+
+        <span id="tabla-count-text">
+          0 registros
+        </span>
+
+        <span id="tabla-page-text">
+          Página 1 de 1
+        </span>
+
+      </div>
+
+      <div
+        id="tabla-table-wrap"
+        class="tabla-table-wrap tabla-table-wrap-compact"
+      >
+        <div class="empty">
+          Cargando estudiantes...
+        </div>
+      </div>
+
+      <div
+        class="tabla-pagination"
+        aria-label="Paginación de estudiantes"
+      >
+
+        <button
+          id="tabla-page-first"
+          type="button"
+          disabled
+        >
+          Primera
+        </button>
+
+        <button
+          id="tabla-page-prev"
+          type="button"
+          disabled
+        >
+          Anterior
+        </button>
+
+        <span
+          id="tabla-page-label"
+          aria-live="polite"
+        >
+          0 registros
+        </span>
+
+        <button
+          id="tabla-page-next"
+          type="button"
+          disabled
+        >
+          Siguiente
+        </button>
+
+        <button
+          id="tabla-page-last"
+          type="button"
+          disabled
+        >
+          Última
+        </button>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- =====================================================
+  CONTROLES INTERNOS CONSERVADOS PARA COMPATIBILIDAD
+  No forman parte de la interfaz visible.
+  ====================================================== -->
+
+  <select
+    id="tabla-matricula"
+    hidden
+    aria-hidden="true"
+    tabindex="-1"
+  >
+    <option
+      value="ACTIVO"
+      selected
+    >
+      Activos
+    </option>
+
+    <option value="RETIRADO">
+      Retirados
+    </option>
+
+    <option value="">
+      Todos
+    </option>
+  </select>
+
+  <select
+    id="tabla-estado"
+    hidden
+    aria-hidden="true"
+    tabindex="-1"
+  >
+    <option
+      value=""
+      selected
+    >
+      Todos
+    </option>
+
+    <option value="cumple">
+      Cumple todo
+    </option>
+
+    <option value="pendiente">
+      Con pendientes
+    </option>
+
+    <option value="no_cumple">
+      No cumple
+    </option>
+  </select>
+
+  <select
+    id="tabla-page-size"
+    hidden
+    aria-hidden="true"
+    tabindex="-1"
+  >
+    <option
+      value="75"
+      selected
+    >
+      75
+    </option>
+  </select>
+
+  <!-- =====================================================
+  TELEGRAM INDIVIDUAL
+  ====================================================== -->
+
+  <section
+    id="tabla-telegram-modal"
+    class="tabla-modal"
+    hidden
+    aria-hidden="true"
+  >
+    <div
+      class="tabla-modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tabla-tg-title"
+      aria-describedby="tabla-tg-meta"
+    >
+      <header class="tabla-modal-header">
+
+        <div>
+          <h2 id="tabla-tg-title">
+            Mensaje individual
+          </h2>
+
+          <p
+            id="tabla-tg-meta"
+            class="tabla-modal-meta"
+          >
+            Seleccione un estudiante.
+          </p>
+        </div>
+
+        <button
+          id="tabla-tg-close"
+          class="icon-btn"
+          type="button"
+          aria-label="Cerrar Telegram individual"
+        >
+          ×
+        </button>
+
+      </header>
+
+      <div class="tabla-modal-body">
+
+        <div class="tabla-tg-info">
+
+          <span id="tabla-tg-dato">
+            Sin dato registrado
+          </span>
+
+          <small id="tabla-tg-warning">
+            Seleccione el tipo de mensaje.
+          </small>
+
+        </div>
+
+        <label>
+          Tipo
+
+          <select id="tabla-tg-tipo">
+            <option value="requisitos">Falta req.</option>
+            <option value="urgente">Urgente</option>
+            <option value="ultimo">Último aviso</option>
+            <option value="regularizar">Regularizar</option>
+            <option value="nota_articulo">Falta N-Art</option>
+            <option value="nota_defensa">Falta N-Def</option>
+            <option value="sin_articulo">Sin artículo</option>
+            <option value="no_aprueba">No aprueba</option>
+            <option value="perdio">Perdió</option>
+            <option value="alerta">Alerta</option>
+            <option value="cronograma">Cronograma</option>
+            <option value="libre">Personal</option>
+          </select>
+        </label>
+
+        <label
+          id="tabla-tg-texto-wrap"
+          hidden
+        >
+          <span id="tabla-tg-texto-label">
+            Mensaje personal
+          </span>
+
+          <textarea
+            id="tabla-tg-texto"
+            rows="5"
+            placeholder="Escriba el contenido del mensaje..."
+          ></textarea>
+        </label>
+
+        <label>
+          Vista previa
+
+          <textarea
+            id="tabla-tg-preview"
+            rows="12"
+            readonly
+          ></textarea>
+        </label>
+
+      </div>
+
+      <footer class="tabla-modal-actions">
+
+        <button
+          id="tabla-tg-cancel"
+          type="button"
+        >
+          Cerrar
+        </button>
+
+        <button
+          id="tabla-tg-copy"
+          type="button"
+        >
+          Copiar
+        </button>
+
+        <button
+          id="tabla-tg-open"
+          type="button"
+        >
+          Abrir Telegram
+        </button>
+
+        <button
+          id="tabla-tg-send"
+          class="tabla-btn-primary"
+          type="button"
+        >
+          Enviar por bot
+        </button>
+
+      </footer>
+    </div>
+  </section>
+
+  <!-- =====================================================
+  TELEGRAM MASIVO
+  ====================================================== -->
+
+  <section
+    id="tabla-mass-modal"
+    class="tabla-modal"
+    hidden
+    aria-hidden="true"
+  >
+    <div
+      class="tabla-modal-card tabla-modal-card-wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tabla-mass-title"
+      aria-describedby="tabla-mass-meta"
+    >
+      <header class="tabla-modal-header">
+
+        <div>
+          <h2 id="tabla-mass-title">
+            Telegram masivo
+          </h2>
+
+          <p
+            id="tabla-mass-meta"
+            class="tabla-modal-meta"
+          >
+            Se usarán todos los estudiantes filtrados del período seleccionado.
+          </p>
+        </div>
+
+        <button
+          id="tabla-mass-close"
+          class="icon-btn"
+          type="button"
+          aria-label="Cerrar Telegram masivo"
+        >
+          ×
+        </button>
+
+      </header>
+
+      <div class="tabla-modal-body tabla-mass-body">
+
+        <div
+          id="tabla-mass-summary"
+          class="tabla-mass-summary"
+          aria-live="polite"
+        ></div>
+
+        <div class="tabla-mass-grid">
+
+          <div class="tabla-mass-config">
+
+            <label>
+              Tipo
+
+              <select id="tabla-mass-tipo">
+                <option value="requisitos">Falta req.</option>
+                <option value="urgente">Urgente</option>
+                <option value="ultimo">Último aviso</option>
+                <option value="regularizar">Regularizar</option>
+                <option value="nota_articulo">Falta N-Art</option>
+                <option value="nota_defensa">Falta N-Def</option>
+                <option value="sin_articulo">Sin artículo</option>
+                <option value="no_aprueba">No aprueba</option>
+                <option value="perdio">Perdió</option>
+                <option value="alerta">Alerta</option>
+                <option value="cronograma">Cronograma</option>
+                <option value="libre">Personal</option>
+              </select>
+            </label>
+
+            <label
+              id="tabla-mass-texto-wrap"
+              hidden
+            >
+              <span id="tabla-mass-texto-label">
+                Mensaje personal
+              </span>
+
+              <textarea
+                id="tabla-mass-texto"
+                rows="5"
+                placeholder="Escriba el contenido del mensaje..."
+              ></textarea>
+            </label>
+
+            <div class="tabla-mass-select-actions">
+
+              <button
+                id="tabla-mass-select-all"
+                type="button"
+              >
+                Seleccionar todos
+              </button>
+
+              <button
+                id="tabla-mass-select-tg"
+                type="button"
+              >
+                Solo con chatId
+              </button>
+
+              <button
+                id="tabla-mass-clear"
+                type="button"
+              >
+                Limpiar
+              </button>
+
+            </div>
+
+            <label class="tabla-check-line">
+
+              <input
+                id="tabla-mass-confirm"
+                type="checkbox"
+              >
+
+              <span>
+                Confirmo que revisé el período, el mensaje y la selección.
+              </span>
+
+            </label>
+
+            <label>
+              Vista previa
+
+              <textarea
+                id="tabla-mass-preview"
+                rows="12"
+                readonly
+              ></textarea>
+            </label>
+
+          </div>
+
+          <div class="tabla-mass-list-wrap">
+
+            <div
+              id="tabla-mass-list"
+              class="tabla-mass-list"
+            >
+              <div class="empty">
+                No existen estudiantes seleccionados.
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <footer class="tabla-modal-actions">
+
+        <button
+          id="tabla-mass-cancel"
+          type="button"
+        >
+          Cerrar
+        </button>
+
+        <button
+          id="tabla-mass-copy"
+          type="button"
+        >
+          Copiar vista previa
+        </button>
+
+        <button
+          id="tabla-mass-prepare"
+          type="button"
+        >
+          Preparar lote
+        </button>
+
+        <button
+          id="tabla-mass-send"
+          class="tabla-btn-primary"
+          type="button"
+          disabled
+        >
+          Enviar lote
+        </button>
+
+      </footer>
+    </div>
+  </section>
+
+  <!-- =====================================================
+  HISTORIAL
+  ====================================================== -->
+
+  <section
+    id="tabla-history-modal"
+    class="tabla-modal"
+    hidden
+    aria-hidden="true"
+  >
+    <div
+      class="tabla-modal-card tabla-modal-card-wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tabla-history-title"
+      aria-describedby="tabla-history-meta"
+    >
+      <header class="tabla-modal-header">
+
+        <div>
+          <h2 id="tabla-history-title">
+            Historial de mensajes
+          </h2>
+
+          <p
+            id="tabla-history-meta"
+            class="tabla-modal-meta"
+          >
+            Los contadores se separan por estudiante y período.
+          </p>
+        </div>
+
+        <button
+          id="tabla-history-close"
+          class="icon-btn"
+          type="button"
+          aria-label="Cerrar historial"
+        >
+          ×
+        </button>
+
+      </header>
+
+      <div class="tabla-modal-body">
+
+        <div
+          id="tabla-history-summary"
+          class="tabla-mass-summary"
+          aria-live="polite"
+        ></div>
+
+        <p class="tabla-history-help">
+          Telegram cuenta únicamente envíos confirmados por el bot.
+          WhatsApp y correo cuentan cuando la aplicación abre el mensaje
+          preparado.
+        </p>
+
+        <div
+          id="tabla-history-list"
+          class="tabla-history-list"
+        >
+          <div class="empty">
+            No existen mensajes registrados.
+          </div>
+        </div>
+
+      </div>
+
+      <footer class="tabla-modal-actions">
+
+        <button
+          id="tabla-history-cancel"
+          type="button"
+        >
+          Cerrar
+        </button>
+
+        <button
+          id="tabla-history-clear"
+          type="button"
+          disabled
+        >
+          Limpiar historial del período
+        </button>
+
+      </footer>
+    </div>
+  </section>
+
+  <!-- =====================================================
+  DEPENDENCIAS DE BDLOCAL
+  BDLocal se consume, pero no se modifica desde Tabla.
+  ====================================================== -->
+
+  <script src="../../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
+
+  <!-- =====================================================
+  NÚCLEO INTERNO
+  ====================================================== -->
+
+  <script src="core/tabla.constants.js"></script>
+  <script src="core/tabla.utils.js"></script>
+  <script src="core/tabla.events.js"></script>
+  <script src="core/tabla.state.js"></script>
+
+  <!-- =====================================================
+  DATOS
+  ====================================================== -->
+
+  <script src="data/tabla.data-normalizer.js"></script>
+  <script src="data/tabla.data-source.js"></script>
+  <script src="data/tabla.data-guard.js"></script>
+
+  <!-- =====================================================
+  INTERFAZ
+  ====================================================== -->
+
+  <script src="ui/tabla.filters.js"></script>
+  <script src="ui/tabla.pagination.js"></script>
+  <script src="ui/tabla.render-controls.js"></script>
+  <script src="ui/tabla.render-summary.js"></script>
+  <script src="ui/tabla.render-table.js"></script>
+
+  <!-- =====================================================
+  MENSAJES Y CANALES
+  ====================================================== -->
+
+  <script src="communication/tabla.message.js"></script>
+  <script src="communication/tabla.whatsapp.js"></script>
+  <script src="communication/tabla.email.js"></script>
+  <script src="communication/tabla.telegram-api.js"></script>
+
+  <!-- =====================================================
+  HISTORIAL
+  Debe cargar antes de Telegram y acciones.
+  ====================================================== -->
+
+  <script src="history/tabla.history-store.js"></script>
+  <script src="history/tabla.history-query.js"></script>
+  <script src="history/tabla.history.js"></script>
+
+  <!-- =====================================================
+  TELEGRAM INDIVIDUAL
+  ====================================================== -->
+
+  <script src="communication/tabla.telegram.js"></script>
+
+  <!-- =====================================================
+  TELEGRAM MASIVO
+  ====================================================== -->
+
+  <script src="mass/tabla.selection.js"></script>
+  <script src="mass/tabla.mass-sender.js"></script>
+  <script src="mass/tabla.mass.js"></script>
+
+  <!-- =====================================================
+  ACCIONES Y ORQUESTADOR
+  El coordinador principal debe cargar al final.
+  ====================================================== -->
+
+  <script src="communication/tabla.actions.js"></script>
+  <script src="core/tabla.app.js"></script>
+</body>
+</html>

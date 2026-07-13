@@ -1,0 +1,107 @@
+/* =========================================================
+Nombre completo: tabla.filters.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/css/tabla.filters.css
+Función o funciones:
+- Mantener la distribución visual actual de filtros y requisitos.
+- Diseñar selectores, buscador, chips y acciones superiores.
+- No modificar la lógica ni los identificadores del HTML.
+Con qué se conecta:
+- tabla.html
+- tabla.render-controls.js
+- tabla.filters.js
+========================================================= */
+
+.tabla-filter-panel,
+.tabla-req-panel {
+  padding: 12px;
+}
+
+.tabla-filter-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(150px, 1fr)
+    minmax(145px, 1fr)
+    minmax(190px, 1.25fr)
+    minmax(240px, 1.7fr);
+
+  gap: 10px;
+
+  align-items: end;
+}
+
+.tabla-filter-panel label,
+.tabla-req-panel label,
+.tabla-modal label {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+  color: #334155;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tabla-search-field {
+  min-width: 0;
+}
+
+.tabla-search-field input {
+  min-width: 0;
+}
+
+.tabla-req-chips {
+  display: flex;
+
+  gap: 7px;
+
+  flex-wrap: wrap;
+}
+
+.tabla-req-chip {
+  min-height: 30px;
+
+  padding: 0 10px;
+
+  border-radius: 999px;
+  border-color: #dbe3ef;
+
+  background: #f8fafc;
+  color: #334155;
+
+  font-size: 12px;
+}
+
+.tabla-req-chip.is-active,
+.tabla-req-chip[aria-pressed="true"] {
+  border-color:
+    var(--primary-dark);
+
+  background:
+    var(--primary-dark);
+
+  color: #fff;
+
+  box-shadow:
+    0 6px 14px
+    rgba(
+      37,
+      99,
+      235,
+      0.18
+    );
+}
+
+.tabla-req-chip.is-active:hover,
+.tabla-req-chip[aria-pressed="true"]:hover {
+  background: #1e40af;
+}
+
+#tabla-matricula,
+#tabla-estado,
+#tabla-page-size {
+  display: none !important;
+}

@@ -1,0 +1,211 @@
+/* =========================================================
+Nombre completo: tabla.modals.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/css/tabla.modals.css
+Función o funciones:
+- Mantener la estructura visual compartida de todos los modales.
+- Controlar fondo, tarjeta, encabezado, contenido y acciones.
+- Conservar modales normales y amplios sin rediseñar la pantalla.
+Con qué se conecta:
+- tabla.html
+- tabla.telegram.js
+- tabla.mass.js
+- tabla.history.js
+========================================================= */
+
+.tabla-modal[hidden] {
+  display: none !important;
+}
+
+.tabla-modal {
+  position: fixed;
+
+  inset: 0;
+  z-index: 50;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 18px;
+
+  background:
+    rgba(
+      15,
+      23,
+      42,
+      0.38
+    );
+
+  overflow: auto;
+}
+
+.tabla-modal-card {
+  width:
+    min(
+      760px,
+      100%
+    );
+
+  max-height: 92vh;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow: hidden;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 18px;
+
+  background: #fff;
+
+  box-shadow:
+    0 24px 70px
+    rgba(
+      15,
+      23,
+      42,
+      0.22
+    );
+}
+
+.tabla-modal-card-wide {
+  width:
+    min(
+      1180px,
+      100%
+    );
+}
+
+.tabla-modal-header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  flex: 0 0 auto;
+
+  padding:
+    16px
+    16px
+    10px;
+
+  border-bottom:
+    1px solid
+    var(--line);
+}
+
+.tabla-modal-header > div {
+  min-width: 0;
+}
+
+.tabla-modal-header h2 {
+  margin: 0;
+
+  color: #0f172a;
+
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.tabla-modal-meta {
+  margin:
+    6px
+    0
+    0;
+
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.tabla-modal-body {
+  min-height: 0;
+
+  display: grid;
+
+  gap: 12px;
+
+  flex: 1 1 auto;
+
+  overflow: auto;
+
+  padding:
+    14px
+    16px;
+}
+
+.tabla-modal-actions {
+  display: flex;
+
+  justify-content: flex-end;
+  align-items: center;
+
+  gap: 8px;
+
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+
+  padding:
+    12px
+    16px
+    16px;
+
+  border-top:
+    1px solid
+    var(--line);
+
+  background: #fff;
+}
+
+.tabla-modal-actions button {
+  min-height: 36px;
+}
+
+.tabla-modal .icon-btn {
+  width: 30px;
+  min-width: 30px;
+
+  height: 30px;
+  min-height: 30px;
+
+  flex: 0 0 auto;
+
+  border:
+    1px solid
+    var(--line);
+
+  padding: 0;
+
+  background: #fff;
+  color: #1d4ed8;
+
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tabla-modal .icon-btn:hover:not(:disabled) {
+  background:
+    var(--primary-soft);
+}
+
+.tabla-modal textarea[readonly] {
+  cursor: text;
+}
+
+.tabla-modal-card[aria-busy="true"] {
+  cursor: progress;
+}
+
+.tabla-modal-card[aria-busy="true"]
+.tabla-modal-body {
+  opacity: 0.82;
+}

@@ -1,0 +1,304 @@
+/* =========================================================
+Nombre completo: tabla.table.css
+Ruta o ubicación: /Requisitos/Gestion/Tabla/css/tabla.table.css
+Función o funciones:
+- Mantener el diseño de la tabla principal.
+- Controlar encabezados, filas, scroll y paginación.
+- Conservar el aspecto compacto de la pantalla existente.
+- Resaltar en verde suave a los estudiantes que cumplen todos los requisitos.
+Con qué se conecta:
+- tabla.html
+- tabla.render-table.js
+- tabla.pagination.js
+========================================================= */
+
+.tabla-table-card {
+  padding: 12px;
+  min-width: 0;
+}
+
+.tabla-message-table-card {
+  overflow: hidden;
+}
+
+.tabla-table-info {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 10px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tabla-table-info span {
+  min-width: 0;
+}
+
+.tabla-table-wrap {
+  width: 100%;
+  max-height: 650px;
+
+  overflow: auto;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 12px;
+
+  background: #fff;
+
+  scrollbar-width: thin;
+  scrollbar-color:
+    #cbd5e1
+    transparent;
+}
+
+.tabla-table-wrap::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.tabla-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabla-table-wrap::-webkit-scrollbar-thumb {
+  border:
+    2px solid
+    transparent;
+
+  border-radius: 999px;
+
+  background:
+    #cbd5e1;
+
+  background-clip:
+    padding-box;
+}
+
+.tabla-table-wrap::-webkit-scrollbar-thumb:hover {
+  background:
+    #94a3b8;
+
+  background-clip:
+    padding-box;
+}
+
+.tabla-table-wrap-compact {
+  max-height: 670px;
+}
+
+.tabla-table-wrap table {
+  width: 100%;
+  min-width: 970px;
+
+  border-collapse: collapse;
+
+  background: #fff;
+
+  font-size: 12px;
+}
+
+.tabla-table-wrap th,
+.tabla-table-wrap td {
+  border-bottom:
+    1px solid
+    var(--line);
+
+  padding: 8px 9px;
+
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tabla-table-wrap th {
+  position: sticky;
+
+  top: 0;
+  z-index: 2;
+
+  background: #f8fafc;
+  color: #334155;
+
+  font-size: 11px;
+  font-weight: 950;
+
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+
+  white-space: nowrap;
+}
+
+.tabla-table-wrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla-table-wrap tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.tabla-table-wrap tbody tr:focus-within td {
+  background: #eff6ff;
+}
+
+.tabla-table-wrap th:nth-child(1),
+.tabla-table-wrap td:nth-child(1) {
+  width: 112px;
+}
+
+.tabla-table-wrap th:nth-child(2),
+.tabla-table-wrap td:nth-child(2) {
+  min-width: 230px;
+}
+
+.tabla-table-wrap th:nth-child(3),
+.tabla-table-wrap td:nth-child(3) {
+  min-width: 205px;
+}
+
+.tabla-table-wrap th:nth-child(4),
+.tabla-table-wrap td:nth-child(4) {
+  width: 135px;
+}
+
+.tabla-table-wrap th:nth-child(5),
+.tabla-table-wrap td:nth-child(5) {
+  width: 175px;
+}
+
+.tabla-table-wrap th:nth-child(6),
+.tabla-table-wrap td:nth-child(6),
+.tabla-table-wrap th:nth-child(7),
+.tabla-table-wrap td:nth-child(7),
+.tabla-table-wrap th:nth-child(8),
+.tabla-table-wrap td:nth-child(8) {
+  width: 68px;
+
+  text-align: center;
+}
+
+.tabla-table-wrap .empty {
+  min-height: 160px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+}
+
+/* Estado general de requisitos por estudiante. */
+.tabla-table-wrap tbody tr {
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.tabla-table-wrap
+tbody
+tr.tabla-row-cumple
+td {
+  background: #ecfdf5;
+
+  border-bottom-color:
+    #bbf7d0;
+}
+
+.tabla-table-wrap
+tbody
+tr.tabla-row-cumple
+td:first-child {
+  box-shadow:
+    inset 4px 0 0
+    #16a34a;
+}
+
+.tabla-table-wrap
+tbody
+tr.tabla-row-cumple:hover
+td,
+.tabla-table-wrap
+tbody
+tr.tabla-row-cumple:focus-within
+td {
+  background: #dcfce7;
+}
+
+.tabla-table-wrap
+tbody
+tr.tabla-row-cumple:focus-within
+td:first-child {
+  box-shadow:
+    inset 4px 0 0
+    #15803d,
+    inset 0 0 0 1px
+    rgba(
+      21,
+      128,
+      61,
+      0.08
+    );
+}
+
+.tabla-table-wrap
+tbody
+tr.tabla-row-pendiente
+td:first-child,
+.tabla-table-wrap
+tbody
+tr.tabla-row-no-cumple
+td:first-child {
+  box-shadow:
+    inset 4px 0 0
+    transparent;
+}
+
+.tabla-pagination {
+  display: flex;
+
+  justify-content: center;
+  align-items: center;
+
+  gap: 8px;
+
+  flex-wrap: wrap;
+
+  padding-top: 10px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tabla-pagination button {
+  min-height: 32px;
+
+  padding:
+    0
+    11px;
+
+  font-size: 12px;
+}
+
+#tabla-page-label {
+  min-width: 130px;
+
+  text-align: center;
+}
+
+.tabla-table-card[aria-busy="true"] {
+  cursor: progress;
+}
+
+.tabla-table-card[aria-busy="true"]
+.tabla-table-wrap {
+  opacity: 0.72;
+}

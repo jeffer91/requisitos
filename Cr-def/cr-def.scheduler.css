@@ -1,0 +1,88 @@
+/* =========================================================
+Nombre completo: cr-def.scheduler.css
+Ruta o ubicación: /Requisitos/Cr-def/cr-def.scheduler.css
+Función o funciones:
+- Estilos del panel de días para generación automática de defensas.
+- Mantener separado del CSS base para no afectar el bloque inicial.
+Con qué se conecta:
+- cr-def.html
+========================================================= */
+.cr-plan-panel{
+  background: var(--cr-surface);
+  border: 1px solid var(--cr-border);
+  box-shadow: var(--cr-shadow);
+  border-radius: var(--cr-radius-lg);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.cr-plan-head{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.cr-plan-head h2{
+  margin-bottom: 4px;
+}
+
+.cr-plan-head p{
+  color: var(--cr-muted);
+  margin-bottom: 0;
+  line-height: 1.45;
+}
+
+.cr-plan-badge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--cr-success-bg);
+  color: var(--cr-success);
+  border: 1px solid #bbf7d0;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cr-plan-grid{
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.15fr);
+  gap: 14px;
+}
+
+.cr-plan-field{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cr-plan-field span{
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.cr-textarea{
+  min-height: 86px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
+@media (max-width: 980px){
+  .cr-plan-head,
+  .cr-plan-grid{
+    display: block;
+  }
+
+  .cr-plan-badge{
+    margin-top: 10px;
+  }
+
+  .cr-plan-field + .cr-plan-field{
+    margin-top: 14px;
+  }
+}
