@@ -1,0 +1,88 @@
+name: Apply Stats repository fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/apply-stats-repo-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-stats-fix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Stats and verify connection
+        shell: python
+        run: |
+          from pathlib import Path
+
+          core_path = Path("Stats/stats.core.js")
+          core = core_path.read_text(encoding="utf-8")
+
+          old = '''  function excelRepo(){
+            return window.ExcelLocalRepo || null;
+          }'''
+
+          new = '''  function excelRepo(){
+            return (
+              window.BDLocalStats ||
+              window.ConStats ||
+              window.ExcelLocalRepo ||
+              null
+            );
+          }'''
+
+          if new in core:
+              print("Stats ya usa BDLocalStats.")
+          elif old in core:
+              core_path.write_text(
+                  core.replace(old, new, 1),
+                  encoding="utf-8"
+              )
+              print("Bloque excelRepo actualizado.")
+          else:
+              raise SystemExit(
+                  "No se encontró el bloque exacto function excelRepo()."
+              )
+
+          connection_path = Path("BDLocal/conexiones/cone.stats.js")
+          connection = connection_path.read_text(encoding="utf-8")
+
+          required = [
+              'var VERSION = "1.3.0-requirements-hydration";',
+              "function buildRequirementsIndex(current)",
+              "function hydrateStudent(",
+              "function students(options)"
+          ]
+
+          missing = [item for item in required if item not in connection]
+          if missing:
+              raise SystemExit(
+                  "cone.stats.js no cumple la versión requerida: "
+                  + ", ".join(missing)
+              )
+
+          print("cone.stats.js verificado correctamente.")
+
+      - name: Commit Stats correction
+        shell: bash
+        run: |
+          if git diff --quiet -- Stats/stats.core.js; then
+            echo "No hay cambios pendientes en stats.core.js."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Stats/stats.core.js
+          git commit -m "Hace que Stats use BDLocalStats"
+          git push origin HEAD:main
