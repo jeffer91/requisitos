@@ -1,0 +1,794 @@
+name: Apply Defensas requirements fix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-defensas-requirements-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Patch allowed Defensas files
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          path = Path("BDLocal/conexiones/cone.defensas.js")
+          text = path.read_text(encoding="utf-8")
+
+          if "0.4.0-requirements-hydration" not in text:
+              text = replace_once(
+                  text,
+                  '"0.3.0-canonical-student-id";',
+                  '"0.4.0-requirements-hydration";',
+                  "version",
+              )
+
+              text = replace_once(
+                  text,
+                  '''    students: [],
+                    periods: [],
+                    refreshTimer: null,''',
+                  '''    students: [],
+                    periods: [],
+                    requirements: [],
+                    requirementsByStudent: Object.create(null),
+                    requirementsLoaded: false,
+                    requirementsError: "",
+                    requirementsPromise: null,
+                    servicePatched: false,
+                    refreshTimer: null,''',
+                  "state requirements",
+              )
+
+              helper_block = textwrap.dedent(r'''
+                function requirementKeyNorm(value){
+                  return norm(value)
+                    .replace(/[^a-z0-9]+/g, "_")
+                    .replace(/^_+|_+$/g, "");
+                }
+
+                function compactRequirementKey(value){
+                  return requirementKeyNorm(value).replace(/_/g, "");
+                }
+
+                function requirementsRepo(){
+                  if (
+                    window.BDLRepoRequisitos &&
+                    typeof window.BDLRepoRequisitos.list === "function"
+                  ){
+                    return window.BDLRepoRequisitos;
+                  }
+
+                  if (
+                    window.BDLRepositories &&
+                    typeof window.BDLRepositories.get === "function"
+                  ){
+                    return (
+                      window.BDLRepositories.get("requisitos") ||
+                      window.BDLRepositories.get("requisitos_estudiante") ||
+                      null
+                    );
+                  }
+
+                  return null;
+                }
+
+                function requirementCedula(row){
+                  row = row || {};
+                  return normalizeCedula(
+                    row.cedula ||
+                    row._cedula ||
+                    row.numeroIdentificacion ||
+                    row.NumeroIdentificacion ||
+                    row.Cedula ||
+                    row["Cédula"] ||
+                    ""
+                  );
+                }
+
+                function requirementPeriod(row){
+                  row = row || {};
+                  return canonicalPeriodId(
+                    row.periodoId ||
+                    row.periodId ||
+                    row.periodoCanonicoId ||
+                    row.ultimoPeriodoId ||
+                    row._periodoId ||
+                    row._bl2PeriodoId ||
+                    ""
+                  );
+                }
+
+                function requirementName(row){
+                  row = row || {};
+                  return text(
+                    row.requisitoKey ||
+                    row.requirementKey ||
+                    row.key ||
+                    row.campo ||
+                    row.field ||
+                    row.nombre ||
+                    row.requisitoLabel ||
+                    row.requisitoNombre ||
+                    ""
+                  );
+                }
+
+                function requirementValue(row){
+                  row = row || {};
+
+                  if (row.valor !== undefined && row.valor !== null){
+                    return row.valor;
+                  }
+
+                  if (row.value !== undefined && row.value !== null){
+                    return row.value;
+                  }
+
+                  if (row.estado !== undefined && row.estado !== null){
+                    if (row.estado && typeof row.estado === "object"){
+                      return (
+                        row.estado.id ||
+                        row.estado.value ||
+                        row.estado.label ||
+                        ""
+                      );
+                    }
+                    return row.estado;
+                  }
+
+                  if (row.cumple !== undefined && row.cumple !== null){
+                    return row.cumple;
+                  }
+
+                  if (row.aprobado !== undefined && row.aprobado !== null){
+                    return row.aprobado;
+                  }
+
+                  if (row.resultado !== undefined && row.resultado !== null){
+                    return row.resultado;
+                  }
+
+                  return "";
+                }
+
+                function normalizeRequirement(row){
+                  row = Object.assign({}, row || {});
+
+                  row.cedula = requirementCedula(row);
+                  row.numeroIdentificacion = row.cedula;
+                  row.periodoId = requirementPeriod(row);
+                  row.periodId = row.periodoId;
+                  row.requisitoKey = requirementKeyNorm(
+                    requirementName(row)
+                  );
+
+                  return row;
+                }
+
+                function buildRequirementsIndex(rows){
+                  state.requirements = (
+                    Array.isArray(rows)
+                      ? rows
+                      : []
+                  )
+                    .map(normalizeRequirement)
+                    .filter(function(row){
+                      return !!(
+                        studentPeriodId(
+                          row.periodoId,
+                          row.cedula
+                        ) &&
+                        row.requisitoKey
+                      );
+                    });
+
+                  state.requirementsByStudent =
+                    Object.create(null);
+
+                  state.requirements.forEach(function(row){
+                    var id = studentPeriodId(
+                      row.periodoId,
+                      row.cedula
+                    );
+
+                    if (!state.requirementsByStudent[id]){
+                      state.requirementsByStudent[id] = [];
+                    }
+
+                    state.requirementsByStudent[id].push(row);
+                  });
+                }
+
+                function canonicalRequirementField(key){
+                  var map = {
+                    academico: "Academico",
+                    documentacion: "Documentacion",
+                    financiero: "Financiero",
+                    titulacion: "Titulacion",
+                    practicasvinculacion: "PrácticasVinculacion",
+                    practicas: "PrácticasVinculacion",
+                    vinculacion: "Vinculacion",
+                    seguimientograduados: "SeguimientoGraduados",
+                    seguimientoagraduados: "SeguimientoGraduados",
+                    ingles: "Ingles",
+                    actualizaciondatos: "ActualizaciónDatos"
+                  };
+
+                  return map[
+                    compactRequirementKey(key)
+                  ] || "";
+                }
+
+                function attachRequirementValue(student, requirement){
+                  var rawKey = requirementName(requirement);
+                  var normalized = requirementKeyNorm(rawKey);
+                  var compact = compactRequirementKey(rawKey);
+                  var canonical = canonicalRequirementField(rawKey);
+                  var value = requirementValue(requirement);
+
+                  if (rawKey){ student[rawKey] = value; }
+                  if (normalized){ student[normalized] = value; }
+                  if (compact){ student[compact] = value; }
+                  if (canonical){ student[canonical] = value; }
+                }
+
+                function hydrateStudentRequirements(input){
+                  var student = normalizeStudent(input);
+
+                  if (!state.requirementsLoaded){
+                    student._bdlRequirementsLoaded = false;
+                    student._bdlRequirementsHydrated = false;
+                    student._bdlRequirementsCount = 0;
+                    return student;
+                  }
+
+                  var id = studentPeriodId(
+                    student.periodoId,
+                    student.cedula
+                  );
+
+                  var matched =
+                    id && state.requirementsByStudent[id]
+                      ? state.requirementsByStudent[id]
+                      : [];
+
+                  matched.forEach(function(requirement){
+                    attachRequirementValue(
+                      student,
+                      requirement
+                    );
+                  });
+
+                  student.requisitos = matched.map(
+                    function(requirement){
+                      return Object.assign(
+                        {},
+                        requirement
+                      );
+                    }
+                  );
+
+                  student.requirements =
+                    student.requisitos.map(
+                      function(requirement){
+                        return Object.assign(
+                          {},
+                          requirement
+                        );
+                      }
+                    );
+
+                  student._bdlRequirementsLoaded = true;
+                  student._bdlRequirementsHydrated = true;
+                  student._bdlRequirementsCount =
+                    matched.length;
+
+                  return student;
+                }
+
+                function hydrateStudents(rows){
+                  return (
+                    Array.isArray(rows)
+                      ? rows
+                      : []
+                  ).map(hydrateStudentRequirements);
+                }
+
+                function hydrateServiceResult(result){
+                  if (Array.isArray(result)){
+                    return hydrateStudents(result);
+                  }
+
+                  if (
+                    result &&
+                    typeof result === "object" &&
+                    Array.isArray(result.rows)
+                  ){
+                    return Object.assign({}, result, {
+                      rows: hydrateStudents(result.rows),
+                      requirementsLoaded:
+                        state.requirementsLoaded,
+                      requirementsHydrated:
+                        state.requirementsLoaded,
+                      requirementsCount:
+                        state.requirements.length,
+                      requirementsSource:
+                        "requisitos_estudiante"
+                    });
+                  }
+
+                  return result;
+                }
+
+                function loadRequirements(force){
+                  if (state.requirementsPromise){
+                    return state.requirementsPromise;
+                  }
+
+                  if (
+                    state.requirementsLoaded &&
+                    !force
+                  ){
+                    return Promise.resolve(
+                      state.requirements
+                    );
+                  }
+
+                  var repo = requirementsRepo();
+
+                  if (
+                    !repo ||
+                    typeof repo.list !== "function"
+                  ){
+                    state.requirementsLoaded = false;
+                    state.requirementsError =
+                      "BDLRepoRequisitos no disponible.";
+                    return Promise.resolve([]);
+                  }
+
+                  state.requirementsError = "";
+
+                  state.requirementsPromise =
+                    Promise.resolve(repo.list({}))
+                      .then(function(rows){
+                        buildRequirementsIndex(
+                          rows || []
+                        );
+                        state.requirementsLoaded = true;
+                        state.requirementsError = "";
+                        return state.requirements;
+                      })
+                      .catch(function(error){
+                        state.requirementsLoaded = false;
+                        state.requirementsError =
+                          error && error.message
+                            ? error.message
+                            : String(error);
+                        buildRequirementsIndex([]);
+                        return [];
+                      })
+                      .finally(function(){
+                        state.requirementsPromise = null;
+                      });
+
+                  return state.requirementsPromise;
+                }
+
+                function wrapDefensasServiceMethod(target, name){
+                  if (
+                    !target ||
+                    typeof target[name] !== "function" ||
+                    target[name].__requirementsHydratedByConeDefensas
+                  ){
+                    return;
+                  }
+
+                  var original = target[name];
+
+                  var wrapped = function(){
+                    var context = this;
+                    var args = arguments;
+
+                    return Promise.all([
+                      Promise.resolve(
+                        original.apply(context, args)
+                      ),
+                      loadRequirements(false)
+                    ]).then(function(result){
+                      return hydrateServiceResult(
+                        result[0]
+                      );
+                    });
+                  };
+
+                  wrapped.__requirementsHydratedByConeDefensas = true;
+                  wrapped.__original = original;
+                  target[name] = wrapped;
+                }
+
+                function patchDefensasService(){
+                  var target =
+                    window.BDLServiceDefensas ||
+                    service("defensas");
+
+                  if (!target){
+                    return false;
+                  }
+
+                  [
+                    "getPage",
+                    "page",
+                    "getFiltered",
+                    "list"
+                  ].forEach(function(name){
+                    wrapDefensasServiceMethod(
+                      target,
+                      name
+                    );
+                  });
+
+                  target.requirementsStatus = function(){
+                    return {
+                      loaded:
+                        state.requirementsLoaded,
+                      total:
+                        state.requirements.length,
+                      error:
+                        state.requirementsError
+                    };
+                  };
+
+                  target.refreshRequirements = function(){
+                    return loadRequirements(true);
+                  };
+
+                  state.servicePatched = true;
+                  return true;
+                }
+
+                function listRequirementsSync(options){
+                  options = options || {};
+
+                  var periodoId = canonicalPeriodId(
+                    options.periodoId ||
+                    options.periodId ||
+                    ""
+                  );
+
+                  var cedula = normalizeCedula(
+                    options.cedula ||
+                    options.numeroIdentificacion ||
+                    ""
+                  );
+
+                  return state.requirements
+                    .filter(function(row){
+                      if (
+                        periodoId &&
+                        !samePeriod(
+                          row.periodoId,
+                          periodoId
+                        )
+                      ){
+                        return false;
+                      }
+
+                      if (
+                        cedula &&
+                        normalizeCedula(row.cedula) !==
+                          cedula
+                      ){
+                        return false;
+                      }
+
+                      return true;
+                    })
+                    .map(function(row){
+                      return Object.assign({}, row);
+                    });
+                }
+              ''').strip("\n")
+
+              marker = "\n  function filterStudents(\n"
+              if text.count(marker) != 1:
+                  raise RuntimeError("helper marker not found")
+              text = text.replace(
+                  marker,
+                  "\n\n" + textwrap.indent(helper_block, "  ") + marker,
+                  1,
+              )
+
+              text = replace_once(
+                  text,
+                  '''      periodList:
+                        listPeriodsSync(),
+                      source: state.source,''',
+                  '''      periodList:
+                        listPeriodsSync(),
+                      requirements:
+                        listRequirementsSync(options || {}),
+                      requirementsLoaded:
+                        state.requirementsLoaded,
+                      source: state.source,''',
+                  "listStudents requirements",
+              )
+
+              text = replace_once(
+                  text,
+                  '''        totalPeriods:
+                          state.periods.length
+                      },''',
+                  '''        totalPeriods:
+                          state.periods.length,
+
+                        totalRequirements:
+                          state.requirements.length,
+
+                        requirementsLoaded:
+                          state.requirementsLoaded
+                      },''',
+                  "snapshot meta",
+              )
+
+              text = replace_once(
+                  text,
+                  '''      students:
+                        state.students.slice(),
+
+                      history: [],''',
+                  '''      students:
+                        state.students.slice(),
+
+                      requirements:
+                        state.requirements.slice(),
+
+                      history: [],''',
+                  "snapshot requirements",
+              )
+
+              text = replace_once(
+                  text,
+                  '''      filterStudents:
+                        getStudentsSync,
+
+                      listStudentsByStatus:''',
+                  '''      filterStudents:
+                        getStudentsSync,
+
+                      listRequirements:
+                        listRequirementsSync,
+
+                      getRequirements:
+                        listRequirementsSync,
+
+                      requirements:
+                        listRequirementsSync,
+
+                      listStudentsByStatus:''',
+                  "adapter requirements",
+              )
+
+              text = replace_once(
+                  text,
+                  '''                requisitos: [],
+                                resumen: {
+                                  totalEstudiantes:
+                                    students.length
+                                },''',
+                  '''                requisitos:
+                                  listRequirementsSync({
+                                    periodoId:
+                                      periodoId
+                                  }),
+                                resumen: {
+                                  totalEstudiantes:
+                                    students.length,
+
+                                  totalRequisitos:
+                                    listRequirementsSync({
+                                      periodoId:
+                                        periodoId
+                                    }).length
+                                },''',
+                  "engine stats requirements",
+              )
+
+              text = replace_once(
+                  text,
+                  '''    state.loading = true;
+                    state.error = "";
+
+                    patchAdapters();''',
+                  '''    state.loading = true;
+                    state.error = "";
+
+                    patchDefensasService();
+                    patchAdapters();''',
+                  "reload patch service",
+              )
+
+              text = replace_once(
+                  text,
+                  '''          : Promise.resolve([])
+                      ])''',
+                  '''          : Promise.resolve([]),
+
+                        loadRequirements(true)
+                      ])''',
+                  "reload requirements promise",
+              )
+
+              text = replace_once(
+                  text,
+                  '''      .then(function(result){
+                        state.students =
+                          dedupeStudents(
+                            result[0] || []
+                          );''',
+                  '''      .then(function(result){
+                        state.students =
+                          hydrateStudents(
+                            dedupeStudents(
+                              result[0] || []
+                            )
+                          );''',
+                  "hydrate loaded students",
+              )
+
+              text = replace_once(
+                  text,
+                  '''        patchAdapters();
+
+                        try{''',
+                  '''        patchDefensasService();
+                        patchAdapters();
+
+                        try{''',
+                  "patch service after reload",
+              )
+
+              text = replace_once(
+                  text,
+                  '''      periods:
+                          state.periods.length,
+
+                        loadedAt:''',
+                  '''      periods:
+                          state.periods.length,
+
+                        requirements:
+                          state.requirements.length,
+
+                        requirementsLoaded:
+                          state.requirementsLoaded,
+
+                        requirementsError:
+                          state.requirementsError,
+
+                        servicePatched:
+                          state.servicePatched,
+
+                        loadedAt:''',
+                  "status requirements",
+              )
+
+              text = replace_once(
+                  text,
+                  '''    getPeriods:
+                        listPeriodsSync,
+
+                      filterStudents:''',
+                  '''    getPeriods:
+                        listPeriodsSync,
+
+                      listRequirements:
+                        listRequirementsSync,
+
+                      getRequirements:
+                        listRequirementsSync,
+
+                      filterStudents:''',
+                  "api requirements",
+              )
+
+              text = replace_once(
+                  text,
+                  '''    patchAdapters:
+                        patchAdapters
+                    };''',
+                  '''    patchAdapters:
+                        patchAdapters,
+
+                      patchService:
+                        patchDefensasService
+                    };''',
+                  "api patch service",
+              )
+
+              text = replace_once(
+                  text,
+                  '''  patchAdapters();
+                  bindEvents();''',
+                  '''  patchDefensasService();
+                  patchAdapters();
+                  bindEvents();''',
+                  "startup patch service",
+              )
+
+              text = replace_once(
+                  text,
+                  '''      "bdlocal:screen-data-updated",
+                        "bdlocal:legacy-snapshot",''',
+                  '''      "bdlocal:screen-data-updated",
+                        "bdlocal:conexiones-cache-updated",
+                        "bdlocal:legacy-snapshot",''',
+                  "modern cache event",
+              )
+
+              path.write_text(text, encoding="utf-8")
+
+          html_path = Path("defart/defart.html")
+          html = html_path.read_text(encoding="utf-8")
+          html = html.replace(
+              '  <script src="../BDLocal/conexiones/cone.defensas.requisitos.js"></script>\n',
+              '',
+          )
+          html_path.write_text(html, encoding="utf-8")
+
+          guard_path = Path("defart/defart.requirements-guard.js")
+          guard = guard_path.read_text(encoding="utf-8")
+          guard = guard.replace(
+              '- cone.defensas.requisitos.js',
+              '- ../BDLocal/conexiones/cone.defensas.js',
+          )
+          guard_path.write_text(guard, encoding="utf-8")
+          PY
+
+      - name: Validate correction
+        run: |
+          node --check BDLocal/conexiones/cone.defensas.js
+          node --check defart/defart.requirements-guard.js
+          test ! -e BDLocal/conexiones/cone.defensas.requisitos.js
+          test ! -e BDLocal/conexiones/cone.defensas.adapters.js
+          grep -q '0.4.0-requirements-hydration' BDLocal/conexiones/cone.defensas.js
+          grep -q 'listRequirementsSync' BDLocal/conexiones/cone.defensas.js
+          grep -q 'patchDefensasService' BDLocal/conexiones/cone.defensas.js
+          grep -q 'defart.requirements-guard.js' defart/defart.html
+          ! grep -q 'cone.defensas.requisitos.js' defart/defart.html
+          git diff --check
+
+      - name: Commit validated correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/apply-defensas-requirements-fix.yml
+          git add BDLocal/conexiones/cone.defensas.js defart/defart.html defart/defart.requirements-guard.js .github/workflows/apply-defensas-requirements-fix.yml
+          git diff --cached --check
+          git commit -m "Corrige requisitos de Defensas desde cone.defensas"
+          git push origin HEAD:${{ github.head_ref }}
