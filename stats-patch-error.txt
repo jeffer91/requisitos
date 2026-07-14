@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/tmp/patch_stats.py", line 515, in <module>
+    text = sub_once(
+           ^^^^^^^^^
+  File "/tmp/patch_stats.py", line 11, in sub_once
+    raise RuntimeError(f"{label}: expected one match, found {count}")
+RuntimeError: core base rows: expected one match, found 0
