@@ -64,7 +64,7 @@ jobs:
           replacement = "\n".join(replacement_lines)
 
           pattern = r'def replace_once\(text, old, new, label\):\n(?:    .*\n){4}'
-          script, count = re.subn(pattern, replacement, script, count=1)
+          script, count = re.subn(pattern, lambda match: replacement, script, count=1)
           if count != 1:
               raise RuntimeError(f'replace_once function: expected 1 match, found {count}')
 
