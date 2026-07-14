@@ -1,0 +1,127 @@
+name: Run Defensas requirements fix v2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/run-defensas-requirements-fix-v2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Prepare tolerant patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          source = Path('.github/workflows/apply-defensas-requirements-fix.yml').read_text(encoding='utf-8')
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          script = textwrap.dedent(source[start:end])
+
+          old_function = '''def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+'''
+
+          new_function = r'''def replace_once(text, old, new, label):
+    count = text.count(old)
+    if count == 1:
+        return text.replace(old, new, 1)
+
+    old_lines = old.splitlines()
+    pattern_lines = []
+    for line in old_lines:
+        stripped = line.strip()
+        if stripped:
+            pattern_lines.append(r"^[ \t]*" + re.escape(stripped) + r"[ \t]*$")
+        else:
+            pattern_lines.append(r"^[ \t]*$")
+
+    pattern = r"\n".join(pattern_lines)
+    matches = list(re.finditer(pattern, text, flags=re.M))
+    if len(matches) != 1:
+        raise RuntimeError(f"{label}: expected 1 tolerant match, found {len(matches)}")
+
+    match = matches[0]
+    first_line = match.group(0).splitlines()[0]
+    indent = re.match(r"^[ \t]*", first_line).group(0)
+    replacement = "\n".join(
+        (indent + line.strip()) if line.strip() else ""
+        for line in new.splitlines()
+    )
+    return text[:match.start()] + replacement + text[match.end():]
+'''
+
+          if old_function not in script:
+              raise RuntimeError('replace_once function was not found')
+
+          script = script.replace(old_function, new_function, 1)
+          Path('/tmp/patch_defensas_v2.py').write_text(script, encoding='utf-8')
+          PY
+
+      - name: Apply patch with diagnostics
+        shell: bash
+        run: |
+          set +e
+          python /tmp/patch_defensas_v2.py > /tmp/defensas-patch-v2.log 2>&1
+          code=$?
+          set -e
+
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/defensas-patch-v2.log defensas-patch-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add defensas-patch-error.txt
+            git commit -m "Actualiza diagnóstico de corrección Defensas"
+            git push origin HEAD:${{ github.head_ref }}
+            cat /tmp/defensas-patch-v2.log
+            exit "$code"
+          fi
+
+      - name: Validate correction
+        run: |
+          node --check BDLocal/conexiones/cone.defensas.js
+          node --check defart/defart.requirements-guard.js
+          test ! -e BDLocal/conexiones/cone.defensas.requisitos.js
+          test ! -e BDLocal/conexiones/cone.defensas.adapters.js
+          grep -q '0.4.0-requirements-hydration' BDLocal/conexiones/cone.defensas.js
+          grep -q 'listRequirementsSync' BDLocal/conexiones/cone.defensas.js
+          grep -q 'patchDefensasService' BDLocal/conexiones/cone.defensas.js
+          grep -q 'defart.requirements-guard.js' defart/defart.html
+          ! grep -q 'cone.defensas.requisitos.js' defart/defart.html
+          git diff --check
+
+      - name: Commit final correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f defensas-patch-error.txt
+          rm -f .github/workflows/apply-defensas-requirements-fix.yml
+          rm -f .github/workflows/run-defensas-requirements-fix.yml
+          rm -f .github/workflows/run-defensas-requirements-fix-v2.yml
+          git add BDLocal/conexiones/cone.defensas.js defart/defart.html defart/defart.requirements-guard.js defensas-patch-error.txt .github/workflows/apply-defensas-requirements-fix.yml .github/workflows/run-defensas-requirements-fix.yml .github/workflows/run-defensas-requirements-fix-v2.yml
+          git diff --cached --check
+          git commit -m "Corrige requisitos de Defensas desde cone.defensas"
+          git push origin HEAD:${{ github.head_ref }}
