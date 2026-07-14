@@ -4,13 +4,15 @@ Ruta o ubicación: /Requisitos/Coordi/coo.mail.js
 Función o funciones:
 - Generar correos globales y por área con los filtros aplicados.
 - Copiar el contenido HTML completo al portapapeles.
-- Abrir el cliente de correo con un enlace mailto corto y seguro.
-- Confirmar si Electron aceptó realmente la apertura externa.
+- Abrir directamente la composición de Outlook Web.
+- Usar mailto como respaldo cuando Outlook Web no pueda abrirse.
+- Confirmar el resultado real de la apertura externa.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.3.0-short-mailto-verified-open";
+  var VERSION = "2.4.0-outlook-web-compose";
+  var OUTLOOK_COMPOSE_URL = "https://outlook.office.com/mail/deeplink/compose";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function arr(value){ return Array.isArray(value) ? value : []; }
@@ -102,16 +104,15 @@ Función o funciones:
     var global = report.global || {};
     var rows = arr(global.areas);
     var subject = "Reporte global de avance de estudiantes";
-    var noAplicaHtml = Number(global.totalEstudiantesNoAplica || 0) > 0
-      ? '<br><strong>Estudiantes a los que no aplica el requisito:</strong> '+fmt(global.totalEstudiantesNoAplica)
-      : '';
-
     var headers = [
       {label:"Área",value:function(row){ return row.area; }},
       {label:"Responsable",value:function(row){ return row.responsable; }},
       {label:"Estudiantes pendientes",value:function(row){ return fmt(row.totalEstudiantes); }},
       {label:"Pendientes acumulados",value:function(row){ return fmt(row.totalPendientes); }}
     ];
+    var noAplicaHtml = Number(global.totalEstudiantesNoAplica || 0) > 0
+      ? '<br><strong>Estudiantes a los que no aplica el requisito:</strong> '+fmt(global.totalEstudiantesNoAplica)
+      : '';
 
     var html = wrapHtml(subject,
       '<p>Buen día, <strong>'+esc(global.saludo || global.responsable || "Dr. Alex León")+'</strong>.</p>'
@@ -238,17 +239,30 @@ Función o funciones:
     throw new Error("Tipo de correo no reconocido.");
   }
 
-  function mailto(mail){
+  function composeData(mail){
     mail = mail || {};
-    var recipient = text(mail.to).replace(/[\r\n]/g,"");
-    var subject = text(mail.subject).replace(/[\r\n]/g," ");
-    var shortBody = "El contenido completo del reporte fue copiado desde Coordi. Péguelo en este correo con Ctrl+V.";
+    return {
+      recipient:text(mail.to).replace(/[\r\n]/g,""),
+      subject:text(mail.subject).replace(/[\r\n]/g," "),
+      shortBody:"El contenido completo del reporte fue copiado desde Coordi. Péguelo en este correo con Ctrl+V."
+    };
+  }
+
+  function outlookWebUrl(mail){
+    var data = composeData(mail);
     var query = [];
+    if(data.recipient){ query.push("to=" + encodeURIComponent(data.recipient)); }
+    if(data.subject){ query.push("subject=" + encodeURIComponent(data.subject)); }
+    query.push("body=" + encodeURIComponent(data.shortBody));
+    return OUTLOOK_COMPOSE_URL + "?" + query.join("&");
+  }
 
-    if(subject){ query.push("subject=" + encodeURIComponent(subject)); }
-    query.push("body=" + encodeURIComponent(shortBody));
-
-    return "mailto:" + encodeURI(recipient) + (query.length ? "?" + query.join("&") : "");
+  function mailto(mail){
+    var data = composeData(mail);
+    var query = [];
+    if(data.subject){ query.push("subject=" + encodeURIComponent(data.subject)); }
+    query.push("body=" + encodeURIComponent(data.shortBody));
+    return "mailto:" + encodeURI(data.recipient) + (query.length ? "?" + query.join("&") : "");
   }
 
   function copyHtml(mail){
@@ -271,33 +285,40 @@ Función o funciones:
     return Promise.reject(new Error("No se pudo copiar el correo al portapapeles."));
   }
 
-  function normalizeOpenResult(result){
+  function normalizeOpenResult(result,method){
     if(result === true){
-      return {ok:true,opened:true};
+      return {ok:true,opened:true,method:method};
     }
 
     if(result && typeof result === "object"){
       if(result.ok === true && result.opened !== false){
-        return Object.assign({},result,{ok:true,opened:true});
+        return Object.assign({},result,{ok:true,opened:true,method:result.method || method});
       }
-      throw new Error(text(result.error || result.message) || "No se pudo abrir el cliente de correo.");
+      throw new Error(text(result.error || result.message) || "No se pudo abrir Outlook.");
     }
 
-    throw new Error("No se pudo abrir el cliente de correo. Revise la aplicación predeterminada de correo en Windows.");
+    throw new Error("No se pudo abrir Outlook.");
   }
 
-  function openExternal(url){
+  function openExternal(url,method){
     if(window.electronAPI && typeof window.electronAPI.openExternal === "function"){
-      return Promise.resolve(window.electronAPI.openExternal(url)).then(normalizeOpenResult);
+      return Promise.resolve(window.electronAPI.openExternal(url)).then(function(result){
+        return normalizeOpenResult(result,method);
+      });
     }
 
-    window.location.href = url;
-    return Promise.resolve({ok:true,opened:true,method:"mailto-browser"});
+    var opened = window.open(url,"_blank","noopener,noreferrer");
+    if(!opened){
+      return Promise.reject(new Error("El navegador bloqueó la apertura de Outlook."));
+    }
+    return Promise.resolve({ok:true,opened:true,method:method});
   }
 
   function open(mail){
     mail = mail || {};
     var copied = false;
+    var webUrl = outlookWebUrl(mail);
+    var fallbackUrl = mailto(mail);
 
     return copyHtml(mail).then(function(){
       copied = true;
@@ -305,9 +326,16 @@ Función o funciones:
       console.warn("[COOMail] No se pudo copiar el correo al portapapeles.",error);
       copied = false;
     }).then(function(){
-      return openExternal(mailto(mail));
+      return openExternal(webUrl,"outlook-web").catch(function(error){
+        console.warn("[COOMail] Outlook Web no pudo abrirse; se intentará mailto.",error);
+        return openExternal(fallbackUrl,"mailto");
+      });
     }).then(function(result){
-      return Object.assign({},result,{copied:copied,mailtoLength:mailto(mail).length});
+      return Object.assign({},result,{
+        copied:copied,
+        outlookUrlLength:webUrl.length,
+        mailtoLength:fallbackUrl.length
+      });
     });
   }
 
@@ -319,6 +347,7 @@ Función o funciones:
     buildAreaDetail:buildAreaDetail,
     copyHtml:copyHtml,
     open:open,
+    outlookWebUrl:outlookWebUrl,
     mailto:mailto,
     helpers:{
       esc:esc,
@@ -326,7 +355,8 @@ Función o funciones:
       tableHtml:tableHtml,
       textTable:textTable,
       filterText:filterText,
-      normalizeOpenResult:normalizeOpenResult
+      normalizeOpenResult:normalizeOpenResult,
+      composeData:composeData
     }
   };
 })(window);
