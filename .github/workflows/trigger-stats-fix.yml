@@ -1,7 +1,7 @@
-name: Trigger Stats fix
+name: Apply Stats fix from PR
 
 on:
-  push:
+  pull_request:
     branches: [main]
     paths:
       - ".github/workflows/trigger-stats-fix.yml"
@@ -11,16 +11,18 @@ permissions:
 
 jobs:
   apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Checkout repository
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Extract prepared patch
+      - name: Extract and apply prepared Stats patch
         shell: bash
         run: |
           python - <<'PY'
@@ -45,7 +47,7 @@ jobs:
           node --check Stats/stats.app.js
           git diff --check
 
-      - name: Commit correction and clean temporary workflows
+      - name: Commit corrected Stats files
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -55,4 +57,4 @@ jobs:
           git add BDLocal/conexiones/cone.stats.js Stats/stats.core.js Stats/stats.app.js .github/workflows/apply-stats-data-flow.yml .github/workflows/trigger-stats-fix.yml
           git diff --cached --check
           git commit -m "Depura conexión y carga de Stats"
-          git push origin main
+          git push origin HEAD:${{ github.head_ref }}
