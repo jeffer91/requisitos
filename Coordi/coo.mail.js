@@ -4,12 +4,13 @@ Ruta o ubicación: /Requisitos/Coordi/coo.mail.js
 Función o funciones:
 - Generar correos globales y por área con los filtros aplicados.
 - Permitir el correo global aunque el corte no tenga pendientes.
+- Diferenciar estudiantes al día, pendientes y no aplicables.
 - Crear cuerpo HTML, texto plano y apertura mediante Outlook/mailto.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-coo-mail-period-label";
+  var VERSION = "2.2.0-coo-mail-applicability";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function arr(value){ return Array.isArray(value) ? value : []; }
@@ -76,6 +77,9 @@ Función o funciones:
     var global = report.global || {};
     var rows = arr(global.areas);
     var subject = "Reporte global de avance de estudiantes";
+    var noAplicaHtml = Number(global.totalEstudiantesNoAplica || 0) > 0
+      ? '<br><strong>Estudiantes a los que no aplica el requisito:</strong> '+fmt(global.totalEstudiantesNoAplica)
+      : '';
     var html = wrapHtml(subject,
       '<p>Buen día, <strong>'+esc(global.saludo || global.responsable || "Dr. Alex León")+'</strong>.</p>'
       + '<p>Se remite la visión global del avance de los estudiantes en el corte seleccionado.</p>'
@@ -84,7 +88,8 @@ Función o funciones:
       + '<strong>Estudiantes al día:</strong> '+fmt(global.totalEstudiantesAlDia)+'<br>'
       + '<strong>Estudiantes con pendientes:</strong> '+fmt(global.totalEstudiantesPendientes)+'<br>'
       + '<strong>Áreas con pendientes:</strong> '+fmt(global.totalAreasConPendientes)+'<br>'
-      + '<strong>Requisitos pendientes acumulados:</strong> '+fmt(global.totalPendientes)+'</p>'
+      + '<strong>Requisitos pendientes acumulados:</strong> '+fmt(global.totalPendientes)
+      + noAplicaHtml + '</p>'
       + tableHtml([
         {label:"Área",value:function(row){ return row.area; }},
         {label:"Responsable",value:function(row){ return row.responsable; }},
@@ -102,7 +107,14 @@ Función o funciones:
       "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
       "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
       "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
-      "Requisitos pendientes acumulados: " + fmt(global.totalPendientes),
+      "Requisitos pendientes acumulados: " + fmt(global.totalPendientes)
+    ];
+
+    if(Number(global.totalEstudiantesNoAplica || 0) > 0){
+      plain.push("Estudiantes a los que no aplica el requisito: " + fmt(global.totalEstudiantesNoAplica));
+    }
+
+    plain = plain.concat([
       "",
       textTable([
         {label:"Área",value:function(row){ return row.area; }},
@@ -113,7 +125,7 @@ Función o funciones:
       "",
       "Atentamente,",
       "Coordinación de Titulación"
-    ].join("\n");
+    ]).join("\n");
 
     return {kind:"global",to:global.correo || "",subject:subject,html:html,plain:plain};
   }
