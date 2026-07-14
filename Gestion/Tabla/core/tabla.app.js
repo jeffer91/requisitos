@@ -14,7 +14,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "2.1.0-memory-sort-requirements";
 
   var C =
     window.TablaConstants ||
@@ -61,7 +61,8 @@ Con qué se conecta:
   var rendering = false;
   var pendingRender = false;
   var refreshPromise = null;
-  var renderRevision = 0;
+      var renderRevision = 0;
+      var dataCache = null;
 
   function el(id){
     return document
@@ -308,76 +309,128 @@ Con qué se conecta:
       );
   }
 
-  function invalidateVisuals(){
-    if(
-      Controls &&
-      Controls.invalidate
-    ){
-      Controls.invalidate();
-    }
-
-    if(
-      Table &&
-      Table.invalidate
-    ){
-      Table.invalidate();
-    }
-
-    if(
-      Source &&
-      Source.invalidate
-    ){
-      Source.invalidate();
-    }
+function invalidateVisuals(){
+  if(
+    Controls &&
+    Controls.invalidate
+  ){
+    Controls.invalidate();
   }
 
-  function readData(current){
-    if(!Source){
-      return Promise.reject(
-        new Error(
-          "TablaDataSource no está disponible."
-        )
-      );
-    }
+  if(
+    Table &&
+    Table.invalidate
+  ){
+    Table.invalidate();
+  }
+}
 
-    var periodsTask =
-      Source.readPeriods
-        ? Source.readPeriods()
-        : [];
+function readData(current){
+  current = current || state();
 
-    var studentsTask =
-      Source.readStudents
-        ? Source.readStudents({
-            periodId:
-              current.periodId,
+  if(dataCache){
+    return Promise.resolve(dataCache);
+  }
 
-            matricula:
-              ""
-          })
-        : [];
+  if(!Source){
+    return Promise.reject(
+      new Error("TablaDataSource no está disponible.")
+    );
+  }
 
-    return Promise.all([
-      Promise.resolve(
-        periodsTask
-      ),
+  var task = Source.read
+    ? Source.read()
+    : Promise.all([
+        Source.readPeriods ? Source.readPeriods() : [],
+        Source.readStudents
+          ? Source.readStudents({matricula: ""})
+          : []
+      ]).then(function(result){
+        return {
+          periods: result[0] || [],
+          students: result[1] || [],
+          meta: {}
+        };
+      });
 
-      Promise.resolve(
-        studentsTask
+  return Promise.resolve(task).then(function(envelope){
+    envelope = envelope && typeof envelope === "object"
+      ? envelope
+      : {};
+
+    dataCache = {
+      periods: Array.isArray(envelope.periods)
+        ? envelope.periods.slice()
+        : [],
+      students: Array.isArray(envelope.students || envelope.rows)
+        ? (envelope.students || envelope.rows).slice()
+        : [],
+      meta: Object.assign({}, envelope.meta || {}),
+      revision: Number(
+        envelope.revision ||
+        envelope.meta && envelope.meta.revision ||
+        0
       )
-    ]).then(function(result){
-      return {
-        periods:
-          Array.isArray(result[0])
-            ? result[0]
-            : [],
+    };
 
-        students:
-          Array.isArray(result[1])
-            ? result[1]
-            : []
-      };
-    });
+    return dataCache;
+  });
+}
+
+function missingRequirementCount(row){
+  row = row || {};
+
+  if(Array.isArray(row._requisitosFaltantes)){
+    return row._requisitosFaltantes.length;
   }
+
+  var requirements = Array.isArray(row._requisitos)
+    ? row._requisitos
+    : Array.isArray(row.requisitos)
+      ? row.requisitos
+      : [];
+
+  return requirements.filter(function(item){
+    var status = text(
+      item && (
+        item.estado ||
+        item.status ||
+        item.value ||
+        item.valor
+      )
+    ).toLowerCase();
+
+    return status === "no_cumple" || status === "no cumple";
+  }).length;
+}
+
+function sortRowsByRequirements(rows, order){
+  rows = Array.isArray(rows) ? rows.slice() : [];
+  order = text(order).toLowerCase();
+
+  if(order !== "asc" && order !== "desc"){
+    return rows;
+  }
+
+  return rows
+    .map(function(row, index){
+      return {
+        row: row,
+        index: index,
+        count: missingRequirementCount(row)
+      };
+    })
+    .sort(function(a, b){
+      var difference = order === "asc"
+        ? a.count - b.count
+        : b.count - a.count;
+
+      return difference || a.index - b.index;
+    })
+    .map(function(item){
+      return item.row;
+    });
+}
 
   function completeRender(
     data,
@@ -418,14 +471,19 @@ Con qué se conecta:
           )
         : data.students.slice();
 
-    var pageResult =
-      Pagination &&
-      Pagination.build
-        ? Pagination.build(
-            filtered,
-            current.page,
-            current.pageSize
-          )
+    var ordered = sortRowsByRequirements(
+        filtered,
+        current.requirementOrder
+      );
+
+      var pageResult =
+        Pagination &&
+        Pagination.build
+          ? Pagination.build(
+              ordered,
+              current.page,
+              current.pageSize
+            )
         : {
             rows:
               filtered.slice(),
@@ -483,10 +541,10 @@ Con qué se conecta:
           [],
 
         allRows:
-          filtered,
+        ordered,
 
-        filteredRows:
-          filtered,
+      filteredRows:
+        ordered,
 
         rows:
           pageResult.rows ||
@@ -566,20 +624,32 @@ Con qué se conecta:
       next
     );
 
-    status(
-      summaryMessage ||
-      (
-        "Tabla cargada por " +
-        sourceName() +
-        " · " +
+    var stale = !!(
+        data.meta &&
+        data.meta.stale === true
+      );
+
+      status(
         (
-          Date.now() -
-          started
+          stale
+            ? "Mostrando la última versión válida. "
+            : ""
         ) +
-        " ms."
-      ),
-      "ok"
-    );
+        (
+          summaryMessage ||
+          (
+            "Tabla cargada por " +
+            sourceName() +
+            " · " +
+            (
+              Date.now() -
+              started
+            ) +
+            " ms."
+          )
+        ),
+        stale ? "warn" : "ok"
+      );
 
     if(
       E &&
@@ -775,9 +845,10 @@ Con qué se conecta:
           return null;
         })
         .then(function(result){
-          invalidateVisuals();
+        dataCache = null;
+        invalidateVisuals();
 
-          return render()
+        return render()
             .then(function(){
               return result;
             });
@@ -1194,9 +1265,10 @@ Con qué se conecta:
         "tabla:data-updated",
 
         function(){
-          invalidateVisuals();
+        dataCache = null;
+        invalidateVisuals();
 
-          request(
+        request(
             false,
             30
           );
@@ -1244,7 +1316,23 @@ Con qué se conecta:
         },
 
       onRefresh:
-        refresh
+        refresh,
+
+      onSortRequirements:
+        function(){
+          var current = state();
+          var nextOrder =
+            current.requirementOrder === "desc"
+              ? "asc"
+              : "desc";
+
+          applyFilter(
+            {
+              requirementOrder: nextOrder
+            },
+            "requirementOrder"
+          );
+        }
     });
 
     Pagination.bind(

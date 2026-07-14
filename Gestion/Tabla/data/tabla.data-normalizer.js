@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-regular-pvc";
+  var VERSION = "3.1.0-explicit-period-linked-once";
   var C = window.TablaConstants || {};
   var U = window.TablaUtils || {};
   var ALIASES = C.aliases || {};
@@ -324,55 +324,101 @@ Función:
       .toLowerCase();
   }
 
-  function classifyPeriod(value){
-    var raw = value && typeof value === "object"
-      ? text(
-          pick(
-            value,
-            array(ALIASES.periodLabel).concat(array(ALIASES.periodId)),
-            ""
-          )
-        )
-      : text(value);
+function classifyPeriod(value){
+  var source = value && typeof value === "object"
+    ? object(value)
+    : {};
 
-    var normalized = normalizedPeriodText(raw);
-    var patterns = array(
-      C.periodPolicy && C.periodPolicy.regularPatterns
-    );
+  var explicit = key(
+    pick(
+      source,
+      [
+        "tipoPeriodo", "periodType", "tipo", "clasificacion",
+        "_tipoPeriodo", "periodoTipo"
+      ],
+      ""
+    )
+  );
 
-    if(!patterns.length){
-      patterns = [
-        ["octubre", "marzo"],
-        ["abril", "septiembre"]
-      ];
-    }
-
-    var regular = patterns.some(function(pattern){
-      return array(pattern).every(function(token){
-        return normalized.indexOf(normalizedPeriodText(token)) >= 0;
-      });
-    });
-
+  if(explicit === "regular"){
     return {
-      id: regular ? (TYPES.regular || "REGULAR") : (TYPES.pvc || "PVC"),
-      label: regular ? "Regular" : "PVC",
-      isRegular: regular,
-      isPVC: !regular,
-      pattern: regular ? "REGULAR" : "PVC",
-      raw: raw,
-      normalized: normalized
+      id: TYPES.regular || "REGULAR",
+      label: "Regular",
+      isRegular: true,
+      isPVC: false,
+      pattern: "EXPLICIT_REGULAR",
+      raw: text(value),
+      normalized: explicit
     };
   }
 
-  function classifyStudent(row){
-    row = object(row);
-    var periodValue = pick(
-      row,
-      array(ALIASES.periodLabel).concat(array(ALIASES.periodId)),
-      ""
-    );
-    return classifyPeriod(periodValue);
+  if(explicit === "pvc"){
+    return {
+      id: TYPES.pvc || "PVC",
+      label: "PVC",
+      isRegular: false,
+      isPVC: true,
+      pattern: "EXPLICIT_PVC",
+      raw: text(value),
+      normalized: explicit
+    };
   }
+
+  var raw = value && typeof value === "object"
+    ? text(
+        pick(
+          value,
+          array(ALIASES.periodLabel)
+            .concat(array(ALIASES.periodId))
+            .concat(["id", "value"]),
+          ""
+        )
+      )
+    : text(value);
+
+  var normalized = normalizedPeriodText(raw);
+  var patterns = array(
+    C.periodPolicy && C.periodPolicy.regularPatterns
+  );
+
+  if(!patterns.length){
+    patterns = [
+      ["octubre", "marzo"],
+      ["abril", "septiembre"]
+    ];
+  }
+
+  var regularByText = patterns.some(function(pattern){
+    return array(pattern).every(function(token){
+      return normalized.indexOf(normalizedPeriodText(token)) >= 0;
+    });
+  });
+
+  var regularById =
+    /20\d{2}[^0-9]*10.*20\d{2}[^0-9]*03/.test(normalized) ||
+    /20\d{2}[^0-9]*04.*20\d{2}[^0-9]*09/.test(normalized);
+
+  var regular = regularByText || regularById;
+
+  return {
+    id: regular ? (TYPES.regular || "REGULAR") : (TYPES.pvc || "PVC"),
+    label: regular ? "Regular" : "PVC",
+    isRegular: regular,
+    isPVC: !regular,
+    pattern: regularById
+      ? "REGULAR_ID"
+      : regularByText
+        ? "REGULAR_TEXT"
+        : "PVC_FALLBACK",
+    raw: raw,
+    normalized: normalized
+  };
+}
+
+  function classifyStudent(row){
+        row = object(row);
+        return classifyPeriod(row);
+      }
 
   function applicableDefinitions(row){
     var output = array(C.baseRequirements).slice();
@@ -785,7 +831,20 @@ Función:
       periodMap[canonicalPeriod(period.periodoId || period.id)] = period.periodoLabel || period.label;
     });
 
-    var studentsWithRequirements = attachRequirements(rawStudents, rawRequirements);
+    var alreadyLinked = rawStudents.every(function(row){
+        return !!(
+          row &&
+          (
+            Array.isArray(row.requisitos) ||
+            Array.isArray(row.requirements) ||
+            row._tablaRequirementsLinked === true
+          )
+        );
+      });
+
+      var studentsWithRequirements = alreadyLinked
+        ? rawStudents.slice()
+        : attachRequirements(rawStudents, rawRequirements);
     var students = studentsWithRequirements.map(function(row){
       var rowPeriodId = canonicalPeriod(
         pick(row, ALIASES.periodId || [], "")

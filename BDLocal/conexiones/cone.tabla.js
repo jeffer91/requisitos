@@ -10,7 +10,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-official-envelope";
+  var VERSION = "2.1.0-stable-envelope";
   var SOURCE = "ConTabla";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
@@ -151,9 +151,27 @@ Función:
     }, 0);
 
     var studentSource = text(meta.studentSource);
-    var requirementSource = text(meta.requirementSource);
-    var trustedStudents = studentSource === "BDLServiceEstudiantes";
-    var trustedRequirements = requirementSource === "BDLRepoRequisitos";
+      var requirementSource = text(meta.requirementSource);
+      var trustedStudents =
+        students.length > 0 &&
+        (
+          !studentSource ||
+          [
+            "BDLServiceEstudiantes",
+            "BL2Core.getStudents",
+            "BDLocalConexiones.cache.students"
+          ].indexOf(studentSource) >= 0
+        );
+      var trustedRequirements =
+        requirements.length > 0 &&
+        (
+          !requirementSource ||
+          [
+            "BDLRepoRequisitos",
+            "BL2Core.getRequirements",
+            "BDLocalConexiones.cache.requirements"
+          ].indexOf(requirementSource) >= 0
+        );
 
     return {
       revision: revisionOf(cache),
@@ -169,8 +187,12 @@ Función:
       requirementsLoaded: trustedRequirements,
       requirementsLinked: requirements.length > 0 && orphanRequirements === 0,
       complete:
-        periods.length > 0 && students.length > 0 && requirements.length > 0 &&
-        invalidStudents === 0 && trustedStudents && trustedRequirements
+        periods.length > 0 &&
+        students.length > 0 &&
+        requirements.length > 0 &&
+        invalidStudents === 0 &&
+        trustedStudents &&
+        trustedRequirements
     };
   }
 
@@ -348,7 +370,10 @@ Función:
         contactsHydrated: analysis.contactsHydrated,
         requirementsLoaded: analysis.requirementsLoaded,
         requirementsLinked: analysis.requirementsLinked,
-        studentsWithoutRequirements: analysis.studentsWithoutRequirements,
+      requirementsCoverageComplete:
+        analysis.studentsWithoutRequirements === 0 &&
+        analysis.orphanRequirements === 0,
+      studentsWithoutRequirements: analysis.studentsWithoutRequirements,
         orphanRequirements: analysis.orphanRequirements,
         invalidStudents: analysis.invalidStudents,
         fallbackUsed: false,

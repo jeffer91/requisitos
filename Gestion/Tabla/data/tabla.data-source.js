@@ -11,7 +11,7 @@ Función:
 (function(window, document){
   "use strict";
 
-  var VERSION = "3.1.0-guarded-read-flow";
+  var VERSION = "3.2.0-single-envelope-read";
   var SCREEN = "tabla";
   var SOURCE = "ConTabla";
   var U = window.TablaUtils || {};
@@ -138,8 +138,10 @@ Función:
     return state.clientPromise;
   }
 
-  function normalizeResponse(response){
-    response = object(response);
+  function normalizeResponse(response, options){
+  response = object(response);
+  options = object(options);
+  var allowEmpty = options.allowEmpty === true;
 
     if(response.ok === false){
       throw new Error(
@@ -187,17 +189,17 @@ Función:
       throw new Error("Tabla recibió datos desde una fuente distinta de ConTabla.");
     }
 
-    if(!raw.periods.length){
-      throw new Error("ConTabla no entregó períodos.");
-    }
+    if(!allowEmpty && !raw.periods.length){
+        throw new Error("ConTabla no entregó períodos.");
+      }
 
-    if(!raw.students.length){
-      throw new Error("ConTabla no entregó estudiantes.");
-    }
+      if(!allowEmpty && !raw.students.length){
+        throw new Error("ConTabla no entregó estudiantes.");
+      }
 
-    if(!raw.requirements.length){
-      throw new Error("ConTabla no entregó requisitos.");
-    }
+      if(!allowEmpty && !raw.requirements.length){
+        throw new Error("ConTabla no entregó requisitos.");
+      }
 
     var normalized = N.normalizeEnvelope ? N.normalizeEnvelope(raw) : raw;
     normalized = object(normalized);
@@ -241,7 +243,9 @@ Función:
           source: options.source || "TablaDataSource.read"
         });
       })
-      .then(normalizeResponse)
+      .then(function(response){
+        return normalizeResponse(response, options);
+      })
       .then(function(envelope){
         state.envelope = envelope;
         state.revision = Number(envelope.revision || envelope.meta.revision || 0);
@@ -385,56 +389,68 @@ Función:
       .then(status);
   }
 
-  function refresh(options){
-    options = Object.assign({
-      full: true,
-      immediate: true,
-      force: true,
-      source: "TablaDataSource.refresh"
-    }, options || {});
+function refresh(options){
+  options = Object.assign({
+    full: true,
+    immediate: true,
+    force: true,
+    source: "TablaDataSource.refresh"
+  }, options || {});
 
-    state.refreshes += 1;
+  state.refreshes += 1;
 
-    return loadClient()
-      .then(function(client){
-        if(!client || typeof client.refresh !== "function"){
-          throw new Error("BDLocalConnectionClient.refresh no está disponible.");
-        }
+  return loadClient()
+    .then(function(client){
+      if(!client || typeof client.refresh !== "function"){
+        throw new Error("BDLocalConnectionClient.refresh no está disponible.");
+      }
 
-        return client.refresh(SCREEN, options);
-      })
-      .then(function(response){
-        if(response && response.ok === false){
-          throw new Error(
-            text(response.error && response.error.message) ||
-            "No se pudo actualizar Tabla desde Base Local."
-          );
-        }
+      return client.refresh(SCREEN, options);
+    })
+    .then(function(response){
+      if(response && response.ok === false){
+        throw new Error(
+          text(response.error && response.error.message) ||
+          "No se pudo actualizar Tabla desde Base Local."
+        );
+      }
 
-        invalidate({hard: true, source: "TablaDataSource.refresh"});
-
-        return fetchEnvelope({
-          force: true,
-          source: "TablaDataSource.after-refresh"
-        });
-      })
-      .then(function(){
-        return guardedEnvelope();
-      })
-      .then(function(envelope){
-        return {
-          ok: true,
-          envelope: envelope,
-          revision: envelope.revision,
-          source: SOURCE
-        };
-      })
-      .catch(function(error){
-        state.failures += 1;
-        state.lastError = text(error && error.message || error);
-        throw error;
+      var envelope = normalizeResponse(response, {
+        allowEmpty:
+          options.allowEmpty === true ||
+          options.confirmedEmpty === true
       });
-  }
+
+      state.envelope = envelope;
+      state.revision = Number(
+        envelope.revision ||
+        envelope.meta && envelope.meta.revision ||
+        0
+      );
+      state.updatedAt = now();
+      state.lastError = "";
+      state.reads += 1;
+
+      return guardedEnvelope({
+        allowEmpty:
+          options.allowEmpty === true ||
+          options.confirmedEmpty === true
+      });
+    })
+    .then(function(envelope){
+      return {
+        ok: true,
+        envelope: envelope,
+        revision: envelope.revision,
+        source: SOURCE
+      };
+    })
+    .catch(function(error){
+      state.failures += 1;
+      state.lastError = text(error && error.message || error);
+      throw error;
+    });
+}
 
   function invalidate(options){
     options = options === true ? {hard: true} : object(options);
@@ -508,9 +524,10 @@ Función:
     source: function(){ return SOURCE; },
     readEnvelope: readEnvelope,
     readCache: readEnvelope,
-    readPeriods: readPeriods,
-    listPeriods: readPeriods,
-    readStudents: readStudents,
+    read: guardedEnvelope,
+      readPeriods: readPeriods,
+      listPeriods: readPeriods,
+      readStudents: readStudents,
     listStudents: readStudents,
     refresh: refresh,
     invalidate: invalidate,

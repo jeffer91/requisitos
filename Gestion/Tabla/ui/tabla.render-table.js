@@ -11,7 +11,7 @@ Función o funciones:
   "use strict";
 
   var VERSION =
-    "2.1.0-row-status-actions";
+    "2.2.0-requirement-badges";
 
   var U =
     window.TablaUtils ||
@@ -242,6 +242,96 @@ Función o funciones:
       .join("||");
   }
 
+  function requirementKey(item){
+  item = item || {};
+
+  return text(
+    item.key ||
+    item.requisitoKey ||
+    item.requirementKey ||
+    item.field ||
+    item.label ||
+    item.nombre ||
+    ""
+  )
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function requirementShort(item){
+  var key = requirementKey(item);
+  var shorts = {
+    academico: "Aca",
+    documentacion: "Doc",
+    documentacionacademica: "Doc",
+    financiero: "Fin",
+    titulacion: "Tit",
+    practicasvinculacion: "PP",
+    practicaspreprofesionales: "PP",
+    vinculacion: "Vinc",
+    seguimientograduados: "Grad",
+    ingles: "Ing",
+    segundalengua: "Ing",
+    actualizaciondatos: "Datos"
+  };
+
+  return shorts[key] || text(item && (item.label || item.nombre || item.key)) || "Req";
+}
+
+function missingRequirements(row){
+  row = row || {};
+
+  var requirements = Array.isArray(row._requisitosFaltantes)
+    ? row._requisitosFaltantes
+    : Array.isArray(row._requisitos)
+      ? row._requisitos
+      : Array.isArray(row.requisitos)
+        ? row.requisitos
+        : [];
+
+  return requirements.filter(function(item){
+    var status = text(
+      item && (
+        item.estado ||
+        item.status ||
+        item.value ||
+        item.valor
+      )
+    ).toLowerCase();
+
+    return status === "no_cumple" || status === "no cumple";
+  });
+}
+
+function requirementsCell(row){
+  var missing = missingRequirements(row);
+
+  if(!missing.length){
+    return (
+      '<div class="tabla-req-badges">' +
+      '<span class="tabla-req-badge tabla-req-badge--ok">Cumple</span>' +
+      '</div>'
+    );
+  }
+
+  return (
+    '<div class="tabla-req-badges" aria-label="Requisitos faltantes">' +
+    missing.map(function(item){
+      var label = text(item && (item.label || item.nombre || item.key));
+
+      return (
+        '<span class="tabla-req-badge tabla-req-badge--missing" title="' +
+        esc(label || requirementShort(item)) +
+        '">' +
+        esc(requirementShort(item)) +
+        '</span>'
+      );
+    }).join("") +
+    '</div>'
+  );
+}
   function messageCell(){
     return (
       '<select class="tabla-message-select" aria-label="Tipo de mensaje">' +
@@ -382,7 +472,9 @@ Función o funciones:
       messageCell() +
       "</td>" +
 
-      '<td><span class="tabla-last-message">—</span></td>' +
+      '<td class="tabla-requirements-cell">' +
+        requirementsCell(row) +
+        "</td>" +
 
       "<td>" +
       actionButton(
@@ -423,7 +515,7 @@ Función o funciones:
       "<th>Nombre</th>",
       "<th>Carrera</th>",
       "<th>Msg</th>",
-      "<th>Último</th>",
+      "<th>Requisitos</th>",
       "<th>WA</th>",
       "<th>TG</th>",
       "<th>Mail</th>"
