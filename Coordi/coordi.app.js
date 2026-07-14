@@ -124,7 +124,7 @@ Función o funciones:
     if(state.refreshTimer){ clearTimeout(state.refreshTimer); }
     state.refreshTimer = setTimeout(function(){
       state.refreshTimer = null;
-      render({refresh:true});
+      render({refresh:false});
     },260);
   }
 
