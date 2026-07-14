@@ -304,16 +304,19 @@ function missingRequirements(row){
     return status === "no_cumple" || status === "no cumple";
   });
 }
-
-function requirementsCell(row){
+  function requirementsCell(row){
   var missing = missingRequirements(row);
 
   if(!missing.length){
-    return (
-      '<div class="tabla-req-badges">' +
-      '<span class="tabla-req-badge tabla-req-badge--ok">Cumple</span>' +
-      '</div>'
-    );
+    if(rowStatus(row) === "cumple"){
+      return (
+        '<div class="tabla-req-badges">' +
+        '<span class="tabla-req-badge tabla-req-badge--ok">Cumple</span>' +
+        '</div>'
+      );
+    }
+
+    return '<span class="tabla-req-empty" title="Sin faltantes confirmados">—</span>';
   }
 
   return (
@@ -332,6 +335,7 @@ function requirementsCell(row){
     '</div>'
   );
 }
+
   function messageCell(){
     return (
       '<select class="tabla-message-select" aria-label="Tipo de mensaje">' +

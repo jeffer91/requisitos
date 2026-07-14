@@ -346,3 +346,9 @@ td:first-child {
   background: #dcfce7;
   border-color: #bbf7d0;
 }
+
+.tabla-req-empty {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}

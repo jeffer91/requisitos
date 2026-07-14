@@ -486,10 +486,10 @@ function sortRowsByRequirements(rows, order){
             )
         : {
             rows:
-              filtered.slice(),
+              ordered.slice(),
 
             allRows:
-              filtered.slice(),
+              ordered.slice(),
 
             pagination: {
               page:
