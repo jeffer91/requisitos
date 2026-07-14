@@ -7,6 +7,7 @@ Función o funciones:
 - Limitar navegación y ventanas nuevas a archivos internos controlados.
 - Validar remitentes y argumentos de todos los canales IPC.
 - Abrir enlaces externos seguros fuera de la aplicación.
+- Permitir correos extensos únicamente para Outlook Web.
 - Mantener SISACAD en una ventana aislada y de lectura controlada.
 ========================================================= */
 "use strict";
@@ -20,6 +21,7 @@ const APP_ROOT = path.resolve(__dirname,"..");
 const PRELOAD_FILE = path.join(__dirname,"preload.js");
 const SN_SISACAD_URL = "https://sisacad.itsqmet.edu.ec/";
 const MAX_EXTERNAL_URL_LENGTH = 4096;
+const MAX_OUTLOOK_COMPOSE_URL_LENGTH = 120000;
 const MAX_VISIBLE_TEST_STUDENTS = 3;
 
 let mainWindow = null;
@@ -46,11 +48,22 @@ function isInsideApp(url){
   return !!filePath && isPathInside(APP_ROOT,filePath);
 }
 
+function isOutlookComposeUrl(parsed){
+  return !!parsed &&
+    parsed.protocol === "https:" &&
+    parsed.hostname === "outlook.office.com" &&
+    parsed.pathname === "/mail/deeplink/compose" &&
+    !parsed.username &&
+    !parsed.password;
+}
+
 function parsedExternalUrl(value){
   const raw = String(value || "").trim();
-  if(!raw || raw.length > MAX_EXTERNAL_URL_LENGTH){return null;}
+  if(!raw || raw.length > MAX_OUTLOOK_COMPOSE_URL_LENGTH){return null;}
   try{
     const parsed = new URL(raw);
+    const maxLength = isOutlookComposeUrl(parsed) ? MAX_OUTLOOK_COMPOSE_URL_LENGTH : MAX_EXTERNAL_URL_LENGTH;
+    if(raw.length > maxLength){return null;}
     if(parsed.protocol === "mailto:"){return parsed;}
     if((parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password){return parsed;}
     return null;
@@ -334,7 +347,8 @@ function createMainWindow(){
 function trustedSender(event){
   try{
     const frame=event&&event.senderFrame;
-    return !!frame && frame === event.sender.mainFrame && isInsideApp(frame.url);
+    const sender=event&&event.sender;
+    return !!frame && !!sender && !!mainWindow && !mainWindow.isDestroyed() && sender === mainWindow.webContents && isInsideApp(frame.url);
   }catch(error){return false;}
 }
 
@@ -357,9 +371,9 @@ function registerIpc(){
   }));
   secureHandle("requisitos:open-external",async(url)=>{
     const parsed=parsedExternalUrl(url);
-    if(!parsed){return false;}
+    if(!parsed){return {ok:false,opened:false,error:"Enlace externo no permitido o demasiado extenso."};}
     await shell.openExternal(parsed.toString());
-    return true;
+    return {ok:true,opened:true,method:isOutlookComposeUrl(parsed)?"outlook-web":"external"};
   });
   secureHandle("sn:sisacad-open",()=>openSisacadWindow());
   secureHandle("sn:sisacad-status",()=>getSisacadWindowStatus());
