@@ -2,240 +2,234 @@
 Nombre completo: coo.mail.js
 Ruta o ubicación: /Requisitos/Coordi/coo.mail.js
 Función o funciones:
-- Generar correos globales y por área con los filtros aplicados.
+- Generar los tres correos institucionales de Coordi.
 - Copiar el contenido HTML completo al portapapeles.
-- Abrir directamente la composición de Outlook Web.
-- Usar mailto como respaldo cuando Outlook Web no pueda abrirse.
-- Confirmar el resultado real de la apertura externa.
+- Abrir el correo con un enlace mailto independiente, igual al patrón funcional de Ficha.
+- Incluir destinatarios principales, copias, asunto y cuerpo breve.
 ========================================================= */
-(function(window){
+(function(window,document){
   "use strict";
 
-  var VERSION = "2.4.0-outlook-web-compose";
-  var OUTLOOK_COMPOSE_URL = "https://outlook.office.com/mail/deeplink/compose";
+  var VERSION = "3.0.0-three-mail-types-mailto-anchor";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function arr(value){ return Array.isArray(value) ? value : []; }
   function esc(value){
-    return text(value)
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/\"/g,"&quot;")
-      .replace(/'/g,"&#039;");
+    return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");
   }
   function fmt(value){ return Number(value || 0).toLocaleString("es-EC"); }
-
-  function areaById(report,areaId){
-    var found = null;
-    arr(report && report.areas).some(function(area){
-      if(area.id === areaId){ found = area; return true; }
-      return false;
+  function uniqueAddresses(values){
+    var map = Object.create(null);
+    var out = [];
+    arr(values).forEach(function(value){
+      text(value).split(/[;,]+/).forEach(function(piece){
+        var address = text(piece);
+        var key = address.toLowerCase();
+        if(address && !map[key]){ map[key] = true; out.push(address); }
+      });
     });
-    return found;
+    return out;
   }
+  function recipients(source){
+    source = source || {};
+    return uniqueAddresses(arr(source.correos).concat([source.correo || source.to || ""]));
+  }
+  function copies(source){
+    source = source || {};
+    return uniqueAddresses(arr(source.copias).concat(arr(source.cc)));
+  }
+  function baseStyle(){ return "font-family:Arial,sans-serif;color:#0f172a;font-size:13px;line-height:1.5;"; }
+  function paragraph(value){ return '<p style="margin:0 0 12px;">'+value+'</p>'; }
+  function filterValue(report,key,fallback){ return text(report && report.filters && report.filters[key]) || fallback || ""; }
+  function periodLabel(report){ return filterValue(report,"periodLabel",filterValue(report,"periodId","Período no definido")); }
+  function divisionLabel(report){ return filterValue(report,"division","Todas"); }
+  function careerLabel(report){ return filterValue(report,"career",""); }
+  function requirementLabel(report){ return filterValue(report,"requirementLabel",filterValue(report,"requirementKey","")); }
 
-  function filterText(report){
-    report = report || {};
-    var filters = report.filters || {};
-    var parts = [];
-    if(filters.periodLabel || filters.periodId){ parts.push("Período: " + (filters.periodLabel || filters.periodId)); }
-    if(filters.division){ parts.push("División: " + filters.division); }
-    if(filters.career){ parts.push("Carrera: " + filters.career); }
-    if(filters.requirementLabel || filters.requirementKey){ parts.push("Requisito: " + (filters.requirementLabel || filters.requirementKey)); }
-    return parts.length ? parts.join(" · ") : "Sin período seleccionado";
+  function signatureHtml(){
+    var firma = window.COOConfig && window.COOConfig.firma || {};
+    return paragraph('Saludos cordiales,<br><strong>'+esc((firma.titulo ? firma.titulo + " " : "") + (firma.nombre || "Jefferson Villarreal"))+'</strong><br>'+esc(firma.cargo || "Coordinador de Titulación")+'<br>'+esc(firma.institucion || "ITSQMET"));
   }
-
-  function baseStyle(){
-    return "font-family:Arial,sans-serif;color:#0f172a;font-size:13px;line-height:1.45;";
+  function signaturePlain(){
+    var firma = window.COOConfig && window.COOConfig.firma || {};
+    return ["Saludos cordiales,",(firma.titulo ? firma.titulo + " " : "") + (firma.nombre || "Jefferson Villarreal"),firma.cargo || "Coordinador de Titulación",firma.institucion || "ITSQMET"].join("\n");
   }
+  function wrapHtml(bodyHtml){ return '<div style="'+baseStyle()+'">'+bodyHtml+'</div>'; }
 
   function tableHtml(headers,rows){
     rows = arr(rows);
-    if(!rows.length){
-      return '<p style="'+baseStyle()+'color:#64748b;"><strong>Sin datos para mostrar.</strong></p>';
-    }
-
-    var html = '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;color:#0f172a;"><thead><tr>';
-    headers.forEach(function(header){
-      html += '<th style="border:1px solid #cbd5e1;background:#f1f5f9;color:#334155;text-align:left;padding:8px;font-weight:bold;">'+esc(header.label)+'</th>';
-    });
+    if(!rows.length){ return paragraph('<strong>Sin datos para mostrar.</strong>'); }
+    var html = '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;color:#0f172a;margin:8px 0 16px;"><thead><tr>';
+    headers.forEach(function(header){ html += '<th style="border:1px solid #94a3b8;background:#e2e8f0;text-align:left;padding:7px;font-weight:bold;">'+esc(header.label)+'</th>'; });
     html += '</tr></thead><tbody>';
-
     rows.forEach(function(row){
       html += '<tr>';
       headers.forEach(function(header){
         var value = typeof header.value === "function" ? header.value(row) : row[header.key];
-        html += '<td style="border:1px solid #cbd5e1;padding:8px;vertical-align:top;">'+esc(value)+'</td>';
+        html += '<td style="border:1px solid #cbd5e1;padding:7px;vertical-align:top;">'+esc(value)+'</td>';
       });
       html += '</tr>';
     });
-
     return html + '</tbody></table>';
   }
 
   function textTable(headers,rows){
     rows = arr(rows);
     if(!rows.length){ return "Sin datos para mostrar."; }
-
-    var lines = [
-      headers.map(function(header){ return header.label; }).join(" | "),
-      headers.map(function(){ return "---"; }).join(" | ")
-    ];
-
+    var lines = [headers.map(function(header){ return header.label; }).join(" | "),headers.map(function(){ return "---"; }).join(" | ")];
     rows.forEach(function(row){
       lines.push(headers.map(function(header){
         var value = typeof header.value === "function" ? header.value(row) : row[header.key];
         return text(value).replace(/\s+/g," ");
       }).join(" | "));
     });
-
     return lines.join("\n");
   }
 
-  function wrapHtml(title,bodyHtml){
-    return '<div style="'+baseStyle()+'"><h2 style="margin:0 0 10px;color:#1e3a8a;font-size:18px;">'+esc(title)+'</h2>'
-      + bodyHtml
-      + '<p style="margin-top:18px;">Atentamente,<br><strong>Coordinación de Titulación</strong></p></div>';
+  function areaById(report,areaId){
+    var found = null;
+    arr(report && report.areas).some(function(area){ if(area.id === areaId){ found = area; return true; } return false; });
+    return found;
   }
 
-  function buildGlobal(report){
-    report = report || {};
-    var global = report.global || {};
-    var rows = arr(global.areas);
-    var subject = "Reporte global de avance de estudiantes";
-    var headers = [
-      {label:"Área",value:function(row){ return row.area; }},
-      {label:"Responsable",value:function(row){ return row.responsable; }},
-      {label:"Estudiantes pendientes",value:function(row){ return fmt(row.totalEstudiantes); }},
-      {label:"Pendientes acumulados",value:function(row){ return fmt(row.totalPendientes); }}
-    ];
-    var noAplicaHtml = Number(global.totalEstudiantesNoAplica || 0) > 0
-      ? '<br><strong>Estudiantes a los que no aplica el requisito:</strong> '+fmt(global.totalEstudiantesNoAplica)
-      : '';
+  function processText(report){
+    var type = report && report.periodType || {};
+    return type.id === "PVC" || type.isPVC ? "proceso PVC" : "proceso de titulación";
+  }
 
-    var html = wrapHtml(subject,
-      '<p>Buen día, <strong>'+esc(global.saludo || global.responsable || "Dr. Alex León")+'</strong>.</p>'
-      + '<p>Se remite la visión global del avance de los estudiantes en el corte seleccionado.</p>'
-      + '<p><strong>Corte:</strong> '+esc(filterText(report))+'</p>'
-      + '<p><strong>Estudiantes revisados:</strong> '+fmt(global.totalEstudiantesRevisados)+'<br>'
-      + '<strong>Estudiantes al día:</strong> '+fmt(global.totalEstudiantesAlDia)+'<br>'
-      + '<strong>Estudiantes con pendientes:</strong> '+fmt(global.totalEstudiantesPendientes)+'<br>'
-      + '<strong>Áreas con pendientes:</strong> '+fmt(global.totalAreasConPendientes)+'<br>'
-      + '<strong>Requisitos pendientes acumulados:</strong> '+fmt(global.totalPendientes)
-      + noAplicaHtml + '</p>'
-      + tableHtml(headers,rows)
-    );
-
-    var plainLines = [
-      "Buen día, " + (global.saludo || global.responsable || "Dr. Alex León") + ".",
-      "",
-      "Se remite la visión global del avance de los estudiantes.",
-      "Corte: " + filterText(report),
-      "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados),
-      "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
-      "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
-      "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
-      "Requisitos pendientes acumulados: " + fmt(global.totalPendientes)
-    ];
-
-    if(Number(global.totalEstudiantesNoAplica || 0) > 0){
-      plainLines.push("Estudiantes a los que no aplica el requisito: " + fmt(global.totalEstudiantesNoAplica));
-    }
-
-    plainLines = plainLines.concat(["",textTable(headers,rows),"","Atentamente,","Coordinación de Titulación"]);
-
-    return {
-      kind:"global",
-      to:global.correo || "",
+  function mailObject(kind,source,subject,html,plain,extra){
+    source = source || {};
+    return Object.assign({
+      kind:kind,
+      to:recipients(source).join(", "),
+      toList:recipients(source),
+      cc:copies(source).join(", "),
+      ccList:copies(source),
       subject:subject,
       html:html,
-      plain:plainLines.join("\n")
-    };
+      plain:plain
+    },extra || {});
   }
 
-  function buildAreaSummary(report,areaId){
-    var area = areaById(report,areaId);
-    if(!area){ throw new Error("No se encontró el área seleccionada."); }
-
-    var subject = "Reporte de pendientes · " + area.area;
+  function buildGeneralCompliance(report){
+    report = report || {};
+    var global = report.global || {};
+    var rows = arr(report.compliance || global.cumplimiento);
+    var subject = "Reporte general de cumplimiento de requisitos - " + periodLabel(report);
     var headers = [
-      {label:"Carrera",value:function(row){ return row.carrera; }},
-      {label:"Estudiantes",value:function(row){ return fmt(row.estudiantes); }},
-      {label:"Pendientes",value:function(row){ return fmt(row.pendientes); }}
+      {label:"Requisito",value:function(row){ return row.label; }},
+      {label:"Total",value:function(row){ return fmt(row.total); }},
+      {label:"Cumplen",value:function(row){ return fmt(row.cumplen); }},
+      {label:"No cumplen",value:function(row){ return fmt(row.noCumplen); }},
+      {label:"% cumplen",value:function(row){ return Number(row.porcentaje || 0).toFixed(1) + "%"; }}
     ];
-
-    var html = wrapHtml(subject,
-      '<p>Buen día, <strong>'+esc(area.saludo || area.responsable)+'</strong>.</p>'
-      + '<p>Se reporta el avance correspondiente al área <strong>'+esc(area.area)+'</strong>.</p>'
-      + '<p><strong>Corte:</strong> '+esc(filterText(report))+'</p>'
-      + '<p><strong>Estudiantes pendientes:</strong> '+fmt(area.totalEstudiantes)+'<br>'
-      + '<strong>Requisitos pendientes acumulados:</strong> '+fmt(area.totalPendientes)+'<br>'
-      + '<strong>Carreras afectadas:</strong> '+fmt(arr(area.carreras).length)+'</p>'
-      + tableHtml(headers,area.porCarrera)
-    );
+    var careerLine = careerLabel(report) ? '<br><strong>Carrera:</strong> '+esc(careerLabel(report)) : "";
+    var body = paragraph('<strong>'+esc(global.saludo || "Estimados coordinadores de área")+':</strong>')
+      + paragraph('Reciban un cordial saludo.')
+      + paragraph('Por medio del presente, remito el reporte general del estado de cumplimiento de requisitos correspondiente a los estudiantes del '+esc(processText(report))+' '+esc(periodLabel(report))+'.')
+      + paragraph('Es necesario que cada área revise y gestione de manera prioritaria los casos pendientes, a fin de regularizar la situación de los estudiantes dentro del proceso de titulación.')
+      + paragraph('<strong>Período:</strong> '+esc(periodLabel(report))+'<br><strong>División:</strong> '+esc(divisionLabel(report))+careerLine+'<br><strong>Total de estudiantes evaluados:</strong> '+fmt(global.totalEstudiantesRevisados))
+      + paragraph('El reporte presenta el siguiente resumen por requisito:')
+      + tableHtml(headers,rows)
+      + paragraph('Se solicita a cada área realizar el seguimiento respectivo a los estudiantes que aún mantienen requisitos pendientes, considerando que esta información es necesaria para la continuidad y cierre adecuado del proceso de titulación.')
+      + paragraph('Agradezco de antemano su colaboración y gestión oportuna.')
+      + signatureHtml();
 
     var plain = [
-      "Buen día, " + (area.saludo || area.responsable) + ".",
-      "",
-      "Se reporta el avance correspondiente al área " + area.area + ".",
-      "Corte: " + filterText(report),
-      "Estudiantes pendientes: " + fmt(area.totalEstudiantes),
-      "Requisitos pendientes acumulados: " + fmt(area.totalPendientes),
-      "Carreras afectadas: " + fmt(arr(area.carreras).length),
-      "",
-      textTable(headers,area.porCarrera),
-      "",
-      "Atentamente,",
-      "Coordinación de Titulación"
-    ].join("\n");
-
-    return {kind:"area-summary",areaId:areaId,to:area.correo || "",subject:subject,html:html,plain:plain};
+      (global.saludo || "Estimados coordinadores de área") + ":","","Reciban un cordial saludo.","",
+      "Por medio del presente, remito el reporte general del estado de cumplimiento de requisitos correspondiente a los estudiantes del " + processText(report) + " " + periodLabel(report) + ".","",
+      "Es necesario que cada área revise y gestione de manera prioritaria los casos pendientes, a fin de regularizar la situación de los estudiantes dentro del proceso de titulación.","",
+      "Período: " + periodLabel(report),"División: " + divisionLabel(report)
+    ];
+    if(careerLabel(report)){ plain.push("Carrera: " + careerLabel(report)); }
+    plain = plain.concat(["Total de estudiantes evaluados: " + fmt(global.totalEstudiantesRevisados),"","El reporte presenta el siguiente resumen por requisito:","",textTable(headers,rows),"","Se solicita a cada área realizar el seguimiento respectivo a los estudiantes que aún mantienen requisitos pendientes, considerando que esta información es necesaria para la continuidad y cierre adecuado del proceso de titulación.","","Agradezco de antemano su colaboración y gestión oportuna.","",signaturePlain()]);
+    return mailObject("general",global,subject,wrapHtml(body),plain.join("\n"));
   }
 
-  function buildAreaDetail(report,areaId){
+  function studentListHtml(students){
+    students = arr(students);
+    if(!students.length){ return paragraph('<strong>No se registran estudiantes pendientes con los filtros seleccionados.</strong>'); }
+    return '<ol style="margin:8px 0 16px;padding-left:24px;">' + students.map(function(student){
+      return '<li style="margin-bottom:8px;"><strong>'+esc(student.nombre)+'</strong> - C.I.: '+esc(student.cedula)+' - Carrera: '+esc(student.carrera)+'</li>';
+    }).join("") + '</ol>';
+  }
+
+  function studentListPlain(students){
+    students = arr(students);
+    if(!students.length){ return "No se registran estudiantes pendientes con los filtros seleccionados."; }
+    return students.map(function(student,index){ return (index + 1) + ". " + student.nombre + " - C.I.: " + student.cedula + " - Carrera: " + student.carrera; }).join("\n");
+  }
+
+  function buildRequirementPending(report,areaId){
     var area = areaById(report,areaId);
     if(!area){ throw new Error("No se encontró el área seleccionada."); }
+    var reqLabel = requirementLabel(report) || area.area;
+    var subject = "Estudiantes pendientes de requisito " + reqLabel + " - " + periodLabel(report);
+    var careerLine = careerLabel(report) ? '<br><strong>Carrera:</strong> '+esc(careerLabel(report)) : "";
+    var body = paragraph('<strong>'+esc(area.tratamiento || ("Estimado/a " + (area.responsable || area.area)))+':</strong>')
+      + paragraph('Reciba un cordial saludo.')
+      + paragraph('Por medio del presente, se remite el listado de estudiantes que aún registran pendiente el cumplimiento del requisito correspondiente a su área.')
+      + paragraph('<strong>Período:</strong> '+esc(periodLabel(report))+'<br><strong>División:</strong> '+esc(divisionLabel(report))+careerLine+'<br><strong>Requisito pendiente:</strong> '+esc(reqLabel)+'<br><strong>Total de estudiantes pendientes:</strong> '+fmt(area.totalEstudiantes))
+      + paragraph('<strong>Detalle de estudiantes:</strong>')
+      + studentListHtml(area.estudiantes)
+      + paragraph('Agradezco su gentil ayuda con la revisión y gestión correspondiente, con la finalidad de que los estudiantes puedan completar sus requisitos dentro de los tiempos establecidos para el proceso de titulación.')
+      + signatureHtml();
 
-    var subject = "Detalle de estudiantes pendientes · " + area.area;
-    var headers = [
-      {label:"Cédula",value:function(row){ return row.cedula; }},
-      {label:"Nombre",value:function(row){ return row.nombre; }},
-      {label:"Carrera",value:function(row){ return row.carrera; }},
-      {label:"Requisito pendiente",value:function(row){ return row.requisitosTexto; }}
-    ];
-
-    var html = wrapHtml(subject,
-      '<p>Buen día, <strong>'+esc(area.saludo || area.responsable)+'</strong>.</p>'
-      + '<p>Se remite el detalle de estudiantes con pendientes correspondientes al área <strong>'+esc(area.area)+'</strong>.</p>'
-      + '<p><strong>Corte:</strong> '+esc(filterText(report))+'</p>'
-      + '<p><strong>Estudiantes pendientes:</strong> '+fmt(area.totalEstudiantes)+'<br>'
-      + '<strong>Requisitos pendientes acumulados:</strong> '+fmt(area.totalPendientes)+'</p>'
-      + tableHtml(headers,area.estudiantes)
-    );
-
-    var plain = [
-      "Buen día, " + (area.saludo || area.responsable) + ".",
-      "",
-      "Se remite el detalle de estudiantes con pendientes correspondientes al área " + area.area + ".",
-      "Corte: " + filterText(report),
-      "Estudiantes pendientes: " + fmt(area.totalEstudiantes),
-      "Requisitos pendientes acumulados: " + fmt(area.totalPendientes),
-      "",
-      textTable(headers,area.estudiantes),
-      "",
-      "Atentamente,",
-      "Coordinación de Titulación"
-    ].join("\n");
-
-    return {kind:"area-detail",areaId:areaId,to:area.correo || "",subject:subject,html:html,plain:plain};
+    var plain = [(area.tratamiento || ("Estimado/a " + (area.responsable || area.area))) + ":","","Reciba un cordial saludo.","","Por medio del presente, se remite el listado de estudiantes que aún registran pendiente el cumplimiento del requisito correspondiente a su área.","","Período: " + periodLabel(report),"División: " + divisionLabel(report)];
+    if(careerLabel(report)){ plain.push("Carrera: " + careerLabel(report)); }
+    plain = plain.concat(["Requisito pendiente: " + reqLabel,"Total de estudiantes pendientes: " + fmt(area.totalEstudiantes),"","Detalle de estudiantes:","",studentListPlain(area.estudiantes),"","Agradezco su gentil ayuda con la revisión y gestión correspondiente, con la finalidad de que los estudiantes puedan completar sus requisitos dentro de los tiempos establecidos para el proceso de titulación.","",signaturePlain()]);
+    return mailObject("requirement",area,subject,wrapHtml(body),plain.join("\n"),{areaId:areaId});
   }
+
+  function eligibilityListHtml(students){
+    students = arr(students);
+    if(!students.length){ return paragraph('<strong>No se registran estudiantes pendientes en esta sección.</strong>'); }
+    return '<ol style="margin:8px 0 16px;padding-left:24px;">' + students.map(function(student){
+      return '<li style="margin-bottom:10px;"><strong>'+esc(student.nombre)+'</strong> - C.I.: '+esc(student.cedula)+' - Carrera: '+esc(student.carrera)+'<br><span><strong>Modalidad:</strong> '+esc(student.modalidad)+'<br><strong>Requisitos pendientes:</strong> '+esc(student.requisitosTexto)+'</span></li>';
+    }).join("") + '</ol>';
+  }
+
+  function eligibilityListPlain(students){
+    students = arr(students);
+    if(!students.length){ return "No se registran estudiantes pendientes en esta sección."; }
+    return students.map(function(student,index){
+      return (index + 1) + ". " + student.nombre + " - C.I.: " + student.cedula + " - Carrera: " + student.carrera + "\n   Modalidad: " + student.modalidad + "\n   Requisitos pendientes: " + student.requisitosTexto;
+    }).join("\n");
+  }
+
+  function buildEligibility(report){
+    report = report || {};
+    var source = window.COOConfig && window.COOConfig.eligibility || report.global || {};
+    var info = report.eligibility || {defensa:[],nucleos:[],totalDefensa:0,totalNucleos:0,totalEstudiantes:0};
+    var subject = "Estudiantes pendientes para defensa o núcleos - " + periodLabel(report);
+    var careerLine = careerLabel(report) ? '<br><strong>Carrera:</strong> '+esc(careerLabel(report)) : "";
+    var body = paragraph('<strong>'+esc(source.saludo || "Estimados coordinadores de área")+':</strong>')
+      + paragraph('Reciban un cordial saludo.')
+      + paragraph('Por medio del presente, remito el reporte de estudiantes que aún mantienen requisitos pendientes para continuar hacia la defensa o los núcleos del proceso de titulación.')
+      + paragraph('<strong>Período:</strong> '+esc(periodLabel(report))+'<br><strong>División:</strong> '+esc(divisionLabel(report))+careerLine+'<br><strong>Total de estudiantes pendientes:</strong> '+fmt(info.totalEstudiantes))
+      + '<h3 style="margin:18px 0 8px;color:#1e3a8a;font-size:15px;">Pendientes para defensa ('+fmt(info.totalDefensa)+')</h3>'
+      + eligibilityListHtml(info.defensa)
+      + '<h3 style="margin:18px 0 8px;color:#1e3a8a;font-size:15px;">Pendientes para núcleos ('+fmt(info.totalNucleos)+')</h3>'
+      + eligibilityListHtml(info.nucleos)
+      + paragraph('Se solicita realizar el seguimiento correspondiente para que los estudiantes regularicen sus requisitos y puedan continuar con la siguiente etapa del proceso de titulación.')
+      + paragraph('Agradezco de antemano su colaboración y gestión oportuna.')
+      + signatureHtml();
+
+    var plain = [(source.saludo || "Estimados coordinadores de área") + ":","","Reciban un cordial saludo.","","Por medio del presente, remito el reporte de estudiantes que aún mantienen requisitos pendientes para continuar hacia la defensa o los núcleos del proceso de titulación.","","Período: " + periodLabel(report),"División: " + divisionLabel(report)];
+    if(careerLabel(report)){ plain.push("Carrera: " + careerLabel(report)); }
+    plain = plain.concat(["Total de estudiantes pendientes: " + fmt(info.totalEstudiantes),"","PENDIENTES PARA DEFENSA (" + fmt(info.totalDefensa) + ")","",eligibilityListPlain(info.defensa),"","PENDIENTES PARA NÚCLEOS (" + fmt(info.totalNucleos) + ")","",eligibilityListPlain(info.nucleos),"","Se solicita realizar el seguimiento correspondiente para que los estudiantes regularicen sus requisitos y puedan continuar con la siguiente etapa del proceso de titulación.","","Agradezco de antemano su colaboración y gestión oportuna.","",signaturePlain()]);
+    return mailObject("eligibility",source,subject,wrapHtml(body),plain.join("\n"));
+  }
+
+  function buildAreaSummary(report,areaId){ return buildRequirementPending(report,areaId); }
+  function buildAreaDetail(report,areaId){ return buildRequirementPending(report,areaId); }
+  function buildGlobal(report){ return buildGeneralCompliance(report); }
 
   function build(report,options){
     options = options || {};
-    if(options.kind === "global"){ return buildGlobal(report); }
-    if(options.kind === "area-summary"){ return buildAreaSummary(report,options.areaId); }
-    if(options.kind === "area-detail"){ return buildAreaDetail(report,options.areaId); }
+    if(options.kind === "global" || options.kind === "general"){ return buildGeneralCompliance(report); }
+    if(options.kind === "area-summary" || options.kind === "area-detail" || options.kind === "requirement"){ return buildRequirementPending(report,options.areaId); }
+    if(options.kind === "eligibility"){ return buildEligibility(report); }
     throw new Error("Tipo de correo no reconocido.");
   }
 
@@ -243,99 +237,77 @@ Función o funciones:
     mail = mail || {};
     return {
       recipient:text(mail.to).replace(/[\r\n]/g,""),
+      cc:text(mail.cc).replace(/[\r\n]/g,""),
       subject:text(mail.subject).replace(/[\r\n]/g," "),
       shortBody:"El contenido completo del reporte fue copiado desde Coordi. Péguelo en este correo con Ctrl+V."
     };
   }
 
-  function outlookWebUrl(mail){
-    var data = composeData(mail);
-    var query = [];
-    if(data.recipient){ query.push("to=" + encodeURIComponent(data.recipient)); }
-    if(data.subject){ query.push("subject=" + encodeURIComponent(data.subject)); }
-    query.push("body=" + encodeURIComponent(data.shortBody));
-    return OUTLOOK_COMPOSE_URL + "?" + query.join("&");
-  }
-
   function mailto(mail){
     var data = composeData(mail);
     var query = [];
+    if(data.cc){ query.push("cc=" + encodeURIComponent(data.cc)); }
     if(data.subject){ query.push("subject=" + encodeURIComponent(data.subject)); }
     query.push("body=" + encodeURIComponent(data.shortBody));
     return "mailto:" + encodeURI(data.recipient) + (query.length ? "?" + query.join("&") : "");
+  }
+
+  function legacyCopy(mail){
+    var holder = document.createElement("div");
+    holder.contentEditable = "true";
+    holder.style.position = "fixed";
+    holder.style.left = "-10000px";
+    holder.style.top = "0";
+    holder.innerHTML = mail.html || esc(mail.plain || "");
+    document.body.appendChild(holder);
+    var selection = window.getSelection ? window.getSelection() : null;
+    var range = document.createRange ? document.createRange() : null;
+    if(selection && range){ selection.removeAllRanges(); range.selectNodeContents(holder); selection.addRange(range); }
+    var copied = false;
+    try{ copied = !!document.execCommand("copy"); }catch(error){ copied = false; }
+    if(selection){ selection.removeAllRanges(); }
+    holder.remove();
+    return copied ? Promise.resolve(true) : Promise.reject(new Error("No se pudo copiar el correo al portapapeles."));
   }
 
   function copyHtml(mail){
     mail = mail || {};
     var html = mail.html || "";
     var plain = mail.plain || "";
-
     if(navigator.clipboard && window.ClipboardItem){
-      var item = new ClipboardItem({
-        "text/html":new Blob([html],{type:"text/html"}),
-        "text/plain":new Blob([plain],{type:"text/plain"})
-      });
-      return navigator.clipboard.write([item]).then(function(){ return true; });
+      try{
+        var item = new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([plain],{type:"text/plain"})});
+        return navigator.clipboard.write([item]).then(function(){ return true; }).catch(function(){ return legacyCopy(mail); });
+      }catch(error){}
     }
-
     if(navigator.clipboard && navigator.clipboard.writeText){
-      return navigator.clipboard.writeText(plain).then(function(){ return true; });
+      return navigator.clipboard.writeText(plain).then(function(){ return true; }).catch(function(){ return legacyCopy(mail); });
     }
-
-    return Promise.reject(new Error("No se pudo copiar el correo al portapapeles."));
+    return legacyCopy(mail);
   }
 
-  function normalizeOpenResult(result,method){
-    if(result === true){
-      return {ok:true,opened:true,method:method};
-    }
-
-    if(result && typeof result === "object"){
-      if(result.ok === true && result.opened !== false){
-        return Object.assign({},result,{ok:true,opened:true,method:result.method || method});
-      }
-      throw new Error(text(result.error || result.message) || "No se pudo abrir Outlook.");
-    }
-
-    throw new Error("No se pudo abrir Outlook.");
-  }
-
-  function openExternal(url,method){
-    if(window.electronAPI && typeof window.electronAPI.openExternal === "function"){
-      return Promise.resolve(window.electronAPI.openExternal(url)).then(function(result){
-        return normalizeOpenResult(result,method);
-      });
-    }
-
-    var opened = window.open(url,"_blank","noopener,noreferrer");
-    if(!opened){
-      return Promise.reject(new Error("El navegador bloqueó la apertura de Outlook."));
-    }
-    return Promise.resolve({ok:true,opened:true,method:method});
+  function openMailto(url){
+    var anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_self";
+    anchor.rel = "noopener";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    return {ok:true,opened:true,method:"mailto-anchor"};
   }
 
   function open(mail){
     mail = mail || {};
+    var url = mailto(mail);
     var copied = false;
-    var webUrl = outlookWebUrl(mail);
-    var fallbackUrl = mailto(mail);
-
-    return copyHtml(mail).then(function(){
-      copied = true;
-    }).catch(function(error){
+    return copyHtml(mail).then(function(){ copied = true; }).catch(function(error){
       console.warn("[COOMail] No se pudo copiar el correo al portapapeles.",error);
       copied = false;
     }).then(function(){
-      return openExternal(webUrl,"outlook-web").catch(function(error){
-        console.warn("[COOMail] Outlook Web no pudo abrirse; se intentará mailto.",error);
-        return openExternal(fallbackUrl,"mailto");
-      });
-    }).then(function(result){
-      return Object.assign({},result,{
-        copied:copied,
-        outlookUrlLength:webUrl.length,
-        mailtoLength:fallbackUrl.length
-      });
+      var result = openMailto(url);
+      return Object.assign({},result,{copied:copied,mailtoLength:url.length});
     });
   }
 
@@ -343,20 +315,14 @@ Función o funciones:
     version:VERSION,
     build:build,
     buildGlobal:buildGlobal,
+    buildGeneralCompliance:buildGeneralCompliance,
     buildAreaSummary:buildAreaSummary,
     buildAreaDetail:buildAreaDetail,
+    buildRequirementPending:buildRequirementPending,
+    buildEligibility:buildEligibility,
     copyHtml:copyHtml,
     open:open,
-    outlookWebUrl:outlookWebUrl,
     mailto:mailto,
-    helpers:{
-      esc:esc,
-      fmt:fmt,
-      tableHtml:tableHtml,
-      textTable:textTable,
-      filterText:filterText,
-      normalizeOpenResult:normalizeOpenResult,
-      composeData:composeData
-    }
+    helpers:{esc:esc,fmt:fmt,tableHtml:tableHtml,textTable:textTable,composeData:composeData,recipients:recipients,copies:copies}
   };
-})(window);
+})(window,document);
