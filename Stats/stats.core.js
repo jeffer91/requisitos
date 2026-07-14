@@ -24,9 +24,54 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.1-stats-period-source-safe";
-  var lastSource = "StatsCore";
-  var periodCache = [];
+  var VERSION = "2.1.0-authoritative-cache";
+var lastSource = "StatsCore";
+var periodCache = [];
+var dataMemo = {
+  revision: "",
+  baseRows: Object.create(null)
+};
+
+function authoritativeRepo(){
+  return window.BDLocalStats || window.ConStats || null;
+}
+
+function isAuthoritativeRepo(repo){
+  return !!(
+    repo &&
+    (repo === window.BDLocalStats || repo === window.ConStats)
+  );
+}
+
+function sourceRevision(){
+  var repo = authoritativeRepo();
+
+  if(repo && typeof repo.status === "function"){
+    try{
+      var info = repo.status() || {};
+      return [
+        Number(info.cacheRevision || 0),
+        Number(info.students || 0),
+        Number(info.requirements || 0),
+        String(info.cacheUpdatedAt || "")
+      ].join("|");
+    }catch(error){}
+  }
+
+  return "legacy";
+}
+
+function invalidate(options){
+  options = options || {};
+  dataMemo.revision = "";
+  dataMemo.baseRows = Object.create(null);
+
+  if(options.keepPeriods !== true){
+    periodCache = [];
+  }
+
+  return true;
+}
 
   function text(value){
     return String(value == null ? "" : value).trim();
@@ -1034,98 +1079,77 @@ Con qué se conecta:
     return periodCache.slice();
   }
 
-  function periods(){
-    var repo = excelRepo();
-    var studentsRepo = estudiantesRepo();
-    var dataEngine = engine();
-    var list = [];
+function periods(){
+  var repo = authoritativeRepo();
+  var list = [];
 
+  if(repo){
     try{
-      if(
-        repo &&
-        typeof repo.listPeriods === "function"
-      ){
+      if(typeof repo.listPeriods === "function"){
         list = repo.listPeriods();
-
-        if(
-          Array.isArray(list) &&
-          list.length
-        ){
-          return rememberPeriods(
-            list,
-            text(repo.source) ||
-            "ExcelLocalRepo"
-          );
-        }
+      }else if(typeof repo.periods === "function"){
+        list = repo.periods();
+      }else if(typeof repo.getPeriods === "function"){
+        list = repo.getPeriods();
       }
-    }catch(error){}
 
-    try{
-      if(
-        studentsRepo &&
-        typeof studentsRepo.listPeriods ===
-          "function"
-      ){
-        list =
-          studentsRepo.listPeriods();
-
-        if(
-          Array.isArray(list) &&
-          list.length
-        ){
-          return rememberPeriods(
-            list,
-            text(studentsRepo.source) ||
-            "BL2EstudiantesRepo"
-          );
-        }
+      if(Array.isArray(list)){
+        periodCache = list.slice();
+        lastSource = text(repo.source) || "BDLocalConStats";
+        return periodCache.slice();
       }
-    }catch(error){}
-
-    try{
-      if(
-        dataEngine &&
-        typeof dataEngine.listPeriods ===
-          "function"
-      ){
-        list =
-          dataEngine.listPeriods();
-
-        if(
-          Array.isArray(list) &&
-          list.length
-        ){
-          return rememberPeriods(
-            list,
-            text(dataEngine.source) ||
-            "BL2DataEngine"
-          );
-        }
-      }
-    }catch(error){}
-
-    try{
-      var snap =
-        readLocalSnapshotLite();
-
-      list =
-        snap &&
-        Array.isArray(snap.periods)
-          ? snap.periods
-          : [];
-
-      if(list.length){
-        return rememberPeriods(
-          list,
-          "ExcelLocalStorage"
-        );
-      }
-    }catch(error){}
+    }catch(error){
+      try{
+        console.warn("[StatsCore] BDLocalStats.listPeriods falló", error);
+      }catch(innerError){}
+    }
 
     return periodCache.slice();
   }
 
-  function rowsFromEngine(opts){
+  repo = window.ExcelLocalRepo || null;
+  var studentsRepo = estudiantesRepo();
+  var dataEngine = engine();
+
+  try{
+    if(repo && typeof repo.listPeriods === "function"){
+      list = repo.listPeriods();
+      if(Array.isArray(list) && list.length){
+        return rememberPeriods(list, text(repo.source) || "ExcelLocalRepo");
+      }
+    }
+  }catch(error2){}
+
+  try{
+    if(studentsRepo && typeof studentsRepo.listPeriods === "function"){
+      list = studentsRepo.listPeriods();
+      if(Array.isArray(list) && list.length){
+        return rememberPeriods(list, text(studentsRepo.source) || "BL2EstudiantesRepo");
+      }
+    }
+  }catch(error3){}
+
+  try{
+    if(dataEngine && typeof dataEngine.listPeriods === "function"){
+      list = dataEngine.listPeriods();
+      if(Array.isArray(list) && list.length){
+        return rememberPeriods(list, text(dataEngine.source) || "BL2DataEngine");
+      }
+    }
+  }catch(error4){}
+
+  try{
+    var snap = readLocalSnapshotLite();
+    list = snap && Array.isArray(snap.periods) ? snap.periods : [];
+    if(list.length){
+      return rememberPeriods(list, "ExcelLocalStorage");
+    }
+  }catch(error5){}
+
+  return periodCache.slice();
+}
+
+function rowsFromEngine(opts){
     opts = opts || {};
 
     var dataEngine = engine();
@@ -1211,202 +1235,150 @@ Con qué se conecta:
     return rows.map(decorate);
   }
 
-  function rowsFromExcel(opts){
-    opts = opts || {};
+function rowsFromExcel(opts){
+  opts = opts || {};
+  var repo = excelRepo();
 
-    var repo = excelRepo();
-
-    if(!repo){
-      return [];
-    }
-
-    var matricula =
-      opts.matricula == null
-        ? "ACTIVO"
-        : text(opts.matricula);
-
-    var filters = {
-      periodId:opts.periodId || "",
-      periodoId:opts.periodId || "",
-      matricula:matricula,
-      estadoMatricula:matricula,
-      division:opts.division || "",
-      search:"",
-      limit:0,
-      force:opts.force === true
-    };
-
-    var rows = [];
-
-    try{
-      if(
-        typeof repo.listStudents ===
-          "function"
-      ){
-        rows = rowsFromResult(
-          repo.listStudents(filters)
-        );
-      }
-
-      if(
-        !rows.length &&
-        typeof repo.filterStudents ===
-          "function"
-      ){
-        rows = rowsFromResult(
-          repo.filterStudents(filters)
-        );
-      }
-
-      if(
-        !rows.length &&
-        typeof repo.listStudentsByStatus ===
-          "function"
-      ){
-        rows = rowsFromResult(
-          repo.listStudentsByStatus(
-            matricula,
-            opts.periodId || ""
-          )
-        );
-      }
-
-      if(
-        !rows.length &&
-        typeof repo.getStudents ===
-          "function"
-      ){
-        rows = rowsFromResult(
-          repo.getStudents(filters)
-        );
-      }
-
-      if(
-        !rows.length &&
-        typeof repo.listAllStudents ===
-          "function"
-      ){
-        rows = rowsFromResult(
-          repo.listAllStudents()
-        );
-      }
-
-      if(
-        !rows.length &&
-        typeof repo.getSnapshot ===
-          "function"
-      ){
-        var snapshot =
-          repo.getSnapshot();
-
-        if(
-          snapshot &&
-          typeof snapshot.then !== "function"
-        ){
-          rows =
-            rowsFromResult(snapshot);
-        }
-      }
-    }catch(error){
-      try{
-        console.warn(
-          "[StatsCore] ExcelLocalRepo falló",
-          error
-        );
-      }catch(innerError){}
-    }
-
-    if(!rows.length){
-      try{
-        var snap =
-          readLocalSnapshotLite();
-
-        rows =
-          snap &&
-          Array.isArray(snap.students)
-            ? snap.students
-            : [];
-      }catch(error2){
-        rows = [];
-      }
-    }
-
-    if(rows.length){
-      lastSource =
-        text(repo.source) ||
-        "ExcelLocalRepo";
-    }
-
-    return rows.map(decorate);
-  }
-
-  function baseRows(opts){
-    opts = opts || {};
-
-    var rows = [];
-
-    try{
-      rows = rowsFromExcel(opts);
-
-      if(rows.length){
-        return rows;
-      }
-    }catch(error){
-      try{
-        console.warn(
-          "[StatsCore] lectura ExcelLocalRepo falló",
-          error
-        );
-      }catch(innerError){}
-    }
-
-    try{
-      if(
-        estudiantesRepo() &&
-        typeof estudiantesRepo().buscar ===
-          "function"
-      ){
-        rows = rowsFromRepo(opts);
-
-        if(rows.length){
-          return rows;
-        }
-      }
-    }catch(error2){
-      try{
-        console.warn(
-          "[StatsCore] BL2EstudiantesRepo falló",
-          error2
-        );
-      }catch(innerError2){}
-    }
-
-    try{
-      if(
-        opts.useEngine === true &&
-        engine() &&
-        typeof engine().listStudents ===
-          "function"
-      ){
-        rows = rowsFromEngine(opts);
-
-        if(rows.length){
-          return rows;
-        }
-      }
-    }catch(error3){
-      try{
-        console.warn(
-          "[StatsCore] BL2DataEngine falló",
-          error3
-        );
-      }catch(innerError3){}
-    }
-
+  if(!repo){
     return [];
   }
 
-  function normalizeStatusFilter(status){
+  var authoritative = isAuthoritativeRepo(repo);
+  var matricula = opts.matricula == null
+    ? "ACTIVO"
+    : text(opts.matricula);
+  var filters = {
+    periodId: opts.periodId || "",
+    periodoId: opts.periodId || "",
+    matricula: matricula,
+    estadoMatricula: matricula,
+    division: opts.division || "",
+    search: "",
+    limit: 0,
+    force: opts.force === true
+  };
+  var rows = [];
+
+  try{
+    if(typeof repo.listStudents === "function"){
+      rows = rowsFromResult(repo.listStudents(filters));
+    }else if(typeof repo.students === "function"){
+      rows = rowsFromResult(repo.students(filters));
+    }else if(typeof repo.getStudents === "function"){
+      rows = rowsFromResult(repo.getStudents(filters));
+    }
+
+    if(authoritative){
+      lastSource = text(repo.source) || "BDLocalConStats";
+      return rows.map(decorate);
+    }
+
+    if(!rows.length && typeof repo.filterStudents === "function"){
+      rows = rowsFromResult(repo.filterStudents(filters));
+    }
+    if(!rows.length && typeof repo.listStudentsByStatus === "function"){
+      rows = rowsFromResult(
+        repo.listStudentsByStatus(matricula, opts.periodId || "")
+      );
+    }
+    if(!rows.length && typeof repo.listAllStudents === "function"){
+      rows = rowsFromResult(repo.listAllStudents());
+    }
+  }catch(error){
+    try{
+      console.warn("[StatsCore] fuente de estudiantes falló", error);
+    }catch(innerError){}
+    if(authoritative){
+      return [];
+    }
+  }
+
+  if(!rows.length){
+    try{
+      var snap = readLocalSnapshotLite();
+      rows = snap && Array.isArray(snap.students)
+        ? snap.students
+        : [];
+    }catch(error2){
+      rows = [];
+    }
+  }
+
+  if(rows.length){
+    lastSource = text(repo.source) || "ExcelLocalRepo";
+  }
+
+  return rows.map(decorate);
+}function baseRows(opts){
+  opts = opts || {};
+
+  var authoritative = isAuthoritativeRepo(excelRepo());
+  var revision = sourceRevision();
+
+  if(dataMemo.revision !== revision){
+    dataMemo.revision = revision;
+    dataMemo.baseRows = Object.create(null);
+  }
+
+  var memoKey = [
+    text(opts.periodId || ""),
+    text(opts.matricula == null ? "ACTIVO" : opts.matricula)
+  ].join("|");
+
+  if(
+    opts.force !== true &&
+    Object.prototype.hasOwnProperty.call(dataMemo.baseRows, memoKey)
+  ){
+    return dataMemo.baseRows[memoKey].slice();
+  }
+
+  var rows = [];
+
+  try{
+    rows = rowsFromExcel(opts);
+    if(authoritative || rows.length){
+      dataMemo.baseRows[memoKey] = rows.slice();
+      return rows.slice();
+    }
+  }catch(error){
+    try{
+      console.warn("[StatsCore] lectura principal falló", error);
+    }catch(innerError){}
+    if(authoritative){
+      dataMemo.baseRows[memoKey] = [];
+      return [];
+    }
+  }
+
+  try{
+    if(estudiantesRepo() && typeof estudiantesRepo().buscar === "function"){
+      rows = rowsFromRepo(opts);
+      if(rows.length){
+        dataMemo.baseRows[memoKey] = rows.slice();
+        return rows.slice();
+      }
+    }
+  }catch(error2){}
+
+  try{
+    if(
+      opts.useEngine === true &&
+      engine() &&
+      typeof engine().listStudents === "function"
+    ){
+      rows = rowsFromEngine(opts);
+      if(rows.length){
+        dataMemo.baseRows[memoKey] = rows.slice();
+        return rows.slice();
+      }
+    }
+  }catch(error3){}
+
+  dataMemo.baseRows[memoKey] = [];
+  return [];
+}
+
+function normalizeStatusFilter(status){
     status = text(status);
 
     return status === "pendiente"
@@ -2288,16 +2260,15 @@ Con qué se conecta:
     };
   }
 
-  function source(){
-    return (
-      lastSource ||
-      (
-        engine()
-          ? "BL2DataEngine"
-          : "ExcelLocalRepo"
-      )
-    );
+function source(){
+  var repo = authoritativeRepo();
+
+  if(repo){
+    return text(repo.source) || "BDLocalConStats";
   }
+
+  return lastSource || (engine() ? "BL2DataEngine" : "ExcelLocalRepo");
+}
 
   var lists =
     requirementLists();
@@ -2328,7 +2299,19 @@ Con qué se conecta:
     requirementStatus:
       requirementStatus,
     extractNotes:extractNotes,
-    notasResumen:notasResumen,
-    source:source
-  };
+  notasResumen:notasResumen,
+  source:source,
+  invalidate:invalidate,
+  status:function(){
+    return {
+      ok:true,
+      version:VERSION,
+      source:source(),
+      revision:sourceRevision(),
+      cachedBaseRows:Object.keys(dataMemo.baseRows).length,
+      cachedPeriods:periodCache.length,
+      authoritative:!!authoritativeRepo()
+    };
+  }
+};
 })(window);

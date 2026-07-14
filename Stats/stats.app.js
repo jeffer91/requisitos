@@ -34,6 +34,8 @@ Corrección:
     refreshTimer: null,
     bdlocalBound: false,
     manualRefreshing: false,
+    ready: false,
+    booted: false,
     lastBDLocalNotice: ""
   };
 
@@ -92,33 +94,31 @@ Corrección:
     return '<div class="empty">' + esc(message || "Sin datos.") + '</div>';
   }
 
-  function invalidateDataCaches(reason){
-    /*
-      Versión segura:
-      Antes esta función llamaba invalidate() de BL2CacheResumen, BL2DataEngine,
-      BL2LegacyAdapter y BL2. Eso podía provocar un ciclo:
-      Stats -> invalidate -> BDLocal/BL2 -> evento -> Stats -> invalidate.
-
-      Ahora solo deja una señal interna para diagnóstico.
-    */
-    if(state.internalInvalidating){ return; }
-
-    state.internalInvalidating = true;
-
-    try{
-      window.dispatchEvent(new CustomEvent("stats:cache-invalidated", {
-        detail: {
-          reason: reason || "manual",
-          passive: true,
-          at: new Date().toISOString()
-        }
-      }));
-    }catch(error){}
-
-    setTimeout(function(){
-      state.internalInvalidating = false;
-    }, 0);
+function invalidateDataCaches(reason){
+  if(state.internalInvalidating){
+    return;
   }
+
+  state.internalInvalidating = true;
+
+  try{
+    if(window.StatsCore && typeof window.StatsCore.invalidate === "function"){
+      window.StatsCore.invalidate({reason: reason || "manual"});
+    }
+
+    window.dispatchEvent(new CustomEvent("stats:cache-invalidated", {
+      detail: {
+        reason: reason || "manual",
+        passive: true,
+        at: new Date().toISOString()
+      }
+    }));
+  }catch(error){}
+
+  setTimeout(function(){
+    state.internalInvalidating = false;
+  }, 0);
+}
 
   function periodValue(item){
     if(typeof item === "string"){ return item; }
@@ -480,84 +480,115 @@ Corrección:
     }, 160);
   }
 
-  function refreshFromBDLocal(reason){
-    /*
-      Antes esto hacía render({force:true}) automáticamente.
-      Eso era parte del bucle con BDLocal.
+function refreshFromBDLocal(reason){
+  state.lastBDLocalNotice = reason || "bdlocal-refresh";
 
-      Ahora solo avisa. Para actualizar, usar el botón Actualizar.
-    */
-    state.lastBDLocalNotice = reason || "bdlocal-refresh";
-
-    status("BDLocal avisó cambios. Presiona Actualizar para refrescar Stats.", "warn");
+  if(!state.ready || state.manualRefreshing){
+    return;
   }
 
-  function manualRefresh(){
-    if(state.manualRefreshing){
+  if(state.refreshTimer){
+    clearTimeout(state.refreshTimer);
+  }
+
+  state.refreshTimer = setTimeout(function(){
+    state.refreshTimer = null;
+    invalidateDataCaches(state.lastBDLocalNotice);
+    render({force:false, reason:state.lastBDLocalNotice});
+  }, 140);
+}
+
+function manualRefresh(){
+  if(state.manualRefreshing){
+    return;
+  }
+
+  state.manualRefreshing = true;
+  var button = el("stats-refresh");
+  if(button){ button.disabled = true; }
+  status("Actualizando Stats desde Base Local...", "");
+
+  function finish(error){
+    state.manualRefreshing = false;
+    if(button){ button.disabled = false; }
+    invalidateDataCaches("refresh-button");
+    render({force:false, reason:"refresh-button"});
+
+    if(error){
+      status(
+        "Stats conservó la última información disponible. " +
+        (error.message || String(error)),
+        "warn"
+      );
+    }
+  }
+
+  var repo = window.BDLocalStats || window.ConStats || null;
+
+  try{
+    if(repo && typeof repo.refreshFull === "function"){
+      Promise.resolve(repo.refreshFull({
+        periodId:state.periodId,
+        periodoId:state.periodId,
+        source:"Stats.manualRefresh"
+      })).then(function(){ finish(); }).catch(finish);
       return;
     }
 
-    state.manualRefreshing = true;
-    status("Actualizando Stats desde Base Local...", "");
-
-    function finish(){
-      state.manualRefreshing = false;
-      render({
-        force: true,
-        reason: "refresh-button"
-      });
-    }
-
-    try{
-      if(window.BDLLegacyAdapter && typeof window.BDLLegacyAdapter.refresh === "function"){
-        Promise.resolve(window.BDLLegacyAdapter.refresh())
-          .then(finish)
-          .catch(function(error){
-            console.warn("[Stats] No se pudo refrescar BDLLegacyAdapter", error);
-            finish();
-          });
-        return;
-      }
-    }catch(error){
-      console.warn("[Stats] Error al refrescar BDLLegacyAdapter", error);
-    }
-
-    finish();
-  }
-
-  function bindBDLocalEvents(){
-    if(state.bdlocalBound){
+    if(repo && typeof repo.refresh === "function"){
+      Promise.resolve(repo.refresh({
+        periodId:state.periodId,
+        periodoId:state.periodId,
+        source:"Stats.manualRefresh",
+        mode:"full",
+        full:true,
+        force:true
+      })).then(function(){ finish(); }).catch(finish);
       return;
     }
-
-    window.addEventListener("requisitos:bdlocal-cambio-disponible", function(){
-      refreshFromBDLocal("requisitos:bdlocal-cambio-disponible");
-    });
-
-    window.addEventListener("bdlocal:legacy-ready", function(){
-      refreshFromBDLocal("bdlocal:legacy-ready");
-    });
-
-    window.addEventListener("bdlocal:legacy-snapshot", function(){
-      refreshFromBDLocal("bdlocal:legacy-snapshot");
-    });
-
-    window.addEventListener("requisitos:bl:snapshot-changed", function(){
-      refreshFromBDLocal("snapshot-changed");
-    });
-
-    window.addEventListener("storage", function(event){
-      if(event && (
-        event.key === "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1" ||
-        event.key === "REQ_EXCEL_LOCAL_V1:snapshot" ||
-        event.key === "REQ_BL_SIGNAL_V1"
-      )){
-        refreshFromBDLocal("storage:" + event.key);
-      }
-    });
-
-    state.bdlocalBound = true;
+  }catch(error){
+    finish(error);
+    return;
   }
+
+  finish(new Error("BDLocalStats no está disponible."));
+}
+
+function bindBDLocalEvents(){
+  if(state.bdlocalBound){
+    return;
+  }
+
+  window.addEventListener("bdlocal:screen-deps-ready", function(){
+    refreshFromBDLocal("bdlocal:screen-deps-ready");
+  });
+  window.addEventListener("bdlocal:conexiones-cache-updated", function(){
+    refreshFromBDLocal("bdlocal:conexiones-cache-updated");
+  });
+  window.addEventListener("requisitos:bdlocal-cambio-disponible", function(){
+    refreshFromBDLocal("requisitos:bdlocal-cambio-disponible");
+  });
+  window.addEventListener("bdlocal:legacy-ready", function(){
+    refreshFromBDLocal("bdlocal:legacy-ready");
+  });
+  window.addEventListener("bdlocal:legacy-snapshot", function(){
+    refreshFromBDLocal("bdlocal:legacy-snapshot");
+  });
+  window.addEventListener("requisitos:bl:snapshot-changed", function(){
+    refreshFromBDLocal("snapshot-changed");
+  });
+  window.addEventListener("storage", function(event){
+    if(event && (
+      event.key === "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1" ||
+      event.key === "REQ_EXCEL_LOCAL_V1:snapshot" ||
+      event.key === "REQ_BL_SIGNAL_V1"
+    )){
+      refreshFromBDLocal("storage:" + event.key);
+    }
+  });
+
+  state.bdlocalBound = true;
+}
 
   function bind(){
     on("stats-periodo", "change", function(e){
@@ -567,7 +598,7 @@ Corrección:
       state.status = "";
       state.requirementKey = "";
       render({
-        force: true,
+        force: false,
         reason: "period-change"
       });
     });
@@ -583,7 +614,7 @@ Corrección:
       state.division = "";
       state.career = "";
       render({
-        force: true,
+        force: false,
         reason: "matricula-change"
       });
     });
@@ -624,14 +655,58 @@ Corrección:
     bindBDLocalEvents();
   }
 
-  function boot(){
-    bind();
+function waitForStatsConnector(attempt){
+  attempt = Number(attempt || 0);
+  var repo = window.BDLocalStats || window.ConStats || null;
 
-    render({
-      force: false,
-      reason: "boot"
-    });
+  if(repo){
+    if(typeof repo.ready === "function"){
+      return Promise.resolve(repo.ready()).then(function(){
+        return repo;
+      });
+    }
+    return Promise.resolve(repo);
   }
+
+  if(attempt >= 40){
+    return Promise.reject(new Error("No se pudo iniciar BDLocalStats."));
+  }
+
+  return new Promise(function(resolve){
+    setTimeout(resolve, 50);
+  }).then(function(){
+    return waitForStatsConnector(attempt + 1);
+  });
+}
+
+function boot(){
+  if(state.booted){
+    return;
+  }
+
+  state.booted = true;
+  bind();
+  status("Conectando Stats con Base Local...", "");
+
+  Promise.resolve(window.BDLScreenDepsReady)
+    .then(function(){
+      return waitForStatsConnector(0);
+    })
+    .then(function(){
+      state.ready = true;
+      invalidateDataCaches("boot-ready");
+      render({force:false, reason:"boot-ready"});
+    })
+    .catch(function(error){
+      state.ready = true;
+      console.error("[Stats] No se pudo preparar Base Local", error);
+      status(
+        error.message || "No se pudo conectar Stats con Base Local.",
+        "warn"
+      );
+      render({force:false, reason:"boot-fallback"});
+    });
+}
 
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", boot);
