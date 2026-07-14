@@ -4,6 +4,7 @@ Ruta o ubicación: /Requisitos/Coordi/coo.data.js
 Función o funciones:
 - Leer Coordi desde su conector autoritativo de Base Local.
 - Recibir estudiantes con requisitos hidratados por cédula y período.
+- Recuperar automáticamente un período si tiene estudiantes pero no requisitos.
 - Filtrar por período, división, carrera y búsqueda.
 - Entregar listas de períodos, divisiones, carreras y requisitos.
 - Mantener un respaldo controlado sin priorizar snapshots antiguos.
@@ -11,12 +12,14 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-authoritative-coordi";
+  var VERSION = "2.1.0-authoritative-recovery";
+  var recoveryMemo = Object.create(null);
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
   function compact(value){ return norm(value).replace(/[^a-z0-9]+/g,""); }
   function arr(value){ return Array.isArray(value) ? value : []; }
+
   function unique(values){
     var map = Object.create(null);
     arr(values).forEach(function(value){
@@ -35,16 +38,23 @@ Función o funciones:
     return null;
   }
 
+  function statsConnector(){
+    return window.BDLocalStats || window.ConStats || null;
+  }
+
   function waitConnector(attempt){
     attempt = Number(attempt || 0);
     var repo = connector();
+
     if(repo){
       if(typeof repo.ready === "function"){
         return Promise.resolve(repo.ready()).then(function(){ return repo; });
       }
       return Promise.resolve(repo);
     }
+
     if(attempt >= 40){ return Promise.resolve(null); }
+
     return new Promise(function(resolve){ setTimeout(resolve,50); }).then(function(){
       return waitConnector(attempt + 1);
     });
@@ -122,7 +132,8 @@ Función o funciones:
   }
 
   function samePeriod(a,b){
-    a = text(a); b = text(b);
+    a = text(a);
+    b = text(b);
     if(!b){ return true; }
     if(!a){ return false; }
     try{
@@ -217,7 +228,68 @@ Función o funciones:
     });
   }
 
-  function fallbackSnapshot(){
+  function rowsFromResult(result){
+    if(Array.isArray(result)){ return result; }
+    result = result || {};
+    return arr(result.rows || result.students || result.estudiantes);
+  }
+
+  function periodsFromRepo(repo){
+    try{
+      if(repo && typeof repo.listPeriods === "function"){ return repo.listPeriods() || []; }
+      if(repo && typeof repo.periods === "function"){ return repo.periods() || []; }
+      if(repo && typeof repo.getPeriods === "function"){ return repo.getPeriods() || []; }
+    }catch(error){}
+    return [];
+  }
+
+  function readRepository(repo,periodId,options){
+    options = options || {};
+    var periods = periodsFromRepo(repo);
+
+    if(!periodId && options.allowGlobal !== true){
+      return {
+        source:text(repo && repo.source) || "BDLocalConCoordi",
+        periods:arr(periods).map(normalizePeriod).filter(Boolean),
+        students:[],
+        totalRequirements:0
+      };
+    }
+
+    var result = typeof repo.listStudents === "function"
+      ? repo.listStudents({
+          periodoId:periodId,
+          periodId:periodId,
+          matricula:options.matricula == null ? "ACTIVO" : options.matricula
+        })
+      : {rows:typeof repo.getStudents === "function" ? repo.getStudents({periodoId:periodId,matricula:"ACTIVO"}) : []};
+
+    var rows = rowsFromResult(result);
+    var requirements = arr(result && result.requirements);
+
+    if(!requirements.length && repo && typeof repo.getRequirements === "function"){
+      try{ requirements = arr(repo.getRequirements({periodoId:periodId,periodId:periodId})); }catch(error){}
+    }
+
+    return {
+      source:text(result && result.source) || text(repo && repo.source) || "BDLocalConCoordi",
+      periods:arr(periods).map(normalizePeriod).filter(Boolean),
+      students:rows.map(normalizeStudent),
+      totalRequirements:requirements.length
+    };
+  }
+
+  function fallbackSnapshot(options){
+    options = options || {};
+    var periodId = text(options.periodId || options.periodoId || options.periodo || "");
+    var stats = statsConnector();
+
+    if(stats){
+      try{
+        return readRepository(stats,periodId,options);
+      }catch(error){}
+    }
+
     var cache = null;
     try{
       if(window.BDLocalScreenDeps && typeof window.BDLocalScreenDeps.readCache === "function"){
@@ -225,13 +297,58 @@ Función o funciones:
       }else if(window.BDLocalConUtils && typeof window.BDLocalConUtils.readCache === "function"){
         cache = window.BDLocalConUtils.readCache();
       }
-    }catch(error){}
-    cache = cache || {periods:[],students:[]};
+    }catch(error2){}
+
+    cache = cache || {periods:[],students:[],requirements:[]};
     return {
       source:"BDLocalScreenDeps-fallback",
       periods:arr(cache.periods).map(normalizePeriod).filter(Boolean),
-      students:arr(cache.students).map(normalizeStudent)
+      students:filterRows(arr(cache.students).map(normalizeStudent),{periodId:periodId}),
+      totalRequirements:arr(cache.requirements).filter(function(req){
+        return !periodId || samePeriod(req.periodoId || req.periodId || "",periodId);
+      }).length
     };
+  }
+
+  function refreshRepository(repo,periodId,source){
+    if(!repo || typeof repo.refresh !== "function"){
+      return Promise.resolve(null);
+    }
+
+    return Promise.resolve(repo.refresh({
+      periodoId:periodId,
+      periodId:periodId,
+      source:source || "COOData.refresh",
+      mode:"full",
+      full:true,
+      force:true,
+      immediate:true
+    })).catch(function(error){
+      console.warn("[COOData] No se pudo refrescar Base Local",error);
+      return null;
+    });
+  }
+
+  function recoverIfIncomplete(repo,snapshot,periodId,options){
+    options = options || {};
+
+    if(
+      !periodId ||
+      !snapshot ||
+      !snapshot.students.length ||
+      snapshot.totalRequirements > 0 ||
+      recoveryMemo[periodId] ||
+      !repo ||
+      typeof repo.refresh !== "function"
+    ){
+      return Promise.resolve(snapshot);
+    }
+
+    recoveryMemo[periodId] = true;
+
+    return refreshRepository(repo,periodId,"COOData.autoRecover").then(function(){
+      return readRepository(repo,periodId,options);
+    });
   }
 
   function getSnapshot(options){
@@ -239,45 +356,17 @@ Función o funciones:
     var periodId = text(options.periodId || options.periodoId || options.periodo || "");
 
     return waitConnector(0).then(function(repo){
-      if(!repo){ return fallbackSnapshot(); }
+      if(!repo){ return fallbackSnapshot(options); }
 
-      var refresh = Promise.resolve();
-      if(options.refresh === true && typeof repo.refresh === "function"){
-        refresh = Promise.resolve(repo.refresh({
-          periodoId:periodId,
-          periodId:periodId,
-          source:"COOData.getSnapshot",
-          mode:"full",
-          full:true,
-          force:true,
-          immediate:true
-        })).catch(function(error){
-          console.warn("[COOData] No se pudo refrescar Base Local",error);
-          return null;
+      if(options.refresh === true){
+        recoveryMemo[periodId] = true;
+        return refreshRepository(repo,periodId,"COOData.manualRefresh").then(function(){
+          return readRepository(repo,periodId,options);
         });
       }
 
-      return refresh.then(function(){
-        var periods = typeof repo.listPeriods === "function" ? repo.listPeriods() : [];
-        if(!periodId && options.allowGlobal !== true){
-          return {
-            source:text(repo.source) || "BDLocalConCoordi",
-            periods:arr(periods).map(normalizePeriod).filter(Boolean),
-            students:[]
-          };
-        }
-
-        var result = typeof repo.listStudents === "function"
-          ? repo.listStudents({periodoId:periodId,periodId:periodId,matricula:options.matricula == null ? "ACTIVO" : options.matricula})
-          : {rows:typeof repo.getStudents === "function" ? repo.getStudents({periodoId:periodId,matricula:"ACTIVO"}) : []};
-
-        var rows = Array.isArray(result) ? result : arr(result && (result.rows || result.students || result.estudiantes));
-        return {
-          source:text(result && result.source) || text(repo.source) || "BDLocalConCoordi",
-          periods:arr(periods).map(normalizePeriod).filter(Boolean),
-          students:rows.map(normalizeStudent)
-        };
-      });
+      var snapshot = readRepository(repo,periodId,options);
+      return recoverIfIncomplete(repo,snapshot,periodId,options);
     });
   }
 
@@ -287,14 +376,20 @@ Función o funciones:
       var periodId = options.periodId || options.periodoId || options.periodo || "";
       var baseByPeriod = filterRows(snapshot.students,{periodId:periodId,division:"",career:""});
       var baseByDivision = filterRows(snapshot.students,{periodId:periodId,division:options.division || "",career:""});
+      var baseByCareer = filterRows(snapshot.students,{
+        periodId:periodId,
+        division:options.division || "",
+        career:options.career || options.carrera || ""
+      });
       var rows = filterRows(snapshot.students,options);
+
       return {
         source:snapshot.source || "desconocido",
         version:VERSION,
         periodList:snapshot.periods || [],
         divisionList:listDivisions(baseByPeriod),
         careerList:listCareers(baseByDivision),
-        requirementList:listRequirements(baseByDivision),
+        requirementList:listRequirements(baseByCareer),
         rows:rows,
         total:rows.length,
         diagnostics:{
@@ -308,10 +403,11 @@ Función o funciones:
           },
           totalSnapshotStudents:arr(snapshot.students).length,
           totalFilteredStudents:rows.length,
+          totalRequirementsRead:Number(snapshot.totalRequirements || 0),
           totalPeriods:arr(snapshot.periods).length,
           totalDivisions:listDivisions(baseByPeriod).length,
           totalCareers:listCareers(baseByDivision).length,
-          totalRequirements:listRequirements(baseByDivision).length
+          totalRequirements:listRequirements(baseByCareer).length
         }
       };
     });
