@@ -2,199 +2,109 @@
 Nombre completo: coo.data.js
 Ruta o ubicación: /Requisitos/Coordi/coo.data.js
 Función o funciones:
-- Leer estudiantes de forma limpia para Coordi.
-- Usar primero snapshot local para no recargar pesado si no es necesario.
-- Filtrar estudiantes por período y división.
-- Normalizar cédula, nombres, carrera, período, división, correos y celular.
-Con qué se conecta:
-- BDLRepoEstudiantes.mirrorSnapshot()
-- localStorage REQ_BDLOCAL_LEGACY_SNAPSHOT_V1
-- BL2DataEngine / ExcelLocalRepo como respaldo
-- BLPeriodosCanon
-- BLDivisionesService
-- coo.report.js
-- coo.app.js
+- Leer Coordi desde su conector autoritativo de Base Local.
+- Recibir estudiantes con requisitos hidratados por cédula y período.
+- Filtrar por período, división, carrera y búsqueda.
+- Entregar listas de períodos, divisiones, carreras y requisitos.
+- Mantener un respaldo controlado sin priorizar snapshots antiguos.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-coo-data.1";
-  var SNAPSHOT_KEYS = ["REQ_BDLOCAL_LEGACY_SNAPSHOT_V1", "REQ_EXCEL_LOCAL_V1:snapshot"];
+  var VERSION = "2.0.0-authoritative-coordi";
 
-  function text(value){return String(value == null ? "" : value).trim();}
-  function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();}
-  function compact(value){return norm(value).replace(/[^a-z0-9]+/g, "");}
-  function arr(value){return Array.isArray(value) ? value : [];} 
-  function uniq(values){
-    var seen = Object.create(null);
-    return arr(values).map(text).filter(function(value){
-      if(!value){return false;}
-      var key = norm(value);
-      if(seen[key]){return false;}
-      seen[key] = true;
-      return true;
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
+  function compact(value){ return norm(value).replace(/[^a-z0-9]+/g,""); }
+  function arr(value){ return Array.isArray(value) ? value : []; }
+  function unique(values){
+    var map = Object.create(null);
+    arr(values).forEach(function(value){
+      value = text(value);
+      if(value){ map[norm(value)] = value; }
     });
+    return Object.keys(map).map(function(key){ return map[key]; });
   }
-  function clone(value){try{return JSON.parse(JSON.stringify(value));}catch(error){return value;}}
 
-  function readJson(key){
-    try{
-      var raw = window.localStorage && window.localStorage.getItem(key);
-      if(!raw){return null;}
-      var parsed = JSON.parse(raw);
-      if(parsed && (Array.isArray(parsed.students) || Array.isArray(parsed.rows))){
-        parsed._sourceKey = key;
-        return parsed;
-      }
-    }catch(error){}
+  function connector(){
+    if(window.BDLocalCoordi){ return window.BDLocalCoordi; }
+    if(window.ConCoordi){ return window.ConCoordi; }
+    if(window.BDLocalConexiones && typeof window.BDLocalConexiones.get === "function"){
+      return window.BDLocalConexiones.get("coordi");
+    }
     return null;
   }
 
-  function snapshotFromCache(){
-    for(var i=0;i<SNAPSHOT_KEYS.length;i++){
-      var snap = readJson(SNAPSHOT_KEYS[i]);
-      if(snap){return Promise.resolve(normalizeSnapshot(snap, "cache:" + SNAPSHOT_KEYS[i]));}
+  function waitConnector(attempt){
+    attempt = Number(attempt || 0);
+    var repo = connector();
+    if(repo){
+      if(typeof repo.ready === "function"){
+        return Promise.resolve(repo.ready()).then(function(){ return repo; });
+      }
+      return Promise.resolve(repo);
     }
-    return Promise.resolve(null);
+    if(attempt >= 40){ return Promise.resolve(null); }
+    return new Promise(function(resolve){ setTimeout(resolve,50); }).then(function(){
+      return waitConnector(attempt + 1);
+    });
   }
 
-  function snapshotFromBDLocal(){
-    try{
-      if(window.BDLRepoEstudiantes && typeof window.BDLRepoEstudiantes.mirrorSnapshot === "function"){
-        return Promise.resolve(window.BDLRepoEstudiantes.mirrorSnapshot()).then(function(snapshot){
-          return normalizeSnapshot(snapshot, "BDLRepoEstudiantes");
-        }).catch(function(error){
-          console.warn("[COOData] No se pudo leer BDLRepoEstudiantes", error);
-          return null;
-        });
+  function first(row,keys){
+    row = row || {};
+    for(var i=0;i<keys.length;i+=1){
+      if(row[keys[i]] !== undefined && row[keys[i]] !== null && text(row[keys[i]]) !== ""){
+        return row[keys[i]];
       }
-    }catch(error){}
-    return Promise.resolve(null);
-  }
-
-  function snapshotFromBL2(){
-    try{
-      if(window.BL2DataEngine && typeof window.BL2DataEngine.listStudents === "function"){
-        var result = window.BL2DataEngine.listStudents({matricula:"ACTIVO", limit:0}) || {};
-        return Promise.resolve(normalizeSnapshot({students:result.rows || [], periods:listPeriodsFromBL2()}, "BL2DataEngine"));
-      }
-    }catch(error){
-      console.warn("[COOData] No se pudo leer BL2DataEngine", error);
     }
-    return Promise.resolve(null);
-  }
-
-  function snapshotFromExcelLocal(){
-    try{
-      if(window.ExcelLocalRepo){
-        if(typeof window.ExcelLocalRepo.getSnapshot === "function"){
-          return Promise.resolve(normalizeSnapshot(window.ExcelLocalRepo.getSnapshot(), "ExcelLocalRepo"));
-        }
-        if(typeof window.ExcelLocalRepo.listAllStudents === "function"){
-          return Promise.resolve(normalizeSnapshot({students:window.ExcelLocalRepo.listAllStudents(), periods:listPeriodsFromExcel()}, "ExcelLocalRepo"));
-        }
-      }
-    }catch(error){
-      console.warn("[COOData] No se pudo leer ExcelLocalRepo", error);
-    }
-    return Promise.resolve(null);
-  }
-
-  function listPeriodsFromBL2(){
-    try{
-      if(window.BL2DataEngine && typeof window.BL2DataEngine.listPeriods === "function"){
-        return window.BL2DataEngine.listPeriods() || [];
-      }
-    }catch(error){}
-    return [];
-  }
-
-  function listPeriodsFromExcel(){
-    try{
-      if(window.ExcelLocalRepo && typeof window.ExcelLocalRepo.listPeriods === "function"){
-        return window.ExcelLocalRepo.listPeriods() || [];
-      }
-    }catch(error){}
-    return [];
+    return "";
   }
 
   function normalizePeriod(row){
+    if(typeof row === "string"){
+      return {id:text(row),value:text(row),label:text(row)};
+    }
     row = row || {};
     var id = text(row.id || row.value || row.periodoId || row.periodId || row.codigo || row.label || row.periodoLabel);
-    var label = text(row.label || row.periodoLabel || row.nombre || row.name || id);
-    if(!id && !label){return null;}
-    return {id:id || label, value:id || label, label:label || id};
-  }
-
-  function normalizePeriods(periods, students){
-    var map = Object.create(null);
-    arr(periods).forEach(function(period){
-      var p = normalizePeriod(period);
-      if(p){map[p.id] = p;}
-    });
-    arr(students).forEach(function(row){
-      var id = text(row && (row._bl2PeriodoId || row.periodoId || row.ultimoPeriodoId || row.periodId || row.Periodo || row.periodo));
-      var label = text(row && (row._bl2Periodo || row.periodoLabel || row.Periodo || row.periodo || id));
-      if(id && !map[id]){map[id] = {id:id, value:id, label:label || id};}
-    });
-    return Object.keys(map).map(function(key){return map[key];}).sort(function(a,b){return a.label.localeCompare(b.label,"es");});
-  }
-
-  function normalizeSnapshot(snapshot, source){
-    snapshot = snapshot || {};
-    var students = arr(snapshot.students || snapshot.rows).map(normalizeStudent).filter(function(row){return row._cedula || row._nombres;});
-    students = dedupeStudents(students);
-    return {
-      meta:Object.assign({}, snapshot.meta || {}, {source:source || "desconocido", version:VERSION, totalStudents:students.length, generatedAt:new Date().toISOString()}),
-      periods:normalizePeriods(snapshot.periods || snapshot.periodList || [], students),
-      students:students,
-      diagnostics:arr(snapshot.diagnostics)
-    };
-  }
-
-  function first(row, keys){
-    row = row || {};
-    for(var i=0;i<keys.length;i++){
-      var key = keys[i];
-      if(row[key] != null && text(row[key]) !== ""){return row[key];}
-    }
-    return "";
+    var label = text(row.label || row.periodoLabel || row.periodoCanonicoLabel || row.nombre || row.name || id);
+    return id || label ? {id:id || label,value:id || label,label:label || id} : null;
   }
 
   function divisionOf(row){
     row = row || {};
     try{
       if(window.BLDivisionesService && typeof window.BLDivisionesService.studentDivision === "function"){
-        var d = window.BLDivisionesService.studentDivision(row);
-        if(text(d)){return text(d);}
+        var value = window.BLDivisionesService.studentDivision(row);
+        if(text(value)){ return text(value); }
       }
     }catch(error){}
     var list = arr(row.divisiones || row.Divisiones || row._divisiones);
-    return text(row._bl2Division || row.divisionPrincipal || row.division || row.Division || row["División"] || list[0] || "Sin división");
+    return text(row._division || row._bl2Division || row.divisionPrincipal || row.division || row.Division || row["División"] || list[0] || "Sin división");
   }
 
   function divisionsOf(row){
-    var list = arr(row && (row.divisiones || row.Divisiones || row._divisiones)).map(text).filter(Boolean);
+    var values = arr(row && (row.divisiones || row.Divisiones || row._divisiones)).map(text).filter(Boolean);
     var main = divisionOf(row);
-    if(main){list.unshift(main);}
-    return uniq(list);
+    if(main){ values.unshift(main); }
+    return unique(values);
   }
 
-  function normalizeStudent(row){
-    row = Object.assign({}, row || {});
-    var cedula = text(first(row, ["_bl2Id", "cedula", "Cedula", "cédula", "numeroIdentificacion", "NumeroIdentificacion", "identificacion", "Identificacion"]));
-    var nombres = text(first(row, ["_bl2Nombre", "nombres", "Nombres", "nombre", "Nombre", "estudiante", "Estudiante", "alumno", "Alumno"]));
-    var carrera = text(first(row, ["_bl2Carrera", "nombreCarrera", "NombreCarrera", "nombrecarrera", "carrera", "Carrera", "programa", "Programa"])) || "SIN CARRERA";
-    var periodoId = text(first(row, ["_bl2PeriodoId", "periodoId", "ultimoPeriodoId", "periodId", "PeriodoId", "periodo", "Periodo"]));
-    var periodo = text(first(row, ["_bl2Periodo", "periodoLabel", "Periodo", "periodo", "nombrePeriodo", "NombrePeriodo", "periodoId"])) || periodoId || "SIN PERÍODO";
+  function normalizeStudent(input){
+    var row = Object.assign({},input || {});
+    var cedula = text(first(row,["_cedula","_bl2Id","cedula","Cedula","cédula","numeroIdentificacion","NumeroIdentificacion","identificacion","Identificacion"]));
+    if(/^\d{9}$/.test(cedula)){ cedula = "0" + cedula; }
+    var nombres = text(first(row,["_nombres","_bl2Nombre","nombres","Nombres","nombreCompleto","nombre","Nombre","estudiante","Estudiante","alumno","Alumno"]));
+    var carrera = text(first(row,["_carrera","_bl2Carrera","nombreCarrera","NombreCarrera","nombrecarrera","carrera","Carrera","programa","Programa"])) || "SIN CARRERA";
+    var periodoId = text(first(row,["_periodoId","_bl2PeriodoId","periodoId","ultimoPeriodoId","periodId","PeriodoId","periodoCanonicoId","periodo","Periodo"]));
+    var periodo = text(first(row,["_periodo","_bl2Periodo","periodoLabel","periodoCanonicoLabel","Periodo","periodo","nombrePeriodo","NombrePeriodo","periodoId"])) || periodoId || "SIN PERÍODO";
     var division = divisionOf(row);
     var divisiones = divisionsOf(row);
-    var correoPersonal = text(first(row, ["_bl2CorreoPersonal", "correoPersonal", "CorreoPersonal", "correopersonal", "correo", "Correo", "email", "Email"]));
-    var correoInstitucional = text(first(row, ["_bl2CorreoInstitucional", "correoInstitucional", "CorreoInstitucional", "correoinstitucional", "correoInst", "CorreoInst"]));
-    var celular = text(first(row, ["_bl2Celular", "celular", "Celular", "telefono", "Telefono", "Teléfono", "whatsapp", "Whatsapp"]));
-    var id = text(first(row, ["idEstudiantePeriodo", "detalleId", "id", "_id"])) || [periodoId || periodo, cedula, nombres].join("|");
+    var correoPersonal = text(first(row,["correoPersonal","CorreoPersonal","correopersonal","correo","Correo","email","Email"]));
+    var correoInstitucional = text(first(row,["correoInstitucional","CorreoInstitucional","correoinstitucional","correoInst","CorreoInst"]));
+    var celular = text(first(row,["celular","Celular","telefono","Telefono","Teléfono","whatsapp","Whatsapp"]));
+    var requisitos = arr(row.requisitos).map(function(req){ return Object.assign({},req || {}); });
 
-    row._cooId = id;
+    row._cooId = text(first(row,["idEstudiantePeriodo","studentId","detalleId","id","_id"])) || [periodoId || periodo,cedula,nombres].join("|");
     row._cedula = cedula;
     row._nombres = nombres;
     row._carrera = carrera;
@@ -206,96 +116,202 @@ Con qué se conecta:
     row._correoInstitucional = correoInstitucional;
     row._correo = correoPersonal || correoInstitucional;
     row._celular = celular;
+    row.requisitos = requisitos;
     row._search = norm([cedula,nombres,carrera,periodoId,periodo,division,divisiones.join(" "),correoPersonal,correoInstitucional,celular].join(" "));
     return row;
   }
 
-  function dedupeStudents(students){
-    var map = Object.create(null);
-    arr(students).forEach(function(student){
-      var key = compact([student._periodoId || student._periodo, student._cedula || student._nombres].join("|"));
-      if(!key){key = compact(student._cooId || Math.random());}
-      map[key] = Object.assign({}, map[key] || {}, student);
-    });
-    return Object.keys(map).map(function(key){return map[key];});
-  }
-
-  function samePeriod(rowPeriod, selectedPeriod){
-    rowPeriod = text(rowPeriod);
-    selectedPeriod = text(selectedPeriod);
-    if(!selectedPeriod){return true;}
-    if(!rowPeriod){return false;}
+  function samePeriod(a,b){
+    a = text(a); b = text(b);
+    if(!b){ return true; }
+    if(!a){ return false; }
     try{
+      if(window.BDLocalConUtils && typeof window.BDLocalConUtils.samePeriod === "function"){
+        return window.BDLocalConUtils.samePeriod(a,b);
+      }
       if(window.BLPeriodosCanon && typeof window.BLPeriodosCanon.samePeriod === "function"){
-        return window.BLPeriodosCanon.samePeriod(rowPeriod, selectedPeriod);
+        return window.BLPeriodosCanon.samePeriod(a,b);
       }
     }catch(error){}
-    return rowPeriod === selectedPeriod || norm(rowPeriod) === norm(selectedPeriod) || compact(rowPeriod) === compact(selectedPeriod);
+    return a === b || norm(a) === norm(b) || compact(a) === compact(b);
   }
 
-  function hasDivision(row, selectedDivision){
-    selectedDivision = text(selectedDivision);
-    if(!selectedDivision){return true;}
+  function hasDivision(row,selected){
+    selected = text(selected);
+    if(!selected){ return true; }
     try{
       if(window.BLDivisionesService && typeof window.BLDivisionesService.hasDivision === "function"){
-        return window.BLDivisionesService.hasDivision(row, selectedDivision);
+        return window.BLDivisionesService.hasDivision(row,selected);
       }
     }catch(error){}
-    var target = norm(selectedDivision);
-    return divisionsOf(row).some(function(value){return norm(value) === target;});
+    return divisionsOf(row).some(function(value){ return norm(value) === norm(selected); });
   }
 
-  function getSnapshot(options){
-    options = options || {};
-    if(options.refresh){
-      return snapshotFromBDLocal().then(function(snapshot){return snapshot || snapshotFromCache();}).then(function(snapshot){return snapshot || snapshotFromBL2();}).then(function(snapshot){return snapshot || snapshotFromExcelLocal();});
-    }
-    return snapshotFromCache().then(function(snapshot){return snapshot || snapshotFromBDLocal();}).then(function(snapshot){return snapshot || snapshotFromBL2();}).then(function(snapshot){return snapshot || snapshotFromExcelLocal();}).then(function(snapshot){return snapshot || normalizeSnapshot({students:[], periods:[]}, "sin datos");});
-  }
-
-  function filterRows(students, options){
+  function filterRows(students,options){
     options = options || {};
     var periodId = text(options.periodId || options.periodoId || options.periodo || "");
     var division = text(options.division || "");
+    var career = text(options.career || options.carrera || "");
     var search = norm(options.search || "");
     var limit = options.limit == null ? 0 : Number(options.limit || 0);
+
     var rows = arr(students).filter(function(row){
-      if(periodId && !samePeriod(row._periodoId || row._periodo, periodId)){return false;}
-      if(division && !hasDivision(row, division)){return false;}
-      if(search && row._search.indexOf(search) === -1){return false;}
+      if(periodId && !samePeriod(row._periodoId || row._periodo,periodId)){ return false; }
+      if(division && !hasDivision(row,division)){ return false; }
+      if(career && norm(row._carrera) !== norm(career)){ return false; }
+      if(search && row._search.indexOf(search) === -1){ return false; }
       return true;
-    }).sort(function(a,b){return (a._nombres || "").localeCompare(b._nombres || "", "es") || (a._cedula || "").localeCompare(b._cedula || "", "es");});
-    if(limit > 0){rows = rows.slice(0, limit);}
-    return rows;
+    }).sort(function(a,b){
+      return (a._nombres || "").localeCompare(b._nombres || "","es") || (a._cedula || "").localeCompare(b._cedula || "","es");
+    });
+
+    return limit > 0 ? rows.slice(0,limit) : rows;
   }
 
   function listDivisions(students){
     var values = [];
-    arr(students).forEach(function(row){values = values.concat(divisionsOf(row));});
-    values = uniq(values).sort(function(a,b){return a.localeCompare(b,"es");});
-    return values.length ? values : ["Sin división"];
+    arr(students).forEach(function(row){ values = values.concat(divisionsOf(row)); });
+    return unique(values).sort(function(a,b){ return a.localeCompare(b,"es"); });
+  }
+
+  function listCareers(students){
+    return unique(arr(students).map(function(row){ return row._carrera; })).sort(function(a,b){
+      return a.localeCompare(b,"es");
+    });
+  }
+
+  function requirementKey(req){
+    req = req || {};
+    return text(req.requisitoKey || req.requirementKey || req.key || req.campo || req.field || req.codigo || req.nombre || (typeof req.requisito === "string" ? req.requisito : ""));
+  }
+
+  function requirementLabel(req){
+    req = req || {};
+    return text(req.requisitoLabel || req.label || req.titulo || req.nombre || requirementKey(req));
+  }
+
+  function listRequirements(students){
+    var map = Object.create(null);
+
+    arr(students).forEach(function(row){
+      arr(row.requisitos).forEach(function(req){
+        var key = requirementKey(req);
+        if(!key){ return; }
+        map[compact(key)] = {key:key,label:requirementLabel(req) || key};
+      });
+    });
+
+    if(window.COOConfig && Array.isArray(window.COOConfig.areas)){
+      window.COOConfig.areas.forEach(function(area){
+        var keys = arr(area.requisitoKeys);
+        if(!keys.length){ return; }
+        var key = keys[0];
+        if(!map[compact(key)]){
+          map[compact(key)] = {key:key,label:text(area.area || key),areaId:area.id || ""};
+        }
+      });
+    }
+
+    return Object.keys(map).map(function(key){ return map[key]; }).sort(function(a,b){
+      return a.label.localeCompare(b.label,"es");
+    });
+  }
+
+  function fallbackSnapshot(){
+    var cache = null;
+    try{
+      if(window.BDLocalScreenDeps && typeof window.BDLocalScreenDeps.readCache === "function"){
+        cache = window.BDLocalScreenDeps.readCache();
+      }else if(window.BDLocalConUtils && typeof window.BDLocalConUtils.readCache === "function"){
+        cache = window.BDLocalConUtils.readCache();
+      }
+    }catch(error){}
+    cache = cache || {periods:[],students:[]};
+    return {
+      source:"BDLocalScreenDeps-fallback",
+      periods:arr(cache.periods).map(normalizePeriod).filter(Boolean),
+      students:arr(cache.students).map(normalizeStudent)
+    };
+  }
+
+  function getSnapshot(options){
+    options = options || {};
+    var periodId = text(options.periodId || options.periodoId || options.periodo || "");
+
+    return waitConnector(0).then(function(repo){
+      if(!repo){ return fallbackSnapshot(); }
+
+      var refresh = Promise.resolve();
+      if(options.refresh === true && typeof repo.refresh === "function"){
+        refresh = Promise.resolve(repo.refresh({
+          periodoId:periodId,
+          periodId:periodId,
+          source:"COOData.getSnapshot",
+          mode:"full",
+          full:true,
+          force:true,
+          immediate:true
+        })).catch(function(error){
+          console.warn("[COOData] No se pudo refrescar Base Local",error);
+          return null;
+        });
+      }
+
+      return refresh.then(function(){
+        var periods = typeof repo.listPeriods === "function" ? repo.listPeriods() : [];
+        if(!periodId && options.allowGlobal !== true){
+          return {
+            source:text(repo.source) || "BDLocalConCoordi",
+            periods:arr(periods).map(normalizePeriod).filter(Boolean),
+            students:[]
+          };
+        }
+
+        var result = typeof repo.listStudents === "function"
+          ? repo.listStudents({periodoId:periodId,periodId:periodId,matricula:options.matricula == null ? "ACTIVO" : options.matricula})
+          : {rows:typeof repo.getStudents === "function" ? repo.getStudents({periodoId:periodId,matricula:"ACTIVO"}) : []};
+
+        var rows = Array.isArray(result) ? result : arr(result && (result.rows || result.students || result.estudiantes));
+        return {
+          source:text(result && result.source) || text(repo.source) || "BDLocalConCoordi",
+          periods:arr(periods).map(normalizePeriod).filter(Boolean),
+          students:rows.map(normalizeStudent)
+        };
+      });
+    });
   }
 
   function read(options){
     options = options || {};
     return getSnapshot(options).then(function(snapshot){
-      var baseRows = filterRows(snapshot.students, {periodId:options.periodId || options.periodoId || options.periodo || "", division:""});
-      var rows = filterRows(snapshot.students, options);
+      var periodId = options.periodId || options.periodoId || options.periodo || "";
+      var baseByPeriod = filterRows(snapshot.students,{periodId:periodId,division:"",career:""});
+      var baseByDivision = filterRows(snapshot.students,{periodId:periodId,division:options.division || "",career:""});
+      var rows = filterRows(snapshot.students,options);
       return {
-        source:snapshot.meta && snapshot.meta.source || "desconocido",
+        source:snapshot.source || "desconocido",
         version:VERSION,
         periodList:snapshot.periods || [],
-        divisionList:listDivisions(baseRows),
+        divisionList:listDivisions(baseByPeriod),
+        careerList:listCareers(baseByDivision),
+        requirementList:listRequirements(baseByDivision),
         rows:rows,
         total:rows.length,
         diagnostics:{
-          source:snapshot.meta && snapshot.meta.source || "desconocido",
+          source:snapshot.source || "desconocido",
           generatedAt:new Date().toISOString(),
-          filters:{periodId:options.periodId || options.periodoId || "", division:options.division || ""},
+          filters:{
+            periodId:text(periodId),
+            division:text(options.division || ""),
+            career:text(options.career || options.carrera || ""),
+            requirementKey:text(options.requirementKey || options.requisito || "")
+          },
           totalSnapshotStudents:arr(snapshot.students).length,
           totalFilteredStudents:rows.length,
           totalPeriods:arr(snapshot.periods).length,
-          totalDivisions:listDivisions(baseRows).length
+          totalDivisions:listDivisions(baseByPeriod).length,
+          totalCareers:listCareers(baseByDivision).length,
+          totalRequirements:listRequirements(baseByDivision).length
         }
       };
     });
@@ -308,8 +324,10 @@ Con qué se conecta:
     normalizeStudent:normalizeStudent,
     filterRows:filterRows,
     listDivisions:listDivisions,
+    listCareers:listCareers,
+    listRequirements:listRequirements,
     samePeriod:samePeriod,
     hasDivision:hasDivision,
-    helpers:{text:text,norm:norm,compact:compact,uniq:uniq,divisionOf:divisionOf,divisionsOf:divisionsOf}
+    helpers:{text:text,norm:norm,compact:compact,divisionOf:divisionOf,divisionsOf:divisionsOf}
   };
 })(window);
