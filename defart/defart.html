@@ -9,6 +9,7 @@ Función o funciones:
 - Guardar notas mediante servicios V2 y cambios_pendientes.
 - Descargar Excel usando SheetJS 0.20.3 instalado localmente.
 - Mostrar nombres normalizados de períodos sin alterar sus IDs técnicos.
+- Hidratar requisitos desde requisitos_estudiante antes de habilitar N-ART.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -42,6 +43,7 @@ Función o funciones:
           <span>Estado</span>
           <select id="def-filter-estado">
             <option value="">Todos</option>
+            <option value="Requisitos no cargados">Requisitos no cargados</option>
             <option value="Sin requisitos">Sin requisitos</option>
             <option value="Pendiente Art">Pendiente Art</option>
             <option value="Supletorio Art">Supletorio Art</option>
@@ -117,6 +119,7 @@ Función o funciones:
   <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
   <script src="../BDLocal/services/bdl.service.defensas.js"></script>
   <script src="../BDLocal/conexiones/cone.defensas.js"></script>
+  <script src="../BDLocal/conexiones/cone.defensas.requisitos.js"></script>
   <script src="../BDLocal/diagnostics/bdl.diagnostics.defensas.js"></script>
 
   <script src="defart.core.js"></script>
@@ -127,6 +130,7 @@ Función o funciones:
   <script src="defart.performance.js"></script>
   <script src="defart.service-bridge.js"></script>
   <script src="defart.save-service-bridge.js"></script>
+  <script src="defart.requirements-guard.js"></script>
   <script src="defart.periodo-normalizer.js"></script>
   <script src="defart.app.js"></script>
 </body>
