@@ -9,7 +9,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-coo-mail-filters";
+  var VERSION = "2.1.0-coo-mail-period-label";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function arr(value){ return Array.isArray(value) ? value : []; }
@@ -26,7 +26,7 @@ Función o funciones:
     report = report || {};
     var filters = report.filters || {};
     var parts = [];
-    if(filters.periodId){ parts.push("Período: " + filters.periodId); }
+    if(filters.periodLabel || filters.periodId){ parts.push("Período: " + (filters.periodLabel || filters.periodId)); }
     if(filters.division){ parts.push("División: " + filters.division); }
     if(filters.career){ parts.push("Carrera: " + filters.career); }
     if(filters.requirementLabel || filters.requirementKey){ parts.push("Requisito: " + (filters.requirementLabel || filters.requirementKey)); }
