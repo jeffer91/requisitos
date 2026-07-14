@@ -3,12 +3,13 @@ Nombre completo: coo.whatsapp.js
 Ruta o ubicación: /Requisitos/Coordi/coo.whatsapp.js
 Función o funciones:
 - Generar mensajes globales y por área con los filtros aplicados.
+- Diferenciar estudiantes al día, pendientes y no aplicables.
 - Abrir WhatsApp Web/App mediante enlace wa.me.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-coo-whatsapp-period-label";
+  var VERSION = "2.2.0-coo-whatsapp-applicability";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function arr(value){ return Array.isArray(value) ? value : []; }
@@ -35,23 +36,29 @@ Función o funciones:
   function buildGlobal(report){
     report = report || {};
     var global = report.global || {};
+    var lines = [
+      "Buen día, " + (global.saludo || global.responsable || "Dr. Alex León") + ".",
+      "",
+      "Se generó la visión global del avance de los estudiantes.",
+      filterText(report),
+      "",
+      "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados),
+      "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
+      "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
+      "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
+      "Pendientes acumulados: " + fmt(global.totalPendientes)
+    ];
+
+    if(Number(global.totalEstudiantesNoAplica || 0) > 0){
+      lines.push("Estudiantes a los que no aplica el requisito: " + fmt(global.totalEstudiantesNoAplica));
+    }
+
+    lines.push("","El detalle fue preparado para envío por correo.");
+
     return {
       kind:"global",
       to:cleanPhone(global.whatsapp || ""),
-      text:[
-        "Buen día, " + (global.saludo || global.responsable || "Dr. Alex León") + ".",
-        "",
-        "Se generó la visión global del avance de los estudiantes.",
-        filterText(report),
-        "",
-        "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados),
-        "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
-        "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
-        "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
-        "Pendientes acumulados: " + fmt(global.totalPendientes),
-        "",
-        "El detalle fue preparado para envío por correo."
-      ].join("\n")
+      text:lines.join("\n")
     };
   }
 
