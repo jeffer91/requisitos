@@ -3,10 +3,9 @@
 Nombre completo: coordi.html
 Ruta o ubicación: /Requisitos/Coordi/coordi.html
 Función o funciones:
-- Mostrar filtros de período, división, carrera y requisito.
-- Presentar visión global, reportes por área y detalle de estudiantes.
-- Preparar acciones de correo, WhatsApp, copia y exportación.
-- Cargar las mismas reglas de requisitos utilizadas por Stats.
+- Mostrar únicamente los filtros de Coordi.
+- Presentar indicadores compactos del corte seleccionado.
+- Mostrar el correo global o la comunicación por requisito.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -19,7 +18,7 @@ Función o funciones:
   <main class="coordi-app">
     <section id="coordi-status" class="coordi-status" hidden></section>
 
-    <section class="coordi-panel coordi-filters" aria-label="Filtros de reporte">
+    <section class="coordi-filters" aria-label="Filtros de comunicación">
       <label>Período
         <select id="coordi-periodo"><option value="">Seleccione período</option></select>
       </label>
@@ -32,56 +31,54 @@ Función o funciones:
       <label>Requisito
         <select id="coordi-requisito"><option value="">Todos los requisitos</option></select>
       </label>
-      <div class="coordi-filter-actions">
-        <button id="coordi-refresh" type="button" class="btn-primary">Generar reportes</button>
-        <button id="coordi-copy-summary" type="button" class="btn-secondary">Copiar resumen</button>
-        <button id="coordi-export-json" type="button" class="btn-secondary">Exportar JSON</button>
+    </section>
+
+    <section id="coordi-empty" class="coordi-empty-state">
+      Seleccione un período para preparar el correo global.
+    </section>
+
+    <section id="coordi-summary" class="coordi-kpis" aria-label="Resumen del corte" hidden>
+      <article><span>Revisados</span><strong id="coordi-total">0</strong></article>
+      <article><span>Con pendientes</span><strong id="coordi-alta">0</strong></article>
+      <article><span>Áreas</span><strong id="coordi-media">0</strong></article>
+      <article><span>Pendientes</span><strong id="coordi-baja">0</strong></article>
+      <article><span>Carreras</span><strong id="coordi-carreras-total">0</strong></article>
+    </section>
+
+    <section id="coordi-communication" class="coordi-communication" hidden>
+      <header class="coordi-communication-head">
+        <div>
+          <p class="coordi-eyebrow">Comunicación preparada</p>
+          <h2 id="coordi-communication-title">Correo global</h2>
+          <p id="coordi-communication-subtitle"></p>
+          <div class="coordi-recipient">
+            <strong id="coordi-recipient-name"></strong>
+            <span id="coordi-recipient-contact"></span>
+          </div>
+        </div>
+        <div class="coordi-actions">
+          <button id="coordi-open-mail" type="button" class="btn-primary">Abrir en Outlook</button>
+          <button id="coordi-open-whatsapp" type="button" class="btn-secondary" hidden>Abrir WhatsApp</button>
+        </div>
+      </header>
+
+      <div class="coordi-preview-grid">
+        <article class="coordi-preview-card">
+          <div class="coordi-preview-title">
+            <span>Vista previa del correo</span>
+            <strong id="coordi-mail-subject"></strong>
+          </div>
+          <div id="coordi-email-preview" class="coordi-email-preview"></div>
+        </article>
+
+        <article id="coordi-whatsapp-wrap" class="coordi-preview-card coordi-whatsapp-card" hidden>
+          <div class="coordi-preview-title">
+            <span>Vista previa de WhatsApp</span>
+          </div>
+          <pre id="coordi-whatsapp-preview"></pre>
+        </article>
       </div>
     </section>
-
-    <section class="coordi-section-title">
-      <div><h2>Corte actual</h2><p>Visión global del período y filtros seleccionados.</p></div>
-    </section>
-
-    <section class="coordi-kpis" aria-label="Indicadores del corte">
-      <article><span>Total estudiantes revisados</span><strong id="coordi-total">0</strong></article>
-      <article><span>Estudiantes con pendientes</span><strong id="coordi-alta">0</strong></article>
-      <article><span>Áreas con pendientes</span><strong id="coordi-media">0</strong></article>
-      <article><span>Requisitos pendientes</span><strong id="coordi-baja">0</strong></article>
-      <article><span>Carreras afectadas</span><strong id="coordi-carreras-total">0</strong></article>
-    </section>
-
-    <section class="coordi-global-card">
-      <div class="global-main">
-        <p class="coordi-eyebrow">Reporte global</p>
-        <h2 id="coordi-global-name">Dr. Alex León</h2>
-        <p id="coordi-global-desc">Seleccione un período para generar la visión global.</p>
-        <div class="global-contact"><span id="coordi-global-email">aleon@itsqmet.edu.ec</span><span id="coordi-global-phone">593984059654</span></div>
-      </div>
-      <div class="global-actions">
-        <button id="coo-global-students" type="button" class="btn-secondary" data-action="show-global-detail" disabled>Ver todos los estudiantes</button>
-        <button id="coo-global-mail" type="button" class="btn-primary" data-action="mail-global" disabled>Outlook global</button>
-        <button id="coo-global-whatsapp" type="button" class="btn-secondary" data-action="whatsapp-global" disabled>WhatsApp global</button>
-        <button id="coo-global-preview" type="button" class="btn-secondary" data-action="preview-global" disabled>Vista previa</button>
-      </div>
-    </section>
-
-    <section class="coordi-grid main-grid">
-      <article class="coordi-card"><div class="coordi-card-head"><div><h2>Resumen por áreas</h2><span>Avance y pendientes por responsable</span></div></div><div id="coordi-requisitos" class="coordi-table-wrap"></div></article>
-      <article class="coordi-card"><div class="coordi-card-head"><div><h2>Reportes listos</h2><span>Acciones preparadas para Outlook y WhatsApp</span></div></div><div id="coordi-reportes-listos" class="report-ready-list"><div class="report-ready-item muted"><strong>Seleccione un período</strong><span>Al seleccionar el período se habilitará el reporte global.</span></div></div></article>
-    </section>
-
-    <section class="coordi-card">
-      <div class="coordi-card-head"><div><h2>Áreas con pendientes</h2><span id="coordi-carreras-meta">0 responsables con pendientes</span></div></div>
-      <div id="coordi-carreras" class="coordi-responsables-grid"></div>
-    </section>
-
-    <section class="coordi-grid detail-grid">
-      <article class="coordi-card"><div class="coordi-card-head"><div><h2>Detalle de estudiantes</h2><span id="coordi-estudiantes-meta">0 estudiantes</span></div></div><div id="coordi-estudiantes" class="coordi-table-wrap tall"></div></article>
-      <article class="coordi-card"><div class="coordi-card-head"><div><h2>Vista previa del mensaje</h2><span>Resumen actual del corte</span></div></div><label class="coordi-message-label">Tipo de mensaje<select id="coordi-message-type"><option value="general">General</option><option value="carrera">Por carrera</option><option value="pendientes">Pendientes críticos</option></select></label><textarea id="coordi-message" readonly></textarea><div class="coordi-actions"><button id="coordi-copy-message" type="button" class="btn-secondary">Copiar mensaje</button></div></article>
-    </section>
-
-    <section id="coordi-preview-modal" class="coordi-modal" hidden><div class="coordi-modal-card"><header><div><p class="coordi-eyebrow">Vista previa</p><h2 id="coordi-preview-title">Correo</h2></div><button id="coordi-preview-close" type="button" class="btn-secondary">Cerrar</button></header><div id="coordi-preview-body" class="coordi-preview-body"></div><footer><button id="coordi-preview-open-mail" type="button" class="btn-primary">Abrir en Outlook</button><button id="coordi-preview-copy-html" type="button" class="btn-secondary">Copiar HTML</button></footer></div></section>
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
@@ -93,7 +90,6 @@ Función o funciones:
   <script src="coo.render.js"></script>
   <script src="coo.mail.js"></script>
   <script src="coo.whatsapp.js"></script>
-  <script src="coordi.export.js"></script>
   <script src="coordi.app.js"></script>
 </body>
 </html>
