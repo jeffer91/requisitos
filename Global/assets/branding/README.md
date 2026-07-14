@@ -1,6 +1,6 @@
 # Branding institucional de Global
 
-En esta carpeta se debe subir el logo institucional que utilizará la pantalla Global y los futuros PDF institucionales.
+Esta carpeta contiene el recurso gráfico utilizado por los reportes institucionales PDF y Word del módulo Global.
 
 Archivo esperado:
 
@@ -8,11 +8,13 @@ Archivo esperado:
 logo-instituto.png
 ```
 
-Características esperadas:
+Características requeridas:
 
-- Formato: PNG.
+- Formato real: PNG.
 - Fondo: transparente.
-- Colores del logo: blanco y dorado.
-- Uso visual: sobre fondo azul marino.
+- Versión institucional a color, preparada para fondo blanco.
+- Proporción: horizontal.
+- Ancho recomendado: entre 800 y 1200 píxeles para evitar pixelación en PDF y Word.
+- No se debe guardar una imagen WebP con extensión `.png`.
 
-La app está preparada para funcionar aunque el logo todavía no exista. Cuando se agregue `logo-instituto.png`, la pantalla y los PDF institucionales lo usarán automáticamente.
+La ruta configurada es `Global/assets/branding/logo-instituto.png`.
