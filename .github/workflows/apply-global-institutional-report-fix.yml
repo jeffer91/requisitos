@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/apply-global-institutional-report-fix.yml"
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
