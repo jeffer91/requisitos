@@ -1,3 +1,4 @@
+# Activación controlada mediante merge
 name: Apply Stats data flow fix
 
 on:
@@ -11,7 +12,6 @@ permissions:
 
 jobs:
   apply-fix:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -21,49 +21,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Patch Stats data flow
+      - name: Patch the three Stats files
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
+          import textwrap
 
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise RuntimeError(f"{label}: expected 1 exact match, found {count}")
-              return text.replace(old, new, 1)
+          def block(value):
+              return textwrap.dedent(value).strip("\n")
 
-          def regex_once(text, pattern, replacement, label):
+          def sub_once(text, pattern, replacement, label):
               updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
               if count != 1:
-                  raise RuntimeError(f"{label}: expected 1 regex match, found {count}")
+                  raise RuntimeError(f"{label}: expected one match, found {count}")
               return updated
 
-          # =====================================================
-          # 1. BDLocal/conexiones/cone.stats.js
-          # =====================================================
+          # -----------------------------------------------------
+          # BDLocal/conexiones/cone.stats.js
+          # -----------------------------------------------------
           path = Path("BDLocal/conexiones/cone.stats.js")
           text = path.read_text(encoding="utf-8")
 
           if '1.4.0-fast-authoritative' not in text:
-              text = replace_once(
-                  text,
+              text = text.replace(
                   'var VERSION = "1.3.0-requirements-hydration";',
                   'var VERSION = "1.4.0-fast-authoritative";',
-                  "cone.stats version",
+                  1,
               )
 
-              text = replace_once(
+              text = sub_once(
                   text,
-                  '''  var memo = {
-                    token: "",
-                    summaries: Object.create(null),
-                    requirementsByCedula: Object.create(null),
-                    requirementsIndexed: false,
-                    calculations: 0
-                  };''',
-                  '''  var memo = {
+                  r'  var memo = \{.*?\n  \};\n\n  function text',
+                  block('''
+                  var memo = {
                     token: "",
                     summaries: Object.create(null),
                     requirementsByCedula: Object.create(null),
@@ -72,19 +64,18 @@ jobs:
                     hydratedStudentsToken: "",
                     hydratedByPeriod: Object.create(null),
                     calculations: 0
-                  };''',
-                  "cone.stats memo",
+                  };
+
+                  function text
+                  '''),
+                  "cone memo",
               )
 
-              text = replace_once(
+              text = sub_once(
                   text,
-                  '''  function resetMemo(){
-                    memo.token = "";
-                    memo.summaries = Object.create(null);
-                    memo.requirementsByCedula = Object.create(null);
-                    memo.requirementsIndexed = false;
-                  }''',
-                  '''  function resetMemo(){
+                  r'  function resetMemo\(\)\{.*?\n  \}\n\n  function cacheToken',
+                  block('''
+                  function resetMemo(){
                     memo.token = "";
                     memo.summaries = Object.create(null);
                     memo.requirementsByCedula = Object.create(null);
@@ -92,25 +83,43 @@ jobs:
                     memo.hydratedStudents = [];
                     memo.hydratedStudentsToken = "";
                     memo.hydratedByPeriod = Object.create(null);
-                  }''',
-                  "cone.stats resetMemo",
+                  }
+
+                  function cacheToken
+                  '''),
+                  "cone reset memo",
               )
 
-              text = replace_once(
+              text = sub_once(
                   text,
-                  '''      memo.summaries = Object.create(null);
-                      memo.requirementsByCedula = Object.create(null);
-                      memo.requirementsIndexed = false;''',
-                  '''      memo.summaries = Object.create(null);
+                  r'  function ensureMemo\(current\)\{.*?\n  \}\n\n  function periods',
+                  block('''
+                  function ensureMemo(current){
+                    var token = cacheToken(current);
+
+                    if(memo.token !== token){
+                      memo.token = token;
+                      memo.summaries = Object.create(null);
                       memo.requirementsByCedula = Object.create(null);
                       memo.requirementsIndexed = false;
                       memo.hydratedStudents = [];
                       memo.hydratedStudentsToken = "";
-                      memo.hydratedByPeriod = Object.create(null);''',
-                  "cone.stats ensureMemo",
+                      memo.hydratedByPeriod = Object.create(null);
+                    }
+
+                    return token;
+                  }
+
+                  function periods
+                  '''),
+                  "cone ensure memo",
               )
 
-              students_replacement = '''  function copyHydratedStudent(row){
+              text = sub_once(
+                  text,
+                  r'  function students\(options\)\{.*?\n  \}\n\n  function requirements\(options\)\{',
+                  block('''
+                  function copyHydratedStudent(row){
                     var copy = Object.assign({}, row || {});
 
                     copy.requisitos = Array.isArray(row && row.requisitos)
@@ -133,23 +142,16 @@ jobs:
                       return memo.hydratedStudents;
                     }
 
-                    var requirementsIndex =
-                      buildRequirementsIndex(current);
+                    var requirementsIndex = buildRequirementsIndex(current);
 
-                    memo.hydratedStudents =
-                      (current.students || []).map(function(row){
-                        return hydrateStudent(
-                          row,
-                          requirementsIndex
-                        );
-                      });
+                    memo.hydratedStudents = (current.students || []).map(function(row){
+                      return hydrateStudent(row, requirementsIndex);
+                    });
 
-                    memo.hydratedByPeriod =
-                      Object.create(null);
+                    memo.hydratedByPeriod = Object.create(null);
 
                     memo.hydratedStudents.forEach(function(row){
-                      var periodKey =
-                        periodOf(row) || "__sin_periodo__";
+                      var periodKey = periodOf(row) || "__sin_periodo__";
 
                       if(!memo.hydratedByPeriod[periodKey]){
                         memo.hydratedByPeriod[periodKey] = [];
@@ -158,51 +160,40 @@ jobs:
                       memo.hydratedByPeriod[periodKey].push(row);
                     });
 
-                    memo.hydratedStudentsToken =
-                      memo.token;
-
+                    memo.hydratedStudentsToken = memo.token;
                     return memo.hydratedStudents;
                   }
 
                   function students(options){
                     var current = cache();
-                    var hydrated =
-                      allHydratedStudents(current);
-
+                    var hydrated = allHydratedStudents(current);
                     var filtered = U.filterStudents(
                       hydrated,
                       options || {}
                     );
 
-                    return filtered.map(
-                      copyHydratedStudent
-                    );
+                    return filtered.map(copyHydratedStudent);
                   }
 
-                  function requirements(options){'''
-
-              text = regex_once(
-                  text,
-                  r'  function students\(options\)\{.*?\n  \}\n\n  function requirements\(options\)\{',
-                  students_replacement,
-                  "cone.stats students",
+                  function requirements(options){
+                  '''),
+                  "cone students",
               )
 
-              refresh_replacement = '''  function refresh(options){
-                    options = Object.assign(
-                      {},
-                      options || {}
-                    );
+              text = sub_once(
+                  text,
+                  r'  function refresh\(options\)\{.*?\n  \}\n\n  function refreshFull\(options\)\{',
+                  block('''
+                  function refresh(options){
+                    options = Object.assign({}, options || {});
 
                     var current = cache();
-                    var studentCount =
-                      Array.isArray(current.students)
-                        ? current.students.length
-                        : 0;
-                    var requirementCount =
-                      Array.isArray(current.requirements)
-                        ? current.requirements.length
-                        : 0;
+                    var studentCount = Array.isArray(current.students)
+                      ? current.students.length
+                      : 0;
+                    var requirementCount = Array.isArray(current.requirements)
+                      ? current.requirements.length
+                      : 0;
 
                     var explicitFull =
                       options.full === true ||
@@ -211,30 +202,21 @@ jobs:
 
                     var cacheIncomplete =
                       studentCount === 0 ||
-                      (
-                        studentCount > 0 &&
-                        requirementCount === 0
-                      );
+                      (studentCount > 0 && requirementCount === 0);
 
-                    var needsFull =
-                      explicitFull ||
-                      cacheIncomplete;
-
+                    var needsFull = explicitFull || cacheIncomplete;
                     var request;
 
                     if(needsFull){
                       request = Object.assign(
                         {
-                          source:
-                            explicitFull
-                              ? "cone.stats.refresh.full"
-                              : "cone.stats.refresh.recover",
+                          source: explicitFull
+                            ? "cone.stats.refresh.full"
+                            : "cone.stats.refresh.recover",
                           mode: "full",
                           full: true,
                           immediate: true,
-                          force:
-                            explicitFull ||
-                            cacheIncomplete,
+                          force: explicitFull || cacheIncomplete,
                           cooldown: 0
                         },
                         options,
@@ -247,8 +229,7 @@ jobs:
                     }else{
                       request = Object.assign(
                         {
-                          source:
-                            "cone.stats.refresh.light",
+                          source: "cone.stats.refresh.light",
                           mode: "light",
                           light: true,
                           immediate: false
@@ -262,135 +243,88 @@ jobs:
                       );
                     }
 
-                    return HUB.refreshCache(request)
-                      .then(function(result){
-                        resetMemo();
-                        return result;
-                      });
+                    return HUB.refreshCache(request).then(function(result){
+                      resetMemo();
+                      return result;
+                    });
                   }
 
-                  function refreshFull(options){'''
-
-              text = regex_once(
-                  text,
-                  r'  function refresh\(options\)\{.*?\n  \}\n\n  function refreshFull\(options\)\{',
-                  refresh_replacement,
-                  "cone.stats refresh",
+                  function refreshFull(options){
+                  '''),
+                  "cone refresh",
               )
 
-              text = replace_once(
-                  text,
-                  '''    refresh: refresh,
-                    refreshFull: refreshFull,''',
-                  '''    refresh: refresh,
-                    refreshFull: refreshFull,
-                    invalidate: resetMemo,''',
-                  "cone.stats api invalidate",
+              text = text.replace(
+                  '    refresh: refresh,\n    refreshFull: refreshFull,',
+                  '    refresh: refresh,\n    refreshFull: refreshFull,\n    invalidate: resetMemo,',
+                  1,
               )
 
-              status_replacement = '''    status: function(){
-                      var current = cache();
-
-                      ensureMemo(current);
-
-                      var hydrated =
-                        allHydratedStudents(current);
-
-                      return {
-                        ok: true,
-                        ready: true,
-                        version: VERSION,
-                        source: "BDLocalConStats",
-                        studentSource: "BDLocalConexiones.cache.students",
-                        requirementSource: "BDLocalConexiones.cache.requirements",
-
-                        cacheRevision: Number(
-                          current.meta &&
-                          current.meta.revision ||
-                          0
-                        ),
-
-                        cacheUpdatedAt: text(
-                          current.meta &&
-                          current.meta.updatedAt ||
-                          ""
-                        ),
-
-                        periods:
-                          Array.isArray(current.periods)
-                            ? current.periods.length
-                            : 0,
-
-                        students:
-                          Array.isArray(current.students)
-                            ? current.students.length
-                            : 0,
-
-                        requirements:
-                          Array.isArray(current.requirements)
-                            ? current.requirements.length
-                            : 0,
-
-                        hydratedStudents:
-                          hydrated.length,
-
-                        indexedStudents:
-                          Object.keys(
-                            memo.requirementsByCedula
-                          ).length,
-
-                        requirementsIndexed:
-                          memo.requirementsIndexed,
-
-                        cachedSummaries:
-                          Object.keys(
-                            memo.summaries
-                          ).length,
-
-                        cachedPeriods:
-                          Object.keys(
-                            memo.hydratedByPeriod
-                          ).length,
-
-                        calculations:
-                          memo.calculations,
-
-                        token:
-                          memo.token
-                      };
-                    }
-                  };'''
-
-              text = regex_once(
+              text = sub_once(
                   text,
                   r'    status: function\(\)\{.*?\n    \}\n  \};',
-                  status_replacement,
-                  "cone.stats status",
+                  block('''
+                      status: function(){
+                        var current = cache();
+                        ensureMemo(current);
+                        var hydrated = allHydratedStudents(current);
+
+                        return {
+                          ok: true,
+                          ready: true,
+                          version: VERSION,
+                          source: "BDLocalConStats",
+                          cacheRevision: Number(
+                            current.meta && current.meta.revision || 0
+                          ),
+                          cacheUpdatedAt: text(
+                            current.meta && current.meta.updatedAt || ""
+                          ),
+                          periods: Array.isArray(current.periods)
+                            ? current.periods.length
+                            : 0,
+                          students: Array.isArray(current.students)
+                            ? current.students.length
+                            : 0,
+                          requirements: Array.isArray(current.requirements)
+                            ? current.requirements.length
+                            : 0,
+                          hydratedStudents: hydrated.length,
+                          indexedStudents: Object.keys(
+                            memo.requirementsByCedula
+                          ).length,
+                          requirementsIndexed: memo.requirementsIndexed,
+                          cachedSummaries: Object.keys(memo.summaries).length,
+                          cachedPeriods: Object.keys(memo.hydratedByPeriod).length,
+                          calculations: memo.calculations,
+                          token: memo.token
+                        };
+                      }
+                    };
+                  '''),
+                  "cone status",
               )
 
               path.write_text(text, encoding="utf-8")
 
-          # =====================================================
-          # 2. Stats/stats.core.js
-          # =====================================================
+          # -----------------------------------------------------
+          # Stats/stats.core.js
+          # -----------------------------------------------------
           path = Path("Stats/stats.core.js")
           text = path.read_text(encoding="utf-8")
 
           if '2.1.0-authoritative-cache' not in text:
-              text = replace_once(
-                  text,
+              text = text.replace(
                   'var VERSION = "2.0.1-stats-period-source-safe";',
                   'var VERSION = "2.1.0-authoritative-cache";',
-                  "stats.core version",
+                  1,
               )
 
-              text = replace_once(
+              text = sub_once(
                   text,
-                  '''  var lastSource = "StatsCore";
-                  var periodCache = [];
-
-                  function text(value){''',
-                  '''  var lastSource = "StatsCore";
+                  r'  var lastSource = "StatsCore";\n  var periodCache = \[\];',
+                  block('''
+                  var lastSource = "StatsCore";
                   var periodCache = [];
                   var dataMemo = {
                     revision: "",
@@ -398,33 +332,22 @@ jobs:
                   };
 
                   function authoritativeRepo(){
-                    return (
-                      window.BDLocalStats ||
-                      window.ConStats ||
-                      null
-                    );
+                    return window.BDLocalStats || window.ConStats || null;
                   }
 
                   function isAuthoritativeRepo(repo){
                     return !!(
                       repo &&
-                      (
-                        repo === window.BDLocalStats ||
-                        repo === window.ConStats
-                      )
+                      (repo === window.BDLocalStats || repo === window.ConStats)
                     );
                   }
 
                   function sourceRevision(){
                     var repo = authoritativeRepo();
 
-                    if(
-                      repo &&
-                      typeof repo.status === "function"
-                    ){
+                    if(repo && typeof repo.status === "function"){
                       try{
                         var info = repo.status() || {};
-
                         return [
                           Number(info.cacheRevision || 0),
                           Number(info.students || 0),
@@ -439,7 +362,6 @@ jobs:
 
                   function invalidate(options){
                     options = options || {};
-
                     dataMemo.revision = "";
                     dataMemo.baseRows = Object.create(null);
 
@@ -449,12 +371,15 @@ jobs:
 
                     return true;
                   }
-
-                  function text(value){''',
-                  "stats.core memo",
+                  '''),
+                  "core memo",
               )
 
-              periods_replacement = '''  function periods(){
+              text = sub_once(
+                  text,
+                  r'  function periods\(\)\{.*?\n  \}\n\n  function rowsFromEngine\(opts\)\{',
+                  block('''
+                  function periods(){
                     var repo = authoritativeRepo();
                     var list = [];
 
@@ -470,17 +395,12 @@ jobs:
 
                         if(Array.isArray(list)){
                           periodCache = list.slice();
-                          lastSource =
-                            text(repo.source) ||
-                            "BDLocalConStats";
+                          lastSource = text(repo.source) || "BDLocalConStats";
                           return periodCache.slice();
                         }
                       }catch(error){
                         try{
-                          console.warn(
-                            "[StatsCore] BDLocalStats.listPeriods falló",
-                            error
-                          );
+                          console.warn("[StatsCore] BDLocalStats.listPeriods falló", error);
                         }catch(innerError){}
                       }
 
@@ -492,195 +412,111 @@ jobs:
                     var dataEngine = engine();
 
                     try{
-                      if(
-                        repo &&
-                        typeof repo.listPeriods === "function"
-                      ){
+                      if(repo && typeof repo.listPeriods === "function"){
                         list = repo.listPeriods();
-
                         if(Array.isArray(list) && list.length){
-                          return rememberPeriods(
-                            list,
-                            text(repo.source) ||
-                            "ExcelLocalRepo"
-                          );
+                          return rememberPeriods(list, text(repo.source) || "ExcelLocalRepo");
                         }
                       }
                     }catch(error2){}
 
                     try{
-                      if(
-                        studentsRepo &&
-                        typeof studentsRepo.listPeriods === "function"
-                      ){
+                      if(studentsRepo && typeof studentsRepo.listPeriods === "function"){
                         list = studentsRepo.listPeriods();
-
                         if(Array.isArray(list) && list.length){
-                          return rememberPeriods(
-                            list,
-                            text(studentsRepo.source) ||
-                            "BL2EstudiantesRepo"
-                          );
+                          return rememberPeriods(list, text(studentsRepo.source) || "BL2EstudiantesRepo");
                         }
                       }
                     }catch(error3){}
 
                     try{
-                      if(
-                        dataEngine &&
-                        typeof dataEngine.listPeriods === "function"
-                      ){
+                      if(dataEngine && typeof dataEngine.listPeriods === "function"){
                         list = dataEngine.listPeriods();
-
                         if(Array.isArray(list) && list.length){
-                          return rememberPeriods(
-                            list,
-                            text(dataEngine.source) ||
-                            "BL2DataEngine"
-                          );
+                          return rememberPeriods(list, text(dataEngine.source) || "BL2DataEngine");
                         }
                       }
                     }catch(error4){}
 
                     try{
                       var snap = readLocalSnapshotLite();
-                      list = snap && Array.isArray(snap.periods)
-                        ? snap.periods
-                        : [];
-
+                      list = snap && Array.isArray(snap.periods) ? snap.periods : [];
                       if(list.length){
-                        return rememberPeriods(
-                          list,
-                          "ExcelLocalStorage"
-                        );
+                        return rememberPeriods(list, "ExcelLocalStorage");
                       }
                     }catch(error5){}
 
                     return periodCache.slice();
                   }
 
-                  function rowsFromEngine(opts){'''
-
-              text = regex_once(
-                  text,
-                  r'  function periods\(\)\{.*?\n  \}\n\n  function rowsFromEngine\(opts\)\{',
-                  periods_replacement,
-                  "stats.core periods",
+                  function rowsFromEngine(opts){
+                  '''),
+                  "core periods",
               )
 
-              rows_excel_replacement = '''  function rowsFromExcel(opts){
+              text = sub_once(
+                  text,
+                  r'  function rowsFromExcel\(opts\)\{.*?\n  \}\n\n  function baseRows\(opts\)\{',
+                  block('''
+                  function rowsFromExcel(opts){
                     opts = opts || {};
-
                     var repo = excelRepo();
 
                     if(!repo){
                       return [];
                     }
 
-                    var authoritative =
-                      isAuthoritativeRepo(repo);
-
-                    var matricula =
-                      opts.matricula == null
-                        ? "ACTIVO"
-                        : text(opts.matricula);
-
+                    var authoritative = isAuthoritativeRepo(repo);
+                    var matricula = opts.matricula == null
+                      ? "ACTIVO"
+                      : text(opts.matricula);
                     var filters = {
-                      periodId:opts.periodId || "",
-                      periodoId:opts.periodId || "",
-                      matricula:matricula,
-                      estadoMatricula:matricula,
-                      division:opts.division || "",
-                      search:"",
-                      limit:0,
-                      force:opts.force === true
+                      periodId: opts.periodId || "",
+                      periodoId: opts.periodId || "",
+                      matricula: matricula,
+                      estadoMatricula: matricula,
+                      division: opts.division || "",
+                      search: "",
+                      limit: 0,
+                      force: opts.force === true
                     };
-
                     var rows = [];
-                    var called = false;
 
                     try{
                       if(typeof repo.listStudents === "function"){
-                        called = true;
-                        rows = rowsFromResult(
-                          repo.listStudents(filters)
-                        );
+                        rows = rowsFromResult(repo.listStudents(filters));
                       }else if(typeof repo.students === "function"){
-                        called = true;
-                        rows = rowsFromResult(
-                          repo.students(filters)
-                        );
+                        rows = rowsFromResult(repo.students(filters));
                       }else if(typeof repo.getStudents === "function"){
-                        called = true;
-                        rows = rowsFromResult(
-                          repo.getStudents(filters)
-                        );
+                        rows = rowsFromResult(repo.getStudents(filters));
                       }
 
-                      if(authoritative && called){
-                        lastSource =
-                          text(repo.source) ||
-                          "BDLocalConStats";
+                      if(authoritative){
+                        lastSource = text(repo.source) || "BDLocalConStats";
                         return rows.map(decorate);
                       }
 
-                      if(
-                        !rows.length &&
-                        typeof repo.filterStudents === "function"
-                      ){
+                      if(!rows.length && typeof repo.filterStudents === "function"){
+                        rows = rowsFromResult(repo.filterStudents(filters));
+                      }
+                      if(!rows.length && typeof repo.listStudentsByStatus === "function"){
                         rows = rowsFromResult(
-                          repo.filterStudents(filters)
+                          repo.listStudentsByStatus(matricula, opts.periodId || "")
                         );
                       }
-
-                      if(
-                        !rows.length &&
-                        typeof repo.listStudentsByStatus === "function"
-                      ){
-                        rows = rowsFromResult(
-                          repo.listStudentsByStatus(
-                            matricula,
-                            opts.periodId || ""
-                          )
-                        );
-                      }
-
-                      if(
-                        !rows.length &&
-                        typeof repo.listAllStudents === "function"
-                      ){
-                        rows = rowsFromResult(
-                          repo.listAllStudents()
-                        );
-                      }
-
-                      if(
-                        !rows.length &&
-                        typeof repo.getSnapshot === "function"
-                      ){
-                        var snapshot = repo.getSnapshot();
-
-                        if(
-                          snapshot &&
-                          typeof snapshot.then !== "function"
-                        ){
-                          rows = rowsFromResult(snapshot);
-                        }
+                      if(!rows.length && typeof repo.listAllStudents === "function"){
+                        rows = rowsFromResult(repo.listAllStudents());
                       }
                     }catch(error){
                       try{
-                        console.warn(
-                          "[StatsCore] fuente de estudiantes falló",
-                          error
-                        );
+                        console.warn("[StatsCore] fuente de estudiantes falló", error);
                       }catch(innerError){}
-
                       if(authoritative){
                         return [];
                       }
                     }
 
-                    if(!rows.length && !authoritative){
+                    if(!rows.length){
                       try{
                         var snap = readLocalSnapshotLite();
                         rows = snap && Array.isArray(snap.students)
@@ -691,36 +527,27 @@ jobs:
                       }
                     }
 
-                    if(rows.length || authoritative){
-                      lastSource =
-                        text(repo.source) ||
-                        (
-                          authoritative
-                            ? "BDLocalConStats"
-                            : "ExcelLocalRepo"
-                        );
+                    if(rows.length){
+                      lastSource = text(repo.source) || "ExcelLocalRepo";
                     }
 
                     return rows.map(decorate);
                   }
 
-                  function baseRows(opts){'''
-
-              text = regex_once(
-                  text,
-                  r'  function rowsFromExcel\(opts\)\{.*?\n  \}\n\n  function baseRows\(opts\)\{',
-                  rows_excel_replacement,
-                  "stats.core rowsFromExcel",
+                  function baseRows(opts){
+                  '''),
+                  "core rows source",
               )
 
-              base_rows_replacement = '''  function baseRows(opts){
+              text = sub_once(
+                  text,
+                  r'  function baseRows\(opts\)\{.*?\n  \}\n\n  function normalizeStatusFilter\(status\)\{',
+                  block('''
+                  function baseRows(opts){
                     opts = opts || {};
 
-                    var repo = excelRepo();
-                    var authoritative =
-                      isAuthoritativeRepo(repo);
-                    var revision =
-                      sourceRevision();
+                    var authoritative = isAuthoritativeRepo(excelRepo());
+                    var revision = sourceRevision();
 
                     if(dataMemo.revision !== revision){
                       dataMemo.revision = revision;
@@ -729,19 +556,12 @@ jobs:
 
                     var memoKey = [
                       text(opts.periodId || ""),
-                      text(
-                        opts.matricula == null
-                          ? "ACTIVO"
-                          : opts.matricula
-                      )
+                      text(opts.matricula == null ? "ACTIVO" : opts.matricula)
                     ].join("|");
 
                     if(
                       opts.force !== true &&
-                      Object.prototype.hasOwnProperty.call(
-                        dataMemo.baseRows,
-                        memoKey
-                      )
+                      Object.prototype.hasOwnProperty.call(dataMemo.baseRows, memoKey)
                     ){
                       return dataMemo.baseRows[memoKey].slice();
                     }
@@ -750,26 +570,14 @@ jobs:
 
                     try{
                       rows = rowsFromExcel(opts);
-
-                      if(authoritative){
-                        dataMemo.baseRows[memoKey] =
-                          rows.slice();
-                        return rows.slice();
-                      }
-
-                      if(rows.length){
-                        dataMemo.baseRows[memoKey] =
-                          rows.slice();
+                      if(authoritative || rows.length){
+                        dataMemo.baseRows[memoKey] = rows.slice();
                         return rows.slice();
                       }
                     }catch(error){
                       try{
-                        console.warn(
-                          "[StatsCore] lectura principal falló",
-                          error
-                        );
+                        console.warn("[StatsCore] lectura principal falló", error);
                       }catch(innerError){}
-
                       if(authoritative){
                         dataMemo.baseRows[memoKey] = [];
                         return [];
@@ -777,26 +585,14 @@ jobs:
                     }
 
                     try{
-                      if(
-                        estudiantesRepo() &&
-                        typeof estudiantesRepo().buscar === "function"
-                      ){
+                      if(estudiantesRepo() && typeof estudiantesRepo().buscar === "function"){
                         rows = rowsFromRepo(opts);
-
                         if(rows.length){
-                          dataMemo.baseRows[memoKey] =
-                            rows.slice();
+                          dataMemo.baseRows[memoKey] = rows.slice();
                           return rows.slice();
                         }
                       }
-                    }catch(error2){
-                      try{
-                        console.warn(
-                          "[StatsCore] BL2EstudiantesRepo falló",
-                          error2
-                        );
-                      }catch(innerError2){}
-                    }
+                    }catch(error2){}
 
                     try{
                       if(
@@ -805,113 +601,81 @@ jobs:
                         typeof engine().listStudents === "function"
                       ){
                         rows = rowsFromEngine(opts);
-
                         if(rows.length){
-                          dataMemo.baseRows[memoKey] =
-                            rows.slice();
+                          dataMemo.baseRows[memoKey] = rows.slice();
                           return rows.slice();
                         }
                       }
-                    }catch(error3){
-                      try{
-                        console.warn(
-                          "[StatsCore] BL2DataEngine falló",
-                          error3
-                        );
-                      }catch(innerError3){}
-                    }
+                    }catch(error3){}
 
                     dataMemo.baseRows[memoKey] = [];
                     return [];
                   }
 
-                  function normalizeStatusFilter(status){'''
-
-              text = regex_once(
-                  text,
-                  r'  function baseRows\(opts\)\{.*?\n  \}\n\n  function normalizeStatusFilter\(status\)\{',
-                  base_rows_replacement,
-                  "stats.core baseRows",
+                  function normalizeStatusFilter(status){
+                  '''),
+                  "core base rows",
               )
 
-              source_replacement = '''  function source(){
+              text = sub_once(
+                  text,
+                  r'  function source\(\)\{.*?\n  \}',
+                  block('''
+                  function source(){
                     var repo = authoritativeRepo();
 
                     if(repo){
-                      return (
-                        text(repo.source) ||
-                        "BDLocalConStats"
-                      );
+                      return text(repo.source) || "BDLocalConStats";
                     }
 
-                    return (
-                      lastSource ||
-                      (
-                        engine()
-                          ? "BL2DataEngine"
-                          : "ExcelLocalRepo"
-                      )
-                    );
-                  }'''
-
-              text = regex_once(
-                  text,
-                  r'  function source\(\)\{.*?\n  \}',
-                  source_replacement,
-                  "stats.core source",
+                    return lastSource || (engine() ? "BL2DataEngine" : "ExcelLocalRepo");
+                  }
+                  '''),
+                  "core source",
               )
 
-              text = replace_once(
-                  text,
-                  '''    notasResumen:notasResumen,
-                    source:source
-                  };''',
-                  '''    notasResumen:notasResumen,
-                    source:source,
-                    invalidate:invalidate,
-                    status:function(){
-                      return {
-                        ok:true,
-                        version:VERSION,
-                        source:source(),
-                        revision:sourceRevision(),
-                        cachedBaseRows:
-                          Object.keys(
-                            dataMemo.baseRows
-                          ).length,
-                        cachedPeriods:
-                          periodCache.length,
-                        authoritative:
-                          !!authoritativeRepo()
-                      };
-                    }
-                  };''',
-                  "stats.core exports",
+              text = text.replace(
+                  '    notasResumen:notasResumen,\n    source:source\n  };',
+                  block('''
+                      notasResumen:notasResumen,
+                      source:source,
+                      invalidate:invalidate,
+                      status:function(){
+                        return {
+                          ok:true,
+                          version:VERSION,
+                          source:source(),
+                          revision:sourceRevision(),
+                          cachedBaseRows:Object.keys(dataMemo.baseRows).length,
+                          cachedPeriods:periodCache.length,
+                          authoritative:!!authoritativeRepo()
+                        };
+                      }
+                    };
+                  '''),
+                  1,
               )
 
               path.write_text(text, encoding="utf-8")
 
-          # =====================================================
-          # 3. Stats/stats.app.js
-          # =====================================================
+          # -----------------------------------------------------
+          # Stats/stats.app.js
+          # -----------------------------------------------------
           path = Path("Stats/stats.app.js")
           text = path.read_text(encoding="utf-8")
 
-          if 'ready: false' not in text or 'booted: false' not in text:
-              text = replace_once(
-                  text,
-                  '''    bdlocalBound: false,
-                    manualRefreshing: false,
-                    lastBDLocalNotice: ""''',
-                  '''    bdlocalBound: false,
-                    manualRefreshing: false,
-                    ready: false,
-                    booted: false,
-                    lastBDLocalNotice: ""''',
-                  "stats.app state",
+          if 'booted: false' not in text:
+              text = text.replace(
+                  '    manualRefreshing: false,\n    lastBDLocalNotice: ""',
+                  '    manualRefreshing: false,\n    ready: false,\n    booted: false,\n    lastBDLocalNotice: ""',
+                  1,
               )
 
-          invalidate_replacement = '''  function invalidateDataCaches(reason){
+              text = sub_once(
+                  text,
+                  r'  function invalidateDataCaches\(reason\)\{.*?\n  \}',
+                  block('''
+                  function invalidateDataCaches(reason){
                     if(state.internalInvalidating){
                       return;
                     }
@@ -919,50 +683,35 @@ jobs:
                     state.internalInvalidating = true;
 
                     try{
-                      if(
-                        window.StatsCore &&
-                        typeof window.StatsCore.invalidate === "function"
-                      ){
-                        window.StatsCore.invalidate({
-                          reason: reason || "manual"
-                        });
+                      if(window.StatsCore && typeof window.StatsCore.invalidate === "function"){
+                        window.StatsCore.invalidate({reason: reason || "manual"});
                       }
 
-                      window.dispatchEvent(
-                        new CustomEvent(
-                          "stats:cache-invalidated",
-                          {
-                            detail: {
-                              reason: reason || "manual",
-                              passive: true,
-                              at: new Date().toISOString()
-                            }
-                          }
-                        )
-                      );
+                      window.dispatchEvent(new CustomEvent("stats:cache-invalidated", {
+                        detail: {
+                          reason: reason || "manual",
+                          passive: true,
+                          at: new Date().toISOString()
+                        }
+                      }));
                     }catch(error){}
 
                     setTimeout(function(){
                       state.internalInvalidating = false;
                     }, 0);
-                  }'''
+                  }
+                  '''),
+                  "app invalidate",
+              )
 
-          text = regex_once(
-              text,
-              r'  function invalidateDataCaches\(reason\)\{.*?\n  \}',
-              invalidate_replacement,
-              "stats.app invalidate",
-          )
+              text = sub_once(
+                  text,
+                  r'  function refreshFromBDLocal\(reason\)\{.*?\n  \}',
+                  block('''
+                  function refreshFromBDLocal(reason){
+                    state.lastBDLocalNotice = reason || "bdlocal-refresh";
 
-          refresh_event_replacement = '''  function refreshFromBDLocal(reason){
-                    state.lastBDLocalNotice =
-                      reason ||
-                      "bdlocal-refresh";
-
-                    if(
-                      !state.ready ||
-                      state.manualRefreshing
-                    ){
+                    if(!state.ready || state.manualRefreshing){
                       return;
                     }
 
@@ -972,56 +721,33 @@ jobs:
 
                     state.refreshTimer = setTimeout(function(){
                       state.refreshTimer = null;
-                      invalidateDataCaches(
-                        state.lastBDLocalNotice
-                      );
-                      render({
-                        force: false,
-                        reason:
-                          state.lastBDLocalNotice
-                      });
+                      invalidateDataCaches(state.lastBDLocalNotice);
+                      render({force:false, reason:state.lastBDLocalNotice});
                     }, 140);
-                  }'''
+                  }
+                  '''),
+                  "app data event",
+              )
 
-          text = regex_once(
-              text,
-              r'  function refreshFromBDLocal\(reason\)\{.*?\n  \}',
-              refresh_event_replacement,
-              "stats.app refreshFromBDLocal",
-          )
-
-          manual_refresh_replacement = '''  function manualRefresh(){
+              text = sub_once(
+                  text,
+                  r'  function manualRefresh\(\)\{.*?\n  \}',
+                  block('''
+                  function manualRefresh(){
                     if(state.manualRefreshing){
                       return;
                     }
 
                     state.manualRefreshing = true;
-
                     var button = el("stats-refresh");
-                    if(button){
-                      button.disabled = true;
-                    }
-
-                    status(
-                      "Actualizando Stats desde Base Local...",
-                      ""
-                    );
+                    if(button){ button.disabled = true; }
+                    status("Actualizando Stats desde Base Local...", "");
 
                     function finish(error){
                       state.manualRefreshing = false;
-
-                      if(button){
-                        button.disabled = false;
-                      }
-
-                      invalidateDataCaches(
-                        "refresh-button"
-                      );
-
-                      render({
-                        force: false,
-                        reason: "refresh-button"
-                      });
+                      if(button){ button.disabled = false; }
+                      invalidateDataCaches("refresh-button");
+                      render({force:false, reason:"refresh-button"});
 
                       if(error){
                         status(
@@ -1032,48 +758,27 @@ jobs:
                       }
                     }
 
-                    var repo =
-                      window.BDLocalStats ||
-                      window.ConStats ||
-                      null;
+                    var repo = window.BDLocalStats || window.ConStats || null;
 
                     try{
-                      if(
-                        repo &&
-                        typeof repo.refreshFull === "function"
-                      ){
-                        Promise.resolve(
-                          repo.refreshFull({
-                            periodId: state.periodId,
-                            periodoId: state.periodId,
-                            source: "Stats.manualRefresh"
-                          })
-                        )
-                          .then(function(){
-                            finish();
-                          })
-                          .catch(finish);
+                      if(repo && typeof repo.refreshFull === "function"){
+                        Promise.resolve(repo.refreshFull({
+                          periodId:state.periodId,
+                          periodoId:state.periodId,
+                          source:"Stats.manualRefresh"
+                        })).then(function(){ finish(); }).catch(finish);
                         return;
                       }
 
-                      if(
-                        repo &&
-                        typeof repo.refresh === "function"
-                      ){
-                        Promise.resolve(
-                          repo.refresh({
-                            periodId: state.periodId,
-                            periodoId: state.periodId,
-                            source: "Stats.manualRefresh",
-                            mode: "full",
-                            full: true,
-                            force: true
-                          })
-                        )
-                          .then(function(){
-                            finish();
-                          })
-                          .catch(finish);
+                      if(repo && typeof repo.refresh === "function"){
+                        Promise.resolve(repo.refresh({
+                          periodId:state.periodId,
+                          periodoId:state.periodId,
+                          source:"Stats.manualRefresh",
+                          mode:"full",
+                          full:true,
+                          force:true
+                        })).then(function(){ finish(); }).catch(finish);
                         return;
                       }
                     }catch(error){
@@ -1081,59 +786,39 @@ jobs:
                       return;
                     }
 
-                    finish(
-                      new Error(
-                        "BDLocalStats no está disponible."
-                      )
-                    );
-                  }'''
+                    finish(new Error("BDLocalStats no está disponible."));
+                  }
+                  '''),
+                  "app manual refresh",
+              )
 
-          text = regex_once(
-              text,
-              r'  function manualRefresh\(\)\{.*?\n  \}',
-              manual_refresh_replacement,
-              "stats.app manualRefresh",
-          )
-
-          events_replacement = '''  function bindBDLocalEvents(){
+              text = sub_once(
+                  text,
+                  r'  function bindBDLocalEvents\(\)\{.*?\n  \}',
+                  block('''
+                  function bindBDLocalEvents(){
                     if(state.bdlocalBound){
                       return;
                     }
 
-                    window.addEventListener(
-                      "bdlocal:screen-deps-ready",
-                      function(){
-                        refreshFromBDLocal(
-                          "bdlocal:screen-deps-ready"
-                        );
-                      }
-                    );
-
-                    window.addEventListener(
-                      "bdlocal:conexiones-cache-updated",
-                      function(){
-                        refreshFromBDLocal(
-                          "bdlocal:conexiones-cache-updated"
-                        );
-                      }
-                    );
-
+                    window.addEventListener("bdlocal:screen-deps-ready", function(){
+                      refreshFromBDLocal("bdlocal:screen-deps-ready");
+                    });
+                    window.addEventListener("bdlocal:conexiones-cache-updated", function(){
+                      refreshFromBDLocal("bdlocal:conexiones-cache-updated");
+                    });
                     window.addEventListener("requisitos:bdlocal-cambio-disponible", function(){
                       refreshFromBDLocal("requisitos:bdlocal-cambio-disponible");
                     });
-
                     window.addEventListener("bdlocal:legacy-ready", function(){
                       refreshFromBDLocal("bdlocal:legacy-ready");
                     });
-
                     window.addEventListener("bdlocal:legacy-snapshot", function(){
                       refreshFromBDLocal("bdlocal:legacy-snapshot");
                     });
-
                     window.addEventListener("requisitos:bl:snapshot-changed", function(){
                       refreshFromBDLocal("snapshot-changed");
                     });
-
                     window.addEventListener("storage", function(event){
                       if(event && (
                         event.key === "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1" ||
@@ -1145,75 +830,47 @@ jobs:
                     });
 
                     state.bdlocalBound = true;
-                  }'''
+                  }
+                  '''),
+                  "app events",
+              )
 
-          text = regex_once(
-              text,
-              r'  function bindBDLocalEvents\(\)\{.*?\n  \}',
-              events_replacement,
-              "stats.app events",
-          )
+              text = text.replace(
+                  '        force: true,\n        reason: "period-change"',
+                  '        force: false,\n        reason: "period-change"',
+                  1,
+              )
+              text = text.replace(
+                  '        force: true,\n        reason: "matricula-change"',
+                  '        force: false,\n        reason: "matricula-change"',
+                  1,
+              )
 
-          text = replace_once(
-              text,
-              '''      render({
-                        force: true,
-                        reason: "period-change"
-                      });''',
-              '''      render({
-                        force: false,
-                        reason: "period-change"
-                      });''',
-              "stats.app period change",
-          )
-
-          text = replace_once(
-              text,
-              '''      render({
-                        force: true,
-                        reason: "matricula-change"
-                      });''',
-              '''      render({
-                        force: false,
-                        reason: "matricula-change"
-                      });''',
-              "stats.app enrollment change",
-          )
-
-          boot_replacement = '''  function waitForStatsConnector(attempt){
+              text = sub_once(
+                  text,
+                  r'  function boot\(\)\{.*?\n  \}',
+                  block('''
+                  function waitForStatsConnector(attempt){
                     attempt = Number(attempt || 0);
-
-                    var repo =
-                      window.BDLocalStats ||
-                      window.ConStats ||
-                      null;
+                    var repo = window.BDLocalStats || window.ConStats || null;
 
                     if(repo){
                       if(typeof repo.ready === "function"){
-                        return Promise.resolve(
-                          repo.ready()
-                        ).then(function(){
+                        return Promise.resolve(repo.ready()).then(function(){
                           return repo;
                         });
                       }
-
                       return Promise.resolve(repo);
                     }
 
                     if(attempt >= 40){
-                      return Promise.reject(
-                        new Error(
-                          "No se pudo iniciar BDLocalStats."
-                        )
-                      );
+                      return Promise.reject(new Error("No se pudo iniciar BDLocalStats."));
                     }
 
                     return new Promise(function(resolve){
                       setTimeout(resolve, 50);
                     }).then(function(){
-                      return waitForStatsConnector(
-                        attempt + 1
-                      );
+                      return waitForStatsConnector(attempt + 1);
                     });
                   }
 
@@ -1224,54 +881,32 @@ jobs:
 
                     state.booted = true;
                     bind();
+                    status("Conectando Stats con Base Local...", "");
 
-                    status(
-                      "Conectando Stats con Base Local...",
-                      ""
-                    );
-
-                    Promise.resolve(
-                      window.BDLScreenDepsReady
-                    )
+                    Promise.resolve(window.BDLScreenDepsReady)
                       .then(function(){
                         return waitForStatsConnector(0);
                       })
                       .then(function(){
                         state.ready = true;
-                        invalidateDataCaches(
-                          "boot-ready"
-                        );
-                        render({
-                          force: false,
-                          reason: "boot-ready"
-                        });
+                        invalidateDataCaches("boot-ready");
+                        render({force:false, reason:"boot-ready"});
                       })
                       .catch(function(error){
                         state.ready = true;
-                        console.error(
-                          "[Stats] No se pudo preparar Base Local",
-                          error
-                        );
+                        console.error("[Stats] No se pudo preparar Base Local", error);
                         status(
-                          error.message ||
-                          "No se pudo conectar Stats con Base Local.",
+                          error.message || "No se pudo conectar Stats con Base Local.",
                           "warn"
                         );
-                        render({
-                          force: false,
-                          reason: "boot-fallback"
-                        });
+                        render({force:false, reason:"boot-fallback"});
                       });
-                  }'''
+                  }
+                  '''),
+                  "app boot",
+              )
 
-          text = regex_once(
-              text,
-              r'  function boot\(\)\{.*?\n  \}',
-              boot_replacement,
-              "stats.app boot",
-          )
-
-          path.write_text(text, encoding="utf-8")
+              path.write_text(text, encoding="utf-8")
           PY
 
       - name: Validate JavaScript syntax
@@ -1280,7 +915,7 @@ jobs:
           node --check Stats/stats.core.js
           node --check Stats/stats.app.js
 
-      - name: Commit Stats correction
+      - name: Commit final correction
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
