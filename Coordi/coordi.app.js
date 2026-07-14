@@ -5,6 +5,7 @@ Función o funciones:
 - Controlar Coordi con datos autoritativos de Base Local.
 - Manejar filtros por período, división, carrera y requisito.
 - Generar visión global y reportes por responsable.
+- Evitar que cambios rápidos de filtros dejen un reporte desactualizado.
 - Ocultar mensajes de éxito y mostrar solo carga o errores.
 - Mantener correo, WhatsApp, exportación y vista previa.
 ========================================================= */
@@ -21,7 +22,9 @@ Función o funciones:
     report:null,
     previewMail:null,
     loading:false,
+    pendingRender:null,
     refreshTimer:null,
+    statusTimer:null,
     eventsBound:false,
     booted:false
   };
@@ -29,9 +32,17 @@ Función o funciones:
   function el(id){ return document.getElementById(id); }
   function text(value){ return String(value == null ? "" : value).trim(); }
 
+  function clearStatusTimer(){
+    if(state.statusTimer){
+      clearTimeout(state.statusTimer);
+      state.statusTimer = null;
+    }
+  }
+
   function status(message,cls){
     var node = el("coordi-status");
     if(!node){ return; }
+    clearStatusTimer();
     message = text(message);
     if(!message){
       node.hidden = true;
@@ -46,7 +57,10 @@ Función o funciones:
 
   function transient(message){
     status(message,"");
-    setTimeout(function(){ status(""); },1800);
+    state.statusTimer = setTimeout(function(){
+      state.statusTimer = null;
+      status("");
+    },1800);
   }
 
   function copyText(value){
@@ -92,24 +106,69 @@ Función o funciones:
     return false;
   }
 
-  function render(options){
-    options = options || {};
-    if(state.loading || !ensureModern()){ return Promise.resolve(null); }
+  function mergeRenderOptions(current,next){
+    current = Object.assign({},current || {});
+    next = Object.assign({},next || {});
+    return Object.assign({},current,next,{
+      refresh:current.refresh === true || next.refresh === true
+    });
+  }
 
-    state.loading = true;
-    status("Generando reportes por responsables...","");
-
-    return window.COOReport.build({
+  function requestSnapshot(options){
+    return {
       periodId:state.periodId,
       division:state.division,
       career:state.career,
       requirementKey:state.requirementKey,
-      refresh:options.refresh === true
-    }).then(function(report){
-      state.report = report;
-      if(!state.selectedAreaId || !window.COORender.areaById(report,state.selectedAreaId)){
-        state.selectedAreaId = window.COORender.firstPendingArea(report) || "";
+      refresh:options && options.refresh === true
+    };
+  }
+
+  function requestIsCurrent(request){
+    return request.periodId === state.periodId &&
+      request.division === state.division &&
+      request.career === state.career &&
+      request.requirementKey === state.requirementKey;
+  }
+
+  function schedulePendingRender(){
+    if(!state.pendingRender){ return; }
+    var next = state.pendingRender;
+    state.pendingRender = null;
+    setTimeout(function(){ render(next); },0);
+  }
+
+  function render(options){
+    options = options || {};
+
+    if(!ensureModern()){
+      return Promise.resolve(null);
+    }
+
+    if(state.loading){
+      state.pendingRender = mergeRenderOptions(state.pendingRender,options);
+      return Promise.resolve(null);
+    }
+
+    state.loading = true;
+    var request = requestSnapshot(options);
+    status("Generando reportes por responsables...","");
+
+    return window.COOReport.build(request).then(function(report){
+      if(!requestIsCurrent(request)){
+        state.pendingRender = mergeRenderOptions(state.pendingRender,{refresh:false});
+        return report;
       }
+
+      state.report = report;
+      var selectedArea = state.selectedAreaId
+        ? window.COORender.areaById(report,state.selectedAreaId)
+        : null;
+
+      if(!selectedArea || Number(selectedArea.totalEstudiantes || 0) <= 0){
+        state.selectedAreaId = "";
+      }
+
       window.COORender.renderAll(report,state);
       status("");
       return report;
@@ -117,7 +176,10 @@ Función o funciones:
       console.error("[Coordi]",error);
       status(error && error.message ? error.message : String(error),"warn");
       return null;
-    }).finally(function(){ state.loading = false; });
+    }).finally(function(){
+      state.loading = false;
+      schedulePendingRender();
+    });
   }
 
   function scheduleDataRefresh(){
@@ -231,7 +293,10 @@ Función o funciones:
       if(!state.report){ status("Primero genera el reporte.","warn"); return; }
 
       try{
-        if(action === "show-detail"){
+        if(action === "show-global-detail"){
+          state.selectedAreaId = "";
+          window.COORender.renderAll(state.report,state);
+        }else if(action === "show-detail"){
           state.selectedAreaId = areaId;
           window.COORender.renderAll(state.report,state);
         }else if(action === "preview-global"){
