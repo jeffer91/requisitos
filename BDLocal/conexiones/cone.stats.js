@@ -428,45 +428,95 @@ function copyHydratedStudent(row){
   return copy;
 }
 
-function allHydratedStudents(current){
+function hydrationScope(options){
+  options = options || {};
+
+  var periodoId = canonicalPeriodId(
+    options.periodoId ||
+    options.periodId ||
+    ""
+  );
+
+  var matricula =
+    options.matricula !== undefined
+      ? options.matricula
+      : options.estadoMatricula;
+
+  var matriculaKey =
+    matricula === undefined || matricula === null
+      ? "__default__"
+      : text(matricula) || "__todas__";
+
+  return {
+    key:
+      (periodoId || "__todos__") +
+      "|" +
+      normalizeKey(matriculaKey),
+    periodoId: periodoId,
+    matricula: matricula
+  };
+}
+
+function hydratedStudentsForOptions(current, options){
   current = current || cache();
+  options = options || {};
   ensureMemo(current);
 
+  var scope = hydrationScope(options);
+
   if(
-    memo.hydratedStudentsToken === memo.token &&
-    Array.isArray(memo.hydratedStudents)
+    Object.prototype.hasOwnProperty.call(
+      memo.hydratedByPeriod,
+      scope.key
+    )
   ){
-    return memo.hydratedStudents;
+    return memo.hydratedByPeriod[scope.key];
   }
 
-  var requirementsIndex = buildRequirementsIndex(current);
+  var baseOptions = {
+    periodoId: scope.periodoId,
+    periodId: scope.periodoId
+  };
 
-  memo.hydratedStudents = (current.students || []).map(function(row){
+  if(
+    scope.matricula !== undefined &&
+    scope.matricula !== null
+  ){
+    baseOptions.matricula = scope.matricula;
+    baseOptions.estadoMatricula = scope.matricula;
+  }
+
+  var rawRows = U.filterStudents(
+    current.students || [],
+    baseOptions
+  );
+
+  var requirementsIndex =
+    buildRequirementsIndex(current);
+
+  var hydrated = rawRows.map(function(row){
     return hydrateStudent(row, requirementsIndex);
   });
 
-  memo.hydratedByPeriod = Object.create(null);
-
-  memo.hydratedStudents.forEach(function(row){
-    var periodKey = periodOf(row) || "__sin_periodo__";
-
-    if(!memo.hydratedByPeriod[periodKey]){
-      memo.hydratedByPeriod[periodKey] = [];
-    }
-
-    memo.hydratedByPeriod[periodKey].push(row);
-  });
-
+  memo.hydratedByPeriod[scope.key] = hydrated;
+  memo.hydratedStudents = hydrated;
   memo.hydratedStudentsToken = memo.token;
-  return memo.hydratedStudents;
+
+  return hydrated;
 }
 
 function students(options){
+  options = options || {};
+
   var current = cache();
-  var hydrated = allHydratedStudents(current);
+  var hydrated = hydratedStudentsForOptions(
+    current,
+    options
+  );
+
   var filtered = U.filterStudents(
     hydrated,
-    options || {}
+    options
   );
 
   return filtered.map(copyHydratedStudent);
@@ -800,7 +850,9 @@ function refreshFull(options){
   status: function(){
     var current = cache();
     ensureMemo(current);
-    var hydrated = allHydratedStudents(current);
+    var hydratedCount = Array.isArray(memo.hydratedStudents)
+      ? memo.hydratedStudents.length
+      : 0;
 
     return {
       ok: true,
@@ -822,7 +874,7 @@ function refreshFull(options){
       requirements: Array.isArray(current.requirements)
         ? current.requirements.length
         : 0,
-      hydratedStudents: hydrated.length,
+      hydratedStudents: hydratedCount,
       indexedStudents: Object.keys(
         memo.requirementsByCedula
       ).length,
