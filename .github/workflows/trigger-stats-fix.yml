@@ -35,6 +35,11 @@ jobs:
           start = source.index(start_marker) + len(start_marker)
           end = source.index(end_marker, start)
           script = textwrap.dedent(source[start:end])
+
+          old_pattern = r"r'  function baseRows\(opts\)\{.*?\n  \}\n\n  function normalizeStatusFilter\(status\)\{'"
+          new_pattern = r"r'\s*function baseRows\(opts\)\{.*?\n\s*\}\n\n\s*function normalizeStatusFilter\(status\)\{'"
+          script = script.replace(old_pattern, new_pattern)
+
           Path('/tmp/patch_stats.py').write_text(script, encoding='utf-8')
           PY
 
