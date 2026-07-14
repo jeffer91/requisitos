@@ -24,7 +24,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.3.0-requirements-hydration";
+  var VERSION = "1.4.0-fast-authoritative";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
 
@@ -32,15 +32,18 @@ Con qué se conecta:
     return;
   }
 
-  var memo = {
-    token: "",
-    summaries: Object.create(null),
-    requirementsByCedula: Object.create(null),
-    requirementsIndexed: false,
-    calculations: 0
-  };
+var memo = {
+  token: "",
+  summaries: Object.create(null),
+  requirementsByCedula: Object.create(null),
+  requirementsIndexed: false,
+  hydratedStudents: [],
+  hydratedStudentsToken: "",
+  hydratedByPeriod: Object.create(null),
+  calculations: 0
+};
 
-  function text(value){
+function text(value){
     return typeof U.text === "function"
       ? U.text(value)
       : String(value == null ? "" : value).trim();
@@ -98,14 +101,17 @@ Con qué se conecta:
     return U.readCache();
   }
 
-  function resetMemo(){
-    memo.token = "";
-    memo.summaries = Object.create(null);
-    memo.requirementsByCedula = Object.create(null);
-    memo.requirementsIndexed = false;
-  }
+function resetMemo(){
+  memo.token = "";
+  memo.summaries = Object.create(null);
+  memo.requirementsByCedula = Object.create(null);
+  memo.requirementsIndexed = false;
+  memo.hydratedStudents = [];
+  memo.hydratedStudentsToken = "";
+  memo.hydratedByPeriod = Object.create(null);
+}
 
-  function cacheToken(current){
+function cacheToken(current){
     current = current || cache();
 
     var meta = current.meta || {};
@@ -124,20 +130,23 @@ Con qué se conecta:
     ].join("|");
   }
 
-  function ensureMemo(current){
-    var token = cacheToken(current);
+function ensureMemo(current){
+  var token = cacheToken(current);
 
-    if(memo.token !== token){
-      memo.token = token;
-      memo.summaries = Object.create(null);
-      memo.requirementsByCedula = Object.create(null);
-      memo.requirementsIndexed = false;
-    }
-
-    return token;
+  if(memo.token !== token){
+    memo.token = token;
+    memo.summaries = Object.create(null);
+    memo.requirementsByCedula = Object.create(null);
+    memo.requirementsIndexed = false;
+    memo.hydratedStudents = [];
+    memo.hydratedStudentsToken = "";
+    memo.hydratedByPeriod = Object.create(null);
   }
 
-  function periods(){
+  return token;
+}
+
+function periods(){
     var rows = cache().periods || [];
 
     return rows.slice();
@@ -407,28 +416,113 @@ Con qué se conecta:
     return student;
   }
 
-  function students(options){
-    var current = cache();
+function copyHydratedStudent(row){
+  var copy = Object.assign({}, row || {});
 
-    ensureMemo(current);
+  copy.requisitos = Array.isArray(row && row.requisitos)
+    ? row.requisitos.map(function(requirement){
+        return Object.assign({}, requirement || {});
+      })
+    : [];
 
-    var filtered = U.filterStudents(
-      current.students || [],
-      options || {}
-    );
+  return copy;
+}
 
-    var requirementsIndex =
-      buildRequirementsIndex(current);
+function hydrationScope(options){
+  options = options || {};
 
-    return filtered.map(function(row){
-      return hydrateStudent(
-        row,
-        requirementsIndex
-      );
-    });
+  var periodoId = canonicalPeriodId(
+    options.periodoId ||
+    options.periodId ||
+    ""
+  );
+
+  var matricula =
+    options.matricula !== undefined
+      ? options.matricula
+      : options.estadoMatricula;
+
+  var matriculaKey =
+    matricula === undefined || matricula === null
+      ? "__default__"
+      : text(matricula) || "__todas__";
+
+  return {
+    key:
+      (periodoId || "__todos__") +
+      "|" +
+      normalizeKey(matriculaKey),
+    periodoId: periodoId,
+    matricula: matricula
+  };
+}
+
+function hydratedStudentsForOptions(current, options){
+  current = current || cache();
+  options = options || {};
+  ensureMemo(current);
+
+  var scope = hydrationScope(options);
+
+  if(
+    Object.prototype.hasOwnProperty.call(
+      memo.hydratedByPeriod,
+      scope.key
+    )
+  ){
+    return memo.hydratedByPeriod[scope.key];
   }
 
-  function requirements(options){
+  var baseOptions = {
+    periodoId: scope.periodoId,
+    periodId: scope.periodoId
+  };
+
+  if(
+    scope.matricula !== undefined &&
+    scope.matricula !== null
+  ){
+    baseOptions.matricula = scope.matricula;
+    baseOptions.estadoMatricula = scope.matricula;
+  }
+
+  var rawRows = U.filterStudents(
+    current.students || [],
+    baseOptions
+  );
+
+  var requirementsIndex =
+    buildRequirementsIndex(current);
+
+  var hydrated = rawRows.map(function(row){
+    return hydrateStudent(row, requirementsIndex);
+  });
+
+  memo.hydratedByPeriod[scope.key] = hydrated;
+  memo.hydratedStudents = hydrated;
+  memo.hydratedStudentsToken = memo.token;
+
+  return hydrated;
+}
+
+function students(options){
+  options = options || {};
+
+  var current = cache();
+  var hydrated = hydratedStudentsForOptions(
+    current,
+    options
+  );
+
+  var filtered = U.filterStudents(
+    hydrated,
+    options
+  );
+
+  return filtered.map(copyHydratedStudent);
+}
+
+function requirements(options){
     options = options || {};
 
     var current = cache();
@@ -596,64 +690,72 @@ Con qué se conecta:
     );
   }
 
-  function refresh(options){
-    options = Object.assign(
-      {},
-      options || {}
+function refresh(options){
+  options = Object.assign({}, options || {});
+
+  var current = cache();
+  var studentCount = Array.isArray(current.students)
+    ? current.students.length
+    : 0;
+  var requirementCount = Array.isArray(current.requirements)
+    ? current.requirements.length
+    : 0;
+
+  var explicitFull =
+    options.full === true ||
+    options.force === true ||
+    options.mode === "full";
+
+  var cacheIncomplete =
+    studentCount === 0 ||
+    (studentCount > 0 && requirementCount === 0);
+
+  var needsFull = explicitFull || cacheIncomplete;
+  var request;
+
+  if(needsFull){
+    request = Object.assign(
+      {
+        source: explicitFull
+          ? "cone.stats.refresh.full"
+          : "cone.stats.refresh.recover",
+        mode: "full",
+        full: true,
+        immediate: true,
+        force: explicitFull || cacheIncomplete,
+        cooldown: 0
+      },
+      options,
+      {
+        mode: "full",
+        full: true,
+        immediate: true
+      }
     );
-
-    var explicitFull =
-      options.full === true ||
-      options.force === true ||
-      options.mode === "full";
-
-    var request;
-
-    if(explicitFull){
-      request = Object.assign(
-        {
-          source:
-            "cone.stats.refresh.full",
-
-          mode: "full",
-          full: true,
-          immediate: true,
-
-          force:
-            options.force === true,
-
-          cooldown: 0
-        },
-        options
-      );
-    }else{
-      request = Object.assign(
-        {
-          source:
-            "cone.stats.refresh.light",
-
-          mode: "light",
-          light: true,
-          immediate: false
-        },
-        options,
-        {
-          full: false,
-          mode: "light",
-          light: true
-        }
-      );
-    }
-
-    return HUB.refreshCache(request)
-      .then(function(result){
-        resetMemo();
-
-        return result;
-      });
+  }else{
+    request = Object.assign(
+      {
+        source: "cone.stats.refresh.light",
+        mode: "light",
+        light: true,
+        immediate: false
+      },
+      options,
+      {
+        full: false,
+        mode: "light",
+        light: true
+      }
+    );
   }
 
-  function refreshFull(options){
+  return HUB.refreshCache(request).then(function(result){
+    resetMemo();
+    return result;
+  });
+}
+
+function refreshFull(options){
     options = options || {};
 
     return refresh(
@@ -708,6 +810,7 @@ Con qué se conecta:
 
     refresh: refresh,
     refreshFull: refreshFull,
+    invalidate: resetMemo,
 
     periods: periods,
     listPeriods: periods,
@@ -744,49 +847,45 @@ Con qué se conecta:
 
     stats: stats,
 
-    status: function(){
-      var current = cache();
+  status: function(){
+    var current = cache();
+    ensureMemo(current);
+    var hydratedCount = Array.isArray(memo.hydratedStudents)
+      ? memo.hydratedStudents.length
+      : 0;
 
-      ensureMemo(current);
-
-      return {
-        ok: true,
-        version: VERSION,
-
-        cacheRevision: Number(
-          current.meta &&
-          current.meta.revision ||
-          0
-        ),
-
-        students:
-          Array.isArray(current.students)
-            ? current.students.length
-            : 0,
-
-        requirements:
-          Array.isArray(current.requirements)
-            ? current.requirements.length
-            : 0,
-
-        indexedStudents:
-          Object.keys(
-            memo.requirementsByCedula
-          ).length,
-
-        requirementsIndexed:
-          memo.requirementsIndexed,
-
-        cachedSummaries:
-          Object.keys(
-            memo.summaries
-          ).length,
-
-        calculations:
-          memo.calculations
-      };
-    }
-  };
+    return {
+      ok: true,
+      ready: true,
+      version: VERSION,
+      source: "BDLocalConStats",
+      cacheRevision: Number(
+        current.meta && current.meta.revision || 0
+      ),
+      cacheUpdatedAt: text(
+        current.meta && current.meta.updatedAt || ""
+      ),
+      periods: Array.isArray(current.periods)
+        ? current.periods.length
+        : 0,
+      students: Array.isArray(current.students)
+        ? current.students.length
+        : 0,
+      requirements: Array.isArray(current.requirements)
+        ? current.requirements.length
+        : 0,
+      hydratedStudents: hydratedCount,
+      indexedStudents: Object.keys(
+        memo.requirementsByCedula
+      ).length,
+      requirementsIndexed: memo.requirementsIndexed,
+      cachedSummaries: Object.keys(memo.summaries).length,
+      cachedPeriods: Object.keys(memo.hydratedByPeriod).length,
+      calculations: memo.calculations,
+      token: memo.token
+    };
+  }
+};
 
   HUB.register(
     "stats",
