@@ -54,10 +54,31 @@ jobs:
               match = matches[0]
               return text[:match.start()] + new + text[match.end():]'''
 
+          old_regex_helper = '''def regex_once(text, pattern, replacement, label):
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected 1 regex match, found {count}")
+              return updated'''
+
+          new_regex_helper = '''def regex_once(text, pattern, replacement, label):
+              updated, count = re.subn(
+                  pattern,
+                  lambda match: replacement,
+                  text,
+                  count=1,
+                  flags=re.S
+              )
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected 1 regex match, found {count}")
+              return updated'''
+
           if old_helper not in script:
               raise RuntimeError('No se encontró el helper original replace_once')
+          if old_regex_helper not in script:
+              raise RuntimeError('No se encontró el helper original regex_once')
 
           script = script.replace(old_helper, new_helper, 1)
+          script = script.replace(old_regex_helper, new_regex_helper, 1)
           Path('/tmp/patch_tabla.py').write_text(script, encoding='utf-8')
           PY
 
