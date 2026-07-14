@@ -3,15 +3,15 @@ Nombre completo: coo.report.js
 Ruta o ubicación: /Requisitos/Coordi/coo.report.js
 Función o funciones:
 - Construir la visión global del período seleccionado.
-- Detectar pendientes reales desde requisitos hidratados.
-- Filtrar por división, carrera y requisito.
-- Agrupar estudiantes por área y responsable.
-- Preparar reportes globales y por área para correo y WhatsApp.
+- Detectar pendientes con las mismas reglas de estados usadas por Stats.
+- Respetar requisitos aplicables para períodos PVC y Regulares.
+- Filtrar por división, carrera y requisito individual.
+- Agrupar estudiantes por área y preparar comunicaciones.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-coo-report-safe-values";
+  var VERSION = "2.2.0-stats-rules-and-applicability";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
@@ -26,11 +26,25 @@ Función o funciones:
     }
     return window.COOData;
   }
-  function reqEngine(){ return window.BL2RequirementsEngine || window.StatsRules || null; }
+  function reqEngine(){ return window.StatsRules || window.BL2RequirementsEngine || null; }
   function cfgHelper(name){ return config().helpers && config().helpers[name]; }
 
-  function requirementLabel(key,fallback){
+  function canonicalRequirementKey(value){
     try{
+      if(window.COOData && window.COOData.helpers && typeof window.COOData.helpers.canonicalRequirementKey === "function"){
+        return window.COOData.helpers.canonicalRequirementKey(value);
+      }
+    }catch(error){}
+    return text(value);
+  }
+
+  function requirementLabel(key,fallback){
+    key = canonicalRequirementKey(key);
+    try{
+      if(reqEngine() && typeof reqEngine().getRequirementByKey === "function"){
+        var item = reqEngine().getRequirementByKey(key) || {};
+        if(text(item.label)){ return text(item.label); }
+      }
       if(window.BLCampos && typeof window.BLCampos.requirementLabel === "function"){
         return window.BLCampos.requirementLabel(key,fallback || key);
       }
@@ -40,7 +54,7 @@ Función o funciones:
 
   function requirementKey(req){
     req = req || {};
-    return text(req.requisitoKey || req.requirementKey || req.key || req.campo || req.field || req.codigo || req.nombre || (typeof req.requisito === "string" ? req.requisito : ""));
+    return canonicalRequirementKey(req.requisitoKey || req.requirementKey || req.key || req.campo || req.field || req.codigo || req.nombre || (typeof req.requisito === "string" ? req.requisito : ""));
   }
 
   function requirementValue(req){
@@ -49,15 +63,10 @@ Función o funciones:
 
     for(var i=0;i<keys.length;i+=1){
       var value = req[keys[i]];
-
-      if(value === undefined || value === null){
-        continue;
-      }
-
+      if(value === undefined || value === null){ continue; }
       if(value && typeof value === "object"){
         value = value.id || value.value || value.label || "";
       }
-
       if(typeof value === "boolean" || typeof value === "number" || text(value) !== ""){
         return value;
       }
@@ -84,12 +93,14 @@ Función o funciones:
     req = req || {};
     if(req.hasValue === true){ return {exists:true,value:req.value}; }
 
-    var key = req.key || "";
+    var key = requirementKey(req);
     var raw = rawKeyInfo(row,key);
     try{
       if(reqEngine() && typeof reqEngine().valueOf === "function"){
         var value = reqEngine().valueOf(row || {},key);
-        if(text(value) !== ""){ return {exists:true,value:value}; }
+        if(value !== undefined && value !== null && (typeof value === "boolean" || typeof value === "number" || text(value) !== "")){
+          return {exists:true,value:value};
+        }
       }
     }catch(error){}
     return raw;
@@ -104,8 +115,8 @@ Función o funciones:
     }catch(error){}
 
     var valueNorm = norm(value);
-    if(!valueNorm){ return "sin_dato"; }
-    if(["cumple","si cumple","sí cumple","aprobado","aprobada","ok","completo","completa","completado","completada","si","sí","1","true","x"].indexOf(valueNorm) >= 0){
+    if(!valueNorm){ return "no_cumple"; }
+    if(["cumple","si cumple","sí cumple","aprobado","aprobada","ok","completo","completa","completado","completada","si","sí","s","1","true","x","validado","validada"].indexOf(valueNorm) >= 0){
       return "cumple";
     }
     if(["no aplica","n/a","na","no corresponde"].indexOf(valueNorm) >= 0){
@@ -117,6 +128,45 @@ Función o funciones:
   function isPendingStatus(status){
     status = norm(status).replace(/\s+/g,"_");
     return !!status && status !== "cumple" && status !== "no_aplica";
+  }
+
+  function knownRuleKeys(){
+    var map = Object.create(null);
+    try{
+      arr(reqEngine() && reqEngine().FILTER_REQUIREMENTS).forEach(function(item){
+        var key = canonicalRequirementKey(item && (item.key || item.id || item.campo));
+        if(key){ map[compact(key)] = true; }
+      });
+    }catch(error){}
+    return map;
+  }
+
+  function requirementApplies(row,req){
+    var key = requirementKey(req);
+    if(!key){ return false; }
+
+    var known = knownRuleKeys();
+    if(!known[compact(key)]){
+      return true;
+    }
+
+    var periodValue = text(row && (row._periodo || row.periodoLabel || row.Periodo || row.periodo || row._periodoId || row.periodoId || row.periodId));
+
+    try{
+      if(reqEngine() && typeof reqEngine().isFinalRequirement === "function" && reqEngine().isFinalRequirement(key)){
+        return true;
+      }
+      if(reqEngine() && typeof reqEngine().appliesRequirement === "function"){
+        return reqEngine().appliesRequirement(key,periodValue);
+      }
+      if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){
+        return arr(reqEngine().requirementsForStudent(row || {})).some(function(item){
+          return compact(canonicalRequirementKey(item && (item.key || item.id || item.campo))) === compact(key);
+        });
+      }
+    }catch(error){}
+
+    return true;
   }
 
   function requirementsFromRow(row){
@@ -133,27 +183,33 @@ Función o funciones:
   }
 
   function requirementsFromEngine(row){
+    var list = [];
     try{
       if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){
-        return arr(reqEngine().requirementsForStudent(row || {})).map(function(req){
-          if(typeof req === "string"){
-            return {key:req,label:requirementLabel(req,req),source:"engine"};
-          }
-          req = req || {};
-          var key = text(req.key || req.id || req.campo || req.name);
-          return {key:key,label:text(req.label || req.nombre || req.titulo || requirementLabel(key,key)),source:"engine"};
-        }).filter(function(req){ return !!req.key; });
+        list = list.concat(arr(reqEngine().requirementsForStudent(row || {})));
+      }
+      if(reqEngine() && Array.isArray(reqEngine().FINAL_REQUIREMENTS)){
+        list = list.concat(reqEngine().FINAL_REQUIREMENTS);
       }
     }catch(error){}
-    return [];
+
+    return list.map(function(req){
+      if(typeof req === "string"){
+        return {key:canonicalRequirementKey(req),label:requirementLabel(req,req),source:"engine"};
+      }
+      req = req || {};
+      var key = canonicalRequirementKey(req.key || req.id || req.campo || req.name);
+      return {key:key,label:text(req.label || req.nombre || req.titulo || requirementLabel(key,key)),source:"engine"};
+    }).filter(function(req){ return !!req.key; });
   }
 
   function requirementsFromConfig(){
     var list = [];
     arr(config().areas).forEach(function(area){
-      arr(area.requisitoKeys).forEach(function(key){
+      var key = canonicalRequirementKey(arr(area.requisitoKeys)[0] || area.id);
+      if(key){
         list.push({key:key,label:requirementLabel(key,area.area || key),areaId:area.id,source:"config"});
-      });
+      }
     });
     return list;
   }
@@ -161,24 +217,27 @@ Función o funciones:
   function allKnownRequirements(row){
     var map = Object.create(null);
     var list = [];
+    var engineItems = requirementsFromEngine(row);
 
     function add(req){
       req = req || {};
-      var key = text(req.key);
+      var key = canonicalRequirementKey(req.key);
       if(!key){ return; }
       var id = compact(key);
+      req.key = key;
+      req.label = text(req.label || requirementLabel(key,key));
+
       if(map[id]){
         if(req.source === "row"){
           Object.assign(map[id],req);
         }
         return;
       }
-      map[id] = Object.assign({},req,{key:key,label:text(req.label || requirementLabel(key,key))});
+      map[id] = Object.assign({},req);
       list.push(map[id]);
     }
 
-    requirementsFromConfig().forEach(add);
-    requirementsFromEngine(row).forEach(add);
+    (engineItems.length ? engineItems : requirementsFromConfig()).forEach(add);
     requirementsFromRow(row).forEach(add);
     return list;
   }
@@ -186,7 +245,7 @@ Función o funciones:
   function inferAreaId(req){
     req = req || {};
     var helper = cfgHelper("areaIdForRequirement");
-    var values = [req.key,req.label,requirementLabel(req.key,req.label || req.key)];
+    var values = [requirementKey(req),req.label,requirementLabel(requirementKey(req),req.label || requirementKey(req))];
     for(var i=0;i<values.length;i+=1){
       if(typeof helper === "function"){
         var found = helper(values[i]);
@@ -207,10 +266,9 @@ Función o funciones:
   }
 
   function matchesSelectedRequirement(req,selected){
-    selected = text(selected);
+    selected = canonicalRequirementKey(selected);
     if(!selected){ return true; }
-    var target = compact(selected);
-    return compact(req.key) === target || compact(req.label) === target || compact(inferAreaId(req)) === target;
+    return compact(requirementKey(req)) === compact(selected);
   }
 
   function mergePending(items){
@@ -226,6 +284,7 @@ Función o funciones:
     var out = [];
     allKnownRequirements(row).forEach(function(req){
       if(!matchesSelectedRequirement(req,selectedRequirement)){ return; }
+      if(!requirementApplies(row,req)){ return; }
       var areaId = inferAreaId(req);
       if(!areaId){ return; }
       var info = valueInfo(row,req);
@@ -234,13 +293,19 @@ Función o funciones:
       if(!isPendingStatus(status)){ return; }
       out.push({
         areaId:areaId,
-        key:req.key,
-        label:req.label || requirementLabel(req.key,req.key),
+        key:requirementKey(req),
+        label:req.label || requirementLabel(requirementKey(req),requirementKey(req)),
         value:text(info.value),
         status:status
       });
     });
     return mergePending(out);
+  }
+
+  function selectedRequirementApplies(row,selectedRequirement){
+    selectedRequirement = canonicalRequirementKey(selectedRequirement);
+    if(!selectedRequirement){ return true; }
+    return requirementApplies(row,{key:selectedRequirement,source:"filter"});
   }
 
   function studentKey(row){
@@ -270,6 +335,7 @@ Función o funciones:
       requisitos:labels,
       requisitosTexto:labels.join(", "),
       totalPendientes:pendingItems.length,
+      estado:"Con pendientes",
       rawId:row._cooId || ""
     });
     report.totalEstudiantes = report.estudiantes.length;
@@ -307,8 +373,9 @@ Función o funciones:
   }
 
   function requirementLabelFromList(list,key){
-    var found = arr(list).filter(function(item){ return compact(item.key) === compact(key); })[0];
-    return found ? found.label : key;
+    key = canonicalRequirementKey(key);
+    var found = arr(list).filter(function(item){ return compact(canonicalRequirementKey(item.key)) === compact(key); })[0];
+    return found ? found.label : requirementLabel(key,key);
   }
 
   function periodLabelFromList(list,periodId){
@@ -347,14 +414,17 @@ Función o funciones:
     areas.forEach(function(area){ areaMap[area.id] = area; });
 
     var rows = arr(dataResult.rows);
-    var selectedRequirement = text(options.requirementKey || options.requisito || "");
+    var selectedRequirement = canonicalRequirementKey(options.requirementKey || options.requisito || "");
     var uniquePendingStudents = Object.create(null);
     var totalPending = 0;
     var studentDetails = [];
 
     rows.forEach(function(row){
-      var pending = detectPendingForStudent(row,selectedRequirement);
+      var applies = selectedRequirementApplies(row,selectedRequirement);
+      var pending = applies ? detectPendingForStudent(row,selectedRequirement) : [];
       var labels = pending.map(function(item){ return item.label; });
+      var status = !applies ? "No aplica" : (pending.length ? "Con pendientes" : "Al día");
+
       studentDetails.push({
         cedula:row._cedula || "",
         nombre:row._nombres || "",
@@ -364,7 +434,7 @@ Función o funciones:
         requisitos:labels,
         requisitosTexto:labels.join(", "),
         totalPendientes:pending.length,
-        estado:pending.length ? "Con pendientes" : "Al día"
+        estado:status
       });
 
       if(!pending.length){ return; }
@@ -393,7 +463,8 @@ Función o funciones:
     var global = Object.assign({},clone(config().global || {}),{
       totalEstudiantesRevisados:rows.length,
       totalEstudiantesPendientes:totalPendingStudents,
-      totalEstudiantesAlDia:Math.max(0,rows.length - totalPendingStudents),
+      totalEstudiantesAlDia:studentDetails.filter(function(item){ return item.estado === "Al día"; }).length,
+      totalEstudiantesNoAplica:studentDetails.filter(function(item){ return item.estado === "No aplica"; }).length,
       totalAreasConPendientes:areasWithPending.length,
       totalPendientes:totalPending,
       areas:areas.map(function(area){
@@ -439,6 +510,7 @@ Función o funciones:
         totalStudentsRead:rows.length,
         totalStudentsWithPending:totalPendingStudents,
         totalStudentsUpToDate:global.totalEstudiantesAlDia,
+        totalStudentsNotApplicable:global.totalEstudiantesNoAplica,
         totalAreas:areas.length,
         totalAreasWithPending:areasWithPending.length,
         totalPendingItems:totalPending,
@@ -464,7 +536,8 @@ Función o funciones:
     detectPendingForStudent:detectPendingForStudent,
     cellStatus:cellStatus,
     isPendingStatus:isPendingStatus,
+    requirementApplies:requirementApplies,
     emptyReport:emptyReport,
-    helpers:{text:text,norm:norm,compact:compact,requirementLabel:requirementLabel,inferAreaId:inferAreaId,valueInfo:valueInfo}
+    helpers:{text:text,norm:norm,compact:compact,requirementLabel:requirementLabel,inferAreaId:inferAreaId,valueInfo:valueInfo,canonicalRequirementKey:canonicalRequirementKey}
   };
 })(window);
