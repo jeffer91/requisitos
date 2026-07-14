@@ -4,13 +4,13 @@ Ruta o ubicación: /Requisitos/Coordi/coo.render.js
 Función o funciones:
 - Pintar la visión global y los reportes por responsable.
 - Mostrar filtros funcionales de período, división, carrera y requisito.
-- Mostrar estudiantes aunque no exista un área seleccionada.
+- Mostrar el detalle global de estudiantes hasta que se seleccione un área.
 - Habilitar el reporte global cuando existan estudiantes revisados.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "2.0.0-coo-render-filters";
+  var VERSION = "2.1.0-coo-render-global-detail";
 
   function el(id){ return document.getElementById(id); }
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -103,7 +103,7 @@ Función o funciones:
       " · Con pendientes: " + fmt(global.totalEstudiantesPendientes) +
       " · Áreas con pendientes: " + fmt(global.totalAreasConPendientes)
     );
-    ["coo-global-preview","coo-global-mail","coo-global-whatsapp"].forEach(function(id){
+    ["coo-global-preview","coo-global-mail","coo-global-whatsapp","coo-global-students"].forEach(function(id){
       var button = el(id);
       if(button){ button.disabled = !hasStudents; }
     });
@@ -156,7 +156,7 @@ Función o funciones:
 
   function renderAreaCards(report,state){
     var rows = arr(report.areasConPendientes);
-    var areaId = state.selectedAreaId || firstPendingArea(report);
+    var areaId = state.selectedAreaId || "";
     if(!rows.length){
       setHTML("coordi-carreras",'<div class="empty">No existen áreas con pendientes para el filtro actual.</div>');
     }else{
@@ -166,7 +166,7 @@ Función o funciones:
   }
 
   function renderDetail(report,state){
-    var areaId = state.selectedAreaId || firstPendingArea(report);
+    var areaId = state.selectedAreaId || "";
     var area = areaById(report,areaId);
     var rows;
 
@@ -175,7 +175,7 @@ Función o funciones:
       setText("coordi-estudiantes-meta",fmt(rows.length) + " estudiantes · " + area.area);
     }else{
       rows = arr(report.students);
-      setText("coordi-estudiantes-meta",fmt(rows.length) + " estudiantes del corte");
+      setText("coordi-estudiantes-meta",fmt(rows.length) + " estudiantes del corte global");
     }
 
     setHTML("coordi-estudiantes",table([
@@ -192,15 +192,20 @@ Función o funciones:
 
   function summaryText(report){
     var global = report.global || {};
-    var lines = [
-      "Resumen Coordi",
+    var filters = report.filters || {};
+    var lines = ["Resumen Coordi"];
+    if(filters.periodLabel || filters.periodId){ lines.push("Período: " + (filters.periodLabel || filters.periodId)); }
+    if(filters.division){ lines.push("División: " + filters.division); }
+    if(filters.career){ lines.push("Carrera: " + filters.career); }
+    if(filters.requirementLabel || filters.requirementKey){ lines.push("Requisito: " + (filters.requirementLabel || filters.requirementKey)); }
+    lines = lines.concat([
       "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados),
       "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
       "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
       "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
       "Pendientes acumulados: " + fmt(global.totalPendientes),
       ""
-    ];
+    ]);
     arr(report.areasConPendientes).forEach(function(area){
       lines.push(area.area + ": " + fmt(area.totalEstudiantes) + " estudiantes · " + fmt(area.totalPendientes) + " pendientes · Responsable: " + area.responsable);
     });
