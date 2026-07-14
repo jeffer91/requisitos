@@ -4,7 +4,7 @@ Ruta o ubicación: /Requisitos/Coordi/coordi.app.js
 Función o funciones:
 - Actualizar Coordi automáticamente al cambiar los filtros.
 - Mostrar únicamente el correo global o la comunicación por requisito.
-- Abrir Outlook y WhatsApp con el contenido preparado.
+- Abrir Outlook y WhatsApp con confirmación real del resultado.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -18,6 +18,7 @@ Función o funciones:
     currentMail:null,
     currentWhatsApp:null,
     loading:false,
+    openingMail:false,
     pendingRender:null,
     refreshTimer:null,
     statusTimer:null,
@@ -51,12 +52,12 @@ Función o funciones:
     node.className = "coordi-status " + (cls || "");
   }
 
-  function transient(message){
+  function transient(message,duration){
     status(message,"");
     state.statusTimer = setTimeout(function(){
       state.statusTimer = null;
       status("");
-    },1800);
+    },Number(duration || 3200));
   }
 
   function ensureModules(){
@@ -154,19 +155,48 @@ Función o funciones:
     });
   }
 
+  function setMailButtonBusy(busy){
+    var button = el("coordi-open-mail");
+    if(!button){ return; }
+    button.disabled = !!busy || !state.currentMail || !state.currentMail.to;
+    button.textContent = busy ? "Abriendo..." : "Abrir en Outlook";
+  }
+
   function openMail(){
-    if(!state.currentMail){ status("No existe un correo preparado para este filtro.","warn"); return; }
-    status("Abriendo Outlook...","");
-    window.COOMail.open(state.currentMail).then(function(){
-      transient("Correo abierto para revisión.");
+    if(state.openingMail){ return; }
+    if(!state.currentMail){
+      status("No existe un correo preparado para este filtro.","warn");
+      return;
+    }
+
+    state.openingMail = true;
+    setMailButtonBusy(true);
+    status("Copiando el correo y abriendo Outlook...","");
+
+    window.COOMail.open(state.currentMail).then(function(result){
+      if(!result || result.ok !== true || result.opened !== true){
+        throw new Error(result && (result.error || result.message) || "Outlook no pudo abrirse.");
+      }
+
+      if(result.copied === true){
+        transient("Outlook abierto. Pegue el correo completo con Ctrl + V.",4200);
+      }else{
+        status("Outlook se abrió, pero no se pudo copiar el contenido. Copie el correo desde la vista previa.","warn");
+      }
     }).catch(function(error){
       console.error("[Coordi Mail]",error);
-      status(error && error.message ? error.message : String(error),"warn");
+      status(error && error.message ? error.message : "No se pudo abrir Outlook. Revise la aplicación de correo predeterminada en Windows.","warn");
+    }).finally(function(){
+      state.openingMail = false;
+      setMailButtonBusy(false);
     });
   }
 
   function openWhatsApp(){
-    if(!state.currentWhatsApp){ status("No existe un WhatsApp preparado para este filtro.","warn"); return; }
+    if(!state.currentWhatsApp){
+      status("No existe un WhatsApp preparado para este filtro.","warn");
+      return;
+    }
     status("Abriendo WhatsApp...","");
     window.COOWhatsApp.open(state.currentWhatsApp).then(function(){
       transient("WhatsApp abierto para revisión.");
