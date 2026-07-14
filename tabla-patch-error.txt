@@ -1,0 +1,9 @@
+/tmp/patch_tabla.py:382: SyntaxWarning: invalid escape sequence '\d'
+  classify_replacement = dedent('''
+Traceback (most recent call last):
+  File "/tmp/patch_tabla.py", line 34, in <module>
+    text = replace_once(
+           ^^^^^^^^^^^^^
+  File "/tmp/patch_tabla.py", line 11, in replace_once
+    raise RuntimeError(f"{label}: expected 1 exact match, found {count}")
+RuntimeError: cone.tabla trusted sources: expected 1 exact match, found 0
