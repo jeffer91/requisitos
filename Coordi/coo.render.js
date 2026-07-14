@@ -86,7 +86,7 @@ Función o funciones:
         areaId = window.COOConfig.helpers.areaIdForRequirement(requirementKey) || "";
       }
     }catch(error){}
-    return areaById(report,areaId) || arr(report && report.areasConPendientes)[0] || null;
+    return areaById(report,areaId);
   }
 
   function buildCommunication(report,state){
