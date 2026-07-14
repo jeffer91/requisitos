@@ -5,7 +5,8 @@ Función:
 - Centralizar la configuración inicial del módulo Global.
 - Definir identidad institucional, colores, logo, filtros y secciones.
 - Mantener reglas mínimas para la clasificación Universitaria/Superior.
-- Configurar el criterio institucional de graduado mediante AprobacionTitulacion = CUMPLE.
+- Configurar un mes de espera para mostrar períodos finalizados.
+- Configurar el criterio y mínimo institucional para graduados.
 Con qué se conecta:
 - global.html
 - global.index.js
@@ -21,7 +22,7 @@ Con qué se conecta:
       titulo: "Análisis Global de Titulación",
       subtitulo: "Análisis histórico y comparativo de información cargada en Base Local",
       unidad: "Unidad de Titulación y Eficiencia Terminal",
-      version: "1.1.0-graduados",
+      version: "1.2.0-global-stable",
       modo: "base-ui"
     }),
 
@@ -70,6 +71,15 @@ Con qué se conecta:
         id: "",
         label: "Todas las divisiones"
       })
+    }),
+
+    periodos: Object.freeze({
+      /*
+       * Una vez finalizado el período se reserva un mes
+       * completo para titulación. Se muestra desde el primer
+       * día del mes siguiente.
+       */
+      mesesEsperaTitulacion: 1
     }),
 
     secciones: Object.freeze([
@@ -126,7 +136,7 @@ Con qué se conecta:
         id: "graduados",
         label: "Graduados",
         titulo: "Graduados por período",
-        descripcion: "Estudiantes cuyo campo AprobacionTitulacion tiene el valor CUMPLE.",
+        descripcion: "Períodos con al menos tres estudiantes cuyo campo AprobacionTitulacion tiene el valor CUMPLE.",
         pdfTitulo: "Reporte global - Graduados por período"
       },
       {
@@ -160,7 +170,13 @@ Con qué se conecta:
        * Evita contar dos veces al mismo estudiante dentro
        * del mismo período académico.
        */
-      contarUnicoPorPeriodo: true
+      contarUnicoPorPeriodo: true,
+
+      /*
+       * Un período aparece en Graduados solo cuando alcanza
+       * este mínimo de estudiantes graduados.
+       */
+      minimoPorPeriodo: 3
     }),
 
     reglas: Object.freeze({
