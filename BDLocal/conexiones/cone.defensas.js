@@ -13,7 +13,7 @@ Función o funciones:
   "use strict";
 
   var VERSION =
-    "0.3.0-canonical-student-id";
+    "0.4.0-requirements-hydration";
 
   var HUB =
     window.BDLocalConexiones ||
@@ -28,6 +28,12 @@ Función o funciones:
     error: "",
     students: [],
     periods: [],
+    requirements: [],
+    requirementsByStudent: Object.create(null),
+    requirementsLoaded: false,
+    requirementsError: "",
+    requirementsPromise: null,
+    servicePatched: false,
     refreshTimer: null,
     eventsBound: false
   };
@@ -497,6 +503,454 @@ Función o funciones:
       : null;
   }
 
+
+  function requirementKeyNorm(value){
+    return norm(value)
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function compactRequirementKey(value){
+    return requirementKeyNorm(value).replace(/_/g, "");
+  }
+
+  function requirementsRepo(){
+    if (
+      window.BDLRepoRequisitos &&
+      typeof window.BDLRepoRequisitos.list === "function"
+    ){
+      return window.BDLRepoRequisitos;
+    }
+
+    if (
+      window.BDLRepositories &&
+      typeof window.BDLRepositories.get === "function"
+    ){
+      return (
+        window.BDLRepositories.get("requisitos") ||
+        window.BDLRepositories.get("requisitos_estudiante") ||
+        null
+      );
+    }
+
+    return null;
+  }
+
+  function requirementCedula(row){
+    row = row || {};
+    return normalizeCedula(
+      row.cedula ||
+      row._cedula ||
+      row.numeroIdentificacion ||
+      row.NumeroIdentificacion ||
+      row.Cedula ||
+      row["Cédula"] ||
+      ""
+    );
+  }
+
+  function requirementPeriod(row){
+    row = row || {};
+    return canonicalPeriodId(
+      row.periodoId ||
+      row.periodId ||
+      row.periodoCanonicoId ||
+      row.ultimoPeriodoId ||
+      row._periodoId ||
+      row._bl2PeriodoId ||
+      ""
+    );
+  }
+
+  function requirementName(row){
+    row = row || {};
+    return text(
+      row.requisitoKey ||
+      row.requirementKey ||
+      row.key ||
+      row.campo ||
+      row.field ||
+      row.nombre ||
+      row.requisitoLabel ||
+      row.requisitoNombre ||
+      ""
+    );
+  }
+
+  function requirementValue(row){
+    row = row || {};
+
+    if (row.valor !== undefined && row.valor !== null){
+      return row.valor;
+    }
+
+    if (row.value !== undefined && row.value !== null){
+      return row.value;
+    }
+
+    if (row.estado !== undefined && row.estado !== null){
+      if (row.estado && typeof row.estado === "object"){
+        return (
+          row.estado.id ||
+          row.estado.value ||
+          row.estado.label ||
+          ""
+        );
+      }
+      return row.estado;
+    }
+
+    if (row.cumple !== undefined && row.cumple !== null){
+      return row.cumple;
+    }
+
+    if (row.aprobado !== undefined && row.aprobado !== null){
+      return row.aprobado;
+    }
+
+    if (row.resultado !== undefined && row.resultado !== null){
+      return row.resultado;
+    }
+
+    return "";
+  }
+
+  function normalizeRequirement(row){
+    row = Object.assign({}, row || {});
+
+    row.cedula = requirementCedula(row);
+    row.numeroIdentificacion = row.cedula;
+    row.periodoId = requirementPeriod(row);
+    row.periodId = row.periodoId;
+    row.requisitoKey = requirementKeyNorm(
+      requirementName(row)
+    );
+
+    return row;
+  }
+
+  function buildRequirementsIndex(rows){
+    state.requirements = (
+      Array.isArray(rows)
+        ? rows
+        : []
+    )
+      .map(normalizeRequirement)
+      .filter(function(row){
+        return !!(
+          studentPeriodId(
+            row.periodoId,
+            row.cedula
+          ) &&
+          row.requisitoKey
+        );
+      });
+
+    state.requirementsByStudent =
+      Object.create(null);
+
+    state.requirements.forEach(function(row){
+      var id = studentPeriodId(
+        row.periodoId,
+        row.cedula
+      );
+
+      if (!state.requirementsByStudent[id]){
+        state.requirementsByStudent[id] = [];
+      }
+
+      state.requirementsByStudent[id].push(row);
+    });
+  }
+
+  function canonicalRequirementField(key){
+    var map = {
+      academico: "Academico",
+      documentacion: "Documentacion",
+      financiero: "Financiero",
+      titulacion: "Titulacion",
+      practicasvinculacion: "PrácticasVinculacion",
+      practicas: "PrácticasVinculacion",
+      vinculacion: "Vinculacion",
+      seguimientograduados: "SeguimientoGraduados",
+      seguimientoagraduados: "SeguimientoGraduados",
+      ingles: "Ingles",
+      actualizaciondatos: "ActualizaciónDatos"
+    };
+
+    return map[
+      compactRequirementKey(key)
+    ] || "";
+  }
+
+  function attachRequirementValue(student, requirement){
+    var rawKey = requirementName(requirement);
+    var normalized = requirementKeyNorm(rawKey);
+    var compact = compactRequirementKey(rawKey);
+    var canonical = canonicalRequirementField(rawKey);
+    var value = requirementValue(requirement);
+
+    if (rawKey){ student[rawKey] = value; }
+    if (normalized){ student[normalized] = value; }
+    if (compact){ student[compact] = value; }
+    if (canonical){ student[canonical] = value; }
+  }
+
+  function hydrateStudentRequirements(input){
+    var student = normalizeStudent(input);
+
+    if (!state.requirementsLoaded){
+      student._bdlRequirementsLoaded = false;
+      student._bdlRequirementsHydrated = false;
+      student._bdlRequirementsCount = 0;
+      return student;
+    }
+
+    var id = studentPeriodId(
+      student.periodoId,
+      student.cedula
+    );
+
+    var matched =
+      id && state.requirementsByStudent[id]
+        ? state.requirementsByStudent[id]
+        : [];
+
+    matched.forEach(function(requirement){
+      attachRequirementValue(
+        student,
+        requirement
+      );
+    });
+
+    student.requisitos = matched.map(
+      function(requirement){
+        return Object.assign(
+          {},
+          requirement
+        );
+      }
+    );
+
+    student.requirements =
+      student.requisitos.map(
+        function(requirement){
+          return Object.assign(
+            {},
+            requirement
+          );
+        }
+      );
+
+    student._bdlRequirementsLoaded = true;
+    student._bdlRequirementsHydrated = true;
+    student._bdlRequirementsCount =
+      matched.length;
+
+    return student;
+  }
+
+  function hydrateStudents(rows){
+    return (
+      Array.isArray(rows)
+        ? rows
+        : []
+    ).map(hydrateStudentRequirements);
+  }
+
+  function hydrateServiceResult(result){
+    if (Array.isArray(result)){
+      return hydrateStudents(result);
+    }
+
+    if (
+      result &&
+      typeof result === "object" &&
+      Array.isArray(result.rows)
+    ){
+      return Object.assign({}, result, {
+        rows: hydrateStudents(result.rows),
+        requirementsLoaded:
+          state.requirementsLoaded,
+        requirementsHydrated:
+          state.requirementsLoaded,
+        requirementsCount:
+          state.requirements.length,
+        requirementsSource:
+          "requisitos_estudiante"
+      });
+    }
+
+    return result;
+  }
+
+  function loadRequirements(force){
+    if (state.requirementsPromise){
+      return state.requirementsPromise;
+    }
+
+    if (
+      state.requirementsLoaded &&
+      !force
+    ){
+      return Promise.resolve(
+        state.requirements
+      );
+    }
+
+    var repo = requirementsRepo();
+
+    if (
+      !repo ||
+      typeof repo.list !== "function"
+    ){
+      state.requirementsLoaded = false;
+      state.requirementsError =
+        "BDLRepoRequisitos no disponible.";
+      return Promise.resolve([]);
+    }
+
+    state.requirementsError = "";
+
+    state.requirementsPromise =
+      Promise.resolve(repo.list({}))
+        .then(function(rows){
+          buildRequirementsIndex(
+            rows || []
+          );
+          state.requirementsLoaded = true;
+          state.requirementsError = "";
+          return state.requirements;
+        })
+        .catch(function(error){
+          state.requirementsLoaded = false;
+          state.requirementsError =
+            error && error.message
+              ? error.message
+              : String(error);
+          buildRequirementsIndex([]);
+          return [];
+        })
+        .finally(function(){
+          state.requirementsPromise = null;
+        });
+
+    return state.requirementsPromise;
+  }
+
+  function wrapDefensasServiceMethod(target, name){
+    if (
+      !target ||
+      typeof target[name] !== "function" ||
+      target[name].__requirementsHydratedByConeDefensas
+    ){
+      return;
+    }
+
+    var original = target[name];
+
+    var wrapped = function(){
+      var context = this;
+      var args = arguments;
+
+      return Promise.all([
+        Promise.resolve(
+          original.apply(context, args)
+        ),
+        loadRequirements(false)
+      ]).then(function(result){
+        return hydrateServiceResult(
+          result[0]
+        );
+      });
+    };
+
+    wrapped.__requirementsHydratedByConeDefensas = true;
+    wrapped.__original = original;
+    target[name] = wrapped;
+  }
+
+  function patchDefensasService(){
+    var target =
+      window.BDLServiceDefensas ||
+      service("defensas");
+
+    if (!target){
+      return false;
+    }
+
+    [
+      "getPage",
+      "page",
+      "getFiltered",
+      "list"
+    ].forEach(function(name){
+      wrapDefensasServiceMethod(
+        target,
+        name
+      );
+    });
+
+    target.requirementsStatus = function(){
+      return {
+        loaded:
+          state.requirementsLoaded,
+        total:
+          state.requirements.length,
+        error:
+          state.requirementsError
+      };
+    };
+
+    target.refreshRequirements = function(){
+      return loadRequirements(true);
+    };
+
+    state.servicePatched = true;
+    return true;
+  }
+
+  function listRequirementsSync(options){
+    options = options || {};
+
+    var periodoId = canonicalPeriodId(
+      options.periodoId ||
+      options.periodId ||
+      ""
+    );
+
+    var cedula = normalizeCedula(
+      options.cedula ||
+      options.numeroIdentificacion ||
+      ""
+    );
+
+    return state.requirements
+      .filter(function(row){
+        if (
+          periodoId &&
+          !samePeriod(
+            row.periodoId,
+            periodoId
+          )
+        ){
+          return false;
+        }
+
+        if (
+          cedula &&
+          normalizeCedula(row.cedula) !==
+            cedula
+        ){
+          return false;
+        }
+
+        return true;
+      })
+      .map(function(row){
+        return Object.assign({}, row);
+      });
+  }
   function filterStudents(
     rows,
     options
@@ -637,7 +1091,11 @@ Función o funciones:
       rows: rows,
       total: rows.length,
       periodList:
-        listPeriodsSync(),
+      listPeriodsSync(),
+      requirements:
+      listRequirementsSync(options || {}),
+      requirementsLoaded:
+      state.requirementsLoaded,
       source: state.source,
       ready: state.ready,
       loadedAt:
@@ -705,14 +1163,23 @@ Función o funciones:
           state.students.length,
 
         totalPeriods:
-          state.periods.length
-      },
+        state.periods.length,
+
+        totalRequirements:
+        state.requirements.length,
+
+        requirementsLoaded:
+        state.requirementsLoaded
+        },
 
       periods:
         state.periods.slice(),
 
       students:
-        state.students.slice(),
+      state.students.slice(),
+
+      requirements:
+      state.requirements.slice(),
 
       history: [],
 
@@ -777,7 +1244,16 @@ Función o funciones:
         },
 
       filterStudents:
-        getStudentsSync,
+      getStudentsSync,
+
+      listRequirements:
+      listRequirementsSync,
+
+      getRequirements:
+      listRequirementsSync,
+
+      requirements:
+      listRequirementsSync,
 
       listStudentsByStatus:
         function(
@@ -858,11 +1334,20 @@ Función o funciones:
                 estudiantes:
                   students,
 
-                requisitos: [],
-
+                requisitos:
+                listRequirementsSync({
+                periodoId:
+                periodoId
+                }),
                 resumen: {
-                  totalEstudiantes:
-                    students.length
+                totalEstudiantes:
+                students.length,
+
+                totalRequisitos:
+                listRequirementsSync({
+                periodoId:
+                periodoId
+                }).length
                 },
 
                 source:
@@ -874,6 +1359,17 @@ Función o funciones:
   }
 
   function renderDefensas(){
+    try{
+      if (
+        window.DefartServiceBridge &&
+        typeof window.DefartServiceBridge.clear === "function"
+      ){
+        window.DefartServiceBridge.clear({
+          resetPage: false
+        });
+      }
+    }catch(error){}
+
     try{
       if (
         window.DefartCore &&
@@ -909,6 +1405,7 @@ Función o funciones:
     state.loading = true;
     state.error = "";
 
+    patchDefensasService();
     patchAdapters();
 
     var estudiantes =
@@ -945,13 +1442,17 @@ Función o funciones:
             "function"
         )
           ? periodos.list()
-          : Promise.resolve([])
-      ])
+          : Promise.resolve([]),
+
+          loadRequirements(true)
+          ])
       .then(function(result){
-        state.students =
-          dedupeStudents(
-            result[0] || []
-          );
+      state.students =
+      hydrateStudents(
+      dedupeStudents(
+      result[0] || []
+      )
+      );
 
         state.periods =
           (result[1] || [])
@@ -967,6 +1468,7 @@ Función o funciones:
         state.ready = true;
         state.error = "";
 
+        patchDefensasService();
         patchAdapters();
 
         try{
@@ -1037,6 +1539,7 @@ Función o funciones:
 
     [
       "bdlocal:screen-data-updated",
+      "bdlocal:conexiones-cache-updated",
       "bdlocal:legacy-snapshot",
       "requisitos:bl:snapshot-changed",
       "bl2:students-saved",
@@ -1097,7 +1600,19 @@ Función o funciones:
         state.students.length,
 
       periods:
-        state.periods.length,
+      state.periods.length,
+
+      requirements:
+      state.requirements.length,
+
+      requirementsLoaded:
+      state.requirementsLoaded,
+
+      requirementsError:
+      state.requirementsError,
+
+      servicePatched:
+      state.servicePatched,
 
       loadedAt:
         state.loadedAt,
@@ -1142,14 +1657,23 @@ Función o funciones:
       listPeriodsSync,
 
     getPeriods:
-      listPeriodsSync,
+    listPeriodsSync,
+
+    listRequirements:
+    listRequirementsSync,
+
+    getRequirements:
+    listRequirementsSync,
 
     filterStudents:
       getStudentsSync,
 
     patchAdapters:
-      patchAdapters
-  };
+    patchAdapters,
+
+    patchService:
+    patchDefensasService
+    };
 
   window.BDLocalConeDefensas =
     api;
@@ -1171,6 +1695,7 @@ Función o funciones:
     );
   }
 
+  patchDefensasService();
   patchAdapters();
   bindEvents();
 
