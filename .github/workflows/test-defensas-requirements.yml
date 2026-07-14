@@ -1,0 +1,177 @@
+name: Test Defensas requirements
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/test-defensas-requirements.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Validate syntax
+        run: |
+          node --check BDLocal/conexiones/cone.defensas.js
+          node --check defart/defart.requirements-guard.js
+
+      - name: Test cédula and period hydration
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('assert');
+
+          global.window = global;
+          global.document = {
+            readyState: 'complete',
+            addEventListener() {}
+          };
+          global.CustomEvent = function CustomEvent(name, options) {
+            this.type = name;
+            this.detail = options && options.detail;
+          };
+          global.addEventListener = function () {};
+          global.dispatchEvent = function () { return true; };
+          global.localStorage = {
+            getItem() { return null; },
+            setItem() {},
+            removeItem() {}
+          };
+
+          let bridgeClearCalls = 0;
+          global.DefartServiceBridge = {
+            clear() { bridgeClearCalls += 1; }
+          };
+          global.DefartApp = { render() {} };
+          global.DefartCore = { clearSummaryCache() {} };
+          global.BDLocalConexiones = { register() {} };
+
+          const student = {
+            cedula: '1716284557',
+            numeroIdentificacion: '1716284557',
+            periodoId: '2025-11__2026-05',
+            Nombres: 'ESTUDIANTE PRUEBA',
+            NombreCarrera: 'ENFERMERÍA',
+            estadoMatricula: 'ACTIVO'
+          };
+
+          const requirements = [
+            {
+              cedula: '1716284557',
+              periodoId: '2025-11__2026-05',
+              requisitoKey: 'academico',
+              estado: 'CUMPLE'
+            },
+            {
+              cedula: '1716284557',
+              periodoId: '2025-11__2026-05',
+              requisitoKey: 'documentacion',
+              valor: 'CUMPLE'
+            },
+            {
+              cedula: '1716284557',
+              periodoId: '2025-11__2026-05',
+              requisitoKey: 'financiero',
+              value: 'NO CUMPLE'
+            },
+            {
+              cedula: '1716284557',
+              periodoId: '2026-06__2026-11',
+              requisitoKey: 'ingles',
+              estado: 'CUMPLE'
+            }
+          ];
+
+          const studentsService = {
+            list() { return Promise.resolve([student]); }
+          };
+          const periodsService = {
+            list() {
+              return Promise.resolve([
+                {
+                  id: '2025-11__2026-05',
+                  label: 'Noviembre 2025 a Mayo 2026'
+                }
+              ]);
+            }
+          };
+          const defensasService = {
+            getPage() {
+              return Promise.resolve({
+                rows: [student],
+                page: 1,
+                limit: 25,
+                total: 1,
+                totalPages: 1
+              });
+            },
+            page() { return this.getPage(); },
+            getFiltered() { return Promise.resolve([student]); },
+            list() { return Promise.resolve([student]); }
+          };
+
+          global.BDLServiceDefensas = defensasService;
+          global.BDLRepoRequisitos = {
+            list() { return Promise.resolve(requirements); }
+          };
+          global.BDLServices = {
+            get(name) {
+              if (name === 'estudiantes') return studentsService;
+              if (name === 'periodos') return periodsService;
+              if (name === 'defensas') return defensasService;
+              return null;
+            }
+          };
+
+          require('./BDLocal/conexiones/cone.defensas.js');
+
+          (async () => {
+            await global.ConDefensas.ready();
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            const rows = global.ConDefensas.getStudents({
+              periodoId: '2025-11__2026-05'
+            });
+
+            assert.strictEqual(rows.length, 1, 'Debe devolver el estudiante del período');
+            assert.strictEqual(rows[0]._bdlRequirementsLoaded, true, 'Los requisitos deben estar cargados');
+            assert.strictEqual(rows[0]._bdlRequirementsCount, 3, 'Solo debe unir tres requisitos del período correcto');
+            assert.strictEqual(rows[0].Academico, 'CUMPLE');
+            assert.strictEqual(rows[0].Documentacion, 'CUMPLE');
+            assert.strictEqual(rows[0].Financiero, 'NO CUMPLE');
+            assert.strictEqual(rows[0].Ingles, undefined, 'No debe mezclar requisitos de otro período');
+            assert.strictEqual(rows[0].requisitos.length, 3);
+
+            const paged = await global.BDLServiceDefensas.getPage({
+              periodoId: '2025-11__2026-05'
+            });
+
+            assert.strictEqual(paged.rows.length, 1);
+            assert.strictEqual(paged.rows[0]._bdlRequirementsCount, 3, 'La ruta moderna también debe quedar hidratada');
+            assert.strictEqual(paged.rows[0].Academico, 'CUMPLE');
+            assert.strictEqual(paged.requirementsLoaded, true);
+            assert.strictEqual(paged.requirementsCount, 4, 'El diagnóstico conserva el total global cargado');
+
+            const status = global.ConDefensas.status();
+            assert.strictEqual(status.requirementsLoaded, true);
+            assert.strictEqual(status.requirements, 4);
+            assert.strictEqual(status.servicePatched, true);
+            assert.ok(bridgeClearCalls >= 1, 'Debe limpiar la caché visual después de recargar');
+
+            console.log('Defensas requirements hydration test: OK');
+          })().catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
