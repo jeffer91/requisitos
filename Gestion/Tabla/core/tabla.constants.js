@@ -199,6 +199,7 @@ Función:
       career: "",
       status: "",
       search: "",
+      requirementOrder: "",
       requirements: ["falta"],
       page: 1,
       pageSize: 75,

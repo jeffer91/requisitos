@@ -11,7 +11,7 @@ Función o funciones:
   "use strict";
 
   var VERSION =
-    "2.1.0-stable-actions";
+    "2.2.0-preserve-requirement-cell";
 
   var C =
     window.TablaConstants ||
@@ -498,18 +498,6 @@ Función o funciones:
 
     var currentCounts =
       safeCounts(row);
-
-    var last =
-      safeLastLabel(row);
-
-    setCellHtml(
-      tableRow.children[4],
-      '<span class="tabla-last-message" title="' +
-      esc(last) +
-      '">' +
-      esc(last) +
-      "</span>"
-    );
 
     setCellHtml(
       tableRow.children[5],

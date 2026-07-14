@@ -315,11 +315,33 @@ Con qué se conecta:
     );
 
     renderChips(
-      state.requirements ||
-      []
-    );
+        state.requirements ||
+        []
+      );
 
-    var search =
+      var sortRequirements =
+        el("tabla-sort-requirements");
+
+      if(sortRequirements){
+        var order = text(state.requirementOrder).toLowerCase();
+
+        sortRequirements.setAttribute(
+          "data-order",
+          order
+        );
+        sortRequirements.setAttribute(
+          "aria-pressed",
+          order ? "true" : "false"
+        );
+        sortRequirements.textContent =
+          order === "asc"
+            ? "Menos faltantes ↑"
+            : order === "desc"
+              ? "Más faltantes ↓"
+              : "Ordenar requisitos";
+      }
+
+      var search =
       el("tabla-search");
 
     if(
@@ -539,8 +561,25 @@ Con qué se conecta:
       );
     }
 
-    var chips =
-      el("tabla-req-chips");
+    var sortRequirements =
+        el("tabla-sort-requirements");
+
+      if(sortRequirements){
+        sortRequirements.addEventListener(
+          "click",
+          function(){
+            if(
+              typeof handlers.onSortRequirements ===
+              "function"
+            ){
+              handlers.onSortRequirements();
+            }
+          }
+        );
+      }
+
+      var chips =
+        el("tabla-req-chips");
 
     if(chips){
       chips.addEventListener(

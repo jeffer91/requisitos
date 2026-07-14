@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-atomic-envelope";
+  var VERSION = "3.1.0-revision-aware-events";
   var SOURCE = "TablaDataGuard";
   var EMPTY_CONFIRM_TTL = 10000;
 
@@ -37,8 +37,10 @@ Función:
     allowEmptyUntil: 0,
     captureTimer: null,
     requestTimer: null,
-    task: null,
-    stopBase: null
+      task: null,
+      stopBase: null,
+      lastEventRevision: 0,
+      lastEventAt: 0
   };
 
   function text(value){
@@ -469,24 +471,24 @@ Función:
     return envelope;
   }
 
-  function scheduleCapture(reason, force, allowed){
-    if(state.captureTimer){
-      window.clearTimeout(state.captureTimer);
-    }
-
-    state.captureTimer = window.setTimeout(function(){
-      state.captureTimer = null;
-
-      if(force === true){
-        loadOfficial(reason || "base-event", {
-          refresh: true,
-          allowEmpty: allowed === true
-        });
-      }else{
-        capture(reason || "base-event", false, allowed);
-      }
-    }, Math.max(0, Number(C.delays && C.delays.guardCapture || 120)));
+function scheduleCapture(reason, force, allowed){
+  if(state.captureTimer){
+    window.clearTimeout(state.captureTimer);
   }
+
+  state.captureTimer = window.setTimeout(function(){
+    state.captureTimer = null;
+
+    loadOfficial(reason || "base-event", {
+      refresh: force === true,
+      allowEmpty: allowed === true,
+      source:
+        force === true
+          ? "TablaDataGuard.scheduled-refresh"
+          : "TablaDataGuard.scheduled-read"
+    });
+  }, Math.max(0, Number(C.delays && C.delays.guardCapture || 120)));
+}
 
   function refresh(options){
     options = object(options);
@@ -518,21 +520,58 @@ Función:
     return window.TablaDataGuard;
   }
 
-  function handleBaseEvent(info){
-    info = object(info);
-    var detail = object(info.detail);
+function handleBaseEvent(info){
+  info = object(info);
+  var detail = object(info.detail);
+  var revision = Number(detail.revision || detail.cacheRevision || 0);
+  var sourceScreen = text(
+    detail.sourceScreen ||
+    detail.screen ||
+    detail.source ||
+    ""
+  ).toLowerCase();
 
-    var allowEmpty =
-      detail.allowEmpty === true ||
-      detail.confirmedEmpty === true ||
-      detail.deletionConfirmed === true;
+  var allowEmpty =
+    detail.allowEmpty === true ||
+    detail.confirmedEmpty === true ||
+    detail.deletionConfirmed === true;
 
-    scheduleCapture(
-      info.name || "base-event",
-      true,
-      allowEmpty
-    );
+  if(sourceScreen.indexOf("tabla") >= 0){
+    return;
   }
+
+  if(
+    revision > 0 &&
+    revision === state.lastEventRevision &&
+    Date.now() - state.lastEventAt < 800
+  ){
+    return;
+  }
+
+  if(revision > 0){
+    state.lastEventRevision = revision;
+    state.lastEventAt = Date.now();
+  }
+
+  if(
+    revision > 0 &&
+    state.revision > 0 &&
+    revision <= state.revision
+  ){
+    requestTabla(info.name || "base-event-current", lastGood);
+    return;
+  }
+
+  if(S && typeof S.invalidate === "function"){
+    S.invalidate({hard: true, source: info.name || "base-event"});
+  }
+
+  scheduleCapture(
+    info.name || "base-event",
+    false,
+    allowEmpty
+  );
+}
 
   function clear(){
     lastGood = emptyEnvelope();
@@ -544,8 +583,8 @@ Función:
     state.allowEmptyUntil = 0;
 
     if(S && typeof S.invalidate === "function"){
-      S.invalidate();
-    }
+        S.invalidate({hard: true, clear: true});
+      }
   }
 
   function status(){
