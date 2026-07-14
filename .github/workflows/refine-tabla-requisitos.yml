@@ -30,12 +30,6 @@ jobs:
           import re
           import textwrap
 
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise RuntimeError(f"{label}: expected 1 match, found {count}")
-              return text.replace(old, new, 1)
-
           def regex_once(text, pattern, replacement, label):
               updated, count = re.subn(
                   pattern,
@@ -48,7 +42,6 @@ jobs:
                   raise RuntimeError(f"{label}: expected 1 match, found {count}")
               return updated
 
-          # Avoid showing Cumple when the row is pending or has no data.
           path = Path('Gestion/Tabla/ui/tabla.render-table.js')
           text = path.read_text(encoding='utf-8')
           replacement = textwrap.dedent('''
@@ -86,32 +79,22 @@ jobs:
           ''').strip('\n')
           text = regex_once(
               text,
-              r'function requirementsCell\(row\)\{.*?\n\}\n\s*function messageCell\(\)\{',
-              replacement + '\n\n  function messageCell(){',
+              r'\s*function requirementsCell\(row\)\{.*?\n\s*\}\n\s*function messageCell\(\)\{',
+              '\n  ' + replacement + '\n\n  function messageCell(){',
               'requirementsCell',
           )
           path.write_text(text, encoding='utf-8')
 
-          # Keep ordered rows in the fallback pagination path as well.
           path = Path('Gestion/Tabla/core/tabla.app.js')
           text = path.read_text(encoding='utf-8')
-          text = replace_once(
+          text = regex_once(
               text,
-              '''            rows:
-                            filtered.slice(),
-
-                          allRows:
-                            filtered.slice(),''',
-              '''            rows:
-                            ordered.slice(),
-
-                          allRows:
-                            ordered.slice(),''',
+              r'rows:\s*filtered\.slice\(\),\s*allRows:\s*filtered\.slice\(\),',
+              'rows:\n              ordered.slice(),\n\n            allRows:\n              ordered.slice(),',
               'fallback ordered rows',
           )
           path.write_text(text, encoding='utf-8')
 
-          # Reformat the new action buttons in the HTML.
           path = Path('Gestion/Tabla/tabla.html')
           text = path.read_text(encoding='utf-8')
           html = textwrap.dedent('''
@@ -144,7 +127,6 @@ jobs:
           )
           path.write_text(text, encoding='utf-8')
 
-          # Add neutral style for pending/no-data rows.
           path = Path('Gestion/Tabla/css/tabla.table.css')
           text = path.read_text(encoding='utf-8')
           if '.tabla-req-empty' not in text:
