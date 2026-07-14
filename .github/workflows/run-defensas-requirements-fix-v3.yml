@@ -80,11 +80,14 @@ jobs:
           set -e
 
           if [ "$code" -ne 0 ]; then
-            cp /tmp/defensas-patch-v3.log defensas-patch-error.txt
+            {
+              echo "run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+              cat /tmp/defensas-patch-v3.log
+            } > defensas-patch-error.txt
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add defensas-patch-error.txt
-            git commit -m "Actualiza diagnóstico de Defensas v3"
+            git commit -m "Actualiza diagnóstico de Defensas v3" || true
             git push origin HEAD:${{ github.head_ref }}
             cat /tmp/defensas-patch-v3.log
             exit "$code"
