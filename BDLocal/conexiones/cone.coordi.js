@@ -14,7 +14,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-authoritative-requirements";
+  var VERSION = "2.1.0-authoritative-recovery";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
 
@@ -147,15 +147,23 @@ Con qué se conecta:
   function requirementValue(row){
     row = row || {};
     var keys = ["valor","value","estado","cumple","aprobado","resultado"];
+
     for(var i=0;i<keys.length;i+=1){
       var value = row[keys[i]];
-      if(value !== undefined && value !== null){
-        if(value && typeof value === "object"){
-          return value.id || value.value || value.label || "";
-        }
+
+      if(value === undefined || value === null){
+        continue;
+      }
+
+      if(value && typeof value === "object"){
+        value = value.id || value.value || value.label || "";
+      }
+
+      if(typeof value === "boolean" || typeof value === "number" || text(value) !== ""){
         return value;
       }
     }
+
     return "";
   }
 
@@ -181,7 +189,7 @@ Con qué se conecta:
     return memo.requirementsByCedula;
   }
 
-  function attachRequirement(student, requirement){
+  function attachRequirement(student,requirement){
     var key = requirementKey(requirement);
     var normalized = normalizeKey(key);
     var value = requirementValue(requirement);
@@ -246,13 +254,15 @@ Con qué se conecta:
   function listStudents(options){
     options = options || {};
     var rows = getStudents(options);
+    var reqs = requirements(options);
     return {
       ok:true,
       rows:rows,
       students:rows,
       estudiantes:rows,
       total:rows.length,
-      requirements:requirements(options),
+      requirements:reqs,
+      totalRequirements:reqs.length,
       periodList:listPeriods(),
       source:"BDLocalConCoordi"
     };
@@ -288,10 +298,18 @@ Con qué se conecta:
   function refresh(options){
     options = Object.assign({},options || {});
     var current = cache();
-    var incomplete = !(current.students || []).length || !(current.requirements || []).length;
+    var periodoId = canonicalPeriodId(options.periodoId || options.periodId || "");
+    var currentStudents = U.filterStudents(current.students || [],{
+      periodoId:periodoId,
+      matricula:options.matricula == null ? "" : options.matricula
+    });
+    var currentRequirements = requirements({periodoId:periodoId});
+    var incomplete = !currentStudents.length || (currentStudents.length > 0 && !currentRequirements.length);
     var full = options.full === true || options.force === true || options.mode === "full" || incomplete;
 
     return HUB.refreshCache(Object.assign({},options,{
+      periodoId:periodoId,
+      periodId:periodoId,
       source:options.source || (full ? "cone.coordi.refresh.full" : "cone.coordi.refresh.light"),
       mode:full ? "full" : "light",
       full:full,
@@ -305,10 +323,35 @@ Con qué se conecta:
     });
   }
 
+  function status(options){
+    options = options || {};
+    var current = cache();
+    var periodoId = canonicalPeriodId(options.periodoId || options.periodId || "");
+    var periodStudents = periodoId
+      ? U.filterStudents(current.students || [],{periodoId:periodoId,matricula:""})
+      : current.students || [];
+    var periodRequirements = periodoId
+      ? requirements({periodoId:periodoId})
+      : current.requirements || [];
+
+    return {
+      ok:true,
+      ready:true,
+      version:VERSION,
+      source:"BDLocalConCoordi",
+      cacheRevision:Number(current.meta && current.meta.revision || 0),
+      cacheUpdatedAt:text(current.meta && current.meta.updatedAt || ""),
+      periodoId:periodoId,
+      periods:Array.isArray(current.periods) ? current.periods.length : 0,
+      students:Array.isArray(periodStudents) ? periodStudents.length : 0,
+      requirements:Array.isArray(periodRequirements) ? periodRequirements.length : 0
+    };
+  }
+
   var api = {
     version:VERSION,
     source:"BDLocal/conexiones/cone.coordi.js",
-    ready:HUB.ready,
+    ready:function(options){ return HUB.ready(options || {}); },
     refresh:refresh,
     refreshFull:function(options){
       return refresh(Object.assign({},options || {},{full:true,force:true,mode:"full"}));
@@ -330,19 +373,7 @@ Con qué se conecta:
         return cedulaOf(row) === normalizeCedula(cedula);
       })[0] || null;
     },
-    status:function(){
-      var current = cache();
-      return {
-        ok:true,
-        ready:true,
-        version:VERSION,
-        source:"BDLocalConCoordi",
-        cacheRevision:Number(current.meta && current.meta.revision || 0),
-        periods:Array.isArray(current.periods) ? current.periods.length : 0,
-        students:Array.isArray(current.students) ? current.students.length : 0,
-        requirements:Array.isArray(current.requirements) ? current.requirements.length : 0
-      };
-    }
+    status:status
   };
 
   HUB.register("coordi",api);
