@@ -4,13 +4,13 @@ Ruta o ubicación: /Requisitos/Coordi/coo.render.js
 Función o funciones:
 - Pintar la visión global y los reportes por responsable.
 - Mostrar filtros funcionales de período, división, carrera y requisito.
-- Mostrar el detalle global de estudiantes hasta que se seleccione un área.
-- Habilitar el reporte global cuando existan estudiantes revisados.
+- Mostrar el detalle global hasta que se seleccione un área.
+- Diferenciar estudiantes al día, con pendientes y con requisito no aplicable.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "2.1.0-coo-render-global-detail";
+  var VERSION = "2.2.0-coo-render-applicability";
 
   function el(id){ return document.getElementById(id); }
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -94,15 +94,21 @@ Función o funciones:
   function renderGlobal(report){
     var global = report.global || {};
     var hasStudents = Number(global.totalEstudiantesRevisados || 0) > 0;
-    setText("coordi-global-name",global.responsable || "Dr. Alex León");
-    setText("coordi-global-email",global.correo || "aleon@itsqmet.edu.ec");
-    setText("coordi-global-phone",global.whatsapp || "593984059654");
-    setText("coordi-global-desc",
+    var description =
       "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados) +
       " · Al día: " + fmt(global.totalEstudiantesAlDia) +
       " · Con pendientes: " + fmt(global.totalEstudiantesPendientes) +
-      " · Áreas con pendientes: " + fmt(global.totalAreasConPendientes)
-    );
+      " · Áreas con pendientes: " + fmt(global.totalAreasConPendientes);
+
+    if(Number(global.totalEstudiantesNoAplica || 0) > 0){
+      description += " · No aplica: " + fmt(global.totalEstudiantesNoAplica);
+    }
+
+    setText("coordi-global-name",global.responsable || "Dr. Alex León");
+    setText("coordi-global-email",global.correo || "aleon@itsqmet.edu.ec");
+    setText("coordi-global-phone",global.whatsapp || "593984059654");
+    setText("coordi-global-desc",description);
+
     ["coo-global-preview","coo-global-mail","coo-global-whatsapp","coo-global-students"].forEach(function(id){
       var button = el(id);
       if(button){ button.disabled = !hasStudents; }
@@ -127,7 +133,11 @@ Función o funciones:
     if(!container){ return; }
     var rows = arr(report.reportesListos);
     if(!rows.length){
-      container.innerHTML = '<div class="report-ready-item muted"><strong>Seleccione un período</strong><span>Al seleccionar el período se habilitará el reporte global.</span></div>';
+      if(report.filters && report.filters.periodId){
+        container.innerHTML = '<div class="report-ready-item muted"><strong>Sin estudiantes en el corte</strong><span>No existen estudiantes para los filtros seleccionados.</span></div>';
+      }else{
+        container.innerHTML = '<div class="report-ready-item muted"><strong>Seleccione un período</strong><span>Al seleccionar el período se habilitará el reporte global.</span></div>';
+      }
       return;
     }
     container.innerHTML = table([
@@ -165,6 +175,16 @@ Función o funciones:
     setText("coordi-carreras-meta",fmt(rows.length) + " responsables con pendientes");
   }
 
+  function statusPill(row){
+    if(row.estado === "No aplica"){
+      return '<span class="pill pill-neutral">No aplica</span>';
+    }
+    if(Number(row.totalPendientes || 0) > 0){
+      return '<span class="pill pill-media">'+esc(row.requisitosTexto || arr(row.requisitos).join(", "))+'</span>';
+    }
+    return '<span class="pill pill-baja">Al día</span>';
+  }
+
   function renderDetail(report,state){
     var areaId = state.selectedAreaId || "";
     var area = areaById(report,areaId);
@@ -182,11 +202,7 @@ Función o funciones:
       {label:"Cédula",value:function(row){ return '<span class="nowrap">'+esc(row.cedula)+'</span>'; }},
       {label:"Nombre",value:function(row){ return '<strong>'+esc(row.nombre || "Sin nombre")+'</strong>'; }},
       {label:"Carrera",value:function(row){ return esc(row.carrera); }},
-      {label:"Estado / requisito",value:function(row){
-        return row.totalPendientes > 0
-          ? '<span class="pill pill-media">'+esc(row.requisitosTexto || arr(row.requisitos).join(", "))+'</span>'
-          : '<span class="pill pill-baja">Al día</span>';
-      }}
+      {label:"Estado / requisito",value:statusPill}
     ],rows));
   }
 
@@ -203,9 +219,12 @@ Función o funciones:
       "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
       "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
       "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
-      "Pendientes acumulados: " + fmt(global.totalPendientes),
-      ""
+      "Pendientes acumulados: " + fmt(global.totalPendientes)
     ]);
+    if(Number(global.totalEstudiantesNoAplica || 0) > 0){
+      lines.push("Estudiantes a los que no aplica el requisito: " + fmt(global.totalEstudiantesNoAplica));
+    }
+    lines.push("");
     arr(report.areasConPendientes).forEach(function(area){
       lines.push(area.area + ": " + fmt(area.totalEstudiantes) + " estudiantes · " + fmt(area.totalPendientes) + " pendientes · Responsable: " + area.responsable);
     });
@@ -224,11 +243,6 @@ Función o funciones:
     }else{
       target.value = summaryText(report);
     }
-  }
-
-  function renderDiagnostics(report){
-    var node = el("coordi-diagnostics");
-    if(node){ node.textContent = JSON.stringify(report.diagnostics || {},null,2); }
   }
 
   function openPreview(title,html){
@@ -253,7 +267,6 @@ Función o funciones:
     renderAreaCards(report,state);
     renderDetail(report,state);
     renderMessage(report,state);
-    renderDiagnostics(report);
   }
 
   window.COORender = {
