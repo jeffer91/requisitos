@@ -6,6 +6,7 @@ Función o funciones:
 - Mostrar filtros de período, división, carrera y requisito.
 - Presentar visión global, reportes por área y detalle de estudiantes.
 - Preparar acciones de correo, WhatsApp, copia y exportación.
+- Cargar las mismas reglas de requisitos utilizadas por Stats.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -80,20 +81,18 @@ Función o funciones:
       <article class="coordi-card"><div class="coordi-card-head"><div><h2>Vista previa del mensaje</h2><span>Resumen actual del corte</span></div></div><label class="coordi-message-label">Tipo de mensaje<select id="coordi-message-type"><option value="general">General</option><option value="carrera">Por carrera</option><option value="pendientes">Pendientes críticos</option></select></label><textarea id="coordi-message" readonly></textarea><div class="coordi-actions"><button id="coordi-copy-message" type="button" class="btn-secondary">Copiar mensaje</button></div></article>
     </section>
 
-    <section class="coordi-card coordi-diagnostic-card"><div class="coordi-card-head"><div><h2>Diagnóstico técnico</h2><span>Fuente y conteos de la consulta actual</span></div></div><pre id="coordi-diagnostics"></pre></section>
-
     <section id="coordi-preview-modal" class="coordi-modal" hidden><div class="coordi-modal-card"><header><div><p class="coordi-eyebrow">Vista previa</p><h2 id="coordi-preview-title">Correo</h2></div><button id="coordi-preview-close" type="button" class="btn-secondary">Cerrar</button></header><div id="coordi-preview-body" class="coordi-preview-body"></div><footer><button id="coordi-preview-open-mail" type="button" class="btn-primary">Abrir en Outlook</button><button id="coordi-preview-copy-html" type="button" class="btn-secondary">Copiar HTML</button></footer></div></section>
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
+  <script src="../Stats/stats.rules.js"></script>
   <script src="coo.config.js"></script>
   <script src="coo.data.js"></script>
   <script src="coo.report.js"></script>
   <script src="coo.render.js"></script>
   <script src="coo.mail.js"></script>
   <script src="coo.whatsapp.js"></script>
-  <script src="coordi.core.js"></script>
   <script src="coordi.export.js"></script>
   <script src="coordi.app.js"></script>
 </body>
