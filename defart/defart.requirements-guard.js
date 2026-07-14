@@ -8,7 +8,7 @@ Función o funciones:
 Con qué se conecta:
 - defart.core.js
 - defart.service-bridge.js
-- cone.defensas.requisitos.js
+- ../BDLocal/conexiones/cone.defensas.js
 ========================================================= */
 (function(window){
   "use strict";

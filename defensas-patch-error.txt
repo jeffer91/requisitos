@@ -1,8 +1,0 @@
-run=29369045401-1
-Traceback (most recent call last):
-  File "/tmp/patch_defensas_v3.py", line 584, in <module>
-    text = replace_once(
-           ^^^^^^^^^^^^^
-  File "/tmp/patch_defensas_v3.py", line 20, in replace_once
-    raise RuntimeError(f"{label}: expected 1 tolerant match, found {len(matches)}")
-RuntimeError: engine stats requirements: expected 1 tolerant match, found 0
