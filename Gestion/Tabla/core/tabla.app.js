@@ -795,81 +795,78 @@ function sortRowsByRequirements(rows, order){
         }
       });
   }
-
   function refresh(){
-    if(refreshPromise){
-      return refreshPromise;
-    }
-
-    update(
-      {
-        refreshing:
-          true
-      },
-      {
-        reason:
-          "refresh-start"
-      }
-    );
-
-    status(
-      "Actualizando Tabla desde Base Local...",
-      ""
-    );
-
-    refreshPromise =
-      Promise.resolve(
-        Source &&
-        Source.refresh
-          ? Source.refresh({
-              source:
-                "TablaApp.refresh",
-
-              full:
-                true,
-
-              immediate:
-                true
-            })
-          : null
-      )
-        .catch(function(error){
-          status(
-            error &&
-            error.message
-              ? error.message
-              : "No se pudo actualizar Tabla.",
-            "warn"
-          );
-
-          return null;
-        })
-        .then(function(result){
-        dataCache = null;
-        invalidateVisuals();
-
-        return render()
-            .then(function(){
-              return result;
-            });
-        })
-        .finally(function(){
-          update(
-            {
-              refreshing:
-                false
-            },
-            {
-              reason:
-                "refresh-end"
-            }
-          );
-
-          refreshPromise = null;
-        });
-
+  if(refreshPromise){
     return refreshPromise;
   }
+
+  var refreshError = null;
+
+  update(
+    {
+      refreshing: true
+    },
+    {
+      reason: "refresh-start"
+    }
+  );
+
+  status(
+    "Actualizando Tabla desde Base Local...",
+    ""
+  );
+
+  refreshPromise = Promise.resolve(
+    Source && Source.refresh
+      ? Source.refresh({
+          source: "TablaApp.refresh",
+          full: true,
+          immediate: true
+        })
+      : Promise.reject(
+          new Error("TablaDataSource.refresh no está disponible.")
+        )
+  )
+    .catch(function(error){
+      refreshError = error;
+      return null;
+    })
+    .then(function(result){
+      if(!refreshError){
+        dataCache = null;
+        invalidateVisuals();
+      }
+
+      return render().then(function(){
+        if(refreshError){
+          status(
+            "No se pudo actualizar Tabla. Se conservan los datos anteriores. " +
+            (
+              refreshError.message ||
+              text(refreshError)
+            ),
+            "warn"
+          );
+        }
+
+        return result;
+      });
+    })
+    .finally(function(){
+      update(
+        {
+          refreshing: false
+        },
+        {
+          reason: "refresh-end"
+        }
+      );
+
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
 
   function applyFilter(
     patch,
