@@ -5,12 +5,12 @@ Función o funciones:
 - Generar los tres correos institucionales de Coordi.
 - Preparar destinatarios, copias, asunto y cuerpo completo.
 - Abrir Outlook Web en el navegador predeterminado.
-- Mantener compatibilidad con los constructores anteriores de Coordi.
+- Mostrar el resumen general con un formato legible en Outlook Web.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "4.0.0-outlook-web-full-compose";
+  var VERSION = "4.1.0-outlook-readable-summary";
   var OUTLOOK_COMPOSE_URL = "https://outlook.office.com/mail/deeplink/compose";
   var MAX_OUTLOOK_URL_LENGTH = 120000;
 
@@ -25,6 +25,13 @@ Función o funciones:
       .replace(/'/g,"&#039;");
   }
   function fmt(value){ return Number(value || 0).toLocaleString("es-EC"); }
+  function pct(value){
+    return Number(value || 0).toLocaleString("es-EC",{
+      minimumFractionDigits:1,
+      maximumFractionDigits:1
+    }) + "%";
+  }
+
   function uniqueAddresses(values){
     var map = Object.create(null);
     var out = [];
@@ -32,19 +39,25 @@ Función o funciones:
       text(value).split(/[;,]+/).forEach(function(piece){
         var address = text(piece);
         var key = address.toLowerCase();
-        if(address && !map[key]){ map[key] = true; out.push(address); }
+        if(address && !map[key]){
+          map[key] = true;
+          out.push(address);
+        }
       });
     });
     return out;
   }
+
   function recipients(source){
     source = source || {};
     return uniqueAddresses(arr(source.correos).concat(arr(source.toList),[source.correo || source.to || ""]));
   }
+
   function copies(source){
     source = source || {};
     return uniqueAddresses(arr(source.copias).concat(arr(source.ccList),arr(source.cc)));
   }
+
   function baseStyle(){ return "font-family:Arial,sans-serif;color:#0f172a;font-size:13px;line-height:1.5;"; }
   function paragraph(value){ return '<p style="margin:0 0 12px;">'+value+'</p>'; }
   function filterValue(report,key,fallback){ return text(report && report.filters && report.filters[key]) || fallback || ""; }
@@ -55,8 +68,14 @@ Función o funciones:
 
   function signatureHtml(){
     var firma = window.COOConfig && window.COOConfig.firma || {};
-    return paragraph('Saludos cordiales,<br><strong>'+esc((firma.titulo ? firma.titulo + " " : "") + (firma.nombre || "Jefferson Villarreal"))+'</strong><br>'+esc(firma.cargo || "Coordinador de Titulación")+'<br>'+esc(firma.institucion || "ITSQMET"));
+    return paragraph(
+      'Saludos cordiales,<br><strong>'+
+      esc((firma.titulo ? firma.titulo + " " : "") + (firma.nombre || "Jefferson Villarreal"))+
+      '</strong><br>'+esc(firma.cargo || "Coordinador de Titulación")+
+      '<br>'+esc(firma.institucion || "ITSQMET")
+    );
   }
+
   function signaturePlain(){
     var firma = window.COOConfig && window.COOConfig.firma || {};
     return [
@@ -66,16 +85,19 @@ Función o funciones:
       firma.institucion || "ITSQMET"
     ].join("\n");
   }
+
   function wrapHtml(bodyHtml){ return '<div style="'+baseStyle()+'">'+bodyHtml+'</div>'; }
 
   function tableHtml(headers,rows){
     rows = arr(rows);
     if(!rows.length){ return paragraph('<strong>Sin datos para mostrar.</strong>'); }
+
     var html = '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;color:#0f172a;margin:8px 0 16px;"><thead><tr>';
     headers.forEach(function(header){
       html += '<th style="border:1px solid #94a3b8;background:#e2e8f0;text-align:left;padding:7px;font-weight:bold;">'+esc(header.label)+'</th>';
     });
     html += '</tr></thead><tbody>';
+
     rows.forEach(function(row){
       html += '<tr>';
       headers.forEach(function(header){
@@ -84,29 +106,51 @@ Función o funciones:
       });
       html += '</tr>';
     });
+
     return html + '</tbody></table>';
   }
 
   function textTable(headers,rows){
     rows = arr(rows);
     if(!rows.length){ return "Sin datos para mostrar."; }
+
     var lines = [
       headers.map(function(header){ return header.label; }).join(" | "),
       headers.map(function(){ return "---"; }).join(" | ")
     ];
+
     rows.forEach(function(row){
       lines.push(headers.map(function(header){
         var value = typeof header.value === "function" ? header.value(row) : row[header.key];
         return text(value).replace(/\s+/g," ");
       }).join(" | "));
     });
+
     return lines.join("\n");
+  }
+
+  function complianceSummaryPlain(rows){
+    rows = arr(rows);
+    if(!rows.length){ return "Sin datos para mostrar."; }
+
+    return rows.map(function(row){
+      return [
+        text(row.label || row.requisito || "Requisito"),
+        "Total evaluado: " + fmt(row.total),
+        "Cumplen: " + fmt(row.cumplen),
+        "No cumplen: " + fmt(row.noCumplen),
+        "Cumplimiento: " + pct(row.porcentaje)
+      ].join("\n");
+    }).join("\n\n");
   }
 
   function areaById(report,areaId){
     var found = null;
     arr(report && report.areas).some(function(area){
-      if(area.id === areaId){ found = area; return true; }
+      if(area.id === areaId){
+        found = area;
+        return true;
+      }
       return false;
     });
     return found;
@@ -143,9 +187,10 @@ Función o funciones:
       {label:"Total",value:function(row){ return fmt(row.total); }},
       {label:"Cumplen",value:function(row){ return fmt(row.cumplen); }},
       {label:"No cumplen",value:function(row){ return fmt(row.noCumplen); }},
-      {label:"% cumplen",value:function(row){ return Number(row.porcentaje || 0).toFixed(1) + "%"; }}
+      {label:"% cumplen",value:function(row){ return pct(row.porcentaje); }}
     ];
     var careerLine = careerLabel(report) ? '<br><strong>Carrera:</strong> '+esc(careerLabel(report)) : "";
+
     var body = paragraph('<strong>'+esc(global.saludo || "Estimados coordinadores de área")+':</strong>')
       + paragraph('Reciban un cordial saludo.')
       + paragraph('Por medio del presente, remito el reporte general del estado de cumplimiento de requisitos correspondiente a los estudiantes del '+esc(processText(report))+' '+esc(periodLabel(report))+'.')
@@ -158,19 +203,34 @@ Función o funciones:
       + signatureHtml();
 
     var plain = [
-      (global.saludo || "Estimados coordinadores de área") + ":","","Reciban un cordial saludo.","",
-      "Por medio del presente, remito el reporte general del estado de cumplimiento de requisitos correspondiente a los estudiantes del " + processText(report) + " " + periodLabel(report) + ".","",
-      "Es necesario que cada área revise y gestione de manera prioritaria los casos pendientes, a fin de regularizar la situación de los estudiantes dentro del proceso de titulación.","",
+      (global.saludo || "Estimados coordinadores de área") + ":",
+      "",
+      "Reciban un cordial saludo.",
+      "",
+      "Por medio del presente, remito el reporte general del estado de cumplimiento de requisitos correspondiente a los estudiantes del " + processText(report) + " " + periodLabel(report) + ".",
+      "",
+      "Es necesario que cada área revise y gestione de manera prioritaria los casos pendientes, a fin de regularizar la situación de los estudiantes dentro del proceso de titulación.",
+      "",
       "Período: " + periodLabel(report),
       "División: " + divisionLabel(report)
     ];
+
     if(careerLabel(report)){ plain.push("Carrera: " + careerLabel(report)); }
+
     plain = plain.concat([
-      "Total de estudiantes evaluados: " + fmt(global.totalEstudiantesRevisados),"",
-      "El reporte presenta el siguiente resumen por requisito:","",textTable(headers,rows),"",
-      "Se solicita a cada área realizar el seguimiento respectivo a los estudiantes que aún mantienen requisitos pendientes, considerando que esta información es necesaria para la continuidad y cierre adecuado del proceso de titulación.","",
-      "Agradezco de antemano su colaboración y gestión oportuna.","",signaturePlain()
+      "Total de estudiantes evaluados: " + fmt(global.totalEstudiantesRevisados),
+      "",
+      "RESUMEN POR REQUISITO",
+      "",
+      complianceSummaryPlain(rows),
+      "",
+      "Se solicita a cada área realizar el seguimiento respectivo a los estudiantes que aún mantienen requisitos pendientes, considerando que esta información es necesaria para la continuidad y cierre adecuado del proceso de titulación.",
+      "",
+      "Agradezco de antemano su colaboración y gestión oportuna.",
+      "",
+      signaturePlain()
     ]);
+
     return mailObject("general",global,subject,wrapHtml(body),plain.join("\n"));
   }
 
@@ -196,6 +256,7 @@ Función o funciones:
     var reqLabel = requirementLabel(report) || area.area;
     var subject = "Estudiantes pendientes de requisito " + reqLabel + " - " + periodLabel(report);
     var careerLine = careerLabel(report) ? '<br><strong>Carrera:</strong> '+esc(careerLabel(report)) : "";
+
     var body = paragraph('<strong>'+esc(area.tratamiento || ("Estimado/a " + (area.responsable || area.area)))+':</strong>')
       + paragraph('Reciba un cordial saludo.')
       + paragraph('Por medio del presente, se remite el listado de estudiantes que aún registran pendiente el cumplimiento del requisito correspondiente a su área.')
@@ -206,19 +267,31 @@ Función o funciones:
       + signatureHtml();
 
     var plain = [
-      (area.tratamiento || ("Estimado/a " + (area.responsable || area.area))) + ":","","Reciba un cordial saludo.","",
-      "Por medio del presente, se remite el listado de estudiantes que aún registran pendiente el cumplimiento del requisito correspondiente a su área.","",
+      (area.tratamiento || ("Estimado/a " + (area.responsable || area.area))) + ":",
+      "",
+      "Reciba un cordial saludo.",
+      "",
+      "Por medio del presente, se remite el listado de estudiantes que aún registran pendiente el cumplimiento del requisito correspondiente a su área.",
+      "",
       "Período: " + periodLabel(report),
       "División: " + divisionLabel(report)
     ];
+
     if(careerLabel(report)){ plain.push("Carrera: " + careerLabel(report)); }
+
     plain = plain.concat([
       "Requisito pendiente: " + reqLabel,
-      "Total de estudiantes pendientes: " + fmt(area.totalEstudiantes),"",
-      "Detalle de estudiantes:","",studentListPlain(area.estudiantes),"",
-      "Agradezco su gentil ayuda con la revisión y gestión correspondiente, con la finalidad de que los estudiantes puedan completar sus requisitos dentro de los tiempos establecidos para el proceso de titulación.","",
+      "Total de estudiantes pendientes: " + fmt(area.totalEstudiantes),
+      "",
+      "Detalle de estudiantes:",
+      "",
+      studentListPlain(area.estudiantes),
+      "",
+      "Agradezco su gentil ayuda con la revisión y gestión correspondiente, con la finalidad de que los estudiantes puedan completar sus requisitos dentro de los tiempos establecidos para el proceso de titulación.",
+      "",
       signaturePlain()
     ]);
+
     return mailObject("requirement",area,subject,wrapHtml(body),plain.join("\n"),{areaId:areaId});
   }
 
@@ -246,6 +319,7 @@ Función o funciones:
     var info = report.eligibility || {defensa:[],nucleos:[],totalDefensa:0,totalNucleos:0,totalEstudiantes:0};
     var subject = "Estudiantes pendientes para defensa o núcleos - " + periodLabel(report);
     var careerLine = careerLabel(report) ? '<br><strong>Carrera:</strong> '+esc(careerLabel(report)) : "";
+
     var body = paragraph('<strong>'+esc(source.saludo || "Estimados coordinadores de área")+':</strong>')
       + paragraph('Reciban un cordial saludo.')
       + paragraph('Por medio del presente, remito el reporte de estudiantes que aún mantienen requisitos pendientes para continuar hacia la defensa o los núcleos del proceso de titulación.')
@@ -259,19 +333,36 @@ Función o funciones:
       + signatureHtml();
 
     var plain = [
-      (source.saludo || "Estimados coordinadores de área") + ":","","Reciban un cordial saludo.","",
-      "Por medio del presente, remito el reporte de estudiantes que aún mantienen requisitos pendientes para continuar hacia la defensa o los núcleos del proceso de titulación.","",
+      (source.saludo || "Estimados coordinadores de área") + ":",
+      "",
+      "Reciban un cordial saludo.",
+      "",
+      "Por medio del presente, remito el reporte de estudiantes que aún mantienen requisitos pendientes para continuar hacia la defensa o los núcleos del proceso de titulación.",
+      "",
       "Período: " + periodLabel(report),
       "División: " + divisionLabel(report)
     ];
+
     if(careerLabel(report)){ plain.push("Carrera: " + careerLabel(report)); }
+
     plain = plain.concat([
-      "Total de estudiantes pendientes: " + fmt(info.totalEstudiantes),"",
-      "PENDIENTES PARA DEFENSA (" + fmt(info.totalDefensa) + ")","",eligibilityListPlain(info.defensa),"",
-      "PENDIENTES PARA NÚCLEOS (" + fmt(info.totalNucleos) + ")","",eligibilityListPlain(info.nucleos),"",
-      "Se solicita realizar el seguimiento correspondiente para que los estudiantes regularicen sus requisitos y puedan continuar con la siguiente etapa del proceso de titulación.","",
-      "Agradezco de antemano su colaboración y gestión oportuna.","",signaturePlain()
+      "Total de estudiantes pendientes: " + fmt(info.totalEstudiantes),
+      "",
+      "PENDIENTES PARA DEFENSA (" + fmt(info.totalDefensa) + ")",
+      "",
+      eligibilityListPlain(info.defensa),
+      "",
+      "PENDIENTES PARA NÚCLEOS (" + fmt(info.totalNucleos) + ")",
+      "",
+      eligibilityListPlain(info.nucleos),
+      "",
+      "Se solicita realizar el seguimiento correspondiente para que los estudiantes regularicen sus requisitos y puedan continuar con la siguiente etapa del proceso de titulación.",
+      "",
+      "Agradezco de antemano su colaboración y gestión oportuna.",
+      "",
+      signaturePlain()
     ]);
+
     return mailObject("eligibility",source,subject,wrapHtml(body),plain.join("\n"));
   }
 
@@ -304,10 +395,12 @@ Función o funciones:
   function outlookWebUrl(mail){
     var data = composeData(mail);
     if(!data.to){ throw new Error("No hay destinatarios configurados para este correo."); }
+
     var query = ["to=" + encodeURIComponent(data.to)];
     if(data.cc){ query.push("cc=" + encodeURIComponent(data.cc)); }
     if(data.subject){ query.push("subject=" + encodeURIComponent(data.subject)); }
     query.push("body=" + encodeURIComponent(data.body));
+
     var url = OUTLOOK_COMPOSE_URL + "?" + query.join("&");
     if(url.length > MAX_OUTLOOK_URL_LENGTH){
       throw new Error("El correo es demasiado extenso para abrirlo automáticamente en Outlook Web.");
@@ -330,9 +423,16 @@ Función o funciones:
   }
 
   function normalizeOpenResult(result,url){
-    if(result === true){ return {ok:true,opened:true,method:"outlook-web-ipc",urlLength:url.length}; }
+    if(result === true){
+      return {ok:true,opened:true,method:"outlook-web-ipc",urlLength:url.length};
+    }
     if(result && typeof result === "object" && result.ok === true && result.opened !== false){
-      return Object.assign({},result,{ok:true,opened:true,method:result.method || "outlook-web-ipc",urlLength:url.length});
+      return Object.assign({},result,{
+        ok:true,
+        opened:true,
+        method:result.method || "outlook-web-ipc",
+        urlLength:url.length
+      });
     }
     throw new Error(text(result && (result.error || result.message)) || "No se pudo abrir Outlook Web.");
   }
@@ -378,8 +478,10 @@ Función o funciones:
     helpers:{
       esc:esc,
       fmt:fmt,
+      pct:pct,
       tableHtml:tableHtml,
       textTable:textTable,
+      complianceSummaryPlain:complianceSummaryPlain,
       composeData:composeData,
       recipients:recipients,
       copies:copies
