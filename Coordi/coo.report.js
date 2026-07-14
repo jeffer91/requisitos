@@ -11,7 +11,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-coo-report-authoritative";
+  var VERSION = "2.1.0-coo-report-safe-values";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
@@ -46,15 +46,23 @@ Función o funciones:
   function requirementValue(req){
     req = req || {};
     var keys = ["valor","value","estado","cumple","aprobado","resultado"];
+
     for(var i=0;i<keys.length;i+=1){
       var value = req[keys[i]];
-      if(value !== undefined && value !== null){
-        if(value && typeof value === "object"){
-          return value.id || value.value || value.label || "";
-        }
+
+      if(value === undefined || value === null){
+        continue;
+      }
+
+      if(value && typeof value === "object"){
+        value = value.id || value.value || value.label || "";
+      }
+
+      if(typeof value === "boolean" || typeof value === "number" || text(value) !== ""){
         return value;
       }
     }
+
     return "";
   }
 
@@ -303,6 +311,13 @@ Función o funciones:
     return found ? found.label : key;
   }
 
+  function periodLabelFromList(list,periodId){
+    var found = arr(list).filter(function(item){
+      return text(item.id || item.value || item.periodoId || item.label) === text(periodId);
+    })[0];
+    return found ? text(found.label || found.periodoLabel || found.nombre || periodId) : text(periodId);
+  }
+
   function buildReadyReports(global,areas,totalRows){
     var list = [];
     if(totalRows > 0){
@@ -370,7 +385,10 @@ Función o funciones:
     var areasWithPending = areas.filter(function(area){ return area.totalEstudiantes > 0; });
     var totalPendingStudents = Object.keys(uniquePendingStudents).filter(Boolean).length;
     var requirementList = arr(dataResult.requirementList);
+    var periodList = arr(dataResult.periodList);
+    var periodId = text(options.periodId || options.periodoId || options.periodo || "");
     var requirementLabelValue = selectedRequirement ? requirementLabelFromList(requirementList,selectedRequirement) : "";
+    var periodLabelValue = periodId ? periodLabelFromList(periodList,periodId) : "";
 
     var global = Object.assign({},clone(config().global || {}),{
       totalEstudiantesRevisados:rows.length,
@@ -398,14 +416,15 @@ Función o funciones:
       version:VERSION,
       source:dataResult.source || "desconocido",
       filters:{
-        periodId:text(options.periodId || options.periodoId || options.periodo || ""),
+        periodId:periodId,
+        periodLabel:periodLabelValue,
         division:text(options.division || ""),
         career:text(options.career || options.carrera || ""),
         requirementKey:selectedRequirement,
         requirementLabel:requirementLabelValue
       },
       generatedAt:new Date().toISOString(),
-      periodList:dataResult.periodList || [],
+      periodList:periodList,
       divisionList:dataResult.divisionList || [],
       careerList:dataResult.careerList || [],
       requirementList:requirementList,
@@ -423,7 +442,7 @@ Función o funciones:
         totalAreas:areas.length,
         totalAreasWithPending:areasWithPending.length,
         totalPendingItems:totalPending,
-        filters:{periodId:text(options.periodId || ""),division:text(options.division || ""),career:text(options.career || ""),requirementKey:selectedRequirement},
+        filters:{periodId:periodId,periodLabel:periodLabelValue,division:text(options.division || ""),career:text(options.career || ""),requirementKey:selectedRequirement},
         dataDiagnostics:dataResult.diagnostics || {}
       }
     };
