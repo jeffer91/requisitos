@@ -2,93 +2,139 @@
 Nombre completo: coo.report.js
 Ruta o ubicación: /Requisitos/Coordi/coo.report.js
 Función o funciones:
-- Construir reportes de Coordi por responsable de área.
-- Detectar requisitos pendientes por estudiante.
-- Agrupar pendientes por área y responsable.
-- Crear resumen global para Dr. Alex León.
-Con qué se conecta:
-- coo.config.js
-- coo.data.js
-- BL2RequirementsEngine / StatsRules si están disponibles
-- coo.render.js
-- coo.mail.js
-- coo.whatsapp.js
-- coo.app.js
+- Construir la visión global del período seleccionado.
+- Detectar pendientes reales desde requisitos hidratados.
+- Filtrar por división, carrera y requisito.
+- Agrupar estudiantes por área y responsable.
+- Preparar reportes globales y por área para correo y WhatsApp.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-coo-report.2";
+  var VERSION = "2.0.0-coo-report-authoritative";
 
-  function text(value){return String(value == null ? "" : value).trim();}
-  function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();}
-  function compact(value){return norm(value).replace(/[^a-z0-9]+/g, "");}
-  function arr(value){return Array.isArray(value) ? value : [];} 
-  function clone(value){try{return JSON.parse(JSON.stringify(value));}catch(error){return value;}}
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function norm(value){ return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase(); }
+  function compact(value){ return norm(value).replace(/[^a-z0-9]+/g,""); }
+  function arr(value){ return Array.isArray(value) ? value : []; }
+  function clone(value){ try{return JSON.parse(JSON.stringify(value));}catch(error){return value;} }
 
-  function config(){return window.COOConfig || {areas:[], global:null, helpers:{}};}
-  function data(){if(!window.COOData || typeof window.COOData.read !== "function"){throw new Error("COOData no disponible. Falta cargar coo.data.js.");}return window.COOData;}
-  function reqEngine(){return window.BL2RequirementsEngine || window.StatsRules || null;}
-  function cfgHelper(name){return config().helpers && config().helpers[name];}
+  function config(){ return window.COOConfig || {areas:[],global:null,helpers:{}}; }
+  function data(){
+    if(!window.COOData || typeof window.COOData.read !== "function"){
+      throw new Error("COOData no disponible. Falta cargar coo.data.js.");
+    }
+    return window.COOData;
+  }
+  function reqEngine(){ return window.BL2RequirementsEngine || window.StatsRules || null; }
+  function cfgHelper(name){ return config().helpers && config().helpers[name]; }
 
-  function requirementLabel(key, fallback){
-    try{if(window.BLCampos && typeof window.BLCampos.requirementLabel === "function"){return window.BLCampos.requirementLabel(key, fallback || key);}}catch(error){}
+  function requirementLabel(key,fallback){
+    try{
+      if(window.BLCampos && typeof window.BLCampos.requirementLabel === "function"){
+        return window.BLCampos.requirementLabel(key,fallback || key);
+      }
+    }catch(error){}
     return fallback || key;
   }
 
-  function rawKeyInfo(row, key){
-    row = row || {};
-    if(!key){return {exists:false, value:""};}
-    if(Object.prototype.hasOwnProperty.call(row, key)){return {exists:true, value:row[key]};}
-    var target = compact(key);
-    var keys = Object.keys(row);
-    for(var i=0;i<keys.length;i++){
-      if(compact(keys[i]) === target){return {exists:true, value:row[keys[i]]};}
-    }
-    return {exists:false, value:""};
+  function requirementKey(req){
+    req = req || {};
+    return text(req.requisitoKey || req.requirementKey || req.key || req.campo || req.field || req.codigo || req.nombre || (typeof req.requisito === "string" ? req.requisito : ""));
   }
 
-  function valueInfo(row, key, source){
-    var raw = rawKeyInfo(row, key);
+  function requirementValue(req){
+    req = req || {};
+    var keys = ["valor","value","estado","cumple","aprobado","resultado"];
+    for(var i=0;i<keys.length;i+=1){
+      var value = req[keys[i]];
+      if(value !== undefined && value !== null){
+        if(value && typeof value === "object"){
+          return value.id || value.value || value.label || "";
+        }
+        return value;
+      }
+    }
+    return "";
+  }
+
+  function rawKeyInfo(row,key){
+    row = row || {};
+    if(!key){ return {exists:false,value:""}; }
+    if(Object.prototype.hasOwnProperty.call(row,key)){
+      return {exists:true,value:row[key]};
+    }
+    var target = compact(key);
+    var keys = Object.keys(row);
+    for(var i=0;i<keys.length;i+=1){
+      if(compact(keys[i]) === target){ return {exists:true,value:row[keys[i]]}; }
+    }
+    return {exists:false,value:""};
+  }
+
+  function valueInfo(row,req){
+    req = req || {};
+    if(req.hasValue === true){ return {exists:true,value:req.value}; }
+
+    var key = req.key || "";
+    var raw = rawKeyInfo(row,key);
     try{
       if(reqEngine() && typeof reqEngine().valueOf === "function"){
-        var engineValue = reqEngine().valueOf(row || {}, key);
-        if(text(engineValue) !== ""){return {exists:true, value:engineValue};}
+        var value = reqEngine().valueOf(row || {},key);
+        if(text(value) !== ""){ return {exists:true,value:value}; }
       }
     }catch(error){}
-    if(raw.exists){return raw;}
-    if(source === "engine"){return {exists:true, value:""};}
     return raw;
   }
 
   function cellStatus(value){
     try{
       if(reqEngine() && typeof reqEngine().cellStatus === "function"){
-        var status = reqEngine().cellStatus(value);
-        if(text(status)){return norm(status).replace(/\s+/g,"_");}
+        var engineStatus = reqEngine().cellStatus(value);
+        if(text(engineStatus)){ return norm(engineStatus).replace(/\s+/g,"_"); }
       }
     }catch(error){}
-    var v = norm(value);
-    if(!v){return "sin_dato";}
-    if(v === "cumple" || v === "si cumple" || v === "aprobado" || v === "aprobada" || v === "ok" || v === "completo" || v === "completado"){return "cumple";}
-    if(v === "no aplica" || v === "n/a" || v === "na" || v === "no corresponde"){return "no_aplica";}
-    if(v.indexOf("no cumple") >= 0 || v.indexOf("pendiente") >= 0 || v.indexOf("falta") >= 0 || v.indexOf("debe") >= 0 || v.indexOf("incompleto") >= 0){return "no_cumple";}
+
+    var valueNorm = norm(value);
+    if(!valueNorm){ return "sin_dato"; }
+    if(["cumple","si cumple","sí cumple","aprobado","aprobada","ok","completo","completa","completado","completada","si","sí","1","true","x"].indexOf(valueNorm) >= 0){
+      return "cumple";
+    }
+    if(["no aplica","n/a","na","no corresponde"].indexOf(valueNorm) >= 0){
+      return "no_aplica";
+    }
     return "no_cumple";
   }
 
   function isPendingStatus(status){
     status = norm(status).replace(/\s+/g,"_");
-    return status && status !== "cumple" && status !== "no_aplica";
+    return !!status && status !== "cumple" && status !== "no_aplica";
+  }
+
+  function requirementsFromRow(row){
+    return arr(row && row.requisitos).map(function(req){
+      var key = requirementKey(req);
+      return {
+        key:key,
+        label:text(req.requisitoLabel || req.label || req.titulo || req.nombre || requirementLabel(key,key)),
+        source:"row",
+        value:requirementValue(req),
+        hasValue:true
+      };
+    }).filter(function(req){ return !!req.key; });
   }
 
   function requirementsFromEngine(row){
     try{
       if(reqEngine() && typeof reqEngine().requirementsForStudent === "function"){
         return arr(reqEngine().requirementsForStudent(row || {})).map(function(req){
-          if(typeof req === "string"){return {key:req, label:requirementLabel(req, req), source:"engine"};}
+          if(typeof req === "string"){
+            return {key:req,label:requirementLabel(req,req),source:"engine"};
+          }
           req = req || {};
-          return {key:text(req.key || req.id || req.campo || req.name), label:text(req.label || req.nombre || req.titulo || req.key), source:"engine"};
-        }).filter(function(req){return !!req.key;});
+          var key = text(req.key || req.id || req.campo || req.name);
+          return {key:key,label:text(req.label || req.nombre || req.titulo || requirementLabel(key,key)),source:"engine"};
+        }).filter(function(req){ return !!req.key; });
       }
     }catch(error){}
     return [];
@@ -97,7 +143,9 @@ Con qué se conecta:
   function requirementsFromConfig(){
     var list = [];
     arr(config().areas).forEach(function(area){
-      arr(area.requisitoKeys).forEach(function(key){list.push({key:key, label:requirementLabel(key, key), areaId:area.id, source:"config"});});
+      arr(area.requisitoKeys).forEach(function(key){
+        list.push({key:key,label:requirementLabel(key,area.area || key),areaId:area.id,source:"config"});
+      });
     });
     return list;
   }
@@ -105,166 +153,290 @@ Con qué se conecta:
   function allKnownRequirements(row){
     var map = Object.create(null);
     var list = [];
+
     function add(req){
       req = req || {};
       var key = text(req.key);
-      if(!key){return;}
-      var c = compact([req.source || "", key].join("|"));
-      if(map[c]){return;}
-      map[c] = true;
-      list.push({key:key, label:text(req.label || requirementLabel(key, key)), areaId:req.areaId || "", source:req.source || "config"});
+      if(!key){ return; }
+      var id = compact(key);
+      if(map[id]){
+        if(req.source === "row"){
+          Object.assign(map[id],req);
+        }
+        return;
+      }
+      map[id] = Object.assign({},req,{key:key,label:text(req.label || requirementLabel(key,key))});
+      list.push(map[id]);
     }
-    requirementsFromEngine(row).forEach(add);
+
     requirementsFromConfig().forEach(add);
+    requirementsFromEngine(row).forEach(add);
+    requirementsFromRow(row).forEach(add);
     return list;
   }
 
   function inferAreaId(req){
     req = req || {};
     var helper = cfgHelper("areaIdForRequirement");
-    var keys = [req.key, req.label, requirementLabel(req.key, req.label || req.key)];
-    for(var i=0;i<keys.length;i++){
+    var values = [req.key,req.label,requirementLabel(req.key,req.label || req.key)];
+    for(var i=0;i<values.length;i+=1){
       if(typeof helper === "function"){
-        var areaId = helper(keys[i]);
-        if(areaId){return areaId;}
+        var found = helper(values[i]);
+        if(found){ return found; }
       }
     }
-    var joined = compact(keys.join(" "));
-    if(joined.indexOf("academ") >= 0){return "academico";}
-    if(joined.indexOf("document") >= 0){return "documentacion";}
-    if(joined.indexOf("financ") >= 0 || joined.indexOf("pago") >= 0 || joined.indexOf("deuda") >= 0){return "financiero";}
-    if(joined.indexOf("titul") >= 0 || joined.indexOf("complex") >= 0 || joined.indexOf("proyecto") >= 0){return "titulacion";}
-    if(joined.indexOf("practic") >= 0){return "practicas";}
-    if(joined.indexOf("vincul") >= 0){return "vinculacion";}
-    if(joined.indexOf("graduad") >= 0){return "seguimiento_graduados";}
-    if(joined.indexOf("ingles") >= 0 || joined.indexOf("segundalengua") >= 0 || joined.indexOf("idioma") >= 0){return "ingles";}
-    if(joined.indexOf("actualizacion") >= 0 || joined.indexOf("datos") >= 0){return "actualizacion_datos";}
+    var joined = compact(values.join(" "));
+    if(joined.indexOf("academ") >= 0){ return "academico"; }
+    if(joined.indexOf("document") >= 0){ return "documentacion"; }
+    if(joined.indexOf("financ") >= 0 || joined.indexOf("pago") >= 0 || joined.indexOf("deuda") >= 0){ return "financiero"; }
+    if(joined.indexOf("titul") >= 0 || joined.indexOf("complex") >= 0 || joined.indexOf("proyecto") >= 0){ return "titulacion"; }
+    if(joined.indexOf("practic") >= 0){ return "practicas"; }
+    if(joined.indexOf("vincul") >= 0){ return "vinculacion"; }
+    if(joined.indexOf("graduad") >= 0){ return "seguimiento_graduados"; }
+    if(joined.indexOf("ingles") >= 0 || joined.indexOf("segundalengua") >= 0 || joined.indexOf("idioma") >= 0){ return "ingles"; }
+    if(joined.indexOf("actualizacion") >= 0 || joined.indexOf("datos") >= 0){ return "actualizacion_datos"; }
     return req.areaId || "";
   }
 
-  function detectPendingForStudent(row){
-    var out = [];
-    allKnownRequirements(row).forEach(function(req){
-      var areaId = inferAreaId(req);
-      if(!areaId){return;}
-      var info = valueInfo(row, req.key, req.source);
-      if(req.source === "config" && !info.exists){return;}
-      var status = cellStatus(info.value);
-      if(!isPendingStatus(status)){return;}
-      out.push({areaId:areaId,key:req.key,label:req.label || requirementLabel(req.key, req.key),value:text(info.value),status:status});
-    });
-    return mergePending(out);
+  function matchesSelectedRequirement(req,selected){
+    selected = text(selected);
+    if(!selected){ return true; }
+    var target = compact(selected);
+    return compact(req.key) === target || compact(req.label) === target || compact(inferAreaId(req)) === target;
   }
 
   function mergePending(items){
     var map = Object.create(null);
     arr(items).forEach(function(item){
-      var key = [item.areaId, compact(item.key || item.label)].join("|");
-      if(!map[key]){map[key] = item;}
+      var key = [item.areaId,compact(item.key || item.label)].join("|");
+      if(!map[key]){ map[key] = item; }
     });
-    return Object.keys(map).map(function(key){return map[key];});
+    return Object.keys(map).map(function(key){ return map[key]; });
   }
 
-  function studentKey(row){return compact([row && (row._periodoId || row._periodo), row && (row._cedula || row._nombres)].join("|"));}
+  function detectPendingForStudent(row,selectedRequirement){
+    var out = [];
+    allKnownRequirements(row).forEach(function(req){
+      if(!matchesSelectedRequirement(req,selectedRequirement)){ return; }
+      var areaId = inferAreaId(req);
+      if(!areaId){ return; }
+      var info = valueInfo(row,req);
+      if(req.source === "config" && !info.exists){ return; }
+      var status = cellStatus(info.value);
+      if(!isPendingStatus(status)){ return; }
+      out.push({
+        areaId:areaId,
+        key:req.key,
+        label:req.label || requirementLabel(req.key,req.key),
+        value:text(info.value),
+        status:status
+      });
+    });
+    return mergePending(out);
+  }
+
+  function studentKey(row){
+    return compact([row && (row._periodoId || row._periodo),row && (row._cedula || row._nombres)].join("|"));
+  }
 
   function baseAreaReport(area){
-    return Object.assign({}, clone(area), {totalEstudiantes:0,totalPendientes:0,carreras:[],estudiantes:[],requisitos:[],porCarrera:[],sinPendientes:true});
+    return Object.assign({},clone(area),{
+      totalEstudiantes:0,
+      totalPendientes:0,
+      carreras:[],
+      estudiantes:[],
+      requisitos:[],
+      porCarrera:[],
+      sinPendientes:true
+    });
   }
 
-  function addStudentToArea(report, row, pendingItems){
-    var requisitos = arr(pendingItems).map(function(item){return item.label;});
-    var detalle = {cedula:row._cedula || "",nombre:row._nombres || "",carrera:row._carrera || "SIN CARRERA",periodo:row._periodo || row._periodoId || "",division:row._division || "",requisitos:requisitos,requisitosTexto:requisitos.join(", "),totalPendientes:pendingItems.length,rawId:row._cooId || ""};
-    report.estudiantes.push(detalle);
+  function addStudentToArea(report,row,pendingItems){
+    var labels = arr(pendingItems).map(function(item){ return item.label; });
+    report.estudiantes.push({
+      cedula:row._cedula || "",
+      nombre:row._nombres || "",
+      carrera:row._carrera || "SIN CARRERA",
+      periodo:row._periodo || row._periodoId || "",
+      division:row._division || "",
+      requisitos:labels,
+      requisitosTexto:labels.join(", "),
+      totalPendientes:pendingItems.length,
+      rawId:row._cooId || ""
+    });
     report.totalEstudiantes = report.estudiantes.length;
     report.totalPendientes += pendingItems.length;
     report.sinPendientes = false;
-    pendingItems.forEach(function(item){report.requisitos.push(item.label);});
+    labels.forEach(function(label){ report.requisitos.push(label); });
   }
 
   function summarizeArea(report){
-    var carrerasMap = Object.create(null);
-    var reqMap = Object.create(null);
+    var careers = Object.create(null);
+    var requirements = Object.create(null);
+
     report.estudiantes.forEach(function(student){
-      var carrera = student.carrera || "SIN CARRERA";
-      if(!carrerasMap[carrera]){carrerasMap[carrera] = {carrera:carrera, estudiantes:0, pendientes:0};}
-      carrerasMap[carrera].estudiantes += 1;
-      carrerasMap[carrera].pendientes += student.totalPendientes || 0;
-      arr(student.requisitos).forEach(function(label){if(!reqMap[label]){reqMap[label] = {requisito:label, total:0};}reqMap[label].total += 1;});
+      var career = student.carrera || "SIN CARRERA";
+      if(!careers[career]){ careers[career] = {carrera:career,estudiantes:0,pendientes:0}; }
+      careers[career].estudiantes += 1;
+      careers[career].pendientes += student.totalPendientes || 0;
+      arr(student.requisitos).forEach(function(label){
+        if(!requirements[label]){ requirements[label] = {requisito:label,total:0}; }
+        requirements[label].total += 1;
+      });
     });
-    report.carreras = Object.keys(carrerasMap).sort(function(a,b){return a.localeCompare(b,"es");});
-    report.porCarrera = Object.keys(carrerasMap).map(function(k){return carrerasMap[k];}).sort(function(a,b){return b.estudiantes-a.estudiantes || a.carrera.localeCompare(b.carrera,"es");});
-    report.requisitos = Object.keys(reqMap).map(function(k){return reqMap[k];}).sort(function(a,b){return b.total-a.total || a.requisito.localeCompare(b.requisito,"es");});
-    report.estudiantes.sort(function(a,b){return a.nombre.localeCompare(b.nombre,"es") || a.cedula.localeCompare(b.cedula,"es");});
+
+    report.carreras = Object.keys(careers).sort(function(a,b){ return a.localeCompare(b,"es"); });
+    report.porCarrera = Object.keys(careers).map(function(key){ return careers[key]; }).sort(function(a,b){
+      return b.estudiantes - a.estudiantes || a.carrera.localeCompare(b.carrera,"es");
+    });
+    report.requisitos = Object.keys(requirements).map(function(key){ return requirements[key]; }).sort(function(a,b){
+      return b.total - a.total || a.requisito.localeCompare(b.requisito,"es");
+    });
+    report.estudiantes.sort(function(a,b){
+      return a.nombre.localeCompare(b.nombre,"es") || a.cedula.localeCompare(b.cedula,"es");
+    });
     return report;
   }
 
-  function buildFromRows(dataResult, options){
-    options = options || {};
-    dataResult = dataResult || {};
-    var areas = arr(config().areas).map(baseAreaReport);
-    var areaMap = Object.create(null);
-    areas.forEach(function(area){areaMap[area.id] = area;});
-
-    var uniquePendingStudents = Object.create(null);
-    var totalPendientes = 0;
-    var rows = arr(dataResult.rows);
-
-    rows.forEach(function(row){
-      var pending = detectPendingForStudent(row);
-      if(!pending.length){return;}
-      uniquePendingStudents[studentKey(row)] = true;
-      var byArea = Object.create(null);
-      pending.forEach(function(item){
-        if(!areaMap[item.areaId]){return;}
-        if(!byArea[item.areaId]){byArea[item.areaId] = [];}
-        byArea[item.areaId].push(item);
-      });
-      Object.keys(byArea).forEach(function(areaId){addStudentToArea(areaMap[areaId], row, byArea[areaId]);totalPendientes += byArea[areaId].length;});
-    });
-
-    areas = areas.map(summarizeArea);
-    var areasConPendientes = areas.filter(function(area){return area.totalEstudiantes > 0;});
-    var global = Object.assign({}, clone(config().global || {}), {
-      totalEstudiantesRevisados:rows.length,
-      totalEstudiantesPendientes:Object.keys(uniquePendingStudents).filter(Boolean).length,
-      totalAreasConPendientes:areasConPendientes.length,
-      totalPendientes:totalPendientes,
-      areas:areasConPendientes.map(function(area){return {id:area.id,area:area.area,responsable:area.responsable,correo:area.correo,whatsapp:area.whatsapp,totalEstudiantes:area.totalEstudiantes,totalPendientes:area.totalPendientes,carreras:area.carreras.length};})
-    });
-
-    return {
-      version:VERSION,
-      source:dataResult.source || "desconocido",
-      filters:{periodId:options.periodId || options.periodoId || options.periodo || "",division:options.division || ""},
-      generatedAt:new Date().toISOString(),
-      periodList:dataResult.periodList || [],
-      divisionList:dataResult.divisionList || [],
-      rows:rows,
-      global:global,
-      areas:areas,
-      areasConPendientes:areasConPendientes,
-      reportesListos:buildReadyReports(global, areas),
-      diagnostics:{source:dataResult.source || "desconocido",totalStudentsRead:rows.length,totalStudentsWithPending:global.totalEstudiantesPendientes,totalAreas:areas.length,totalAreasWithPending:areasConPendientes.length,totalPendingItems:totalPendientes,dataDiagnostics:dataResult.diagnostics || {}}
-    };
+  function requirementLabelFromList(list,key){
+    var found = arr(list).filter(function(item){ return compact(item.key) === compact(key); })[0];
+    return found ? found.label : key;
   }
 
-  function buildReadyReports(global, areas){
+  function buildReadyReports(global,areas,totalRows){
     var list = [];
-    if(global && global.totalEstudiantesPendientes > 0){list.push({id:"global", destinatario:global.responsable, correo:global.correo, tipo:"Global", estado:"Listo", area:"Reporte global", totalEstudiantes:global.totalEstudiantesPendientes});}
+    if(totalRows > 0){
+      list.push({
+        id:"global",
+        destinatario:global.responsable,
+        correo:global.correo,
+        tipo:"Global",
+        estado:"Listo",
+        area:"Reporte global",
+        totalEstudiantes:global.totalEstudiantesRevisados
+      });
+    }
     arr(areas).forEach(function(area){
-      if(area.totalEstudiantes <= 0){return;}
-      list.push({id:area.id + "-resumen", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Resumen", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
-      list.push({id:area.id + "-detalle", area:area.area, destinatario:area.responsable, correo:area.correo, tipo:"Detallado", estado:"Listo", totalEstudiantes:area.totalEstudiantes});
+      if(area.totalEstudiantes <= 0){ return; }
+      list.push({id:area.id + "-resumen",area:area.area,destinatario:area.responsable,correo:area.correo,tipo:"Resumen",estado:"Listo",totalEstudiantes:area.totalEstudiantes});
+      list.push({id:area.id + "-detalle",area:area.area,destinatario:area.responsable,correo:area.correo,tipo:"Detallado",estado:"Listo",totalEstudiantes:area.totalEstudiantes});
     });
     return list;
   }
 
-  function build(options){
+  function buildFromRows(dataResult,options){
     options = options || {};
-    return data().read(options).then(function(dataResult){return buildFromRows(dataResult, options);});
+    dataResult = dataResult || {};
+    var areas = arr(config().areas).map(baseAreaReport);
+    var areaMap = Object.create(null);
+    areas.forEach(function(area){ areaMap[area.id] = area; });
+
+    var rows = arr(dataResult.rows);
+    var selectedRequirement = text(options.requirementKey || options.requisito || "");
+    var uniquePendingStudents = Object.create(null);
+    var totalPending = 0;
+    var studentDetails = [];
+
+    rows.forEach(function(row){
+      var pending = detectPendingForStudent(row,selectedRequirement);
+      var labels = pending.map(function(item){ return item.label; });
+      studentDetails.push({
+        cedula:row._cedula || "",
+        nombre:row._nombres || "",
+        carrera:row._carrera || "SIN CARRERA",
+        periodo:row._periodo || row._periodoId || "",
+        division:row._division || "",
+        requisitos:labels,
+        requisitosTexto:labels.join(", "),
+        totalPendientes:pending.length,
+        estado:pending.length ? "Con pendientes" : "Al día"
+      });
+
+      if(!pending.length){ return; }
+      uniquePendingStudents[studentKey(row)] = true;
+      var byArea = Object.create(null);
+      pending.forEach(function(item){
+        if(!areaMap[item.areaId]){ return; }
+        if(!byArea[item.areaId]){ byArea[item.areaId] = []; }
+        byArea[item.areaId].push(item);
+      });
+      Object.keys(byArea).forEach(function(areaId){
+        addStudentToArea(areaMap[areaId],row,byArea[areaId]);
+        totalPending += byArea[areaId].length;
+      });
+    });
+
+    areas = areas.map(summarizeArea);
+    var areasWithPending = areas.filter(function(area){ return area.totalEstudiantes > 0; });
+    var totalPendingStudents = Object.keys(uniquePendingStudents).filter(Boolean).length;
+    var requirementList = arr(dataResult.requirementList);
+    var requirementLabelValue = selectedRequirement ? requirementLabelFromList(requirementList,selectedRequirement) : "";
+
+    var global = Object.assign({},clone(config().global || {}),{
+      totalEstudiantesRevisados:rows.length,
+      totalEstudiantesPendientes:totalPendingStudents,
+      totalEstudiantesAlDia:Math.max(0,rows.length - totalPendingStudents),
+      totalAreasConPendientes:areasWithPending.length,
+      totalPendientes:totalPending,
+      areas:areas.map(function(area){
+        return {
+          id:area.id,
+          area:area.area,
+          responsable:area.responsable,
+          correo:area.correo,
+          whatsapp:area.whatsapp,
+          totalEstudiantes:area.totalEstudiantes,
+          totalPendientes:area.totalPendientes,
+          carreras:area.carreras.length
+        };
+      })
+    });
+
+    studentDetails.sort(function(a,b){ return a.nombre.localeCompare(b.nombre,"es") || a.cedula.localeCompare(b.cedula,"es"); });
+
+    return {
+      version:VERSION,
+      source:dataResult.source || "desconocido",
+      filters:{
+        periodId:text(options.periodId || options.periodoId || options.periodo || ""),
+        division:text(options.division || ""),
+        career:text(options.career || options.carrera || ""),
+        requirementKey:selectedRequirement,
+        requirementLabel:requirementLabelValue
+      },
+      generatedAt:new Date().toISOString(),
+      periodList:dataResult.periodList || [],
+      divisionList:dataResult.divisionList || [],
+      careerList:dataResult.careerList || [],
+      requirementList:requirementList,
+      rows:rows,
+      students:studentDetails,
+      global:global,
+      areas:areas,
+      areasConPendientes:areasWithPending,
+      reportesListos:buildReadyReports(global,areasWithPending,rows.length),
+      diagnostics:{
+        source:dataResult.source || "desconocido",
+        totalStudentsRead:rows.length,
+        totalStudentsWithPending:totalPendingStudents,
+        totalStudentsUpToDate:global.totalEstudiantesAlDia,
+        totalAreas:areas.length,
+        totalAreasWithPending:areasWithPending.length,
+        totalPendingItems:totalPending,
+        filters:{periodId:text(options.periodId || ""),division:text(options.division || ""),career:text(options.career || ""),requirementKey:selectedRequirement},
+        dataDiagnostics:dataResult.diagnostics || {}
+      }
+    };
   }
 
-  function emptyReport(options){return buildFromRows({rows:[], periodList:[], divisionList:[], source:"sin datos", diagnostics:{}}, options || {});}
+  function build(options){
+    options = options || {};
+    return data().read(options).then(function(dataResult){ return buildFromRows(dataResult,options); });
+  }
+
+  function emptyReport(options){
+    return buildFromRows({rows:[],periodList:[],divisionList:[],careerList:[],requirementList:[],source:"sin datos",diagnostics:{}},options || {});
+  }
 
   window.COOReport = {
     version:VERSION,
