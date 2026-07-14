@@ -2,48 +2,42 @@
 Nombre completo: coo.render.js
 Ruta o ubicación: /Requisitos/Coordi/coo.render.js
 Función o funciones:
-- Pintar reportes reales de Coordi en pantalla.
-- Mostrar global, resumen por áreas, reportes listos, tarjetas por responsable y detalle.
-- Preparar vista previa visual y acciones de correo Outlook/WhatsApp.
-Con qué se conecta:
-- coo.report.js
-- coo.config.js
-- coo.mail.js
-- coo.whatsapp.js
-- coordi.app.js
+- Pintar la visión global y los reportes por responsable.
+- Mostrar filtros funcionales de período, división, carrera y requisito.
+- Mostrar estudiantes aunque no exista un área seleccionada.
+- Habilitar el reporte global cuando existan estudiantes revisados.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "1.0.0-coo-render.3";
+  var VERSION = "2.0.0-coo-render-filters";
 
-  function el(id){return document.getElementById(id);}
-  function text(value){return String(value == null ? "" : value).trim();}
-  function arr(value){return Array.isArray(value) ? value : [];} 
-  function esc(value){return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
-  function fmt(value){value = Number(value || 0);return value.toLocaleString("es-EC");}
-  function option(value,label,isSelected){return '<option value="'+esc(value)+'" '+(isSelected?'selected':'')+'>'+esc(label || value)+'</option>';}
+  function el(id){ return document.getElementById(id); }
+  function text(value){ return String(value == null ? "" : value).trim(); }
+  function arr(value){ return Array.isArray(value) ? value : []; }
+  function esc(value){ return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
+  function fmt(value){ value = Number(value || 0); return value.toLocaleString("es-EC"); }
+  function option(value,label,selected){ return '<option value="'+esc(value)+'" '+(selected?'selected':'')+'>'+esc(label || value)+'</option>'; }
+  function setText(id,value){ var node=el(id); if(node){ node.textContent=text(value); } }
+  function setHTML(id,value){ var node=el(id); if(node){ node.innerHTML=value; } }
 
-  function setText(id,value){var node=el(id);if(node){node.textContent=text(value);}}
-  function setHTML(id,value){var node=el(id);if(node){node.innerHTML=value;}}
-
-  function table(headers, rows){
+  function table(headers,rows){
     rows = arr(rows);
-    if(!rows.length){return '<div class="empty">Sin datos para mostrar.</div>';}
-    var html = '<table><thead><tr>' + headers.map(function(h){return '<th>'+esc(h.label)+'</th>';}).join('') + '</tr></thead><tbody>';
+    if(!rows.length){ return '<div class="empty">Sin datos para mostrar.</div>'; }
+    var html = '<table><thead><tr>' + headers.map(function(header){ return '<th>'+esc(header.label)+'</th>'; }).join('') + '</tr></thead><tbody>';
     html += rows.map(function(row){
-      return '<tr>' + headers.map(function(h){
-        var value = typeof h.value === "function" ? h.value(row) : row[h.key];
+      return '<tr>' + headers.map(function(header){
+        var value = typeof header.value === "function" ? header.value(row) : row[header.key];
         return '<td>'+value+'</td>';
       }).join('') + '</tr>';
     }).join('');
     return html + '</tbody></table>';
   }
 
-  function areaById(report, areaId){
+  function areaById(report,areaId){
     var found = null;
     arr(report && report.areas).some(function(area){
-      if(area.id === areaId){found = area;return true;}
+      if(area.id === areaId){ found = area; return true; }
       return false;
     });
     return found;
@@ -54,158 +48,195 @@ Con qué se conecta:
     return areas.length ? areas[0].id : "";
   }
 
-  function totalCarreras(report){
+  function totalCareers(report){
     var map = Object.create(null);
-    arr(report && report.areasConPendientes).forEach(function(area){arr(area.carreras).forEach(function(carrera){map[carrera] = true;});});
+    arr(report && report.areasConPendientes).forEach(function(area){
+      arr(area.carreras).forEach(function(career){ map[career] = true; });
+    });
     return Object.keys(map).length;
   }
 
+  function fillSelect(id,emptyLabel,list,current,valueFn,labelFn){
+    var node = el(id);
+    if(!node){ return; }
+    node.innerHTML = option("",emptyLabel,!current) + arr(list).map(function(item){
+      var value = valueFn ? valueFn(item) : item;
+      var label = labelFn ? labelFn(item) : item;
+      return option(value,label,text(current) === text(value));
+    }).join("");
+    node.value = current || "";
+  }
+
   function fillFilters(report,state){
-    var p = el("coordi-periodo");
-    var d = el("coordi-division");
-    if(p){
-      p.innerHTML = option("","Seleccione período",!state.periodId) + arr(report.periodList).map(function(period){
-        return option(period.id || period.value || period.label, period.label || period.periodoLabel || period.id, text(state.periodId) === text(period.id || period.value || period.label));
-      }).join("");
-      p.value = state.periodId || "";
-    }
-    if(d){
-      d.innerHTML = option("","Todas",!state.division) + arr(report.divisionList).map(function(division){return option(division, division, text(state.division) === text(division));}).join("");
-      d.value = state.division || "";
-    }
+    fillSelect("coordi-periodo","Seleccione período",report.periodList,state.periodId,function(period){
+      return period.id || period.value || period.label;
+    },function(period){
+      return period.label || period.periodoLabel || period.id;
+    });
+    fillSelect("coordi-division","Todas",report.divisionList,state.division);
+    fillSelect("coordi-carrera","Todas",report.careerList,state.career);
+    fillSelect("coordi-requisito","Todos los requisitos",report.requirementList,state.requirementKey,function(item){
+      return item.key || item.value || item.label;
+    },function(item){
+      return item.label || item.key;
+    });
   }
 
   function renderKpis(report){
     var global = report.global || {};
-    setText("coordi-total", fmt(global.totalEstudiantesRevisados));
-    setText("coordi-alta", fmt(global.totalEstudiantesPendientes));
-    setText("coordi-media", fmt(global.totalAreasConPendientes));
-    setText("coordi-baja", fmt(global.totalPendientes));
-    setText("coordi-carreras-total", fmt(totalCarreras(report)));
+    setText("coordi-total",fmt(global.totalEstudiantesRevisados));
+    setText("coordi-alta",fmt(global.totalEstudiantesPendientes));
+    setText("coordi-media",fmt(global.totalAreasConPendientes));
+    setText("coordi-baja",fmt(global.totalPendientes));
+    setText("coordi-carreras-total",fmt(totalCareers(report)));
   }
 
   function renderGlobal(report){
     var global = report.global || {};
-    var hasData = global.totalEstudiantesPendientes > 0;
-    setText("coordi-global-name", global.responsable || "Dr. Alex León");
-    setText("coordi-global-email", global.correo || "aleon@itsqmet.edu.ec");
-    setText("coordi-global-phone", global.whatsapp || "593984059654");
-    setText("coordi-global-desc", "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes) + " · Áreas con pendientes: " + fmt(global.totalAreasConPendientes) + " · Pendientes acumulados: " + fmt(global.totalPendientes));
-    ["coo-global-preview","coo-global-mail","coo-global-whatsapp"].forEach(function(id){var b=el(id);if(b){b.disabled = !hasData;}});
+    var hasStudents = Number(global.totalEstudiantesRevisados || 0) > 0;
+    setText("coordi-global-name",global.responsable || "Dr. Alex León");
+    setText("coordi-global-email",global.correo || "aleon@itsqmet.edu.ec");
+    setText("coordi-global-phone",global.whatsapp || "593984059654");
+    setText("coordi-global-desc",
+      "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados) +
+      " · Al día: " + fmt(global.totalEstudiantesAlDia) +
+      " · Con pendientes: " + fmt(global.totalEstudiantesPendientes) +
+      " · Áreas con pendientes: " + fmt(global.totalAreasConPendientes)
+    );
+    ["coo-global-preview","coo-global-mail","coo-global-whatsapp"].forEach(function(id){
+      var button = el(id);
+      if(button){ button.disabled = !hasStudents; }
+    });
   }
 
   function renderAreaSummary(report){
-    var rows = arr(report.areas).map(function(area){return Object.assign({}, area, {estado:area.totalEstudiantes > 0 ? "Con pendientes" : "Sin pendientes"});});
-    setHTML("coordi-requisitos", table([
-      {label:"Área", value:function(r){return '<strong>'+esc(r.area)+'</strong><br><span class="muted-text">'+esc(r.responsable)+'</span>'; }},
-      {label:"Estudiantes", value:function(r){return '<span class="number-strong">'+fmt(r.totalEstudiantes)+'</span>'; }},
-      {label:"Pendientes", value:function(r){return '<span class="number-strong">'+fmt(r.totalPendientes)+'</span>'; }},
-      {label:"Carreras", value:function(r){return fmt(arr(r.carreras).length);}},
-      {label:"Estado", value:function(r){return r.totalEstudiantes > 0 ? '<span class="pill pill-media">Con pendientes</span>' : '<span class="pill pill-baja">Sin pendientes</span>';}}
-    ], rows));
+    var rows = arr(report.areas).map(function(area){
+      return Object.assign({},area,{estado:area.totalEstudiantes > 0 ? "Con pendientes" : "Sin pendientes"});
+    });
+    setHTML("coordi-requisitos",table([
+      {label:"Área",value:function(row){ return '<strong>'+esc(row.area)+'</strong><br><span class="muted-text">'+esc(row.responsable)+'</span>'; }},
+      {label:"Estudiantes",value:function(row){ return '<span class="number-strong">'+fmt(row.totalEstudiantes)+'</span>'; }},
+      {label:"Pendientes",value:function(row){ return '<span class="number-strong">'+fmt(row.totalPendientes)+'</span>'; }},
+      {label:"Carreras",value:function(row){ return fmt(arr(row.carreras).length); }},
+      {label:"Estado",value:function(row){ return row.totalEstudiantes > 0 ? '<span class="pill pill-media">Con pendientes</span>' : '<span class="pill pill-baja">Sin pendientes</span>'; }}
+    ],rows));
   }
 
   function renderReadyReports(report){
     var container = document.querySelector(".report-ready-list");
-    if(!container){return;}
+    if(!container){ return; }
     var rows = arr(report.reportesListos);
     if(!rows.length){
-      container.innerHTML = '<div class="report-ready-item muted"><strong>Sin reportes pendientes</strong><span>No hay acciones necesarias para el filtro actual.</span></div>';
+      container.innerHTML = '<div class="report-ready-item muted"><strong>Seleccione un período</strong><span>Al seleccionar el período se habilitará el reporte global.</span></div>';
       return;
     }
     container.innerHTML = table([
-      {label:"Destinatario", value:function(r){return '<strong>'+esc(r.destinatario)+'</strong><br><span class="muted-text">'+esc(r.correo)+'</span>'; }},
-      {label:"Tipo", value:function(r){return esc(r.tipo);}},
-      {label:"Área", value:function(r){return esc(r.area || "Global");}},
-      {label:"Estudiantes", value:function(r){return fmt(r.totalEstudiantes);}},
-      {label:"Estado", value:function(r){return '<span class="pill pill-baja">'+esc(r.estado || "Listo")+'</span>';}}
-    ], rows);
+      {label:"Destinatario",value:function(row){ return '<strong>'+esc(row.destinatario)+'</strong><br><span class="muted-text">'+esc(row.correo)+'</span>'; }},
+      {label:"Tipo",value:function(row){ return esc(row.tipo); }},
+      {label:"Área",value:function(row){ return esc(row.area || "Global"); }},
+      {label:"Estudiantes",value:function(row){ return fmt(row.totalEstudiantes); }},
+      {label:"Estado",value:function(row){ return '<span class="pill pill-baja">'+esc(row.estado || "Listo")+'</span>'; }}
+    ],rows);
   }
 
-  function areaCard(area, selectedAreaId){
+  function areaCard(area,selectedAreaId){
     var selected = area.id === selectedAreaId ? " selected" : "";
-    var empty = area.totalEstudiantes <= 0 ? " empty-area" : "";
-    var disabled = area.totalEstudiantes > 0 ? "" : "disabled";
-    return '<article class="area-card'+selected+empty+'">'
-      + '<div class="area-card-head"><div><h3>'+esc(area.area)+'</h3><p>'+esc(area.responsable)+'</p></div>'
-      + (area.totalEstudiantes > 0 ? '<span class="pill pill-media">Pendiente</span>' : '<span class="pill pill-baja">Ok</span>') + '</div>'
+    return '<article class="area-card'+selected+'">'
+      + '<div class="area-card-head"><div><h3>'+esc(area.area)+'</h3><p>'+esc(area.responsable)+'</p></div><span class="pill pill-media">Pendiente</span></div>'
       + '<div class="area-contact"><span>'+esc(area.correo)+'</span><span>'+esc(area.whatsapp)+'</span></div>'
       + '<div class="area-stats"><div><strong>'+fmt(area.totalEstudiantes)+'</strong><span>Estudiantes</span></div><div><strong>'+fmt(area.totalPendientes)+'</strong><span>Pendientes</span></div><div><strong>'+fmt(arr(area.carreras).length)+'</strong><span>Carreras</span></div></div>'
       + '<div class="area-card-actions">'
-      + '<button type="button" class="btn-secondary" data-action="preview-area-detail" data-area-id="'+esc(area.id)+'" '+disabled+'>Vista previa</button>'
-      + '<button type="button" class="btn-secondary" data-action="show-detail" data-area-id="'+esc(area.id)+'" '+disabled+'>Ver detalle</button>'
-      + '<button type="button" class="btn-secondary" data-action="mail-area-summary" data-area-id="'+esc(area.id)+'" '+disabled+'>Correo resumen</button>'
-      + '<button type="button" class="btn-primary" data-action="mail-area-detail" data-area-id="'+esc(area.id)+'" '+disabled+'>Correo detallado</button>'
-      + '<button type="button" class="btn-secondary" data-action="whatsapp-area" data-area-id="'+esc(area.id)+'" '+disabled+'>WhatsApp</button>'
-      + '</div>'
-      + '</article>';
+      + '<button type="button" class="btn-secondary" data-action="preview-area-detail" data-area-id="'+esc(area.id)+'">Vista previa</button>'
+      + '<button type="button" class="btn-secondary" data-action="show-detail" data-area-id="'+esc(area.id)+'">Ver detalle</button>'
+      + '<button type="button" class="btn-secondary" data-action="mail-area-summary" data-area-id="'+esc(area.id)+'">Correo resumen</button>'
+      + '<button type="button" class="btn-primary" data-action="mail-area-detail" data-area-id="'+esc(area.id)+'">Correo detallado</button>'
+      + '<button type="button" class="btn-secondary" data-action="whatsapp-area" data-area-id="'+esc(area.id)+'">WhatsApp</button>'
+      + '</div></article>';
   }
 
   function renderAreaCards(report,state){
+    var rows = arr(report.areasConPendientes);
     var areaId = state.selectedAreaId || firstPendingArea(report);
-    setHTML("coordi-carreras", arr(report.areas).map(function(area){return areaCard(area, areaId);}).join(""));
-    setText("coordi-carreras-meta", fmt(arr(report.areas).length) + " responsables");
+    if(!rows.length){
+      setHTML("coordi-carreras",'<div class="empty">No existen áreas con pendientes para el filtro actual.</div>');
+    }else{
+      setHTML("coordi-carreras",rows.map(function(area){ return areaCard(area,areaId); }).join(""));
+    }
+    setText("coordi-carreras-meta",fmt(rows.length) + " responsables con pendientes");
   }
 
   function renderDetail(report,state){
     var areaId = state.selectedAreaId || firstPendingArea(report);
-    var area = areaById(report, areaId);
-    if(!area){
-      setHTML("coordi-estudiantes", '<div class="empty">Selecciona un área con pendientes para ver el detalle.</div>');
-      setText("coordi-estudiantes-meta", "0 estudiantes");
-      return;
+    var area = areaById(report,areaId);
+    var rows;
+
+    if(area){
+      rows = arr(area.estudiantes);
+      setText("coordi-estudiantes-meta",fmt(rows.length) + " estudiantes · " + area.area);
+    }else{
+      rows = arr(report.students);
+      setText("coordi-estudiantes-meta",fmt(rows.length) + " estudiantes del corte");
     }
-    var rows = arr(area.estudiantes);
-    setText("coordi-estudiantes-meta", fmt(rows.length) + " estudiantes · " + area.area);
-    setHTML("coordi-estudiantes", table([
-      {label:"Cédula", value:function(r){return '<span class="nowrap">'+esc(r.cedula)+'</span>'; }},
-      {label:"Nombre", value:function(r){return '<strong>'+esc(r.nombre || "Sin nombre")+'</strong>'; }},
-      {label:"Carrera", value:function(r){return esc(r.carrera);}},
-      {label:"Requisito pendiente", value:function(r){return esc(r.requisitosTexto || arr(r.requisitos).join(", "));}}
-    ], rows));
+
+    setHTML("coordi-estudiantes",table([
+      {label:"Cédula",value:function(row){ return '<span class="nowrap">'+esc(row.cedula)+'</span>'; }},
+      {label:"Nombre",value:function(row){ return '<strong>'+esc(row.nombre || "Sin nombre")+'</strong>'; }},
+      {label:"Carrera",value:function(row){ return esc(row.carrera); }},
+      {label:"Estado / requisito",value:function(row){
+        return row.totalPendientes > 0
+          ? '<span class="pill pill-media">'+esc(row.requisitosTexto || arr(row.requisitos).join(", "))+'</span>'
+          : '<span class="pill pill-baja">Al día</span>';
+      }}
+    ],rows));
   }
 
   function summaryText(report){
     var global = report.global || {};
-    var lines = [];
-    lines.push("Resumen Coordi");
-    lines.push("Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados));
-    lines.push("Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes));
-    lines.push("Áreas con pendientes: " + fmt(global.totalAreasConPendientes));
-    lines.push("Pendientes acumulados: " + fmt(global.totalPendientes));
-    lines.push("");
-    arr(report.areasConPendientes).forEach(function(area){lines.push(area.area + ": " + fmt(area.totalEstudiantes) + " estudiantes · " + fmt(area.totalPendientes) + " pendientes · Responsable: " + area.responsable);});
+    var lines = [
+      "Resumen Coordi",
+      "Estudiantes revisados: " + fmt(global.totalEstudiantesRevisados),
+      "Estudiantes al día: " + fmt(global.totalEstudiantesAlDia),
+      "Estudiantes con pendientes: " + fmt(global.totalEstudiantesPendientes),
+      "Áreas con pendientes: " + fmt(global.totalAreasConPendientes),
+      "Pendientes acumulados: " + fmt(global.totalPendientes),
+      ""
+    ];
+    arr(report.areasConPendientes).forEach(function(area){
+      lines.push(area.area + ": " + fmt(area.totalEstudiantes) + " estudiantes · " + fmt(area.totalPendientes) + " pendientes · Responsable: " + area.responsable);
+    });
     return lines.join("\n");
   }
 
   function renderMessage(report,state){
     var target = el("coordi-message");
-    if(target){target.value = summaryText(report);}
+    if(!target){ return; }
+    if(state.messageType === "carrera" && report.filters && report.filters.career){
+      target.value = "Resumen de la carrera " + report.filters.career + "\n\n" + summaryText(report);
+    }else if(state.messageType === "pendientes"){
+      target.value = arr(report.areasConPendientes).map(function(area){
+        return area.area + ": " + fmt(area.totalEstudiantes) + " estudiantes y " + fmt(area.totalPendientes) + " pendientes.";
+      }).join("\n") || "No existen pendientes para el filtro actual.";
+    }else{
+      target.value = summaryText(report);
+    }
   }
 
   function renderDiagnostics(report){
     var node = el("coordi-diagnostics");
-    if(node){node.textContent = JSON.stringify(report.diagnostics || {}, null, 2);}
+    if(node){ node.textContent = JSON.stringify(report.diagnostics || {},null,2); }
   }
 
-  function previewGlobal(report){
-    if(window.COOMail){return window.COOMail.buildGlobal(report).html;}
-    return '<div class="empty">No se cargó el módulo de correo.</div>';
-  }
-
-  function previewArea(report, areaId, kind){
-    if(!window.COOMail){return '<div class="empty">No se cargó el módulo de correo.</div>';}
-    return kind === "summary" ? window.COOMail.buildAreaSummary(report, areaId).html : window.COOMail.buildAreaDetail(report, areaId).html;
-  }
-
-  function openPreview(title, html){
+  function openPreview(title,html){
     var modal = el("coordi-preview-modal");
-    setText("coordi-preview-title", title || "Vista previa");
-    setHTML("coordi-preview-body", html || "");
-    if(modal){modal.hidden = false;}
+    setText("coordi-preview-title",title || "Vista previa");
+    setHTML("coordi-preview-body",html || "");
+    if(modal){ modal.hidden = false; }
   }
 
-  function closePreview(){var modal = el("coordi-preview-modal");if(modal){modal.hidden = true;}}
+  function closePreview(){
+    var modal = el("coordi-preview-modal");
+    if(modal){ modal.hidden = true; }
+  }
 
   function renderAll(report,state){
     state = state || {};
@@ -224,9 +255,8 @@ Con qué se conecta:
     version:VERSION,
     renderAll:renderAll,
     renderDetail:renderDetail,
+    renderMessage:renderMessage,
     summaryText:summaryText,
-    previewGlobal:previewGlobal,
-    previewArea:previewArea,
     openPreview:openPreview,
     closePreview:closePreview,
     firstPendingArea:firstPendingArea,
