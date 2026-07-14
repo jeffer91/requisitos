@@ -1361,6 +1361,17 @@ Función o funciones:
   function renderDefensas(){
     try{
       if (
+        window.DefartServiceBridge &&
+        typeof window.DefartServiceBridge.clear === "function"
+      ){
+        window.DefartServiceBridge.clear({
+          resetPage: false
+        });
+      }
+    }catch(error){}
+
+    try{
+      if (
         window.DefartCore &&
         typeof window.DefartCore
           .clearSummaryCache ===
