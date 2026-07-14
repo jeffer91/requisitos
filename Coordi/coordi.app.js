@@ -4,13 +4,13 @@ Ruta o ubicación: /Requisitos/Coordi/coordi.app.js
 Función o funciones:
 - Actualizar Coordi automáticamente al cambiar los filtros.
 - Mostrar los tres tipos de correo en la misma pantalla.
-- Abrir el correo mediante el flujo independiente de COOMail.
+- Abrir Outlook Web con destinatarios, copias, asunto y cuerpo preparados.
 - Abrir WhatsApp únicamente para comunicaciones por requisito.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "4.0.0-three-mail-types";
+  var VERSION = "4.1.0-outlook-web-full-compose";
   var state = {
     periodId:"",division:"",career:"",requirementKey:"",report:null,currentMail:null,currentWhatsApp:null,
     loading:false,openingMail:false,pendingRender:null,refreshTimer:null,statusTimer:null,eventsBound:false,booted:false
@@ -25,7 +25,9 @@ Función o funciones:
     clearStatusTimer();
     message = text(message);
     if(!message){ node.hidden = true; node.textContent = ""; node.className = "coordi-status"; return; }
-    node.hidden = false; node.textContent = message; node.className = "coordi-status " + (cls || "");
+    node.hidden = false;
+    node.textContent = message;
+    node.className = "coordi-status " + (cls || "");
   }
   function transient(message,duration){
     status(message,"");
@@ -37,7 +39,8 @@ Función o funciones:
     return false;
   }
   function mergeRenderOptions(current,next){
-    current = Object.assign({},current || {}); next = Object.assign({},next || {});
+    current = Object.assign({},current || {});
+    next = Object.assign({},next || {});
     return Object.assign({},current,next,{refresh:current.refresh === true || next.refresh === true});
   }
   function requestSnapshot(options){
@@ -48,7 +51,8 @@ Función o funciones:
   }
   function schedulePendingRender(){
     if(!state.pendingRender){ return; }
-    var next = state.pendingRender; state.pendingRender = null;
+    var next = state.pendingRender;
+    state.pendingRender = null;
     setTimeout(function(){ render(next); },0);
   }
   function render(options){
@@ -59,7 +63,10 @@ Función o funciones:
     var request = requestSnapshot(options);
     status(state.periodId ? "Actualizando comunicación..." : "Cargando períodos...","");
     return window.COOReport.build(request).then(function(report){
-      if(!requestIsCurrent(request)){ state.pendingRender = mergeRenderOptions(state.pendingRender,{refresh:false}); return report; }
+      if(!requestIsCurrent(request)){
+        state.pendingRender = mergeRenderOptions(state.pendingRender,{refresh:false});
+        return report;
+      }
       state.report = report;
       window.COORender.renderAll(report,state);
       status("");
@@ -68,7 +75,10 @@ Función o funciones:
       console.error("[Coordi]",error);
       status(error && error.message ? error.message : String(error),"warn");
       return null;
-    }).finally(function(){ state.loading = false; schedulePendingRender(); });
+    }).finally(function(){
+      state.loading = false;
+      schedulePendingRender();
+    });
   }
   function scheduleDataRefresh(){
     if(state.refreshTimer){ clearTimeout(state.refreshTimer); }
@@ -77,36 +87,46 @@ Función o funciones:
   function bindDataEvents(){
     if(state.eventsBound){ return; }
     state.eventsBound = true;
-    ["bdlocal:screen-data-updated","bdlocal:conexiones-cache-updated","bdlocal:legacy-snapshot","requisitos:bl:snapshot-changed"].forEach(function(name){ window.addEventListener(name,scheduleDataRefresh); });
+    ["bdlocal:screen-data-updated","bdlocal:conexiones-cache-updated","bdlocal:legacy-snapshot","requisitos:bl:snapshot-changed"].forEach(function(name){
+      window.addEventListener(name,scheduleDataRefresh);
+    });
     window.addEventListener("storage",function(event){
-      if(event && ["REQ_BDLOCAL_CONEXIONES_CACHE_V1","REQ_BDLOCAL_LEGACY_SNAPSHOT_V1","REQ_EXCEL_LOCAL_V1:snapshot"].indexOf(event.key) >= 0){ scheduleDataRefresh(); }
+      if(event && ["REQ_BDLOCAL_CONEXIONES_CACHE_V1","REQ_BDLOCAL_LEGACY_SNAPSHOT_V1","REQ_EXCEL_LOCAL_V1:snapshot"].indexOf(event.key) >= 0){
+        scheduleDataRefresh();
+      }
     });
   }
   function setMailButtonBusy(busy){
     var button = el("coordi-open-mail");
     if(!button){ return; }
     button.disabled = !!busy || !state.currentMail || !state.currentMail.to;
-    button.textContent = busy ? "Preparando..." : "Abrir en Outlook";
+    button.textContent = busy ? "Abriendo Outlook..." : "Abrir en Outlook";
   }
   function openMail(){
     if(state.openingMail){ return; }
     if(!state.currentMail){ status("No existe un correo preparado para este filtro.","warn"); return; }
     state.openingMail = true;
     setMailButtonBusy(true);
-    status("Copiando el contenido y abriendo el correo...","");
+    status("Abriendo Outlook Web con el correo preparado...","");
     window.COOMail.open(state.currentMail).then(function(result){
-      if(!result || result.ok !== true || result.opened !== true){ throw new Error(result && (result.error || result.message) || "No se pudo abrir el correo."); }
-      if(result.copied === true){ transient("Correo preparado. Pegue el contenido completo con Ctrl + V.",4200); }
-      else{ status("El correo se abrió, pero no se pudo copiar el contenido. Cópielo desde la vista previa.","warn"); }
+      if(!result || result.ok !== true || result.opened !== true){
+        throw new Error(result && (result.error || result.message) || "No se pudo abrir Outlook Web.");
+      }
+      transient("Outlook Web abierto con destinatarios, asunto y cuerpo preparados.",4200);
     }).catch(function(error){
       console.error("[Coordi Mail]",error);
-      status(error && error.message ? error.message : "No se pudo abrir el cliente de correo.","warn");
-    }).finally(function(){ state.openingMail = false; setMailButtonBusy(false); });
+      status(error && error.message ? error.message : "No se pudo abrir Outlook Web en el navegador.","warn");
+    }).finally(function(){
+      state.openingMail = false;
+      setMailButtonBusy(false);
+    });
   }
   function openWhatsApp(){
     if(!state.currentWhatsApp){ status("No existe un WhatsApp preparado para este filtro.","warn"); return; }
     status("Abriendo WhatsApp...","");
-    Promise.resolve(window.COOWhatsApp.open(state.currentWhatsApp)).then(function(){ transient("WhatsApp abierto para revisión."); }).catch(function(error){
+    Promise.resolve(window.COOWhatsApp.open(state.currentWhatsApp)).then(function(){
+      transient("WhatsApp abierto para revisión.");
+    }).catch(function(error){
       console.error("[Coordi WhatsApp]",error);
       status(error && error.message ? error.message : String(error),"warn");
     });
@@ -126,18 +146,28 @@ Función o funciones:
     if(openWhatsAppButton){ openWhatsAppButton.addEventListener("click",openWhatsApp); }
   }
   function connectionReady(){
-    if(window.BDLScreenDepsReady && typeof window.BDLScreenDepsReady.then === "function"){ return window.BDLScreenDepsReady.catch(function(){ return null; }); }
-    if(window.BDLocalScreenDeps && typeof window.BDLocalScreenDeps.ready === "function"){ return window.BDLocalScreenDeps.ready().catch(function(){ return null; }); }
+    if(window.BDLScreenDepsReady && typeof window.BDLScreenDepsReady.then === "function"){
+      return window.BDLScreenDepsReady.catch(function(){ return null; });
+    }
+    if(window.BDLocalScreenDeps && typeof window.BDLocalScreenDeps.ready === "function"){
+      return window.BDLocalScreenDeps.ready().catch(function(){ return null; });
+    }
     return Promise.resolve(null);
   }
   function boot(){
     if(state.booted){ return; }
     state.booted = true;
-    bindStatic(); bindDataEvents();
+    bindStatic();
+    bindDataEvents();
     connectionReady().then(function(){ return render({refresh:false}); });
   }
   if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded",boot); }
   else{ boot(); }
 
-  window.CoordiApp = {version:VERSION,render:render,refresh:scheduleDataRefresh,getState:function(){ return Object.assign({},state); }};
+  window.CoordiApp = {
+    version:VERSION,
+    render:render,
+    refresh:scheduleDataRefresh,
+    getState:function(){ return Object.assign({},state); }
+  };
 })(window,document);
