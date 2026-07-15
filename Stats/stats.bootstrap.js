@@ -76,7 +76,7 @@ Función:
     var status=document.getElementById("stats-status");
     if(status){status.textContent="Conectando Stats con BDLocal...";}
     connectorReady()
-      .then(function(){return load("stats.data.patch.js",function(){return window.StatsDataPatch;});})
+      .then(function(){return load("stats.data.connector-patch.js",function(){return window.StatsDataPatch;});})
       .then(function(patch){return patch&&typeof patch.ready==="function"?patch.ready():true;})
       .then(function(){return load("stats.rules.js",function(){return window.StatsRules;});})
       .then(function(){return load("stats.notes.guard.js");})
@@ -100,6 +100,6 @@ Función:
       });
   }
 
-  window.StatsBootstrap={version:"1.2.0-connector-notes",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"1.2.1-connector-data-patch",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
