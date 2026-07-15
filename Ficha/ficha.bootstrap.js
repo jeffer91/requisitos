@@ -2,20 +2,9 @@
 Nombre completo: ficha.bootstrap.js
 Ruta o ubicación: /Ficha/ficha.bootstrap.js
 Función o funciones:
-- Esperar a que BDLocalScreenDeps termine de preparar conexiones.
-- Cargar cone.ficha.js antes de FichaCore y FichaApp.
-- Instalar el puente de ConFicha y evitar condiciones de carrera.
-- Cargar los editores confirmados de matrícula y modalidad.
-Con qué se conecta:
-- ../BDLocal/adapters/bdl.screen-deps.js
-- ../BDLocal/conexiones/cone.ficha.js
-- ficha.core.js
-- ficha.connection-bridge.js
-- ficha.periodo-normalizer.js
-- ficha.app.js
-- ficha.modalidad.js
-- ficha.modalidad-ui.js
-- ficha.matricula.js
+- Esperar BDLocalScreenDeps y ConFicha.
+- Activar la protección del estado manual de matrícula.
+- Cargar Ficha y sus editores en orden secuencial.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -29,12 +18,7 @@ Con qué se conecta:
   function waitFor(test,label,timeout){
     timeout=Math.max(500,Number(timeout||15000));var started=Date.now();
     return new Promise(function(resolve,reject){
-      (function check(){
-        var value=null;try{value=test();}catch(error){}
-        if(value){resolve(value);return;}
-        if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}
-        setTimeout(check,40);
-      })();
+      (function check(){var value=null;try{value=test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}setTimeout(check,40);})();
     });
   }
   function load(relative,test){
@@ -64,6 +48,8 @@ Con qué se conecta:
         if(status&&status.ok===false){throw new Error(status.error||"ConFicha no está listo.");}
         return con;
       });
+    }).then(function(con){
+      return load("../BDLocal/conexiones/cone.ficha.enrollment-lock.js",function(){return window.ConFichaEnrollmentLock&&window.ConFichaEnrollmentLock.install&&window.ConFichaEnrollmentLock.install()?window.ConFichaEnrollmentLock:null;}).then(function(){return con;});
     });
   }
   function boot(){
@@ -79,15 +65,10 @@ Con qué se conecta:
       .then(function(ui){if(ui&&typeof ui.bind==="function"){ui.bind();}return ui;})
       .then(function(){return load("ficha.matricula.js",function(){return window.FichaMatricula;});})
       .then(function(editor){if(editor&&typeof editor.render==="function"){editor.render();}})
-      .then(function(){
-        emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],at:new Date().toISOString()});
-      })
-      .catch(function(error){
-        if(status){status.textContent=error.message||String(error);status.className="ficha-status warn";}
-        emit("ficha:bootstrap-error",{ok:false,source:"ConFicha",error:error.message||String(error),at:new Date().toISOString()});
-      });
+      .then(function(){emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],manualEnrollmentLock:true,at:new Date().toISOString()});})
+      .catch(function(error){if(status){status.textContent=error.message||String(error);status.className="ficha-status warn";}emit("ficha:bootstrap-error",{ok:false,source:"ConFicha",error:error.message||String(error),at:new Date().toISOString()});});
   }
 
-  window.FichaBootstrap={version:"1.1.0-ficha-editors",boot:boot,readyConnector:readyConnector};
+  window.FichaBootstrap={version:"1.2.0-manual-enrollment-lock",boot:boot,readyConnector:readyConnector};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
