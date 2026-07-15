@@ -4,6 +4,7 @@ Ruta o ubicación: /Ficha/ficha.matricula.js
 Función o funciones:
 - Mostrar el estado de matrícula del estudiante seleccionado.
 - Permitir cambiar únicamente entre ACTIVO y RETIRADO.
+- Conservar la selección pendiente aunque Ficha vuelva a renderizarse.
 - Guardar el cambio exclusivamente mediante ConFicha.updateEnrollmentStatus.
 - Esperar la confirmación del conector antes de mostrar éxito.
 Con qué se conecta:
@@ -14,9 +15,11 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.1-confirmation";
+  var VERSION="1.1.0-pending-selection";
   var saving=false;
   var observer=null;
+  var pendingStudentId="";
+  var pendingStatus="";
 
   function text(value){return String(value==null?"":value).trim();}
   function el(id){return document.getElementById(id);}
@@ -82,14 +85,42 @@ Con qué se conecta:
     node.className="ficha-modalidad-info"+(locked?" locked":"");
   }
 
+  function clearPending(studentId){
+    if(studentId&&pendingStudentId&&pendingStudentId!==text(studentId)){return;}
+    pendingStudentId="";
+    pendingStatus="";
+  }
+
+  function setPending(row,status){
+    var id=rowId(row);
+    status=normalizeStatus(status);
+    if(!id||!status){
+      clearPending();
+      return;
+    }
+    pendingStudentId=id;
+    pendingStatus=status;
+  }
+
+  function pendingFor(row){
+    var id=rowId(row);
+    return !!(
+      id&&
+      pendingStudentId===id&&
+      (pendingStatus==="ACTIVO"||pendingStatus==="RETIRADO")
+    );
+  }
+
   function patchRow(row,status){
     if(!row){return;}
     row._estadoMatricula=status;
     row.estadoMatricula=status;
+    row.EstadoMatricula=status;
     row.retirado=status==="RETIRADO";
     if(row._raw&&typeof row._raw==="object"){
       row._raw._estadoMatricula=status;
       row._raw.estadoMatricula=status;
+      row._raw.EstadoMatricula=status;
       row._raw.retirado=status==="RETIRADO";
     }
   }
@@ -102,20 +133,62 @@ Con qué se conecta:
     if(!select||!button){return;}
 
     if(!row){
+      clearPending();
       select.value="ACTIVO";
       select.disabled=true;
       button.disabled=true;
+      button.textContent="Guardar estado";
       setInfo("Selecciona un estudiante.",true);
       return;
     }
 
+    var id=rowId(row);
     var current=statusOf(row);
-    if(!saving){select.value=current;}
+
+    if(pendingStudentId&&pendingStudentId!==id){
+      clearPending();
+    }
+
+    if(!saving){
+      select.value=pendingFor(row)?pendingStatus:current;
+    }
+
     select.disabled=saving;
     button.disabled=saving;
     button.textContent=saving?"Guardando...":"Guardar estado";
 
-    if(!saving){setInfo("Estado actual: "+current,false);}
+    if(!saving){
+      if(pendingFor(row)&&pendingStatus!==current){
+        setInfo("Cambio pendiente: "+pendingStatus+". Presiona Guardar estado.",false);
+      }else{
+        clearPending(id);
+        setInfo("Estado actual: "+current,false);
+      }
+    }
+  }
+
+  function handleSelectionChange(){
+    if(saving){return;}
+
+    var row=selectedRow();
+    var select=el("ficha-matricula-edit");
+
+    if(!row||!select){
+      clearPending();
+      return;
+    }
+
+    var current=statusOf(row);
+    var next=normalizeStatus(select.value);
+
+    if(next===current){
+      clearPending(rowId(row));
+      setInfo("Estado actual: "+current,false);
+      return;
+    }
+
+    setPending(row,next);
+    setInfo("Cambio pendiente: "+next+". Presiona Guardar estado.",false);
   }
 
   function save(){
@@ -136,7 +209,7 @@ Con qué se conecta:
     }
 
     var id=rowId(row);
-    var next=normalizeStatus(select.value);
+    var next=pendingFor(row)?pendingStatus:normalizeStatus(select.value);
     var previous=statusOf(row);
 
     if(!id){
@@ -146,11 +219,14 @@ Con qué se conecta:
     }
 
     if(next===previous){
+      clearPending(id);
+      select.value=previous;
       setInfo("El estudiante ya está "+next+".",false);
       return Promise.resolve({ok:true,status:next,unchanged:true});
     }
 
     saving=true;
+    setPending(row,next);
     render();
     setInfo("Guardando "+next+"...",false);
     setGlobalStatus("Guardando estado de matrícula mediante ConFicha...","");
@@ -163,20 +239,23 @@ Con qué se conecta:
     })).then(function(result){
       if(!result||result.ok!==true){throw new Error("ConFicha no confirmó el cambio de estado.");}
 
-      patchRow(row,result.status||next);
+      var savedStatus=normalizeStatus(result.status||next);
+      patchRow(row,savedStatus);
+      clearPending(id);
 
       try{
         if(window.FichaCore&&typeof window.FichaCore.invalidate==="function"){window.FichaCore.invalidate();}
         if(window.FichaApp&&typeof window.FichaApp.render==="function"){window.FichaApp.render("bdlocal-refresh");}
       }catch(error){}
 
-      setInfo("Guardado: "+(result.status||next)+".",false);
+      setInfo("Guardado: "+savedStatus+".",false);
       setTimeout(function(){
-        setGlobalStatus("Estado de matrícula guardado correctamente: "+(result.status||next)+".","ok");
+        setGlobalStatus("Estado de matrícula guardado correctamente: "+savedStatus+".","ok");
       },0);
 
       return result;
     }).catch(function(error){
+      clearPending(id);
       select.value=previous;
       setInfo(error&&error.message?error.message:String(error),true);
       setGlobalStatus("No se pudo guardar el estado: "+(error&&error.message?error.message:String(error)),"warn");
@@ -188,7 +267,14 @@ Con qué se conecta:
   }
 
   function bind(){
+    var select=el("ficha-matricula-edit");
     var button=el("ficha-matricula-save");
+
+    if(select&&!select.getAttribute("data-ficha-matricula-change-bound")){
+      select.setAttribute("data-ficha-matricula-change-bound","1");
+      select.addEventListener("change",handleSelectionChange);
+    }
+
     if(button&&!button.getAttribute("data-ficha-matricula-bound")){
       button.setAttribute("data-ficha-matricula-bound","1");
       button.addEventListener("click",function(){save().catch(function(){});});
@@ -215,7 +301,14 @@ Con qué se conecta:
     render:render,
     save:save,
     selectedRow:selectedRow,
-    statusOf:statusOf
+    statusOf:statusOf,
+    pending:function(){
+      return {
+        studentId:pendingStudentId,
+        status:pendingStatus,
+        saving:saving
+      };
+    }
   };
 
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind);}else{bind();}
