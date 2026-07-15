@@ -14,7 +14,7 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-confirmed-pvc";
+  var VERSION="1.1.1-confirmation";
   var saving=false;
   var button=null;
   var observer=null;
@@ -89,9 +89,13 @@ Con qué se conecta:
       button.disabled=info.source==="guardado";
       button.textContent=info.source==="guardado"?"Artículo guardado":"Guardar artículo";
     }else{
-      select.disabled=false;
+      var allowed=window.FichaModalidad.options(row)||[];
+      if(!allowed.some(function(item){return item.value===select.value;})){
+        select.value=info.value||allowed[0]&&allowed[0].value||"";
+      }
       button.disabled=false;
       button.textContent="Guardar modalidad";
+      select.disabled=false;
     }
   }
 
@@ -131,8 +135,10 @@ Con qué se conecta:
 
       select.value=result.value;
       setInfo((result.periodType&&result.periodType.label||"Regular")+" · "+result.label+" · guardado",!!result.locked);
-      setStatus("Modalidad guardada correctamente: "+result.label+".","ok");
       refreshFicha();
+      setTimeout(function(){
+        setStatus("Modalidad guardada correctamente: "+result.label+".","ok");
+      },0);
       return result;
     }).catch(function(error){
       var message=error&&error.message?error.message:String(error);
