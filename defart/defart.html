@@ -5,11 +5,8 @@ Ruta o ubicación: /defart/defart.html
 Función o funciones:
 - Pantalla Defensas para cargar N-ART y N-DEF desde BDLocal.
 - Calcular N-FIN con 70% artículo y 30% defensa.
-- Mostrar filtros compactos en dos filas y paginación de 25.
-- Guardar notas mediante servicios V2 y cambios_pendientes.
-- Descargar Excel usando SheetJS 0.20.3 instalado localmente.
-- Mostrar nombres normalizados de períodos sin alterar sus IDs técnicos.
-- Hidratar requisitos desde requisitos_estudiante antes de habilitar N-ART.
+- Conectarse exclusivamente mediante cone.defart.js.
+- Guardar notas y cambios pendientes desde el conector oficial.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -27,18 +24,9 @@ Función o funciones:
 
     <section class="def-toolbar" aria-label="Filtros de Defensas">
       <div class="def-toolbar-row def-toolbar-row-main">
-        <label>
-          <span>Período</span>
-          <select id="def-filter-periodo"><option value="">Todos</option></select>
-        </label>
-        <label>
-          <span>División</span>
-          <select id="def-filter-division"><option value="">Todas</option></select>
-        </label>
-        <label class="def-filter-wide">
-          <span>Carrera</span>
-          <select id="def-filter-carrera"><option value="">Todas</option></select>
-        </label>
+        <label><span>Período</span><select id="def-filter-periodo"><option value="">Todos</option></select></label>
+        <label><span>División</span><select id="def-filter-division"><option value="">Todas</option></select></label>
+        <label class="def-filter-wide"><span>Carrera</span><select id="def-filter-carrera"><option value="">Todas</option></select></label>
         <label>
           <span>Estado</span>
           <select id="def-filter-estado">
@@ -118,7 +106,7 @@ Función o funciones:
   <script src="../BDLocal/services/bdl.service.periodos.js"></script>
   <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
   <script src="../BDLocal/services/bdl.service.defensas.js"></script>
-  <script src="../BDLocal/conexiones/cone.defensas.js"></script>
+  <script src="../BDLocal/conexiones/cone.defart.js"></script>
   <script src="../BDLocal/diagnostics/bdl.diagnostics.defensas.js"></script>
 
   <script src="defart.core.js"></script>
