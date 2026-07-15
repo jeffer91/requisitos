@@ -6,22 +6,37 @@ Función o funciones:
 - Unir estudiantes con contactos legacy y contactos_estudiante V2.
 - Priorizar los datos no vacíos de contactos_estudiante por idEstudiantePeriodo.
 - Consultar estudiantes, períodos, divisiones y requisitos.
+- Cambiar ACTIVO/RETIRADO mediante updateEnrollmentStatus.
+- Guardar la modalidad mediante updateGraduationModality.
 - Guardar ediciones mediante BL2Core.updateStudent.
-- Refrescar la caché después de cada edición sin sincronizar servicios externos.
+- Refrescar la caché después de cada edición sin sincronizar servicios externos automáticamente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.2.0-v2-contact-hydration";
+  var VERSION="1.3.0-ficha-editors";
   var HUB=window.BDLocalConexiones;
   var U=window.BDLocalConUtils;
   var hydrationPromise=null;
+
+  var ENROLLMENT={active:"ACTIVO",retired:"RETIRADO"};
+  var MODALITY={
+    complexivo:"EXAMEN_COMPLEXIVO",
+    trabajo:"TRABAJO_TITULACION",
+    articulo:"ARTICULO_ACADEMICO"
+  };
 
   if(!HUB||!U){return;}
 
   function text(value){return U.text?U.text(value):String(value==null?"":value).trim();}
   function now(){return U.nowISO?U.nowISO():new Date().toISOString();}
   function clone(value){return U.clone?U.clone(value):JSON.parse(JSON.stringify(value));}
+  function norm(value){
+    return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toUpperCase();
+  }
+  function emit(name,detail){
+    try{window.dispatchEvent(new CustomEvent(name,{detail:clone(detail||{})}));}catch(error){}
+  }
 
   function first(){
     for(var i=0;i<arguments.length;i+=1){
@@ -332,21 +347,37 @@ Función o funciones:
       .then(function(){return hydrateCache({force:true,source:"cone.ficha.refresh.contacts"});});
   }
 
+  function resolveStudentId(id,options){
+    options=Object.assign({},options||{});
+    var requested=text(id);
+    var row=getStudentById(requested,{
+      periodoId:options.periodoId||options.periodId||"",
+      matricula:""
+    });
+    return identityKey(row)||requested;
+  }
+
   function updateStudent(id,changes,options){
     options=Object.assign({},options||{});
     var periodoId=U.canonicalPeriodId(options.periodoId||options.periodId||"");
+    var resolvedId=resolveStudentId(id,options);
+
+    if(!resolvedId){return Promise.reject(new Error("No se pudo identificar al estudiante."));}
+
     return HUB.ensureCoreReady().then(function(){
       if(!window.BL2Core||typeof window.BL2Core.updateStudent!=="function"){
         throw new Error("BL2Core.updateStudent no está disponible.");
       }
-      return window.BL2Core.updateStudent(id,changes||{},options);
+      return window.BL2Core.updateStudent(resolvedId,changes||{},options);
     }).then(function(saved){
       return refresh({source:"cone.ficha.updateStudent",periodoId:periodoId}).then(function(){
-        try{
-          window.dispatchEvent(new CustomEvent("ficha:student-saved",{
-            detail:{ok:true,id:id,periodoId:periodoId,changes:changes||{}}
-          }));
-        }catch(error){}
+        emit("ficha:student-saved",{
+          ok:true,
+          id:resolvedId,
+          requestedId:text(id),
+          periodoId:periodoId,
+          changes:changes||{}
+        });
         return saved;
       });
     });
@@ -358,24 +389,117 @@ Función o funciones:
     return updateStudent(id,changes,options||{});
   }
 
+  function normalizeEnrollmentStatus(value){
+    value=norm(value);
+    if(value===ENROLLMENT.active){return ENROLLMENT.active;}
+    if(value===ENROLLMENT.retired){return ENROLLMENT.retired;}
+    return "";
+  }
+
+  function updateEnrollmentStatus(id,value,options){
+    options=Object.assign({},options||{});
+    var status=normalizeEnrollmentStatus(value);
+    var stamp=now();
+
+    if(!status){
+      return Promise.reject(new Error("El estado debe ser ACTIVO o RETIRADO."));
+    }
+
+    var changes={
+      estadoMatricula:status,
+      retirado:status===ENROLLMENT.retired,
+      estadoMatriculaActualizadaEn:stamp
+    };
+
+    if(status===ENROLLMENT.retired){
+      changes.retiradoEn=stamp;
+    }else{
+      changes.retiradoEn="";
+      changes.reactivadoEn=stamp;
+    }
+
+    options.action=status===ENROLLMENT.retired?"manual_retire":"manual_reactivate";
+    options.source=options.source||"cone.ficha.updateEnrollmentStatus";
+
+    return updateStudent(id,changes,options).then(function(saved){
+      var result={ok:true,id:identityKey(saved)||text(id),status:status,student:saved||null,source:"ConFicha"};
+      emit("ficha:enrollment-status-saved",result);
+      return result;
+    });
+  }
+
+  function normalizeGraduationModality(value){
+    var raw=norm(value).replace(/[^A-Z0-9]+/g,"_");
+    if(raw===MODALITY.complexivo||raw.indexOf("COMPLEXIVO")>=0){return MODALITY.complexivo;}
+    if(raw===MODALITY.trabajo||raw.indexOf("TRABAJO")>=0||raw.indexOf("TESIS")>=0){return MODALITY.trabajo;}
+    if(raw===MODALITY.articulo||raw.indexOf("ARTICULO")>=0){return MODALITY.articulo;}
+    return "";
+  }
+
+  function periodType(options){
+    options=options||{};
+    if(options.isPVC===true){return "PVC";}
+    if(options.isRegular===true){return "REGULAR";}
+
+    var explicit=norm(first(
+      options.periodType&&typeof options.periodType==="object"?(options.periodType.id||options.periodType.label):options.periodType,
+      options.tipoPeriodo,
+      options.periodoTipo,
+      options.periodTypeId
+    ));
+
+    if(explicit.indexOf("PVC")>=0){return "PVC";}
+    if(explicit.indexOf("REGULAR")>=0){return "REGULAR";}
+
+    var raw=norm(first(options.periodoLabel,options.periodLabel,options.periodoId,options.periodId));
+    if(raw.indexOf("PVC")>=0){return "PVC";}
+    if((raw.indexOf("OCTUBRE")>=0&&raw.indexOf("MARZO")>=0)||(raw.indexOf("ABRIL")>=0&&raw.indexOf("SEPTIEMBRE")>=0)){
+      return "REGULAR";
+    }
+    if(/20\d{2}[-_/ ]?10.*20\d{2}[-_/ ]?03/.test(raw)||/20\d{2}[-_/ ]?04.*20\d{2}[-_/ ]?09/.test(raw)){
+      return "REGULAR";
+    }
+
+    return "PVC";
+  }
+
+  function updateGraduationModality(id,value,options){
+    options=Object.assign({},options||{});
+    var type=periodType(options);
+    var modality=normalizeGraduationModality(value);
+
+    if(type==="PVC"){
+      modality=MODALITY.articulo;
+    }else if([MODALITY.complexivo,MODALITY.trabajo].indexOf(modality)<0){
+      return Promise.reject(new Error("En un período regular solo se permite Examen Complexivo o Trabajo de Titulación."));
+    }
+
+    var changes={
+      modalidadTitulacion:modality,
+      modalidadTitulacionActualizadaEn:now()
+    };
+
+    options.action="manual_graduation_modality";
+    options.source=options.source||"cone.ficha.updateGraduationModality";
+    options.periodType=type;
+
+    return updateStudent(id,changes,options).then(function(saved){
+      var result={ok:true,id:identityKey(saved)||text(id),value:modality,periodType:type,student:saved||null,source:"ConFicha"};
+      emit("ficha:graduation-modality-saved",result);
+      return result;
+    });
+  }
+
   function trackedUpdate(id,changes,options){
     setFichaStatus("Guardando cambio en Base Local...","");
     return updateStudent(id,changes,options||{}).then(function(saved){
       setFichaStatus("Cambio confirmado en Base Local y agregado a la cola.","ok");
-      try{
-        window.dispatchEvent(new CustomEvent("ficha:student-save-confirmed",{
-          detail:{ok:true,id:id,saved:saved||null}
-        }));
-      }catch(error){}
+      emit("ficha:student-save-confirmed",{ok:true,id:id,saved:saved||null});
       return saved;
     }).catch(function(error){
       var message=error&&error.message?error.message:String(error);
       setFichaStatus("No se pudo guardar en Base Local: "+message,"warn");
-      try{
-        window.dispatchEvent(new CustomEvent("ficha:student-save-error",{
-          detail:{ok:false,id:id,message:message}
-        }));
-      }catch(innerError){}
+      emit("ficha:student-save-error",{ok:false,id:id,message:message});
       return null;
     });
   }
@@ -407,6 +531,11 @@ Función o funciones:
     updateStudent:updateStudent,
     actualizarEstudiante:updateStudent,
     updateStudentField:updateStudentField,
+    updateEnrollmentStatus:updateEnrollmentStatus,
+    updateGraduationModality:updateGraduationModality,
+    normalizeEnrollmentStatus:normalizeEnrollmentStatus,
+    normalizeGraduationModality:normalizeGraduationModality,
+    periodType:periodType,
     forFicha:forFicha
   };
 
@@ -424,7 +553,9 @@ Función o funciones:
       var patch={};
       patch[field]=value;
       return trackedUpdate(id,patch,options||{});
-    }
+    },
+    updateEnrollmentStatus:updateEnrollmentStatus,
+    updateGraduationModality:updateGraduationModality
   });
 
   window.BL2EstudiantesRepo=Object.assign({},window.BL2EstudiantesRepo||{}, {
