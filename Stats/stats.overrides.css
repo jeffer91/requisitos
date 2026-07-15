@@ -1,0 +1,77 @@
+/* Ajustes visuales finales de Stats */
+.stats-status{transition:opacity .2s ease,transform .2s ease}
+.stats-status.is-auto-hidden{display:none!important}
+
+/* Cumplimiento siempre verde y no cumplimiento siempre rojo */
+.stats-bar-track,.stats-chart-track{background:var(--bad-soft);border-color:#fecaca}
+.stats-bar-fill,.stats-chart-track i{background:linear-gradient(90deg,#15803d,#22c55e)}
+.stats-chart-progress.bad .stats-chart-track i,.stats-chart-bar.bad .stats-chart-track i{background:linear-gradient(90deg,#b91c1c,#ef4444)}
+.stats-donut{background:conic-gradient(var(--ok) 0%,var(--bad) 0)}
+
+/* Aprobación final */
+.stats-final-layout{display:grid;gap:14px}
+#stats-final-charts{min-height:0}
+
+/* Notas */
+.stats-notes-dashboard{display:grid;gap:14px}
+.stats-notes-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px}
+.stats-notes-summary-grid article{padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:var(--shadow-soft)}
+.stats-notes-summary-grid article.is-ok{background:var(--ok-soft);border-color:#bbf7d0}
+.stats-notes-summary-grid article.is-bad{background:var(--bad-soft);border-color:#fecaca}
+.stats-notes-summary-grid span{display:block;color:var(--muted);font-size:11px;font-weight:950;text-transform:uppercase}
+.stats-notes-summary-grid strong{display:block;margin-top:6px;font-size:24px;line-height:1}
+.stats-notes-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.stats-notes-panel{padding:13px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:var(--shadow-soft);min-width:0}
+.stats-notes-panel>header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}
+.stats-notes-panel h3{margin:0;font-size:15px}
+.stats-notes-panel header span{color:var(--muted);font-size:11px;font-weight:900;text-align:right}
+.stats-notes-table-wrap{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:13px}
+.stats-notes-table-wrap table{min-width:620px}
+.stats-note-range-list{display:grid;gap:9px}
+.stats-note-range-row{display:grid;grid-template-columns:130px minmax(100px,1fr) 78px;gap:8px;align-items:center}
+.stats-note-range-row strong,.stats-note-range-row span{font-size:12px}
+.stats-note-range-row span{text-align:right;font-weight:950}
+.stats-note-range-track{height:13px;border-radius:999px;overflow:hidden;background:var(--bad-soft);border:1px solid #fecaca}
+.stats-note-range-track i{display:block;height:100%;background:linear-gradient(90deg,#15803d,#22c55e)}
+.stats-note-range-row.is-bad .stats-note-range-track i{background:linear-gradient(90deg,#b91c1c,#ef4444)}
+.stats-note-range-row.is-empty .stats-note-range-track i{background:linear-gradient(90deg,#64748b,#94a3b8)}
+.stats-note-semaphore{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:950}
+.stats-note-semaphore::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.stats-note-semaphore.is-verde{background:var(--ok-soft);color:var(--ok)}
+.stats-note-semaphore.is-rojo{background:var(--bad-soft);color:var(--bad)}
+.stats-note-semaphore.is-amarillo{background:var(--warn-soft);color:var(--warn)}
+.stats-note-semaphore.is-gris{background:var(--na-soft);color:var(--na)}
+
+/* Estudiantes */
+.stats-student-controls{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:10px;margin-bottom:10px;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--soft)}
+.stats-student-mode{display:flex;flex-wrap:wrap;gap:7px}
+.stats-student-mode button{min-height:34px;padding:0 12px}
+.stats-student-mode button.is-active{background:#0f172a;color:#fff;border-color:#0f172a}
+.stats-student-order{min-width:220px}
+.stats-whatsapp-link{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:5px 9px;border-radius:999px;background:#dcfce7;color:#166534;text-decoration:none;font-size:11px;font-weight:950;border:1px solid #bbf7d0}
+.stats-whatsapp-link:hover{background:#bbf7d0}
+
+/* Telegram */
+.stats-telegram-dashboard{display:grid;gap:14px}
+.stats-telegram-kpis{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px}
+.stats-telegram-kpis article{padding:14px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:var(--shadow-soft)}
+.stats-telegram-kpis article.is-ok{background:var(--ok-soft);border-color:#bbf7d0}
+.stats-telegram-kpis article.is-bad{background:var(--bad-soft);border-color:#fecaca}
+.stats-telegram-kpis span{display:block;color:var(--muted);font-size:11px;font-weight:950;text-transform:uppercase}
+.stats-telegram-kpis strong{display:block;margin-top:5px;font-size:24px}
+.stats-telegram-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.stats-telegram-panel{padding:13px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:var(--shadow-soft);min-width:0}
+.stats-telegram-panel h3{margin:0 0 10px;font-size:15px}
+.stats-telegram-progress{display:flex;height:20px;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--bad)}
+.stats-telegram-progress .ok{background:linear-gradient(90deg,#15803d,#22c55e)}
+.stats-telegram-progress .bad{background:linear-gradient(90deg,#b91c1c,#ef4444)}
+
+@media(max-width:1100px){
+  .stats-notes-summary-grid{grid-template-columns:repeat(3,minmax(120px,1fr))}
+  .stats-notes-columns,.stats-telegram-grid{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+  .stats-notes-summary-grid,.stats-telegram-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stats-student-controls{align-items:stretch}
+  .stats-student-order{min-width:0;width:100%}
+}
