@@ -5,7 +5,7 @@ Función o funciones:
 - Reemplazar el listener antiguo del botón Guardar modalidad.
 - Esperar la promesa de FichaModalidad.save.
 - Mostrar éxito únicamente después de la confirmación de ConFicha.
-- Mantener PVC bloqueado en Artículo Académico.
+- Mantener PVC fijo en Artículo Académico y permitir confirmarlo una vez.
 Con qué se conecta:
 - ficha.app.js
 - ficha.modalidad.js
@@ -14,9 +14,10 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-confirmed-save";
+  var VERSION="1.1.0-confirmed-pvc";
   var saving=false;
   var button=null;
+  var observer=null;
 
   function text(value){return String(value==null?"":value).trim();}
   function el(id){return document.getElementById(id);}
@@ -73,6 +74,27 @@ Con qué se conecta:
     }catch(error){}
   }
 
+  function syncControls(){
+    if(saving){return;}
+    var row=selectedRow();
+    var select=el("ficha-modalidad-select");
+    button=button||replaceLegacyButton();
+
+    if(!row||!select||!button||!window.FichaModalidad){return;}
+
+    var info=window.FichaModalidad.current(row);
+    if(info.locked){
+      select.value=window.FichaModalidad.VALUES.articulo;
+      select.disabled=true;
+      button.disabled=info.source==="guardado";
+      button.textContent=info.source==="guardado"?"Artículo guardado":"Guardar artículo";
+    }else{
+      select.disabled=false;
+      button.disabled=false;
+      button.textContent="Guardar modalidad";
+    }
+  }
+
   function save(){
     if(saving){return Promise.resolve(null);}
 
@@ -90,20 +112,21 @@ Con qué se conecta:
     }
 
     var current=window.FichaModalidad.current(row);
-    if(current.locked){
-      select.value=window.FichaModalidad.VALUES.articulo;
-      setInfo("PVC · Artículo Académico · automático",true);
-      return Promise.resolve({ok:true,value:select.value,locked:true,unchanged:true});
+    var selected=current.locked?window.FichaModalidad.VALUES.articulo:select.value;
+
+    if(current.locked&&current.source==="guardado"){
+      setInfo("PVC · Artículo Académico · guardado",true);
+      return Promise.resolve({ok:true,value:selected,locked:true,unchanged:true});
     }
 
     saving=true;
     button=button||replaceLegacyButton();
     if(button){button.disabled=true;button.textContent="Guardando...";}
     select.disabled=true;
-    setInfo("Guardando modalidad...",false);
+    setInfo(current.locked?"Guardando Artículo Académico...":"Guardando modalidad...",current.locked);
     setStatus("Guardando modalidad mediante ConFicha...","");
 
-    return Promise.resolve(window.FichaModalidad.save(row,select.value)).then(function(result){
+    return Promise.resolve(window.FichaModalidad.save(row,selected)).then(function(result){
       if(!result||result.ok!==true){throw new Error("No se recibió confirmación de la modalidad.");}
 
       select.value=result.value;
@@ -119,13 +142,7 @@ Con qué se conecta:
       throw error;
     }).finally(function(){
       saving=false;
-      var latest=selectedRow();
-      var info=latest&&window.FichaModalidad?window.FichaModalidad.current(latest):null;
-      if(button){
-        button.disabled=!!(info&&info.locked);
-        button.textContent=info&&info.locked?"Modalidad fija":"Guardar modalidad";
-      }
-      if(select){select.disabled=!!(info&&info.locked);}
+      syncControls();
     });
   }
 
@@ -135,9 +152,21 @@ Con qué se conecta:
       button.setAttribute("data-ficha-modalidad-bound","1");
       button.addEventListener("click",function(){save().catch(function(){});});
     }
+
+    var watched=el("ficha-modalidad-info")||el("ficha-detail");
+    if(watched&&typeof MutationObserver==="function"&&!observer){
+      observer=new MutationObserver(function(){setTimeout(syncControls,0);});
+      observer.observe(watched,{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:["class"]});
+    }
+
+    ["ficha:modalidad-saved","ficha:student-saved","ficha:connection-ready"].forEach(function(name){
+      window.addEventListener(name,syncControls);
+    });
+
+    syncControls();
   }
 
-  window.FichaModalidadUI={version:VERSION,bind:bind,save:save,selectedRow:selectedRow};
+  window.FichaModalidadUI={version:VERSION,bind:bind,save:save,selectedRow:selectedRow,syncControls:syncControls};
 
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind);}else{bind();}
 })(window,document);
