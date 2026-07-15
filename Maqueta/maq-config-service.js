@@ -5,8 +5,8 @@ Función o funciones:
 - Construir el menú superior de Requisitos en el orden definido.
 - Mantener Carga como pantalla inicial.
 - Mantener BL como pantalla de control de BDLocal y Firebase.
-- Incluir Ncomplex para notas de examen complexivo y trabajo de titulación.
-- Incluir Cr-def como módulo activo del menú principal.
+- Incluir los módulos activos de requisitos, estadísticas y titulación.
+- Excluir del menú superior el grupo antiguo Títulos.
 Con qué se conecta:
 - maq-menu.js
 - maq-modulos-registry.js
@@ -25,11 +25,6 @@ Con qué se conecta:
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"},
-    {tipo:"grupo",id:"titulos",etiqueta:"Titulos",hijos:[
-      {tipo:"modulo",moduloId:"titulos_estudiante",etiqueta:"Estudiante"},
-      {tipo:"modulo",moduloId:"titulos_admin",etiqueta:"Administrador"},
-      {tipo:"modulo",moduloId:"titulos_coordinador",etiqueta:"Coordinador"}
-    ]},
     {tipo:"modulo",moduloId:"titulacion",etiqueta:"Infor"}
   ];
   function clone(v){return JSON.parse(JSON.stringify(v));}
