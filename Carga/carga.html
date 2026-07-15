@@ -1,234 +1,20 @@
+<!DOCTYPE html>
 <!-- =========================================================
 Nombre completo: carga.html
-Ruta o ubicación: /Requisitos/Carga/carga.html
+Ruta o ubicación: /Carga/carga.html
 Función o funciones:
-- Mostrar la pantalla Carga de estudiantes.
-- Crear períodos con mes y año de inicio y finalización.
-- Seleccionar el período de destino y analizar archivos antes de guardarlos.
-- Mostrar tarjetas pequeñas de estudiantes, carreras, divisiones y última carga.
-- Abrir la administración de divisiones y la zona de borrado.
+- Crear períodos y cargar estudiantes.
+- Analizar archivos antes del guardado.
+- Administrar divisiones y borrar información del período.
+- Conectarse exclusivamente mediante ConCarga.
 ========================================================= -->
-<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carga de estudiantes</title>
-
   <link rel="stylesheet" href="./carga.css" />
   <script src="../Diagnostico/diag.loader.js"></script>
-
-  <!-- Puente mínimo para trabajar dentro de Maqueta, iframe o Electron. -->
-  <script>
-    (function(window){
-      "use strict";
-
-      var globals = [
-        "BL2Core", "BDLocal", "ConCarga", "BDLocalCarga",
-        "BLDivisionesService", "BDLNormText", "BDLNormPeriodo",
-        "BDLNormEstudiante", "BDLNormCarrera", "BDLNormRequisito",
-        "BDLValidatorEstudiante", "BDLRepoEstudiantes",
-        "BDLRepoCarreras", "BDLRepoRequisitos",
-        "BDLRepoDashboard", "BL2Backup"
-      ];
-
-      globals.forEach(function(name){
-        try{
-          if(
-            !window[name] &&
-            window.parent &&
-            window.parent !== window &&
-            window.parent[name]
-          ){
-            window[name] = window.parent[name];
-          }
-        }catch(error){}
-      });
-
-      if(!window.BDLNormText){
-        window.BDLNormText = {
-          cleanSpaces:function(value){
-            return String(value == null ? "" : value)
-              .replace(/\u00a0/g, " ")
-              .replace(/\s+/g, " ")
-              .trim();
-          },
-
-          upper:function(value){
-            return this.cleanSpaces(value).toUpperCase();
-          },
-
-          key:function(value){
-            return this.cleanSpaces(value)
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]/g, "");
-          },
-
-          first:function(row, fields){
-            row = row || {};
-            fields = Array.isArray(fields) ? fields : [];
-
-            var keys = Object.keys(row);
-            var wanted = fields.map(this.key.bind(this));
-
-            for(var i = 0; i < keys.length; i += 1){
-              if(wanted.indexOf(this.key(keys[i])) >= 0){
-                return this.cleanSpaces(row[keys[i]]);
-              }
-            }
-
-            return "";
-          }
-        };
-      }
-
-      if(!window.BDLNormPeriodo){
-        window.BDLNormPeriodo = {
-          normalize:function(row, selected){
-            var T = window.BDLNormText;
-
-            row = row || {};
-            selected = selected || {};
-
-            var id =
-              selected.periodoCanonicoId ||
-              selected.periodoId ||
-              selected.id ||
-              "";
-
-            var label =
-              selected.periodoCanonicoLabel ||
-              selected.periodoLabel ||
-              selected.label ||
-              id;
-
-            id = id || T.first(
-              row,
-              ["periodoId", "periodo", "periodoLabel", "cohorte"]
-            );
-
-            label = label || T.first(
-              row,
-              ["periodoLabel", "periodo", "cohorte"]
-            ) || id;
-
-            return {
-              periodoId:T.cleanSpaces(id) || "SIN_PERIODO",
-              periodoLabel:T.cleanSpaces(label) || "Sin período",
-              valid:!!T.cleanSpaces(id)
-            };
-          },
-
-          isValid:function(periodo){
-            return !!(
-              periodo &&
-              periodo.periodoId &&
-              periodo.periodoId !== "SIN_PERIODO"
-            );
-          }
-        };
-      }
-
-      if(!window.BDLNormEstudiante){
-        window.BDLNormEstudiante = {
-          numero:function(row){
-            return window.BDLNormText.first(
-              row || {},
-              [
-                "numeroIdentificacion",
-                "identificacion",
-                "cedula",
-                "cédula",
-                "documento"
-              ]
-            );
-          },
-
-          normalize:function(row){
-            var T = window.BDLNormText;
-
-            row = row || {};
-
-            var cedula = T.cleanSpaces(this.numero(row))
-              .replace(/[^0-9A-Za-z]/g, "");
-
-            if(/^\d{9}$/.test(cedula)){
-              cedula = "0" + cedula;
-            }
-
-            var periodo = window.BDLNormPeriodo.normalize(row, {
-              periodoId:
-                row.periodoCanonicoId ||
-                row.periodoId ||
-                row.PeriodoId ||
-                row._periodoSeleccionado ||
-                "",
-
-              periodoLabel:
-                row.periodoCanonicoLabel ||
-                row.periodoLabel ||
-                row.Periodo ||
-                row._periodoSeleccionadoLabel ||
-                ""
-            });
-
-            var nombres = T.first(
-              row,
-              ["nombres", "nombre", "estudiante", "alumno"]
-            );
-
-            var codigo = T.first(
-              row,
-              ["codigoCarrera", "CódigoCarrera", "codCarrera"]
-            );
-
-            var carrera = T.first(
-              row,
-              ["nombreCarrera", "carrera", "programa"]
-            );
-
-            var id = periodo.periodoId + "__" + cedula;
-
-            return {
-              periodo:periodo,
-
-              persona:{
-                numeroIdentificacion:cedula,
-                nombres:nombres
-              },
-
-              resumen:{
-                id:id,
-                idEstudiantePeriodo:id,
-                numeroIdentificacion:cedula,
-                cedula:cedula,
-                nombres:nombres,
-                periodoId:periodo.periodoId,
-                periodoLabel:periodo.periodoLabel,
-                codigoCarrera:codigo,
-                nombreCarrera:carrera,
-                carrera:carrera
-              },
-
-              detalle:Object.assign({}, row, {
-                id:id,
-                idEstudiantePeriodo:id,
-                numeroIdentificacion:cedula,
-                cedula:cedula,
-                periodoId:periodo.periodoId,
-                periodoLabel:periodo.periodoLabel,
-                nombres:nombres,
-                codigoCarrera:codigo,
-                nombreCarrera:carrera
-              })
-            };
-          }
-        };
-      }
-    })(window);
-  </script>
 
   <script defer src="./carga.config.js"></script>
   <script defer src="./carga.state.js"></script>
@@ -255,11 +41,10 @@ Función o funciones:
   <script defer src="./process/carga.save.js"></script>
 
   <script defer src="./carga.divisiones.popup.js"></script>
-  <script defer src="./carga.app.js"></script>
-  <script defer src="./carga.ui.js"></script>
+  <script defer src="./carga.app.connector.js"></script>
+  <script defer src="./carga.ui.connector.js"></script>
   <script defer src="./carga.index.js"></script>
 </head>
-
 <body>
   <main class="carga-shell">
     <header class="carga-title">
@@ -269,303 +54,103 @@ Función o funciones:
     <section class="carga-card" aria-labelledby="tituloCrearPeriodo">
       <div class="carga-card-title">
         <h2 id="tituloCrearPeriodo">Crear período</h2>
-        <span class="carga-chip" id="cargaPeriodosCount">
-          0 períodos
-        </span>
+        <span class="carga-chip" id="cargaPeriodosCount">0 períodos</span>
       </div>
-
       <div class="carga-period-create">
-        <label>
-          <span>Mes de inicio</span>
-          <select id="cargaPeriodoDesdeMes"></select>
-        </label>
-
-        <label>
-          <span>Año de inicio</span>
-          <input
-            id="cargaPeriodoDesdeAnio"
-            type="number"
-            min="2020"
-            max="2100"
-            step="1"
-          />
-        </label>
-
-        <label>
-          <span>Mes de finalización</span>
-          <select id="cargaPeriodoHastaMes"></select>
-        </label>
-
-        <label>
-          <span>Año de finalización</span>
-          <input
-            id="cargaPeriodoHastaAnio"
-            type="number"
-            min="2020"
-            max="2100"
-            step="1"
-          />
-        </label>
-
-        <button
-          type="button"
-          class="carga-btn carga-btn-primary"
-          id="cargaBtnPeriodoCrear"
-        >
-          Crear
-        </button>
+        <label><span>Mes de inicio</span><select id="cargaPeriodoDesdeMes"></select></label>
+        <label><span>Año de inicio</span><input id="cargaPeriodoDesdeAnio" type="number" min="2020" max="2100" step="1" /></label>
+        <label><span>Mes de finalización</span><select id="cargaPeriodoHastaMes"></select></label>
+        <label><span>Año de finalización</span><input id="cargaPeriodoHastaAnio" type="number" min="2020" max="2100" step="1" /></label>
+        <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnPeriodoCrear">Crear</button>
       </div>
+      <div id="cargaPeriodosCards"></div>
     </section>
 
     <section class="carga-card" aria-labelledby="tituloCargaArchivo">
       <div class="carga-card-title">
         <h2 id="tituloCargaArchivo">Cargar estudiantes</h2>
-
-        <span class="carga-chip is-warn" id="cargaEstadoPill">
-          Sin analizar
-        </span>
+        <span class="carga-chip is-warn" id="cargaEstadoPill">Sin analizar</span>
       </div>
 
       <label class="carga-field carga-period-target">
         <span>Período donde se guardará el archivo</span>
-
-        <select id="cargaPeriodoSelect">
-          <option value="">Seleccione un período...</option>
-        </select>
+        <select id="cargaPeriodoSelect"><option value="">Seleccione un período...</option></select>
       </label>
 
       <div class="carga-upload-grid">
-        <label
-          class="carga-dropzone"
-          id="cargaDropzone"
-          for="cargaArchivoInput"
-        >
-          <input
-            id="cargaArchivoInput"
-            type="file"
-            accept=".xlsx,.xls,.csv,.txt,.json,.html,.htm"
-          />
-
+        <label class="carga-dropzone" id="cargaDropzone" for="cargaArchivoInput">
+          <input id="cargaArchivoInput" type="file" accept=".xlsx,.xls,.csv,.txt,.json,.html,.htm" />
           <span class="carga-dropzone-icon">↑</span>
           <strong>Seleccionar o arrastrar archivo</strong>
           <small>XLSX, XLS, CSV, TXT, JSON o HTML</small>
         </label>
 
         <div class="carga-file-panel">
-          <div>
-            <span>Archivo</span>
-            <strong id="cargaFileInfo">Ninguno seleccionado</strong>
-          </div>
-
-          <div>
-            <span>Período</span>
-            <strong id="cargaResumenPeriodo">—</strong>
-          </div>
-
+          <div><span>Archivo</span><strong id="cargaFileInfo">Ninguno seleccionado</strong></div>
+          <div><span>Período</span><strong id="cargaResumenPeriodo">—</strong></div>
           <div class="carga-actions">
-            <button
-              type="button"
-              class="carga-btn carga-btn-primary"
-              id="cargaBtnAnalizar"
-              disabled
-            >
-              Analizar archivo
-            </button>
-
-            <button
-              type="button"
-              class="carga-btn carga-btn-success"
-              id="cargaBtnGuardar"
-              disabled
-            >
-              Guardar en BDLocal
-            </button>
-
-            <button
-              type="button"
-              class="carga-btn"
-              id="cargaBtnLimpiar"
-            >
-              Limpiar
-            </button>
+            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnAnalizar" disabled>Analizar archivo</button>
+            <button type="button" class="carga-btn carga-btn-success" id="cargaBtnGuardar" disabled>Guardar en BDLocal</button>
+            <button type="button" class="carga-btn" id="cargaBtnLimpiar">Limpiar</button>
           </div>
         </div>
       </div>
 
-      <section
-        class="carga-guard carga-hidden"
-        id="cargaGuardBox"
-        aria-live="polite"
-      >
+      <section class="carga-guard carga-hidden" id="cargaGuardBox" aria-live="polite">
         <div class="carga-guard-head">
-          <div>
-            <strong id="cargaGuardTitle">
-              Resultado del análisis
-            </strong>
-
-            <small id="cargaGuardMessage"></small>
-          </div>
-
-          <span class="carga-chip" id="cargaGuardChip">
-            Pendiente
-          </span>
+          <div><strong id="cargaGuardTitle">Resultado del análisis</strong><small id="cargaGuardMessage"></small></div>
+          <span class="carga-chip" id="cargaGuardChip">Pendiente</span>
         </div>
-
         <div class="carga-guard-stats">
-          <div>
-            <span>En BDLocal</span>
-            <strong id="cargaGuardExisting">0</strong>
-          </div>
-
-          <div>
-            <span>En archivo</span>
-            <strong id="cargaGuardFile">0</strong>
-          </div>
-
-          <div>
-            <span>Coinciden</span>
-            <strong id="cargaGuardCommon">0</strong>
-          </div>
-
-          <div>
-            <span>Diferencias</span>
-            <strong id="cargaGuardDifferent">0</strong>
-          </div>
-
-          <div>
-            <span>Porcentaje</span>
-            <strong id="cargaGuardPercent">0%</strong>
-          </div>
+          <div><span>En BDLocal</span><strong id="cargaGuardExisting">0</strong></div>
+          <div><span>En archivo</span><strong id="cargaGuardFile">0</strong></div>
+          <div><span>Coinciden</span><strong id="cargaGuardCommon">0</strong></div>
+          <div><span>Diferencias</span><strong id="cargaGuardDifferent">0</strong></div>
+          <div><span>Porcentaje</span><strong id="cargaGuardPercent">0%</strong></div>
         </div>
       </section>
 
       <div class="carga-mini-stats">
-        <div>
-          <span>Estudiantes</span>
-          <strong id="cargaStatStudents">0</strong>
-        </div>
-
-        <div>
-          <span>Carreras</span>
-          <strong id="cargaStatCareers">0</strong>
-        </div>
-
-        <div>
-          <span>Divisiones</span>
-          <strong id="cargaStatDivisions">0</strong>
-        </div>
-
-        <div>
-          <span>Última carga</span>
-          <strong id="cargaStatLastLoad">—</strong>
-        </div>
+        <div><span>Estudiantes</span><strong id="cargaStatStudents">0</strong></div>
+        <div><span>Carreras</span><strong id="cargaStatCareers">0</strong></div>
+        <div><span>Divisiones</span><strong id="cargaStatDivisions">0</strong></div>
+        <div><span>Última carga</span><strong id="cargaStatLastLoad">—</strong></div>
       </div>
 
       <div class="carga-alert-grid">
-        <section>
-          <h3>Alertas</h3>
-
-          <div id="cargaWarnings" class="carga-list">
-            <div class="carga-empty">Sin alertas.</div>
-          </div>
-        </section>
-
-        <section>
-          <h3>Errores</h3>
-
-          <div id="cargaErrors" class="carga-list">
-            <div class="carga-empty">Sin errores.</div>
-          </div>
-        </section>
+        <section><h3>Alertas</h3><div id="cargaWarnings" class="carga-list"><div class="carga-empty">Sin alertas.</div></div></section>
+        <section><h3>Errores</h3><div id="cargaErrors" class="carga-list"><div class="carga-empty">Sin errores.</div></div></section>
       </div>
     </section>
 
     <section class="carga-card" aria-labelledby="tituloDivisiones">
       <div class="carga-card-title">
         <h2 id="tituloDivisiones">Divisiones</h2>
-
-        <span class="carga-chip" id="cargaDivisionesCount">
-          0 divisiones
-        </span>
+        <span class="carga-chip" id="cargaDivisionesCount">0 divisiones</span>
       </div>
-
       <div class="carga-inline-control">
-        <label class="carga-field">
-          <span>Período</span>
-
-          <select id="cargaDivisionesPeriodoSelect">
-            <option value="">Seleccione un período...</option>
-          </select>
-        </label>
-
-        <button
-          type="button"
-          class="carga-btn carga-btn-primary"
-          id="cargaBtnDivisionesPeriodo"
-          disabled
-        >
-          Administrar divisiones
-        </button>
+        <label class="carga-field"><span>Período</span><select id="cargaDivisionesPeriodoSelect"><option value="">Seleccione un período...</option></select></label>
+        <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnDivisionesPeriodo" disabled>Administrar divisiones</button>
       </div>
     </section>
 
-    <section
-      class="carga-card carga-danger-zone"
-      aria-labelledby="tituloBorrar"
-    >
+    <section class="carga-card carga-danger-zone" aria-labelledby="tituloBorrar">
       <div class="carga-card-title">
         <h2 id="tituloBorrar">Borrar información</h2>
-
-        <span class="carga-chip is-danger">
-          Zona delicada
-        </span>
+        <span class="carga-chip is-danger">Zona delicada</span>
       </div>
-
       <div class="carga-inline-control">
-        <label class="carga-field">
-          <span>Período</span>
-
-          <select id="cargaBorrarPeriodoSelect">
-            <option value="">Seleccione un período...</option>
-          </select>
-        </label>
-
+        <label class="carga-field"><span>Período</span><select id="cargaBorrarPeriodoSelect"><option value="">Seleccione un período...</option></select></label>
         <div class="carga-actions">
-          <button
-            type="button"
-            class="carga-btn carga-btn-danger-soft"
-            id="cargaBtnBorrarEstudiantes"
-            disabled
-          >
-            Borrar estudiantes
-          </button>
-
-          <button
-            type="button"
-            class="carga-btn carga-btn-danger"
-            id="cargaBtnBorrarPeriodoCompleto"
-            disabled
-          >
-            Borrar período completo
-          </button>
+          <button type="button" class="carga-btn carga-btn-danger-soft" id="cargaBtnBorrarEstudiantes" disabled>Borrar estudiantes</button>
+          <button type="button" class="carga-btn carga-btn-danger" id="cargaBtnBorrarPeriodoCompleto" disabled>Borrar período completo</button>
         </div>
       </div>
-
-      <p class="carga-danger-help" id="cargaBorrarResumen">
-        Seleccione un período para revisar lo que se borrará.
-      </p>
+      <p class="carga-danger-help" id="cargaBorrarResumen">Seleccione un período para revisar lo que se borrará.</p>
     </section>
 
-    <div
-      class="carga-message carga-hidden"
-      id="cargaMessageBox"
-      role="status"
-    ></div>
+    <div class="carga-message carga-hidden" id="cargaMessageBox" role="status"></div>
   </main>
-
-  <div
-    class="carga-toast carga-hidden"
-    id="cargaToast"
-  ></div>
+  <div class="carga-toast carga-hidden" id="cargaToast"></div>
 </body>
 </html>
