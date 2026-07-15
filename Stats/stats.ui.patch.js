@@ -10,7 +10,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.1-telegram-final-status";
+  var VERSION="1.0.2-telegram-final-status";
   var scheduled=false;
   var statusTimer=null;
   var lastStatusSignature="";
@@ -76,7 +76,7 @@ Función:
       group.label="Telegram";
       select.appendChild(group);
     }
-    group.appendChild(telegramOption);
+    if(telegramOption.parentElement!==group){group.appendChild(telegramOption);}
   }
 
   function currentData(){
