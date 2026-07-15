@@ -5,6 +5,7 @@ Archivo: verify-ficha-editors.js
 Ruta: /scripts/verify-ficha-editors.js
 Función:
 - Verificar el editor ACTIVO/RETIRADO de Ficha.
+- Verificar que la selección pendiente no se pierda al renderizar.
 - Verificar las reglas de modalidad regular y PVC.
 - Confirmar que la pantalla use ConFicha y no acceda directamente a BDLocal.
 - Validar sintaxis y orden de carga.
@@ -84,6 +85,11 @@ contains("BDLocal/conexiones/cone.ficha.js", 'articulo:"ARTICULO_ACADEMICO"', "C
 contains("BDLocal/conexiones/cone.ficha.js", 'if(type==="PVC")', "ConFicha debe forzar artículo en PVC");
 
 contains("Ficha/ficha.matricula.js", "con.updateEnrollmentStatus", "El editor de matrícula debe usar ConFicha.updateEnrollmentStatus");
+contains("Ficha/ficha.matricula.js", 'var pendingStudentId=""', "El editor debe identificar el estudiante con cambio pendiente");
+contains("Ficha/ficha.matricula.js", 'var pendingStatus=""', "El editor debe conservar el estado pendiente");
+contains("Ficha/ficha.matricula.js", 'select.addEventListener("change",handleSelectionChange)', "El selector debe registrar los cambios antes de guardar");
+contains("Ficha/ficha.matricula.js", "pendingFor(row)?pendingStatus", "Los renderizados no deben reemplazar una selección pendiente");
+contains("Ficha/ficha.matricula.js", "setPending(row,next)", "El cambio elegido debe conservarse hasta guardar o cancelar");
 contains("Ficha/ficha.modalidad.js", "con.updateGraduationModality", "Modalidad debe usar ConFicha.updateGraduationModality");
 contains("Ficha/ficha.modalidad.js", "return Promise.resolve", "Modalidad debe esperar una operación asincrónica");
 contains("Ficha/ficha.modalidad-ui.js", "Artículo guardado", "La interfaz debe confirmar artículo en PVC");
