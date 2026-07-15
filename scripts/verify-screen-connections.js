@@ -112,10 +112,15 @@ ok(!/src=["']\.\/carga\.ui\.js["']/.test(cargaHtml), "Carga no debe activar carg
 contains("Ficha/ficha.html", "ficha.bootstrap.js", "Ficha debe activar el arranque secuencial");
 contains("Ficha/ficha.bootstrap.js", "../BDLocal/conexiones/cone.ficha.js", "El bootstrap debe cargar cone.ficha.js");
 contains("Ficha/ficha.bootstrap.js", "ficha.connection-bridge.js", "El bootstrap debe instalar el puente de ConFicha");
+contains("Ficha/ficha.bootstrap.js", "ficha.matricula.js", "El bootstrap debe cargar el editor de matrícula");
+contains("Ficha/ficha.bootstrap.js", "ficha.modalidad-ui.js", "El bootstrap debe cargar el guardado confirmado de modalidad");
 order("Ficha/ficha.bootstrap.js", "../BDLocal/conexiones/cone.ficha.js", "ficha.connection-bridge.js");
 order("Ficha/ficha.bootstrap.js", "ficha.connection-bridge.js", "ficha.app.js");
+order("Ficha/ficha.bootstrap.js", "ficha.app.js", "ficha.modalidad.js");
+order("Ficha/ficha.bootstrap.js", "ficha.modalidad-ui.js", "ficha.matricula.js");
 contains("Ficha/ficha.connection-bridge.js", "Core.source=function(){return \"ConFicha\";};", "FichaCore debe declarar ConFicha como fuente");
-contains("Ficha/ficha.modalidad.js", "con.updateStudent", "La modalidad debe guardarse mediante ConFicha.updateStudent");
+contains("Ficha/ficha.modalidad.js", "con.updateGraduationModality", "La modalidad debe guardarse mediante ConFicha.updateGraduationModality");
+contains("Ficha/ficha.matricula.js", "con.updateEnrollmentStatus", "La matrícula debe guardarse mediante ConFicha.updateEnrollmentStatus");
 
 const fichaHtml = read("Ficha/ficha.html");
 ok(!fichaHtml.includes("ficha.contact-hydration.js"), "Ficha no debe cargar el hidratador directo antiguo");
@@ -125,7 +130,9 @@ ok(!fichaHtml.includes("bdl.divisiones.fast-cache.js"), "Ficha no debe cargar un
 [
   "Ficha/ficha.bootstrap.js",
   "Ficha/ficha.connection-bridge.js",
-  "Ficha/ficha.modalidad.js"
+  "Ficha/ficha.modalidad.js",
+  "Ficha/ficha.modalidad-ui.js",
+  "Ficha/ficha.matricula.js"
 ].forEach((relative) => excludes(relative, forbiddenScreenAccess));
 
 // Stats
@@ -189,6 +196,7 @@ excludes("Reportes/repo.app.js", ["BDLocalConexiones.refreshCache"]);
 [
   "Maqueta/maq-config-service.js",
   "BDLocal/conexiones/cone.carga.ops.js",
+  "BDLocal/conexiones/cone.ficha.js",
   "Carga/carga.norm-compat.js",
   "Carga/carga.app.connector.js",
   "Carga/carga.ui.connector.js",
@@ -198,6 +206,8 @@ excludes("Reportes/repo.app.js", ["BDLocalConexiones.refreshCache"]);
   "Ficha/ficha.bootstrap.js",
   "Ficha/ficha.connection-bridge.js",
   "Ficha/ficha.modalidad.js",
+  "Ficha/ficha.modalidad-ui.js",
+  "Ficha/ficha.matricula.js",
   "Stats/stats.bootstrap.js",
   "Coordi/coordi.bootstrap.js",
   "Coordi/coo.data.js",
