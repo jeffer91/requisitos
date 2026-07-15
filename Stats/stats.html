@@ -4,9 +4,8 @@ Nombre completo: stats.html
 Ruta o ubicación: /Stats/stats.html
 Función o funciones:
 - Mostrar estadísticas del módulo Requisitos usando BDLocal.
-- Esperar el conector exclusivo ConStats antes de iniciar.
-- Resumir estudiantes por matrícula, período, división, carrera, estado, requisito y notas.
-- Evitar rutas paralelas de divisiones y adaptadores heredados.
+- Resumir estudiantes por matrícula, período, división, carrera, requisito, notas y Telegram.
+- Mostrar una sola sección activa desde la navegación lateral.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -16,6 +15,7 @@ Función o funciones:
   <link rel="stylesheet" href="stats.css" />
   <link rel="stylesheet" href="stats.notes.analytics.css" />
   <link rel="stylesheet" href="stats.notes.priorities.css" />
+  <link rel="stylesheet" href="stats.overrides.css" />
 </head>
 <body>
   <main class="stats-app stats-shell">
@@ -25,8 +25,8 @@ Función o funciones:
       <a href="#stats-notas-section">Notas</a>
       <a href="#stats-requisitos-section">Requisitos</a>
       <a href="#stats-carreras-section">Carreras</a>
-      <a href="#stats-periodos-section">Períodos</a>
       <a href="#stats-final-section">Aprobación final</a>
+      <a href="#stats-telegram-section">Telegram</a>
       <a href="#stats-estudiantes-section">Estudiantes</a>
     </aside>
 
@@ -38,7 +38,7 @@ Función o funciones:
         <label>División<select id="stats-division"><option value="">Todas</option></select></label>
         <label>Matrícula<select id="stats-matricula"><option value="ACTIVO">Activos</option><option value="RETIRADO">Retirados</option><option value="">Todos</option></select></label>
         <label>Carrera<select id="stats-carrera"><option value="">Todas</option></select></label>
-        <label>Estado<select id="stats-estado"><option value="">Todos</option><option value="cumple">Aprobado</option><option value="no_cumple">No cumple</option></select></label>
+        <label>Estado<select id="stats-estado"><option value="">Todos</option><option value="cumple">Cumple</option><option value="no_cumple">No cumple</option></select></label>
         <label>Requisito<select id="stats-requisito"><option value="">Todos los requisitos</option></select></label>
         <button id="stats-refresh" type="button">Actualizar</button>
       </section>
@@ -56,16 +56,45 @@ Función o funciones:
           <article id="stats-period-approval-card" class="stats-period-card"><span id="stats-period-approval-label">Aprobación por período</span><strong id="stats-period-approval">—</strong></article>
         </section>
         <article class="stats-card stats-summary-chart-card">
-          <div class="stats-card-head"><h2 id="stats-summary-chart-title">Gráfico general</h2><span id="stats-summary-chart-meta">Aprobados / No aprobados</span></div>
+          <div class="stats-card-head"><h2 id="stats-summary-chart-title">Gráfico general</h2><span id="stats-summary-chart-meta">Cumple / No cumple</span></div>
           <div id="stats-chart-summary" class="stats-chart-placeholder">Selecciona un período para ver el gráfico.</div>
         </article>
       </section>
 
-      <section id="stats-notas-section" class="stats-section stats-card"><div class="stats-card-head"><h2>Notas</h2><span>Artículo, defensa, nota final, tendencias y riesgo por carrera</span></div><div id="stats-notes" class="stats-notes-wrap"><div class="empty">Cargando resumen de notas...</div></div></section>
-      <section id="stats-requisitos-section" class="stats-section stats-grid-main"><article class="stats-card"><div class="stats-card-head"><h2>Estados generales</h2><span id="stats-estados-meta">0 estudiantes</span></div><div id="stats-estados" class="stats-bars"></div></article><article class="stats-card"><div class="stats-card-head"><h2>Requisitos</h2><span>Cumplimiento por requisito</span></div><div id="stats-requisitos" class="stats-bars"></div></article></section>
-      <section id="stats-carreras-section" class="stats-section stats-grid-main"><article class="stats-card"><div class="stats-card-head"><h2>Carreras</h2><span id="stats-carreras-meta">0 carreras</span></div><div id="stats-carreras" class="stats-table-wrap"></div></article><article id="stats-periodos-section" class="stats-card"><div class="stats-card-head"><h2>Períodos</h2><span id="stats-periodos-meta">0 períodos</span></div><div id="stats-periodos" class="stats-table-wrap"></div></article></section>
-      <section id="stats-final-section" class="stats-section stats-card"><div class="stats-card-head"><h2>Aprobación final</h2><span>Titulación y complexivo/proyecto</span></div><div id="stats-finales" class="stats-table-wrap"><div class="empty">Se activará en el bloque de renderizado.</div></div></section>
-      <section id="stats-estudiantes-section" class="stats-section stats-card"><div class="stats-card-head"><h2>Estudiantes</h2><span id="stats-estudiantes-meta">0 estudiantes</span></div><div class="stats-student-search"><label>Buscar estudiante<input id="stats-student-search" type="search" placeholder="Nombre o cédula" autocomplete="off" /></label></div><div id="stats-estudiantes" class="stats-table-wrap"><div class="empty">La tabla de estudiantes se activará en su bloque.</div></div></section>
+      <section id="stats-notas-section" class="stats-section stats-card">
+        <div class="stats-card-head"><h2>Notas</h2><span>Registro, promedios, pendientes y cobertura por carrera</span></div>
+        <div id="stats-notes" class="stats-notes-wrap"><div class="empty">Cargando resumen de notas...</div></div>
+      </section>
+
+      <section id="stats-requisitos-section" class="stats-section stats-grid-main">
+        <article class="stats-card"><div class="stats-card-head"><h2>Estados generales</h2><span id="stats-estados-meta">0 estudiantes</span></div><div id="stats-estados" class="stats-bars"></div></article>
+        <article class="stats-card"><div class="stats-card-head"><h2>Requisitos</h2><span>Cumplimiento según filtros</span></div><div id="stats-requisitos" class="stats-bars"></div></article>
+      </section>
+
+      <section id="stats-carreras-section" class="stats-section stats-card">
+        <div class="stats-card-head"><h2>Carreras</h2><span id="stats-carreras-meta">0 carreras</span></div>
+        <div id="stats-carreras" class="stats-table-wrap"></div>
+      </section>
+
+      <section id="stats-final-section" class="stats-section stats-card">
+        <div class="stats-card-head"><h2>Aprobación final</h2><span>Titulación y complexivo/proyecto</span></div>
+        <div class="stats-final-layout">
+          <div id="stats-final-charts"><div class="empty">Selecciona un período para ver los gráficos.</div></div>
+          <div id="stats-finales" class="stats-table-wrap"><div class="empty">Cargando aprobación final...</div></div>
+        </div>
+      </section>
+
+      <section id="stats-telegram-section" class="stats-section stats-card">
+        <div class="stats-card-head"><h2>Telegram</h2><span>Se considera registrado con usuario o Chat ID</span></div>
+        <div id="stats-telegram"><div class="empty">Selecciona un período para revisar Telegram.</div></div>
+      </section>
+
+      <section id="stats-estudiantes-section" class="stats-section stats-card">
+        <div class="stats-card-head"><h2>Estudiantes</h2><span id="stats-estudiantes-meta">0 estudiantes</span></div>
+        <div class="stats-student-search"><label>Buscar estudiante<input id="stats-student-search" type="search" placeholder="Nombre, cédula o carrera" autocomplete="off" /></label></div>
+        <div id="stats-estudiantes"><div class="empty">La tabla de estudiantes se activará al seleccionar un período.</div></div>
+      </section>
+
       <section class="stats-compat" aria-hidden="true"><strong id="stats-pend">0</strong><button id="stats-export-json" type="button" tabindex="-1">Exportar JSON</button><button id="stats-export-csv" type="button" tabindex="-1">Exportar CSV</button><pre id="stats-diagnostics"></pre></section>
     </section>
   </main>
