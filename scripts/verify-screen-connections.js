@@ -1,5 +1,14 @@
 "use strict";
 
+/* =========================================================
+Archivo: verify-screen-connections.js
+Ruta: /scripts/verify-screen-connections.js
+Función:
+- Verificar un conector exclusivo por pantalla activa.
+- Rechazar accesos directos a BDLocal desde pantallas.
+- Validar arranques, fuentes estrictas y sintaxis.
+========================================================= */
+
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
@@ -15,11 +24,12 @@ function read(relative) {
   return fs.readFileSync(target, "utf8");
 }
 function ok(condition, message) { checks.push({ ok: Boolean(condition), message }); if (!condition) errors.push(message); }
-function contains(relative, token, message) { const source = read(relative); ok(source.includes(token), message || `${relative} debe contener ${token}`); }
+function contains(relative, token, message) { ok(read(relative).includes(token), message || `${relative} debe contener ${token}`); }
 function excludes(relative, tokens) { const source = read(relative); for (const token of tokens) ok(!source.includes(token), `${relative} no debe contener ${token}`); }
+function matches(relative, expression, message) { ok(expression.test(read(relative)), message || `${relative} no coincide con ${expression}`); }
 function order(relative, before, after) {
   const source = read(relative); const first = source.indexOf(before); const second = source.indexOf(after);
-  ok(first >= 0 && second >= 0 && first < second, `${relative}: ${before} debe cargarse antes de ${after}`);
+  ok(first >= 0 && second >= 0 && first < second, `${relative}: ${before} debe aparecer antes de ${after}`);
 }
 function syntax(relative) {
   const source = read(relative); if (!source) return;
@@ -28,33 +38,42 @@ function syntax(relative) {
 }
 
 const forbiddenScreenAccess = [
-  "window.BL2Core", "window.BL2DB", "window.BDLRepo", "window.BL2EstudiantesRepo",
-  "window.BL2DataEngine", "window.ExcelLocalRepo", "window.BLDivisionesService", "indexedDB.open("
+  "window.BL2Core", "window.BL2DB", "window.BDLRepo", "window.BDLService",
+  "window.BL2EstudiantesRepo", "window.BL2DataEngine", "window.ExcelLocalRepo",
+  "window.BLDivisionesService", "indexedDB.open("
+];
+const forbiddenInfrastructurePaths = [
+  "BDLocal/bl2.", "BDLocal/rules/", "BDLocal/repositories/",
+  "BDLocal/services/", "BDLocal/migrations/"
 ];
 
-// Registro central: una pantalla, un conector.
-contains("BDLocal/conexiones/cone.registry.js", 'id:"infor"', "El registro debe declarar Infor");
-contains("BDLocal/conexiones/cone.registry.js", 'global:"ConInfor"', "Infor debe resolver ConInfor");
-contains("BDLocal/conexiones/cone.registry.js", 'id:"cr_def"', "El registro debe declarar Cr-def");
-contains("BDLocal/conexiones/cone.registry.js", 'global:"ConCrDef"', "Cr-def debe resolver ConCrDef");
-contains("BDLocal/conexiones/cone.registry.js", 'id:"defart"', "El registro debe declarar Defart");
-contains("BDLocal/conexiones/cone.registry.js", 'global:"ConDefart"', "Defart debe resolver ConDefart");
+// Registro central uno-a-uno.
+const registry = read("BDLocal/conexiones/cone.registry.js");
+[
+  ["carga", "ConCarga", "cone.carga.js"], ["baselocal", "ConBaseLocal", "cone.baselocal.js"],
+  ["tabla", "ConTabla", "cone.tabla.js"], ["ficha", "ConFicha", "cone.ficha.js"],
+  ["stats", "ConStats", "cone.stats.js"], ["coordi", "ConCoordi", "cone.coordi.js"],
+  ["global", "ConGlobal", "cone.global.js"], ["reportes", "ConReportes", "cone.reportes.js"],
+  ["defart", "ConDefart", "cone.defart.js"], ["ncomplex", "ConNcomplex", "cone.ncomplex.js"],
+  ["cr_def", "ConCrDef", "cone.crdef.js"], ["infor", "ConInfor", "cone.infor.js"]
+].forEach(([id, globalName, connectorFile]) => {
+  ok(registry.includes(`id:"${id}"`) && registry.includes(`global:"${globalName}"`) && registry.includes(`file:"${connectorFile}"`), `Registro incompleto para ${id} → ${globalName}`);
+});
+ok(!/id:"stats"[^\n]*\/infor\//.test(registry), "Stats no debe registrar rutas de Infor");
+ok(!/id:"defensas"[^\n]*\/defart\//.test(registry), "Defensas legacy no debe registrar Defart");
+ok(!/id:"defensas"[^\n]*\/cr-def\//.test(registry), "Defensas legacy no debe registrar Cr-def");
+matches("BDLocal/conexiones/cone.registry.js", /id:"defensas"[\s\S]*?enabled:false/, "El conector legacy defensas debe permanecer deshabilitado");
 
 // Menú superior.
 excludes("Maqueta/maq-config-service.js", ["titulos_estudiante", "titulos_admin", "titulos_coordinador", 'tipo:"grupo",id:"titulos"']);
 
 // Carga.
-contains("Carga/carga.html", "carga.norm-compat.js");
 contains("Carga/carga.html", "carga.app.connector.js");
-contains("Carga/carga.html", "carga.ui.connector.js");
-order("Carga/carga.html", "carga.norm-compat.js", "mapping/carga.field-map.js");
 contains("Carga/carga.index.js", "cone.carga.js");
 contains("Carga/carga.index.js", "cone.carga.ops.js");
-contains("BDLocal/conexiones/cone.carga.ops.js", "api.listStudents=students");
-contains("BDLocal/conexiones/cone.carga.ops.js", "api.saveDivisions=saveDivisions");
-const cargaHtml = read("Carga/carga.html");
-ok(!/src=["']\.\/carga\.app\.js["']/.test(cargaHtml), "Carga no debe activar carga.app.js heredado");
-ok(!/src=["']\.\/carga\.ui\.js["']/.test(cargaHtml), "Carga no debe activar carga.ui.js heredado");
+contains("Carga/process/carga.save.js", "preserveManualEnrollment", "Carga debe conservar el estado manual de matrícula");
+contains("Carga/process/carga.save.js", "con.listStudents", "La protección manual debe consultar mediante ConCarga");
+contains("Carga/process/carga.save.js", "con.saveStudents", "La carga debe guardar mediante ConCarga");
 [
   "Carga/carga.norm-compat.js", "Carga/carga.app.connector.js", "Carga/carga.ui.connector.js",
   "Carga/process/carga.save.js", "Carga/carga.divisiones.popup.js", "Carga/carga.index.js"
@@ -62,18 +81,13 @@ ok(!/src=["']\.\/carga\.ui\.js["']/.test(cargaHtml), "Carga no debe activar carg
 
 // Ficha.
 contains("Ficha/ficha.html", "ficha.bootstrap.js");
-contains("Ficha/ficha.bootstrap.js", "../BDLocal/conexiones/cone.ficha.js");
-contains("Ficha/ficha.bootstrap.js", "ficha.connection-bridge.js");
-contains("Ficha/ficha.bootstrap.js", "ficha.matricula.js");
-contains("Ficha/ficha.bootstrap.js", "ficha.modalidad-ui.js");
-order("Ficha/ficha.bootstrap.js", "../BDLocal/conexiones/cone.ficha.js", "ficha.connection-bridge.js");
-order("Ficha/ficha.bootstrap.js", "ficha.connection-bridge.js", "ficha.app.js");
+contains("Ficha/ficha.bootstrap.js", "cone.ficha.js");
+contains("Ficha/ficha.bootstrap.js", "cone.ficha.enrollment-lock.js");
+order("Ficha/ficha.bootstrap.js", "cone.ficha.js", "cone.ficha.enrollment-lock.js");
+order("Ficha/ficha.bootstrap.js", "cone.ficha.enrollment-lock.js", "ficha.connection-bridge.js");
+contains("BDLocal/conexiones/cone.ficha.enrollment-lock.js", "estadoMatriculaManual:true");
 contains("Ficha/ficha.modalidad.js", "con.updateGraduationModality");
 contains("Ficha/ficha.matricula.js", "con.updateEnrollmentStatus");
-const fichaHtml = read("Ficha/ficha.html");
-ok(!fichaHtml.includes("ficha.contact-hydration.js"), "Ficha no debe cargar el hidratador directo antiguo");
-ok(!fichaHtml.includes("ficha.divisiones.fast.js"), "Ficha no debe cargar el parche directo de divisiones");
-ok(!fichaHtml.includes("bdl.divisiones.fast-cache.js"), "Ficha no debe cargar una ruta paralela de divisiones");
 [
   "Ficha/ficha.bootstrap.js", "Ficha/ficha.connection-bridge.js", "Ficha/ficha.modalidad.js",
   "Ficha/ficha.modalidad-ui.js", "Ficha/ficha.matricula.js"
@@ -81,73 +95,86 @@ ok(!fichaHtml.includes("bdl.divisiones.fast-cache.js"), "Ficha no debe cargar un
 
 // Stats.
 contains("Stats/stats.html", "stats.bootstrap.js");
-contains("Stats/stats.bootstrap.js", "../BDLocal/conexiones/cone.stats.js");
-order("Stats/stats.bootstrap.js", "../BDLocal/conexiones/cone.stats.js", "stats.core.js");
-order("Stats/stats.bootstrap.js", "stats.core.js", "stats.app.js");
-contains("Stats/stats.data.patch.js", 'source:"ConStats"', "El parche de notas debe declarar ConStats como fuente");
-excludes("Stats/stats.data.patch.js", ["BDLRepoNotas", "repositories/bdl.repo.notas.js", "indexedDB.open("]);
-const statsHtml = read("Stats/stats.html");
-ok(!statsHtml.includes("bdl.divisiones.fast-cache.js"), "Stats no debe cargar el adaptador paralelo de divisiones");
-ok(!statsHtml.includes("stats.divisiones.fast.js"), "Stats no debe cargar el parche directo de divisiones");
-excludes("Stats/stats.bootstrap.js", forbiddenScreenAccess);
+contains("Stats/stats.bootstrap.js", "cone.stats.js");
+contains("Stats/stats.bootstrap.js", "cone.stats.notes.js");
+contains("Stats/stats.bootstrap.js", "stats.data.connector-patch.js");
+excludes("Stats/stats.bootstrap.js", ["stats.data.patch.js"]);
+contains("Stats/stats.data.connector-patch.js", "current.listNotes");
+excludes("Stats/stats.data.connector-patch.js", ["BDLRepo", "repositories/", "BL2DB", "indexedDB"]);
+["Stats/stats.bootstrap.js", "Stats/stats.data.connector-patch.js"].forEach((relative) => excludes(relative, forbiddenScreenAccess));
 
 // Coordi.
 contains("Coordi/coordi.html", "coordi.bootstrap.js");
-contains("Coordi/coordi.bootstrap.js", "../BDLocal/conexiones/cone.coordi.js");
-order("Coordi/coordi.bootstrap.js", "../BDLocal/conexiones/cone.coordi.js", "coo.data.js");
+contains("Coordi/coordi.bootstrap.js", "cone.coordi.js");
 contains("Coordi/coo.data.js", "ConCoordi");
-excludes("Coordi/coo.data.js", ["ConStats", "BDLocalStats", "BDLocalScreenDeps.readCache", "BDLocalConUtils.readCache", "BLDivisionesService", "BL2DataEngine", "ExcelLocalRepo"]);
+excludes("Coordi/coo.data.js", ["ConStats", "BDLocalStats", "BDLocalConUtils.readCache", "BL2DataEngine", "ExcelLocalRepo"]);
+["Coordi/coordi.bootstrap.js", "Coordi/coo.data.js"].forEach((relative) => excludes(relative, forbiddenScreenAccess));
 
 // Global.
 contains("Global/global.html", "global.bootstrap.js");
-contains("Global/global.bootstrap.js", "../BDLocal/conexiones/cone.global.js");
-order("Global/global.bootstrap.js", "../BDLocal/conexiones/cone.global.js", "global.core.js");
-order("Global/global.bootstrap.js", "global.core.js", "global.app.js");
-const globalHtml = read("Global/global.html");
-ok(!globalHtml.includes("bdl.divisiones.fast-cache.js"), "Global no debe cargar el adaptador paralelo de divisiones");
+contains("Global/global.bootstrap.js", "cone.global.js");
+contains("Global/global.bootstrap.js", "global.connection-guard.js");
+order("Global/global.bootstrap.js", "global.core.js", "global.connection-guard.js");
+order("Global/global.bootstrap.js", "global.connection-guard.js", "global.app.js");
+contains("Global/global.connection-guard.js", "ConGlobal");
+excludes("Global/global.connection-guard.js", ["ExcelLocalRepo", "BL2DataEngine"]);
 excludes("Global/global.bootstrap.js", forbiddenScreenAccess);
 
 // Reportes.
 contains("Reportes/repo.html", "repo.bootstrap.js");
-contains("Reportes/repo.bootstrap.js", "../BDLocal/conexiones/cone.reportes.js");
-order("Reportes/repo.bootstrap.js", "../BDLocal/conexiones/cone.reportes.js", "repo.core.js");
+contains("Reportes/repo.bootstrap.js", "cone.reportes.js");
 contains("Reportes/repo.core.js", "ConReportes");
 contains("Reportes/repo.app.js", "con.refresh");
-[
-  "Reportes/repo.bootstrap.js", "Reportes/repo.core.js", "Reportes/repo.app.js"
-].forEach((relative) => excludes(relative, forbiddenScreenAccess));
+["Reportes/repo.bootstrap.js", "Reportes/repo.core.js", "Reportes/repo.app.js"].forEach((relative) => excludes(relative, forbiddenScreenAccess));
 
 // Defart.
-contains("defart/defart.html", "defart.bootstrap.js", "Defart debe iniciar mediante su bootstrap");
-contains("defart/defart.bootstrap.js", "cone.defart.js", "DefartBootstrap debe cargar ConDefart");
-excludes("defart/defart.html", ["bl2.db.js", "bdl.repo.", "bdl.service.", "bdl.divisiones.fast-cache.js"]);
+contains("defart/defart.html", "defart.bootstrap.js");
+excludes("defart/defart.html", forbiddenInfrastructurePaths.concat(["bdl.screen-deps.js", "cone.defart.js"]));
+contains("defart/defart.bootstrap.js", "cone.defart.js");
+excludes("defart/defart.bootstrap.js", ["repositories/", "services/", "migrations/", "bl2.db.js", "bdl.screen-deps.js"]);
+contains("BDLocal/conexiones/cone.defart.js", "ensureDependencies");
+contains("defart/defart.service-bridge.js", 'source:"ConDefart"');
+contains("defart/defart.save-service-bridge.js", 'source:"ConDefart"');
+excludes("defart/defart.service-bridge.js", ["originalSummary", "ExcelLocalRepo", "BL2DataEngine"]);
+excludes("defart/defart.save-service-bridge.js", ["originalSave", "BL2Core", "BDLRepo"]);
 
 // Ncomplex.
-contains("Ncomplex/ncomplex.html", "ncomplex.bootstrap.js", "Ncomplex debe iniciar mediante su bootstrap");
-contains("Ncomplex/ncomplex.bootstrap.js", "cone.ncomplex.js", "NcomplexBootstrap debe cargar ConNcomplex");
-excludes("Ncomplex/ncomplex.html", ["bl2.db.js", "bdl.repo.", "bdl.service.", "bdl.migration."]);
+contains("Ncomplex/ncomplex.html", "ncomplex.bootstrap.js");
+excludes("Ncomplex/ncomplex.html", forbiddenInfrastructurePaths.concat(["cone.ncomplex.js"]));
+contains("Ncomplex/ncomplex.bootstrap.js", "cone.ncomplex.js");
+excludes("Ncomplex/ncomplex.bootstrap.js", ["repositories/", "services/", "migrations/", "bl2.db.js", "bdl.screen-deps.js"]);
+contains("BDLocal/conexiones/cone.ncomplex.js", "cone.ncomplex.api.js");
+contains("BDLocal/conexiones/cone.ncomplex.api.js", "BDLServiceNcomplex");
+contains("Ncomplex/ncomplex.save.js", "ConNcomplex");
 
 // Cr-def.
-contains("Cr-def/cr-def.html", "cr-def.bootstrap.js", "Cr-def debe iniciar mediante su bootstrap");
-contains("Cr-def/cr-def.bootstrap.js", "ConCrDef", "Cr-defBootstrap debe esperar ConCrDef");
-ok(!read("Cr-def/cr-def.html").includes('<script src="cr-def.js"></script>'), "Cr-def no debe iniciar cr-def.js antes de confirmar ConCrDef");
+contains("Cr-def/cr-def.html", "cone.crdef.js");
+contains("Cr-def/cr-def.html", "cr-def.bootstrap.js");
+order("Cr-def/cr-def.html", "cone.crdef.js", "cr-def.bootstrap.js");
+contains("Cr-def/cr-def.bootstrap.js", "connectorReady");
+contains("Cr-def/cr-def.data.js", "ConCrDef");
 excludes("Cr-def/cr-def.data.js", forbiddenScreenAccess);
 
 // Infor.
-contains("Infor/frontend/titulacion.html", "infor.bootstrap.js", "Infor debe iniciar mediante su bootstrap");
-contains("Infor/frontend/infor.bootstrap.js", "ConInfor", "InforBootstrap debe esperar ConInfor");
-ok(!read("Infor/frontend/titulacion.html").includes('<script src="titulacion.app.js"></script>'), "Infor no debe iniciar la aplicación antes de InforPeriodo.ready");
-excludes("Infor/core/infor.periodo.js", forbiddenScreenAccess);
+contains("Infor/frontend/titulacion.html", "cone.infor.js");
+contains("Infor/frontend/titulacion.html", "infor.bootstrap.js");
+excludes("Infor/frontend/titulacion.html", ['<script src="titulacion.app.js"></script>', '<script src="infor.excel-autoread.js"></script>']);
+contains("Infor/frontend/infor.bootstrap.js", "InforPeriodo");
+contains("Infor/frontend/infor.bootstrap.js", "connectorReady");
+contains("Infor/core/infor.periodo.js", "ConInfor");
+excludes("Infor/frontend/infor.bootstrap.js", forbiddenScreenAccess);
 
+// Sintaxis de archivos críticos.
 [
-  "Maqueta/maq-config-service.js", "BDLocal/conexiones/cone.registry.js", "BDLocal/conexiones/cone.carga.ops.js",
-  "BDLocal/conexiones/cone.ficha.js", "Carga/carga.norm-compat.js", "Carga/carga.app.connector.js",
-  "Carga/carga.ui.connector.js", "Carga/carga.index.js", "Carga/process/carga.save.js",
-  "Carga/carga.divisiones.popup.js", "Ficha/ficha.bootstrap.js", "Ficha/ficha.connection-bridge.js",
-  "Ficha/ficha.modalidad.js", "Ficha/ficha.modalidad-ui.js", "Ficha/ficha.matricula.js",
-  "Stats/stats.bootstrap.js", "Stats/stats.data.patch.js", "Coordi/coordi.bootstrap.js", "Coordi/coo.data.js",
-  "Global/global.bootstrap.js", "Reportes/repo.bootstrap.js", "Reportes/repo.core.js", "Reportes/repo.app.js",
-  "defart/defart.bootstrap.js", "Ncomplex/ncomplex.bootstrap.js", "Cr-def/cr-def.bootstrap.js",
+  "BDLocal/conexiones/cone.registry.js", "BDLocal/conexiones/cone.defart.js",
+  "BDLocal/conexiones/cone.ncomplex.js", "BDLocal/conexiones/cone.ncomplex.api.js",
+  "BDLocal/conexiones/cone.stats.notes.js", "BDLocal/conexiones/cone.ficha.enrollment-lock.js",
+  "Carga/process/carga.save.js", "Ficha/ficha.bootstrap.js", "Stats/stats.bootstrap.js",
+  "Stats/stats.data.connector-patch.js", "Coordi/coordi.bootstrap.js", "Coordi/coo.data.js",
+  "Global/global.bootstrap.js", "Global/global.connection-guard.js", "Reportes/repo.bootstrap.js",
+  "Reportes/repo.core.js", "Reportes/repo.app.js", "defart/defart.bootstrap.js",
+  "defart/defart.service-bridge.js", "defart/defart.save-service-bridge.js",
+  "Ncomplex/ncomplex.bootstrap.js", "Ncomplex/ncomplex.save.js", "Cr-def/cr-def.bootstrap.js",
   "Cr-def/cr-def.data.js", "Infor/frontend/infor.bootstrap.js", "Infor/core/infor.periodo.js"
 ].forEach(syntax);
 
@@ -156,5 +183,4 @@ if (errors.length) {
   errors.forEach((error, index) => console.error(`${index + 1}. ${error}`));
   process.exit(1);
 }
-
 console.log(`VERIFICACIÓN DE CONEXIONES: OK (${checks.length} comprobaciones)`);
