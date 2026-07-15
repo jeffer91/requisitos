@@ -3,8 +3,7 @@ Nombre completo: stats.bootstrap.js
 Ruta o ubicación: /Stats/stats.bootstrap.js
 Función o funciones:
 - Esperar a que BDLocalScreenDeps prepare las conexiones.
-- Cargar cone.stats.js antes del núcleo y la interfaz de Stats.
-- Cargar realmente cada complemento en orden secuencial.
+- Cargar ConStats, notas, filtros e interfaz en orden secuencial.
 - Evitar rutas paralelas de datos y condiciones de carrera.
 ========================================================= */
 (function(window,document){
@@ -34,9 +33,7 @@ Función o funciones:
     try{ready=test&&test();}catch(error){}
     if(ready){return Promise.resolve(ready);}
     if(loading[src]){return loading[src];}
-    if(existing(src)){
-      return test?waitFor(test,relative,15000):Promise.resolve(src);
-    }
+    if(existing(src)){return test?waitFor(test,relative,15000):Promise.resolve(src);}
     loading[src]=new Promise(function(resolve,reject){
       var script=document.createElement("script");
       script.src=src;
@@ -73,22 +70,21 @@ Función o funciones:
     var status=document.getElementById("stats-status");
     if(status){status.textContent="Conectando Stats con BDLocal...";}
     connectorReady()
+      .then(function(){return load("stats.data.patch.js",function(){return window.StatsDataPatch;});})
+      .then(function(patch){return patch&&typeof patch.ready==="function"?patch.ready():true;})
       .then(function(){return load("stats.rules.js",function(){return window.StatsRules;});})
       .then(function(){return load("stats.notes.guard.js");})
       .then(function(){return load("stats.core.js",function(){return window.StatsCore;});})
       .then(function(){return load("stats.carrera.guard.js");})
-      .then(function(){return load("stats.charts.js");})
-      .then(function(){return load("stats.tables.js");})
-      .then(function(){return load("stats.students.js");})
-      .then(function(){return load("stats.notes.analysis.js");})
-      .then(function(){return load("stats.notes.analytics.js");})
-      .then(function(){return load("stats.notes.charts.js");})
-      .then(function(){return load("stats.notes.js");})
-      .then(function(){return load("stats.notes.enhancer.js");})
-      .then(function(){return load("stats.notes.priorities.js");})
+      .then(function(){return load("stats.filters.patch.js",function(){return window.StatsFiltersPatch;});})
+      .then(function(){return load("stats.charts.js",function(){return window.StatsCharts;});})
+      .then(function(){return load("stats.tables.js",function(){return window.StatsTables;});})
+      .then(function(){return load("stats.students.js",function(){return window.StatsStudents;});})
+      .then(function(){return load("stats.notes.js",function(){return window.StatsNotes;});})
+      .then(function(){return load("stats.ui.patch.js",function(){return window.StatsUIPatch;});})
       .then(function(){return load("stats.app.js",function(){return window.StatsApp;});})
-      .then(function(){return load("stats.summary.js");})
-      .then(function(){return load("stats.sections.js");})
+      .then(function(){return load("stats.summary.js",function(){return window.StatsSummary;});})
+      .then(function(){return load("stats.sections.js",function(){return window.StatsSections;});})
       .then(function(){
         try{window.dispatchEvent(new CustomEvent("stats:bootstrap-ready",{detail:{ok:true,source:"ConStats"}}));}catch(error){}
       })
@@ -98,6 +94,6 @@ Función o funciones:
       });
   }
 
-  window.StatsBootstrap={version:"1.0.1-constats",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"1.1.0-connected-stats",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
