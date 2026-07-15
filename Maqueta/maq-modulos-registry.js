@@ -7,6 +7,7 @@ Función o funciones:
 - Enviar BL a la pantalla BDLocal/bl2.html.
 - Registrar Global como módulo activo para análisis histórico multiperíodo.
 - Registrar Cr-def como módulo activo para cronogramas de defensas.
+- Registrar Ncomplex como módulo activo para evaluaciones de titulación.
 - Marcar como pendientes las pantallas que aún no existen para evitar iframe roto.
 Con qué se conecta:
 - maq-config-service.js
@@ -79,6 +80,13 @@ Con qué se conecta:
       id: "defart",
       nombre: "Defensas",
       ruta: base + "/defart/defart.html",
+      estado: "activo"
+    },
+
+    ncomplex: {
+      id: "ncomplex",
+      nombre: "Ncomplex",
+      ruta: base + "/Ncomplex/ncomplex.html",
       estado: "activo"
     },
 
@@ -159,6 +167,13 @@ Con qué se conecta:
     defensas: "defart",
     defensa: "defart",
     defart: "defart",
+
+    ncomplex: "ncomplex",
+    complexivo: "ncomplex",
+    "notas complexivo": "ncomplex",
+    "notas de complexivo": "ncomplex",
+    "evaluaciones titulacion": "ncomplex",
+    "evaluaciones titulación": "ncomplex",
 
     "cr-def": "cr_def",
     "cr def": "cr_def",
