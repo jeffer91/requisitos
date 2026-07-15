@@ -2,209 +2,70 @@
 Nombre completo: cone.ncomplex.js
 Ruta: /BDLocal/conexiones/cone.ncomplex.js
 Función:
-- Conectar la pantalla Ncomplex con BDLServiceNcomplex.
-- Verificar la tabla evaluaciones_titulacion antes de usarla.
-- Exponer períodos, estudiantes, evaluaciones, resúmenes y guardado.
-- Registrar Ncomplex en BDLocalConexiones.
-- Notificar y refrescar la pantalla cuando cambien datos locales.
+- Preparar internamente esquema V3, repositorios y servicios.
+- Cargar la API de ConNcomplex después de confirmar dependencias.
+- Ser la única entrada conocida por la pantalla Ncomplex.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-ncomplex-schema";
-  var HUB=window.BDLocalConexiones||null;
-  var state={ready:false,loading:false,promise:null,error:"",loadedAt:"",eventsBound:false,schemaReady:false};
+  var VERSION="2.0.0-self-contained-loader";
+  var base=document.currentScript&&document.currentScript.src||document.baseURI;
+  var loading=Object.create(null);
+  var readyPromise=null;
+  var lastError="";
 
-  function service(){
-    if(window.BDLServiceNcomplex){return window.BDLServiceNcomplex;}
-    return window.BDLServices&&typeof window.BDLServices.get==="function"
-      ? window.BDLServices.get("ncomplex")
-      : null;
+  function url(relative){try{return new URL(relative,base).href;}catch(error){return relative;}}
+  function existing(src){return Array.prototype.slice.call(document.scripts||[]).some(function(item){return item.src===src||item.getAttribute("data-conncomplex-src")===src;});}
+  function waitFor(test,label,timeout){timeout=Math.max(500,Number(timeout||15000));var started=Date.now();return new Promise(function(resolve,reject){(function check(){var value=null;try{value=test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}setTimeout(check,40);})();});}
+  function load(relative,test){
+    var src=url(relative),current=null;try{current=test&&test();}catch(error){}
+    if(current){return Promise.resolve(current);}if(loading[src]){return loading[src];}if(existing(src)){return test?waitFor(test,relative,15000):Promise.resolve(src);}
+    loading[src]=new Promise(function(resolve,reject){var script=document.createElement("script");script.src=src;script.async=false;script.defer=false;script.setAttribute("data-conncomplex-src",src);script.onload=function(){var value=src;try{value=test?test():src;}catch(error){value=null;}value?resolve(value):reject(new Error(relative+" no expuso la API esperada."));};script.onerror=function(){reject(new Error("No se pudo cargar "+relative+"."));};(document.head||document.documentElement).appendChild(script);}).finally(function(){delete loading[src];});
+    return loading[src];
+  }
+  function sequence(files){return files.reduce(function(chain,item){return chain.then(function(){return load(item.path,item.test);});},Promise.resolve());}
+
+  function prepare(){
+    if(window.ConNcomplex&&typeof window.ConNcomplex.ready==="function"){return Promise.resolve(window.ConNcomplex);}
+    if(readyPromise){return readyPromise;}
+    lastError="";
+    readyPromise=sequence([
+      {path:"../bl2.config.js",test:function(){return window.BL2Config;}},
+      {path:"../bl2.config.v2.js"},
+      {path:"../bl2.config.v3.js"},
+      {path:"../bl2.db.js",test:function(){return window.BL2DB;}},
+      {path:"../adapters/bdl.screen-deps.js",test:function(){return window.BDLocalScreenDeps;}}
+    ]).then(function(){
+      var adapter=window.BDLocalScreenDeps;
+      return adapter&&typeof adapter.ready==="function"?adapter.ready():adapter;
+    }).then(function(){
+      return sequence([
+        {path:"../rules/bdl.rules.index.js",test:function(){return window.BDLRules;}},
+        {path:"../rules/bdl.rules.persona.js"},
+        {path:"../rules/bdl.rules.matricula.js"},
+        {path:"../rules/bdl.rules.evaluaciones-titulacion.js"},
+        {path:"../repositories/bdl.repo.periodos.js"},
+        {path:"../repositories/bdl.repo.estudiantes.js"},
+        {path:"../repositories/bdl.repo.personas.js"},
+        {path:"../repositories/bdl.repo.matriculas.js"},
+        {path:"../repositories/bdl.repo.cambios.js"},
+        {path:"../repositories/bdl.repo.evaluaciones-titulacion.js",test:function(){return window.BDLRepoEvaluacionesTitulacion;}},
+        {path:"../repositories/bdl.repo.importaciones.js"},
+        {path:"../services/bdl.service.periodos.js"},
+        {path:"../services/bdl.service.estudiantes.js"},
+        {path:"../services/bdl.service.ncomplex.js",test:function(){return window.BDLServiceNcomplex;}},
+        {path:"../migrations/bdl.migration.index.js"},
+        {path:"../migrations/bdl.migration.v3.ncomplex.js",test:function(){return window.BDLMigrationV3Ncomplex;}},
+        {path:"cone.ncomplex.api.js",test:function(){return window.ConNcomplex;}}
+      ]);
+    }).then(function(){
+      if(!window.ConNcomplex){throw new Error("cone.ncomplex.api.js no expuso ConNcomplex.");}
+      return window.ConNcomplex;
+    }).catch(function(error){lastError=error&&error.message?error.message:String(error);throw error;}).finally(function(){readyPromise=null;});
+    return readyPromise;
   }
 
-  function evaluationsRepo(){
-    if(window.BDLRepoEvaluacionesTitulacion){return window.BDLRepoEvaluacionesTitulacion;}
-    return window.BDLRepositories&&typeof window.BDLRepositories.get==="function"
-      ? window.BDLRepositories.get("evaluaciones_titulacion")
-      : null;
-  }
-
-  function schema(){return window.BDLMigrationV3Ncomplex||null;}
-
-  function status(){
-    return {
-      ok:state.ready&&!state.error,
-      ready:state.ready,
-      loading:state.loading,
-      schemaReady:state.schemaReady,
-      version:VERSION,
-      source:"BDLocal/conexiones/cone.ncomplex.js",
-      service:!!service(),
-      repository:!!evaluationsRepo(),
-      loadedAt:state.loadedAt,
-      error:state.error
-    };
-  }
-
-  function dispatch(name,detail){
-    try{window.dispatchEvent(new CustomEvent(name,{detail:detail||{}}));}catch(error){}
-  }
-
-  function ensureSchema(){
-    var migration=schema();
-    if(!migration||typeof migration.ensure!=="function"){
-      state.schemaReady=false;
-      return Promise.reject(new Error("BDLMigrationV3Ncomplex no está cargada."));
-    }
-    return migration.ensure().then(function(result){
-      state.schemaReady=!!(result&&result.ok);
-      if(!state.schemaReady){throw new Error("No se pudo preparar evaluaciones_titulacion.");}
-      return result;
-    });
-  }
-
-  function ready(options){
-    options=options||{};
-    if(state.ready&&!options.force){return Promise.resolve(status());}
-    if(state.loading&&state.promise&&!options.force){return state.promise;}
-
-    state.loading=true;
-    state.error="";
-
-    var coreReady=HUB&&typeof HUB.ensureCoreReady==="function"
-      ? HUB.ensureCoreReady().catch(function(){return null;})
-      : Promise.resolve(null);
-
-    state.promise=coreReady
-      .then(ensureSchema)
-      .then(function(){
-        var current=service();
-        var repo=evaluationsRepo();
-        if(!current){throw new Error("BDLServiceNcomplex no está cargado.");}
-        if(!repo){throw new Error("BDLRepoEvaluacionesTitulacion no está cargado.");}
-        state.ready=true;
-        state.loadedAt=new Date().toISOString();
-        dispatch("bdlocal:ncomplex-ready",status());
-        return status();
-      })
-      .catch(function(error){
-        state.ready=false;
-        state.error=error&&error.message?error.message:String(error);
-        return status();
-      })
-      .finally(function(){
-        state.loading=false;
-        state.promise=null;
-      });
-
-    return state.promise;
-  }
-
-  function call(method,args,fallback){
-    args=Array.isArray(args)?args:[];
-    return ready().then(function(result){
-      if(!result.ok){throw new Error(result.error||"Ncomplex no está listo.");}
-      var current=service();
-      if(!current||typeof current[method]!=="function"){
-        if(fallback!==undefined){return fallback;}
-        throw new Error("Ncomplex no dispone de la operación "+method+".");
-      }
-      return current[method].apply(current,args);
-    });
-  }
-
-  function refresh(options){
-    options=options||{};
-    var refreshCache=HUB&&typeof HUB.refreshCache==="function"
-      ? HUB.refreshCache({
-          source:"cone.ncomplex",
-          periodoId:options.periodoId||options.periodId||"",
-          full:options.full===true,
-          light:options.full!==true,
-          immediate:true,
-          force:options.force===true
-        }).catch(function(){return null;})
-      : Promise.resolve(null);
-    return refreshCache.then(function(){return ready({force:true});});
-  }
-
-  function listPeriods(){return call("listPeriods",[],[]);}
-  function listStudents(options){return call("list",[options||{}],[]);}
-  function getPage(options){return call("getPage",[options||{}],{rows:[],page:1,limit:25,total:0,totalPages:1,hasPrev:false,hasNext:false});}
-  function getSummary(options){return call("getSummary",[options||{}],{});}
-  function getEvaluation(periodoId,cedula){return call("getByPeriodoCedula",[periodoId,cedula],null);}
-  function saveEvaluation(row,context){return call("saveEvaluation",[row||{},context||{}]);}
-  function saveMany(rows,context){return call("saveMany",[Array.isArray(rows)?rows:[],context||{}],[]);}
-  function changeModality(periodoId,cedula,modalidad){return call("changeModality",[periodoId,cedula,modalidad]);}
-  function saveImport(row){return call("saveImport",[row||{}]);}
-  function listImports(options){return call("listImports",[options||{}],[]);}
-
-  function listEvaluations(options){
-    return ready().then(function(result){
-      if(!result.ok){throw new Error(result.error||"Ncomplex no está listo.");}
-      var repo=evaluationsRepo();
-      return repo&&typeof repo.list==="function"?repo.list(options||{}):[];
-    });
-  }
-
-  function scheduleRefresh(){
-    window.clearTimeout(scheduleRefresh.timer);
-    scheduleRefresh.timer=window.setTimeout(function(){
-      dispatch("ncomplex:data-changed",{at:new Date().toISOString()});
-    },120);
-  }
-
-  function bindEvents(){
-    if(state.eventsBound){return;}
-    state.eventsBound=true;
-    [
-      "bdlocal:evaluaciones-titulacion-updated",
-      "bdlocal:ncomplex-saved",
-      "bdlocal:importaciones-updated",
-      "bl2:students-saved",
-      "bl2:student-updated"
-    ].forEach(function(name){window.addEventListener(name,scheduleRefresh);});
-  }
-
-  var api={
-    version:VERSION,
-    source:"BDLocal/conexiones/cone.ncomplex.js",
-    ready:ready,
-    ensureSchema:ensureSchema,
-    refresh:refresh,
-    reload:refresh,
-    status:status,
-    listPeriods:listPeriods,
-    getPeriods:listPeriods,
-    listStudents:listStudents,
-    getStudents:listStudents,
-    getPage:getPage,
-    page:getPage,
-    getSummary:getSummary,
-    summary:getSummary,
-    listEvaluations:listEvaluations,
-    getEvaluation:getEvaluation,
-    getByPeriodoCedula:getEvaluation,
-    saveEvaluation:saveEvaluation,
-    save:saveEvaluation,
-    saveMany:saveMany,
-    changeModality:changeModality,
-    saveImport:saveImport,
-    listImports:listImports
-  };
-
-  window.ConNcomplex=api;
-  window.BDLocalConeNcomplex=api;
-  window.BDLocalNcomplex=api;
-
-  if(HUB&&typeof HUB.register==="function"){
-    HUB.register("ncomplex",api);
-  }
-
-  bindEvents();
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",function(){ready();});
-  }else{
-    ready();
-  }
+  window.ConNcomplexLoader={version:VERSION,prepare:prepare,status:function(){return {ok:!lastError,ready:!!window.ConNcomplex,source:"ConNcomplex",error:lastError};}};
+  prepare().catch(function(error){try{console.error("[ConNcomplexLoader]",error);}catch(innerError){}});
 })(window,document);
