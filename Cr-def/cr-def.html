@@ -5,11 +5,7 @@ Ruta o ubicación: /Requisitos/Cr-def/cr-def.html
 Función o funciones:
 - Pantalla del módulo Cr-def para cronogramas de defensas.
 - Consumir BDLocal exclusivamente mediante cone.crdef.js.
-- Preparar filtros, resumen, generación, tabla y exportación.
-Con qué se conecta:
-- ../BDLocal/adapters/bdl.screen-deps.js
-- ../BDLocal/conexiones/cone.crdef.js
-- Archivos internos de /Cr-def/
+- Esperar la conexión antes de iniciar la aplicación.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -43,8 +39,8 @@ Con qué se conecta:
 
     <section class="cr-status-panel" aria-live="polite">
       <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Conexión activa.</strong>
-        Los datos se consultan mediante ConCrDef y no desde IndexedDB directamente.
+        <strong>Conectando.</strong>
+        Esperando confirmación de ConCrDef.
       </article>
     </section>
 
@@ -113,7 +109,7 @@ Con qué se conecta:
       <button type="button" class="cr-btn cr-btn--primary" data-cr-actualizar disabled>Actualizar aptos</button>
       <button type="button" class="cr-btn" data-cr-generar disabled>Generar cronograma</button>
       <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
-      <span class="cr-actions__hint" data-cr-actions-hint>Esperando período.</span>
+      <span class="cr-actions__hint" data-cr-actions-hint>Esperando conexión.</span>
     </section>
 
     <section class="cr-summary-grid" aria-label="Resumen del cronograma">
@@ -172,9 +168,6 @@ Con qué se conecta:
   <script src="cr-def.cache.js"></script>
   <script src="cr-def.data.js"></script>
   <script src="cr-def.scheduler.js"></script>
-  <script src="cr-def.js"></script>
-  <script src="cr-def.scheduler.bridge.js"></script>
-  <script src="cr-def.render.js"></script>
-  <script src="cr-def.export.js"></script>
+  <script src="cr-def.bootstrap.js"></script>
 </body>
 </html>
