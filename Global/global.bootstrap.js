@@ -2,10 +2,9 @@
 Nombre completo: global.bootstrap.js
 Ruta o ubicación: /Global/global.bootstrap.js
 Función o funciones:
-- Esperar a que BDLocalScreenDeps prepare las conexiones.
-- Cargar cone.global.js antes de GlobalCore y GlobalApp.
+- Esperar BDLocalScreenDeps y ConGlobal.
+- Validar que GlobalCore no use fuentes heredadas.
 - Cargar los módulos de Global en orden secuencial.
-- Evitar rutas paralelas y condiciones de carrera.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -19,33 +18,18 @@ Función o funciones:
     timeout=Math.max(500,Number(timeout||15000));
     var started=Date.now();
     return new Promise(function(resolve,reject){
-      (function check(){
-        var value=null;
-        try{value=test();}catch(error){}
-        if(value){resolve(value);return;}
-        if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}
-        setTimeout(check,40);
-      })();
+      (function check(){var value=null;try{value=test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}setTimeout(check,40);})();
     });
   }
   function load(relative,test){
-    var src=url(relative);
-    var ready=null;
+    var src=url(relative),ready=null;
     try{ready=test&&test();}catch(error){}
     if(ready){return Promise.resolve(ready);}
     if(loading[src]){return loading[src];}
     if(existing(src)){return test?waitFor(test,relative,15000):Promise.resolve(src);}
     loading[src]=new Promise(function(resolve,reject){
-      var script=document.createElement("script");
-      script.src=src;
-      script.async=false;
-      script.defer=false;
-      script.setAttribute("data-global-bootstrap-src",src);
-      script.onload=function(){
-        var value=src;
-        try{value=test?test():src;}catch(error){value=null;}
-        value?resolve(value):reject(new Error(relative+" no expuso la API esperada."));
-      };
+      var script=document.createElement("script");script.src=src;script.async=false;script.defer=false;script.setAttribute("data-global-bootstrap-src",src);
+      script.onload=function(){var value=src;try{value=test?test():src;}catch(error){value=null;}value?resolve(value):reject(new Error(relative+" no expuso la API esperada."));};
       script.onerror=function(){reject(new Error("No se pudo cargar "+relative+"."));};
       (document.head||document.documentElement).appendChild(script);
     }).finally(function(){delete loading[src];});
@@ -73,6 +57,8 @@ Función o funciones:
     connectorReady()
       .then(function(){return load("global.config.js",function(){return window.GlobalConfig;});})
       .then(function(){return load("global.core.js",function(){return window.GlobalCore;});})
+      .then(function(){return load("global.connection-guard.js",function(){return window.GlobalConnectionGuard;});})
+      .then(function(guard){return guard&&typeof guard.ready==="function"?guard.ready():Promise.reject(new Error("La protección de ConGlobal no está disponible."));})
       .then(function(){return load("global.table.js");})
       .then(function(){return load("global.chart.js");})
       .then(function(){return load("global.pdf.js");})
@@ -82,7 +68,7 @@ Función o funciones:
       .then(function(){return load("global.index.js");})
       .then(function(){
         if(state){state.textContent="ConGlobal listo";state.setAttribute("data-state","ready");}
-        try{window.dispatchEvent(new CustomEvent("global:bootstrap-ready",{detail:{ok:true,source:"ConGlobal"}}));}catch(error){}
+        try{window.dispatchEvent(new CustomEvent("global:bootstrap-ready",{detail:{ok:true,source:"ConGlobal",strictSource:true}}));}catch(error){}
       })
       .catch(function(error){
         if(state){state.textContent=error.message||String(error);state.setAttribute("data-state","error");}
@@ -90,6 +76,6 @@ Función o funciones:
       });
   }
 
-  window.GlobalBootstrap={version:"1.0.0-conglobal",boot:boot,connectorReady:connectorReady};
+  window.GlobalBootstrap={version:"1.1.0-conglobal-strict",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
