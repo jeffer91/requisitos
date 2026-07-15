@@ -1,11 +1,11 @@
 <!doctype html>
 <!-- =========================================================
 Nombre completo: coordi.html
-Ruta o ubicación: /Requisitos/Coordi/coordi.html
+Ruta o ubicación: /Coordi/coordi.html
 Función o funciones:
-- Mostrar únicamente los filtros de Coordi.
-- Presentar indicadores compactos del corte seleccionado.
-- Mostrar el correo global o la comunicación por requisito.
+- Mostrar filtros, indicadores y comunicaciones de Coordi.
+- Esperar el conector exclusivo ConCoordi antes de iniciar.
+- Evitar rutas paralelas de datos y divisiones.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -72,9 +72,7 @@ Función o funciones:
         </article>
 
         <article id="coordi-whatsapp-wrap" class="coordi-preview-card coordi-whatsapp-card" hidden>
-          <div class="coordi-preview-title">
-            <span>Vista previa de WhatsApp</span>
-          </div>
+          <div class="coordi-preview-title"><span>Vista previa de WhatsApp</span></div>
           <pre id="coordi-whatsapp-preview"></pre>
         </article>
       </div>
@@ -82,14 +80,6 @@ Función o funciones:
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
-  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
-  <script src="../Stats/stats.rules.js"></script>
-  <script src="coo.config.js"></script>
-  <script src="coo.data.js"></script>
-  <script src="coo.report.js"></script>
-  <script src="coo.render.js"></script>
-  <script src="coo.mail.js"></script>
-  <script src="coo.whatsapp.js"></script>
-  <script src="coordi.app.js"></script>
+  <script src="coordi.bootstrap.js"></script>
 </body>
 </html>
