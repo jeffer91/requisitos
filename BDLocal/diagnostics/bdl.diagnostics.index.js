@@ -6,18 +6,26 @@ Función:
 - Registrar eventos técnicos sin depender todavía de una pantalla nueva.
 - Preparar diagnóstico visible de reglas, repositorios, servicios, sync y migraciones.
 - Cargar una sola instancia del sincronizador automático seguro de Google Sheets.
+- Cargar de forma no destructiva la configuración, repositorios, servicio, migración y conector de Ncomplex.
 Con qué se conecta:
 - BDLocal/bl2.core.js
 - BDLocal/bl2.app.js
 - BDLocal/bl2.raw-view.js
 - BDLocal/sync/bdl.sync.google-auto.js
+- BDLocal/bl2.config.v3.js
+- BDLocal/conexiones/cone.ncomplex.js
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "0.2.0-google-auto-bootstrap";
+  var VERSION = "0.3.0-ncomplex-bootstrap";
   var KEY = "REQ_BDL_DIAGNOSTICS_V1";
+  var currentScript = document.currentScript;
+  var scriptBase = currentScript && currentScript.src
+    ? currentScript.src
+    : window.location.href;
   var autoLoader = null;
+  var ncomplexLoader = null;
 
   function text(value){
     return String(value == null ? "" : value).trim();
@@ -55,6 +63,255 @@ Con qué se conecta:
   function clear(){
     write([]);
     return true;
+  }
+
+  function source(relativePath){
+    try{
+      return new URL(relativePath, scriptBase).href;
+    }catch(error){
+      return relativePath;
+    }
+  }
+
+  function existingScript(url){
+    return Array.prototype.slice.call(document.scripts || []).some(function(item){
+      try{
+        return new URL(item.src, window.location.href).href === url;
+      }catch(error){
+        return item.src === url;
+      }
+    });
+  }
+
+  function waitFor(test, label, timeout){
+    timeout = Math.max(500, Number(timeout || 15000));
+    var started = Date.now();
+
+    return new Promise(function(resolve,reject){
+      function check(){
+        var value = null;
+        try{ value = test(); }catch(error){ value = null; }
+
+        if(value){
+          resolve(value);
+          return;
+        }
+
+        if(Date.now() - started >= timeout){
+          reject(new Error("No se pudo preparar " + label + "."));
+          return;
+        }
+
+        window.setTimeout(check,40);
+      }
+
+      check();
+    });
+  }
+
+  function loadScript(relativePath,test){
+    var url = source(relativePath);
+    var current = null;
+
+    try{ current = test(); }catch(error){ current = null; }
+    if(current){ return Promise.resolve(current); }
+
+    if(existingScript(url)){
+      return waitFor(test,relativePath,15000);
+    }
+
+    return new Promise(function(resolve,reject){
+      var script = document.createElement("script");
+      script.src = url;
+      script.async = false;
+      script.defer = false;
+      script.setAttribute("data-bdl-ncomplex-bootstrap",relativePath);
+      script.onload = function(){
+        var value = null;
+        try{ value = test(); }catch(error){ value = null; }
+        value
+          ? resolve(value)
+          : reject(new Error("El archivo no expuso la API esperada: " + relativePath));
+      };
+      script.onerror = function(){
+        reject(new Error("No se pudo cargar: " + relativePath));
+      };
+      (document.head || document.documentElement).appendChild(script);
+    });
+  }
+
+  function registerNcomplex(){
+    var registry = window.BDLocalConeRegistry;
+    if(!registry || typeof registry.register !== "function"){
+      throw new Error("BDLocalConeRegistry no está disponible para registrar Ncomplex.");
+    }
+
+    var existing = typeof registry.get === "function"
+      ? registry.get("ncomplex")
+      : null;
+
+    if(existing){ return existing; }
+
+    return registry.register("ncomplex",{
+      label:"Ncomplex",
+      global:"ConNcomplex",
+      file:"cone.ncomplex.js",
+      pathHints:[
+        "/ncomplex/",
+        "ncomplex.html"
+      ],
+      aliases:[
+        "complexivo",
+        "notas_complexivo",
+        "evaluaciones_titulacion"
+      ],
+      canRead:true,
+      canWrite:true,
+      operations:[
+        "ready",
+        "read",
+        "save",
+        "refresh",
+        "status"
+      ],
+      tables:[
+        "periodos",
+        "personas",
+        "matriculas_periodo",
+        "requisitos_estudiante",
+        "evaluaciones_titulacion",
+        "importaciones",
+        "cambios_pendientes"
+      ],
+      description:"Gestiona notas de examen complexivo y trabajo de titulación."
+    });
+  }
+
+  function ncomplexStatus(){
+    var config = window.BL2Config || {};
+    var stores = config.stores || {};
+    var registry = window.BDLocalConeRegistry;
+    var registered = false;
+
+    try{
+      registered = !!(
+        registry &&
+        typeof registry.get === "function" &&
+        registry.get("ncomplex")
+      );
+    }catch(error){
+      registered = false;
+    }
+
+    return {
+      ok: !!(
+        Number(config.dbVersion || 0) >= 3 &&
+        stores.evaluacionesTitulacion &&
+        window.BDLRulesEvaluacionesTitulacion &&
+        window.BDLRepoEvaluacionesTitulacion &&
+        window.BDLRepoImportaciones &&
+        window.BDLServiceNcomplex &&
+        window.BDLMigrationV3Ncomplex &&
+        window.ConNcomplex
+      ),
+      dbVersion: Number(config.dbVersion || 0),
+      store: stores.evaluacionesTitulacion || "",
+      rules: !!window.BDLRulesEvaluacionesTitulacion,
+      repository: !!window.BDLRepoEvaluacionesTitulacion,
+      importsRepository: !!window.BDLRepoImportaciones,
+      service: !!window.BDLServiceNcomplex,
+      migration: !!window.BDLMigrationV3Ncomplex,
+      connector: !!window.ConNcomplex,
+      registered: registered
+    };
+  }
+
+  function startNcomplexIntegration(){
+    if(ncomplexLoader){ return ncomplexLoader; }
+
+    ncomplexLoader = Promise.resolve()
+      .then(function(){
+        return loadScript("../bl2.config.v3.js",function(){
+          var config = window.BL2Config || {};
+          return Number(config.dbVersion || 0) >= 3 &&
+            config.stores &&
+            config.stores.evaluacionesTitulacion
+            ? config
+            : null;
+        });
+      })
+      .then(function(){
+        return loadScript("../rules/bdl.rules.evaluaciones-titulacion.js",function(){
+          return window.BDLRulesEvaluacionesTitulacion;
+        });
+      })
+      .then(function(){
+        return loadScript("../repositories/bdl.repo.evaluaciones-titulacion.js",function(){
+          return window.BDLRepoEvaluacionesTitulacion;
+        });
+      })
+      .then(function(){
+        return loadScript("../repositories/bdl.repo.importaciones.js",function(){
+          return window.BDLRepoImportaciones;
+        });
+      })
+      .then(function(){
+        return loadScript("../services/bdl.service.ncomplex.js",function(){
+          return window.BDLServiceNcomplex;
+        });
+      })
+      .then(function(){
+        return loadScript("../migrations/bdl.migration.v3.ncomplex.js",function(){
+          return window.BDLMigrationV3Ncomplex;
+        });
+      })
+      .then(function(){
+        registerNcomplex();
+        return loadScript("../conexiones/cone.ncomplex.js",function(){
+          return window.ConNcomplex;
+        });
+      })
+      .then(function(connector){
+        return connector && typeof connector.ready === "function"
+          ? Promise.resolve(connector.ready()).then(function(){ return connector; })
+          : connector;
+      })
+      .then(function(){
+        var result = ncomplexStatus();
+        if(!result.ok){
+          throw new Error("Ncomplex no terminó de preparar sus componentes locales.");
+        }
+
+        add(
+          "ncomplex",
+          "INFO",
+          "Ncomplex quedó integrado con BDLocal.",
+          result
+        );
+
+        try{
+          window.dispatchEvent(new CustomEvent(
+            "bdlocal:ncomplex-integration-ready",
+            { detail: result }
+          ));
+        }catch(error){}
+
+        return result;
+      })
+      .catch(function(error){
+        var result = ncomplexStatus();
+        result.error = error && error.message ? error.message : String(error);
+        add(
+          "ncomplex",
+          "ERROR",
+          "No se pudo completar la integración de Ncomplex.",
+          result
+        );
+        ncomplexLoader = null;
+        throw error;
+      });
+
+    return ncomplexLoader;
   }
 
   function startGoogleAutoSync(){
@@ -108,10 +365,17 @@ Con qué se conecta:
     add: add,
     read: read,
     clear: clear,
-    startGoogleAutoSync: startGoogleAutoSync
+    startGoogleAutoSync: startGoogleAutoSync,
+    startNcomplexIntegration: startNcomplexIntegration,
+    ncomplexStatus: ncomplexStatus
   };
+
+  window.setTimeout(function(){
+    startNcomplexIntegration().catch(function(){});
+  },0);
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",function(){
     startGoogleAutoSync();
+    startNcomplexIntegration().catch(function(){});
   },{ once:true });
 })(window,document);
