@@ -3,6 +3,7 @@ Nombre completo: cone.ncomplex.js
 Ruta: /BDLocal/conexiones/cone.ncomplex.js
 Función:
 - Conectar la pantalla Ncomplex con BDLServiceNcomplex.
+- Verificar la tabla evaluaciones_titulacion antes de usarla.
 - Exponer períodos, estudiantes, evaluaciones, resúmenes y guardado.
 - Registrar Ncomplex en BDLocalConexiones.
 - Notificar y refrescar la pantalla cuando cambien datos locales.
@@ -10,17 +11,17 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-ncomplex";
+  var VERSION="1.1.0-ncomplex-schema";
   var HUB=window.BDLocalConexiones||null;
-  var state={ready:false,loading:false,promise:null,error:"",loadedAt:"",eventsBound:false};
+  var state={ready:false,loading:false,promise:null,error:"",loadedAt:"",eventsBound:false,schemaReady:false};
 
-  function text(value){return String(value==null?"":value).trim();}
   function service(){
     if(window.BDLServiceNcomplex){return window.BDLServiceNcomplex;}
     return window.BDLServices&&typeof window.BDLServices.get==="function"
       ? window.BDLServices.get("ncomplex")
       : null;
   }
+
   function evaluationsRepo(){
     if(window.BDLRepoEvaluacionesTitulacion){return window.BDLRepoEvaluacionesTitulacion;}
     return window.BDLRepositories&&typeof window.BDLRepositories.get==="function"
@@ -28,11 +29,14 @@ Función:
       : null;
   }
 
+  function schema(){return window.BDLMigrationV3Ncomplex||null;}
+
   function status(){
     return {
       ok:state.ready&&!state.error,
       ready:state.ready,
       loading:state.loading,
+      schemaReady:state.schemaReady,
       version:VERSION,
       source:"BDLocal/conexiones/cone.ncomplex.js",
       service:!!service(),
@@ -46,6 +50,19 @@ Función:
     try{window.dispatchEvent(new CustomEvent(name,{detail:detail||{}}));}catch(error){}
   }
 
+  function ensureSchema(){
+    var migration=schema();
+    if(!migration||typeof migration.ensure!=="function"){
+      state.schemaReady=false;
+      return Promise.reject(new Error("BDLMigrationV3Ncomplex no está cargada."));
+    }
+    return migration.ensure().then(function(result){
+      state.schemaReady=!!(result&&result.ok);
+      if(!state.schemaReady){throw new Error("No se pudo preparar evaluaciones_titulacion.");}
+      return result;
+    });
+  }
+
   function ready(options){
     options=options||{};
     if(state.ready&&!options.force){return Promise.resolve(status());}
@@ -53,34 +70,40 @@ Función:
 
     state.loading=true;
     state.error="";
+
     var coreReady=HUB&&typeof HUB.ensureCoreReady==="function"
       ? HUB.ensureCoreReady().catch(function(){return null;})
       : Promise.resolve(null);
 
-    state.promise=coreReady.then(function(){
-      var current=service();
-      var repo=evaluationsRepo();
-      if(!current){throw new Error("BDLServiceNcomplex no está cargado.");}
-      if(!repo){throw new Error("BDLRepoEvaluacionesTitulacion no está cargado.");}
-      state.ready=true;
-      state.loadedAt=new Date().toISOString();
-      dispatch("bdlocal:ncomplex-ready",status());
-      return status();
-    }).catch(function(error){
-      state.ready=false;
-      state.error=error&&error.message?error.message:String(error);
-      return status();
-    }).finally(function(){
-      state.loading=false;
-      state.promise=null;
-    });
+    state.promise=coreReady
+      .then(ensureSchema)
+      .then(function(){
+        var current=service();
+        var repo=evaluationsRepo();
+        if(!current){throw new Error("BDLServiceNcomplex no está cargado.");}
+        if(!repo){throw new Error("BDLRepoEvaluacionesTitulacion no está cargado.");}
+        state.ready=true;
+        state.loadedAt=new Date().toISOString();
+        dispatch("bdlocal:ncomplex-ready",status());
+        return status();
+      })
+      .catch(function(error){
+        state.ready=false;
+        state.error=error&&error.message?error.message:String(error);
+        return status();
+      })
+      .finally(function(){
+        state.loading=false;
+        state.promise=null;
+      });
 
     return state.promise;
   }
 
   function call(method,args,fallback){
     args=Array.isArray(args)?args:[];
-    return ready().then(function(){
+    return ready().then(function(result){
+      if(!result.ok){throw new Error(result.error||"Ncomplex no está listo.");}
       var current=service();
       if(!current||typeof current[method]!=="function"){
         if(fallback!==undefined){return fallback;}
@@ -92,7 +115,7 @@ Función:
 
   function refresh(options){
     options=options||{};
-    var refresh=HUB&&typeof HUB.refreshCache==="function"
+    var refreshCache=HUB&&typeof HUB.refreshCache==="function"
       ? HUB.refreshCache({
           source:"cone.ncomplex",
           periodoId:options.periodoId||options.periodId||"",
@@ -102,7 +125,7 @@ Función:
           force:options.force===true
         }).catch(function(){return null;})
       : Promise.resolve(null);
-    return refresh.then(function(){return ready({force:true});});
+    return refreshCache.then(function(){return ready({force:true});});
   }
 
   function listPeriods(){return call("listPeriods",[],[]);}
@@ -115,8 +138,10 @@ Función:
   function changeModality(periodoId,cedula,modalidad){return call("changeModality",[periodoId,cedula,modalidad]);}
   function saveImport(row){return call("saveImport",[row||{}]);}
   function listImports(options){return call("listImports",[options||{}],[]);}
+
   function listEvaluations(options){
-    return ready().then(function(){
+    return ready().then(function(result){
+      if(!result.ok){throw new Error(result.error||"Ncomplex no está listo.");}
       var repo=evaluationsRepo();
       return repo&&typeof repo.list==="function"?repo.list(options||{}):[];
     });
@@ -145,6 +170,7 @@ Función:
     version:VERSION,
     source:"BDLocal/conexiones/cone.ncomplex.js",
     ready:ready,
+    ensureSchema:ensureSchema,
     refresh:refresh,
     reload:refresh,
     status:status,
