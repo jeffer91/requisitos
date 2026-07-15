@@ -77,8 +77,10 @@ const forbiddenScreenAccess = [
 ];
 
 // Carga
+contains("Carga/carga.html", "carga.norm-compat.js", "Carga debe preparar sus normalizadores");
 contains("Carga/carga.html", "carga.app.connector.js", "Carga debe activar carga.app.connector.js");
 contains("Carga/carga.html", "carga.ui.connector.js", "Carga debe activar carga.ui.connector.js");
+order("Carga/carga.html", "carga.norm-compat.js", "mapping/carga.field-map.js");
 contains("Carga/carga.index.js", "cone.carga.js", "Carga debe preparar cone.carga.js");
 contains("Carga/carga.index.js", "cone.carga.ops.js", "Carga debe preparar las operaciones de ConCarga");
 contains("BDLocal/conexiones/cone.carga.ops.js", "api.listStudents=students", "ConCarga debe exponer listStudents");
@@ -89,6 +91,7 @@ ok(!/src=["']\.\/carga\.app\.js["']/.test(cargaHtml), "Carga no debe activar car
 ok(!/src=["']\.\/carga\.ui\.js["']/.test(cargaHtml), "Carga no debe activar carga.ui.js heredado");
 
 [
+  "Carga/carga.norm-compat.js",
   "Carga/carga.app.connector.js",
   "Carga/carga.ui.connector.js",
   "Carga/process/carga.save.js",
@@ -97,10 +100,11 @@ ok(!/src=["']\.\/carga\.ui\.js["']/.test(cargaHtml), "Carga no debe activar carg
 ].forEach((relative) => excludes(relative, forbiddenScreenAccess));
 
 // Ficha
-contains("Ficha/ficha.html", "../BDLocal/conexiones/cone.ficha.js", "Ficha debe cargar cone.ficha.js");
-contains("Ficha/ficha.html", "ficha.connection-bridge.js", "Ficha debe cargar su puente de ConFicha");
-order("Ficha/ficha.html", "../BDLocal/conexiones/cone.ficha.js", "ficha.connection-bridge.js");
-order("Ficha/ficha.html", "ficha.connection-bridge.js", "ficha.app.js");
+contains("Ficha/ficha.html", "ficha.bootstrap.js", "Ficha debe activar el arranque secuencial");
+contains("Ficha/ficha.bootstrap.js", "../BDLocal/conexiones/cone.ficha.js", "El bootstrap debe cargar cone.ficha.js");
+contains("Ficha/ficha.bootstrap.js", "ficha.connection-bridge.js", "El bootstrap debe instalar el puente de ConFicha");
+order("Ficha/ficha.bootstrap.js", "../BDLocal/conexiones/cone.ficha.js", "ficha.connection-bridge.js");
+order("Ficha/ficha.bootstrap.js", "ficha.connection-bridge.js", "ficha.app.js");
 contains("Ficha/ficha.connection-bridge.js", "Core.source=function(){return \"ConFicha\";};", "FichaCore debe declarar ConFicha como fuente");
 contains("Ficha/ficha.modalidad.js", "con.updateStudent", "La modalidad debe guardarse mediante ConFicha.updateStudent");
 
@@ -110,6 +114,7 @@ ok(!fichaHtml.includes("ficha.divisiones.fast.js"), "Ficha no debe cargar el par
 ok(!fichaHtml.includes("bdl.divisiones.fast-cache.js"), "Ficha no debe cargar una ruta paralela de divisiones");
 
 [
+  "Ficha/ficha.bootstrap.js",
   "Ficha/ficha.connection-bridge.js",
   "Ficha/ficha.modalidad.js"
 ].forEach((relative) => excludes(relative, forbiddenScreenAccess));
@@ -117,11 +122,13 @@ ok(!fichaHtml.includes("bdl.divisiones.fast-cache.js"), "Ficha no debe cargar un
 // Sintaxis de todos los archivos incorporados en el bloque.
 [
   "BDLocal/conexiones/cone.carga.ops.js",
+  "Carga/carga.norm-compat.js",
   "Carga/carga.app.connector.js",
   "Carga/carga.ui.connector.js",
   "Carga/carga.index.js",
   "Carga/process/carga.save.js",
   "Carga/carga.divisiones.popup.js",
+  "Ficha/ficha.bootstrap.js",
   "Ficha/ficha.connection-bridge.js",
   "Ficha/ficha.modalidad.js"
 ].forEach(syntax);
