@@ -4,6 +4,7 @@ Ruta o ubicación: /Coordi/coordi.bootstrap.js
 Función o funciones:
 - Esperar a BDLocalScreenDeps.
 - Cargar cone.coordi.js antes de los módulos de Coordi.
+- Cargar la corrección del resumen general después de coo.report.js.
 - Evitar rutas paralelas y condiciones de carrera.
 ========================================================= */
 (function(window,document){
@@ -50,6 +51,7 @@ Función o funciones:
       .then(function(){return load("coo.config.js",function(){return window.COOConfig;});})
       .then(function(){return load("coo.data.js",function(){return window.COOData;});})
       .then(function(){return load("coo.report.js",function(){return window.COOReport;});})
+      .then(function(){return load("coo.report.compliance-fix.js",function(){return window.COOReportComplianceFix;});})
       .then(function(){return load("coo.render.js",function(){return window.COORender;});})
       .then(function(){return load("coo.mail.js",function(){return window.COOMail;});})
       .then(function(){return load("coo.whatsapp.js",function(){return window.COOWhatsApp;});})
@@ -57,6 +59,6 @@ Función o funciones:
       .then(function(){try{window.dispatchEvent(new CustomEvent("coordi:bootstrap-ready",{detail:{ok:true,source:"ConCoordi"}}));}catch(error){}})
       .catch(function(error){if(status){status.hidden=false;status.textContent=error.message||String(error);status.className="coordi-status warn";}try{window.dispatchEvent(new CustomEvent("coordi:bootstrap-error",{detail:{ok:false,source:"ConCoordi",error:error.message||String(error)}}));}catch(innerError){}});
   }
-  window.CoordiBootstrap={version:"1.0.0-concoordi",boot:boot,connectorReady:connectorReady};
+  window.CoordiBootstrap={version:"1.0.1-compliance-fix",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
