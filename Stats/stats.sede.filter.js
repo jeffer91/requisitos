@@ -5,7 +5,8 @@ Función:
 - Agregar el selector Sede a los filtros superiores de Stats.
 - Filtrar todos los cálculos, gráficos, tablas y estudiantes por sede.
 - Mantener la lista de sedes del período y matrícula seleccionados.
-- Reiniciar la sede cuando cambia el período.
+- Reiniciar la sede cuando cambia el período o deja de estar disponible.
+- Ajustar la fila superior para mostrar ocho controles sin desbordamiento.
 Con qué se conecta:
 - Stats/stats.core.js.
 - Stats/stats.app.js.
@@ -14,7 +15,7 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-sede-filter";
+  var VERSION="1.0.1-sede-filter-layout";
   var selectedSede="";
   var lastPeriodId="";
   var lastSedeList=[];
@@ -64,17 +65,30 @@ Con qué se conecta:
       return a.localeCompare(b,"es",{sensitivity:"base"});
     });
   }
+  function ensureSelectedAvailable(list){
+    var wanted=norm(selectedSede);
+    if(!wanted){return false;}
+    var valid=(Array.isArray(list)?list:[]).some(function(item){return norm(item)===wanted;});
+    if(valid){return false;}
+    selectedSede="";
+    var node=document.getElementById("stats-sede");
+    if(node){node.value="";}
+    return true;
+  }
   function filterRows(rows){
     rows=Array.isArray(rows)?rows:[];
     var wanted=norm(selectedSede);
     if(!wanted){return rows.slice();}
     return rows.filter(function(row){return norm(siteOf(row))===wanted;});
   }
+  function prepareRows(rows){
+    rows=Array.isArray(rows)?rows:[];
+    lastSedeList=siteList(rows);
+    ensureSelectedAvailable(lastSedeList);
+    return filterRows(rows);
+  }
   function mapResult(result){
-    if(Array.isArray(result)){
-      lastSedeList=siteList(result);
-      return filterRows(result);
-    }
+    if(Array.isArray(result)){return prepareRows(result);}
     result=result&&typeof result==="object"?result:{};
     var rows=Array.isArray(result.rows)
       ?result.rows
@@ -83,8 +97,7 @@ Con qué se conecta:
         :Array.isArray(result.students)
           ?result.students
           :[];
-    lastSedeList=siteList(rows);
-    var filtered=filterRows(rows);
+    var filtered=prepareRows(rows);
     return Object.assign({},result,{
       rows:filtered,
       estudiantes:filtered,
@@ -97,16 +110,35 @@ Con qué se conecta:
   }
   function currentRepo(){return window.BDLocalStats||window.ConStats||null;}
 
+  function injectStyle(){
+    if(document.getElementById("stats-sede-filter-style")){return;}
+    var style=document.createElement("style");
+    style.id="stats-sede-filter-style";
+    style.textContent=[
+      "@media (min-width:1101px){",
+      ".stats-tools{grid-template-columns:minmax(165px,1.3fr) minmax(105px,.8fr) minmax(105px,.9fr) minmax(105px,.9fr) minmax(150px,1.15fr) minmax(100px,.85fr) minmax(165px,1.2fr) auto!important}",
+      "}",
+      "@media (max-width:1100px){",
+      ".stats-tools{grid-template-columns:repeat(4,minmax(130px,1fr))!important}",
+      ".stats-tools>button{width:100%}",
+      "}",
+      "@media (max-width:720px){",
+      ".stats-tools{grid-template-columns:repeat(2,minmax(0,1fr))!important}",
+      "}",
+      "@media (max-width:460px){",
+      ".stats-tools{grid-template-columns:1fr!important}",
+      "}"
+    ].join("\n");
+    document.head.appendChild(style);
+  }
+
   function wrapRepo(){
     var repo=currentRepo();
     if(!repo||repo.__statsSedeFilterWrapped){return !!repo;}
     ["students","getStudents","rows","getRows"].forEach(function(name){
       var original=repo[name];
       if(typeof original!=="function"){return;}
-      repo[name]=function(){return maybe(original.apply(repo,arguments),function(rows){
-        lastSedeList=siteList(rows);
-        return filterRows(rows);
-      });};
+      repo[name]=function(){return maybe(original.apply(repo,arguments),prepareRows);};
       repo[name].__statsSedeOriginal=original;
     });
     ["listStudents"].forEach(function(name){
@@ -121,6 +153,7 @@ Con qué se conecta:
 
   function selectNode(){return document.getElementById("stats-sede");}
   function injectFilter(){
+    injectStyle();
     var tools=document.querySelector(".stats-tools");
     if(!tools){return null;}
     var select=selectNode();
@@ -153,9 +186,8 @@ Con qué se conecta:
     var select=injectFilter();
     if(!select){return;}
     list=Array.isArray(list)?list:[];
+    ensureSelectedAvailable(list);
     var wanted=norm(selectedSede);
-    var valid=!wanted||list.some(function(item){return norm(item)===wanted;});
-    if(!valid){selectedSede="";wanted="";}
     select.innerHTML='<option value="">Todas</option>'+list.map(function(item){
       return '<option value="'+esc(item)+'"'+(norm(item)===wanted?' selected':'')+'>'+esc(item)+'</option>';
     }).join("");
