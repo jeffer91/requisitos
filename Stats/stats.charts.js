@@ -4,13 +4,7 @@ Ruta o ubicación: /Requisitos/Stats/stats.charts.js
 Función o funciones:
 - Renderizar gráficos propios de Stats sin librerías externas.
 - Mostrar cumplimiento general, requisito seleccionado, requisitos normales y aprobación final.
-- Crear indicadores visuales compactos: cumple, no cumple, porcentaje y no aplica.
-- Mantener salida HTML segura para uso desde stats.app.js.
-Con qué se conecta:
-- stats.html
-- stats.css
-- stats.core.js
-- stats.app.js
+- Usar verde para cumple y rojo para no cumple en todos los gráficos binarios.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -56,7 +50,7 @@ Con qué se conecta:
 
   function donut(percent,label){
     percent=clamp(percent,0,100);
-    return '<div class="stats-donut" style="--stats-donut:'+percent+';background:conic-gradient(var(--primary) '+percent+'%, #e2e8f0 0)">'
+    return '<div class="stats-donut" style="--stats-donut:'+percent+';background:conic-gradient(var(--ok) '+percent+'%, var(--bad) 0)">'
       + '<div><strong>'+formatPercent(percent)+'</strong><span>'+esc(label||"avance")+'</span></div>'
       + '</div>';
   }
@@ -86,8 +80,8 @@ Con qué se conecta:
       return '<article class="stats-final-mini">'
         + '<div>'+donut(percent,item.label)+'</div>'
         + '<div><h3>'+esc(item.label)+'</h3>'
-        + '<p><strong>'+esc(item.cumple)+'</strong> cumplen de '+esc(total)+'</p>'
-        + '<p><span class="bad-text">'+esc(item.no_cumple)+'</span> no cumplen</p></div>'
+        + '<p><strong class="pill pill-ok">'+esc(item.cumple)+'</strong> cumplen de '+esc(total)+'</p>'
+        + '<p><span class="pill pill-bad">'+esc(item.no_cumple)+'</span> no cumplen</p></div>'
         + '</article>';
     }).join("")+'</div>';
   }
@@ -103,7 +97,7 @@ Con qué se conecta:
     if(!total){target.innerHTML=empty("Sin estudiantes para los filtros seleccionados.");return;}
     target.innerHTML='<div class="stats-chart-panel">'
       + '<div class="stats-chart-top">'+donut(avance,"avance")+'<div class="stats-chart-metrics">'
-      + metric("Aprobados",ok,formatPercent(pct(ok,total)),"ok")
+      + metric("Cumplen",ok,formatPercent(pct(ok,total)),"ok")
       + metric("No cumplen",bad,formatPercent(pct(bad,total)),"bad")
       + metric("Total",total,"estudiantes","")
       + '</div></div>'
@@ -118,7 +112,7 @@ Con qué se conecta:
     var selected=data&&data.selectedRequirement;
     if(!selected){
       if(meta)meta.textContent="Todos";
-      target.innerHTML=empty("Selecciona un requisito para ver cumple, no cumple y porcentaje.");
+      target.innerHTML=empty("Selecciona un requisito para ver cumple y no cumple.");
       return;
     }
     var stats=selected.stats||{};
@@ -133,6 +127,7 @@ Con qué se conecta:
       + metric("No cumple",bad,formatPercent(pct(bad,total)),"bad")
       + metric("Evaluados",total,"estudiantes","")
       + '</div></div>'
+      + stacked(ok,bad,total)
       + progress(selected.label||"Requisito",ok,total,"selected")
       + (stats.no_aplica?'<p class="stats-chart-note">No aplica para '+esc(stats.no_aplica)+' estudiante(s).</p>':'')
       + '</div>';
@@ -163,6 +158,6 @@ Con qué se conecta:
     renderRequirements:renderRequirements,
     renderFinal:renderFinal,
     renderAll:renderAll,
-    helpers:{empty:empty,metric:metric,progress:progress,donut:donut,horizontalBars:horizontalBars}
+    helpers:{empty:empty,metric:metric,progress:progress,donut:donut,horizontalBars:horizontalBars,stacked:stacked}
   };
 })(window,document);
