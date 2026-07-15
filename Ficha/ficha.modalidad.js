@@ -124,14 +124,22 @@ Con qué se conecta:
     var locked=!!(type.isPVC||type.id==="PVC");
     var savedRow=savedFromRow(row);
     var savedLocal=savedFromStorage(row);
+    var allowed=options(row);
     var value=locked?VALUES.articulo:(savedRow||savedLocal||defaultFor(row));
+    var source=savedRow?"guardado":savedLocal?"local":"automático";
+
+    if(!allowed.some(function(item){return item.value===value;})){
+      value=defaultFor(row);
+      source="automático";
+    }
+
     return {
       value:value,
       label:labelOf(value),
-      source:savedRow?"guardado":savedLocal?"local":"automático",
+      source:source,
       locked:locked,
       periodType:type,
-      options:options(row)
+      options:allowed
     };
   }
 
@@ -214,7 +222,7 @@ Con qué se conecta:
   }
 
   window.FichaModalidad={
-    version:"3.0.0-conficha-confirmed",
+    version:"3.0.1-normalized",
     VALUES:VALUES,
     LABELS:LABELS,
     current:current,
