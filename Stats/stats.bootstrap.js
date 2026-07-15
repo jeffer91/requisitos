@@ -1,10 +1,10 @@
 /* =========================================================
 Nombre completo: stats.bootstrap.js
-Ruta o ubicación: /Stats/stats.bootstrap.js
-Función o funciones:
-- Esperar a que BDLocalScreenDeps prepare las conexiones.
-- Cargar ConStats, notas, filtros e interfaz en orden secuencial.
-- Evitar rutas paralelas de datos y condiciones de carrera.
+Ruta: /Stats/stats.bootstrap.js
+Función:
+- Preparar BDLocalScreenDeps y ConStats.
+- Cargar la extensión oficial de notas antes de la pantalla.
+- Mantener un arranque secuencial sin accesos paralelos.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -64,6 +64,12 @@ Función o funciones:
         if(status&&status.ok===false){throw new Error(status.error||"ConStats no está listo.");}
         return con;
       });
+    }).then(function(con){
+      return load("../BDLocal/conexiones/cone.stats.notes.js",function(){return window.ConStatsNotes&&window.ConStatsNotes.install&&window.ConStatsNotes.install()?window.ConStatsNotes:null;})
+        .then(function(){
+          if(typeof con.listNotes!=="function"){throw new Error("ConStats.listNotes no quedó disponible.");}
+          return con;
+        });
     });
   }
   function boot(){
@@ -94,6 +100,6 @@ Función o funciones:
       });
   }
 
-  window.StatsBootstrap={version:"1.1.0-connected-stats",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"1.2.0-connector-notes",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
