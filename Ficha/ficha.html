@@ -78,24 +78,14 @@ Función:
               <h2 id="ficha-nombre">—</h2>
 
               <div id="ficha-identidad" class="ficha-identity-lines">
-                <div class="ficha-identity-row">
-                  <span>Cédula</span>
-                  <strong>—</strong>
-                </div>
-                <div class="ficha-identity-row">
-                  <span>Carrera</span>
-                  <strong>—</strong>
-                </div>
-                <div class="ficha-identity-row">
-                  <span>Período</span>
-                  <strong>—</strong>
-                </div>
+                <div class="ficha-identity-row"><span>Cédula</span><strong>—</strong></div>
+                <div class="ficha-identity-row"><span>Carrera</span><strong>—</strong></div>
+                <div class="ficha-identity-row"><span>Período</span><strong>—</strong></div>
               </div>
             </div>
 
             <div class="ficha-top-side">
               <span id="ficha-estado" class="ficha-pill ficha-pill-warn">Pendiente</span>
-
               <div class="ficha-top-actions">
                 <span id="ficha-special-titulacion" class="ficha-mini-badge ficha-badge-bad" title="Aprobación titulación">T</span>
                 <span id="ficha-special-complexivo" class="ficha-mini-badge ficha-badge-bad" title="Aprobación complexivo/proyecto">C</span>
@@ -118,14 +108,7 @@ Función:
 
           <section class="ficha-grid-info" aria-label="Datos adicionales">
             <article><span>Correo institucional</span><strong id="ficha-correo-institucional">—</strong></article>
-            <article>
-              <span>Modalidad</span>
-              <strong>
-                <select id="ficha-modalidad-select">
-                  <option value="">—</option>
-                </select>
-              </strong>
-            </article>
+            <article><span>Modalidad</span><strong><select id="ficha-modalidad-select"><option value="">—</option></select></strong></article>
             <article><span>Estado modalidad</span><strong id="ficha-modalidad-info">—</strong></article>
             <article><span>Guardar</span><strong><button id="ficha-modalidad-save" type="button" class="ficha-action">Guardar modalidad</button></strong></article>
             <article><span>Copiar cédula</span><strong><button id="ficha-copy-cedula" type="button" class="ficha-action">Copiar</button></strong></article>
@@ -148,11 +131,9 @@ Función:
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/conexiones/cone.ficha.js"></script>
-  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
   <script src="ficha.core.js"></script>
   <script src="ficha.connection-bridge.js"></script>
   <script src="ficha.periodo-normalizer.js"></script>
-  <script src="ficha.divisiones.fast.js"></script>
   <script src="ficha.app.js"></script>
 </body>
 </html>
