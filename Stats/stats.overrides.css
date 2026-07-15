@@ -3,7 +3,7 @@
 .stats-status.is-auto-hidden{display:none!important}
 
 /* Cumplimiento siempre verde y no cumplimiento siempre rojo */
-.stats-bar-track,.stats-chart-track{background:var(--bad-soft);border-color:#fecaca}
+.stats-bar-track,.stats-chart-track{background:#dc2626;border-color:#b91c1c}
 .stats-bar-fill,.stats-chart-track i{background:linear-gradient(90deg,#15803d,#22c55e)}
 .stats-chart-progress.bad .stats-chart-track i,.stats-chart-bar.bad .stats-chart-track i{background:linear-gradient(90deg,#b91c1c,#ef4444)}
 .stats-donut{background:conic-gradient(var(--ok) 0%,var(--bad) 0)}
