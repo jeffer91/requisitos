@@ -1,57 +1,249 @@
 /* =========================================================
 Nombre completo: repo.core.js
-Ruta o ubicación: /Requisitos/Reportes/repo.core.js
+Ruta o ubicación: /Reportes/repo.core.js
 Función o funciones:
-- Leer reportes desde BL2ReportesRepo/BL2DataEngine y usar ExcelLocalRepo como respaldo.
-- Generar reportes generales, por carrera, por requisito y pendientes críticos.
-- Respetar reglas PVC/Regular mediante BL2RequirementsEngine.
+- Leer períodos, estudiantes y requisitos exclusivamente mediante ConReportes.
+- Relacionar requisitos por cédula y período antes de calcular el reporte.
+- Generar reportes generales, por carrera, por requisito y pendientes.
 - Filtrar por período, división, matrícula y carrera.
-- Mostrar ACTIVO por defecto.
-Con qué se conecta:
-- ../BaseLocal2/repositories/bl2-reportes.repo.js
-- ../BaseLocal2/core/bl2-data-engine.js
-- ../BaseLocal2/core/bl2-requirements-engine.js
-- excel-local.repo.js
-- bl-periodos-canon.service.js
-- bl-divisiones.service.js
-- repo.app.js
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-repo-core.1";
-  var FALLBACK_REQS=[{key:"academico",label:"Académico"},{key:"documentacion",label:"Documentación"},{key:"financiero",label:"Financiero"},{key:"practicasvinculacion",label:"Prácticas"},{key:"vinculacion",label:"Vinculación"},{key:"seguimientograduados",label:"Seguimiento graduados"},{key:"ingles",label:"Inglés"},{key:"actualizaciondatos",label:"Actualización datos"}];
+  var VERSION="3.0.0-conreportes-only";
+  var FALLBACK_REQS=[
+    {key:"academico",label:"Académico"},
+    {key:"documentacion",label:"Documentación"},
+    {key:"financiero",label:"Financiero"},
+    {key:"practicasvinculacion",label:"Prácticas"},
+    {key:"vinculacion",label:"Vinculación"},
+    {key:"seguimientograduados",label:"Seguimiento graduados"},
+    {key:"ingles",label:"Inglés"},
+    {key:"actualizaciondatos",label:"Actualización datos"}
+  ];
 
-  function bl2(){return window.BL2ReportesRepo||null;}
-  function useBL2(){return !!(bl2()&&typeof bl2().reportBuild==="function");}
-  function dataEngine(){return window.BL2DataEngine||null;}
-  function normalizer(){return window.BL2StudentNormalizer||null;}
-  function reqEngine(){return window.BL2RequirementsEngine||window.StatsRules||null;}
-  function text(v){return String(v==null?"":v).trim();}
-  function norm(v){return text(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();}
-  function pct(n,d){return d?Math.round((n*10000)/d)/100:0;}
-  function estadoMatricula(v){return norm(v||"ACTIVO")==="retirado"?"RETIRADO":"ACTIVO";}
-  function repo(){if(!window.ExcelLocalRepo)throw new Error("ExcelLocalRepo no disponible. Primero carga un Excel en Carga.");return window.ExcelLocalRepo;}
-  function periods(){if(useBL2()){var data=bl2().reportBuild({matricula:"ACTIVO"});return data.periodList||[];}try{if(dataEngine()&&typeof dataEngine().listPeriods==="function")return dataEngine().listPeriods()||[];}catch(error){}return repo().listPeriods?repo().listPeriods():repo().getSnapshot().periods||[];}
-  function rawStudents(matricula){try{if(dataEngine()&&typeof dataEngine().listStudents==="function")return dataEngine().listStudents({matricula:matricula==null?"ACTIVO":matricula,limit:0}).rows||[];}catch(error){}if(repo().listStudentsByStatus&&matricula!==undefined)return repo().listStudentsByStatus(matricula||"");return repo().listAllStudents?repo().listAllStudents():repo().getSnapshot().students||[];}
-  function samePeriod(a,b){if(!text(b))return true;if(window.BLPeriodosCanon&&typeof window.BLPeriodosCanon.samePeriod==="function")return window.BLPeriodosCanon.samePeriod(a,b);return text(a)===text(b)||norm(a)===norm(b);}
-  function divisionOf(row){if(row&&row._bl2Division)return row._bl2Division;if(window.BLDivisionesService&&typeof window.BLDivisionesService.studentDivision==="function")return window.BLDivisionesService.studentDivision(row);var list=Array.isArray(row&&row.divisiones)?row.divisiones:[];return list[0]||row.division||row.Division||row.División||"Sin división";}
-  function hasDivision(row,division){if(!text(division))return true;if(window.BLDivisionesService&&typeof window.BLDivisionesService.hasDivision==="function")return window.BLDivisionesService.hasDivision(row,division);return norm(divisionOf(row))===norm(division);}
-  function valueOf(row,key){try{if(reqEngine()&&typeof reqEngine().valueOf==="function")return reqEngine().valueOf(row||{},key);}catch(error){}return row&&row[key]!=null?row[key]:"";}
-  function estadoCelda(v){try{if(reqEngine()&&typeof reqEngine().cellStatus==="function")return reqEngine().cellStatus(v);}catch(error){}return norm(v)==="cumple"?"cumple":"no_cumple";}
-  function applicableReqs(row){try{if(reqEngine()&&typeof reqEngine().requirementsForStudent==="function")return reqEngine().requirementsForStudent(row||{});}catch(error){}return FALLBACK_REQS.slice();}
-  function estadoGeneral(row){try{if(reqEngine()&&typeof reqEngine().studentApproval==="function"){var a=reqEngine().studentApproval(row||{});return {id:a.approved?"cumple":"no_cumple",label:a.approved?"Cumple todo":"No cumple",ok:a.applicableRequirements.length-a.missingRequirements.length,no:a.missingRequirements.length,pend:0,approved:a.approved,applicableRequirements:a.applicableRequirements,missingRequirements:a.missingRequirements};}}catch(error){}var ok=0,no=0;applicableReqs(row).forEach(function(req){if(estadoCelda(valueOf(row,req.key))==="cumple")ok++;else no++;});return {id:no?"no_cumple":"cumple",label:no?"No cumple":"Cumple todo",ok:ok,no:no,pend:0};}
-  function decorate(row){var r=normalizer()&&typeof normalizer().normalize==="function"?normalizer().normalize(row||{}, {clone:false}):Object.assign({},row||{});r._cedula=text(r._bl2Id||r.cedula||r.numeroIdentificacion||r.numeroidentificacion);r._nombres=text(r._bl2Nombre||r.nombres||r.Nombres||r.nombre||r.estudiante);r._carrera=text(r._bl2Carrera||r.nombrecarrera||r.nombreCarrera||r.NombreCarrera||r.carrera)||"SIN CARRERA";r._division=divisionOf(r);r._periodo=text(r._bl2Periodo||r.periodoLabel||r.periodoId)||"SIN PERÍODO";r._periodoId=text(r._bl2PeriodoId||r.periodoId||r.ultimoPeriodoId||r.periodId);r._estadoMatricula=estadoMatricula(r._bl2EstadoMatricula||r.estadoMatricula);r._estado=estadoGeneral(r);return r;}
-  function filtered(opts){opts=opts||{};var periodId=text(opts.periodId),division=text(opts.division),career=text(opts.career),matricula=opts.matricula==null?"ACTIVO":text(opts.matricula);return rawStudents(matricula).map(decorate).filter(function(s){if(matricula&&s._estadoMatricula!==matricula)return false;if(periodId&&!samePeriod(s._periodoId||s._periodo,periodId))return false;if(division&&!hasDivision(s,division))return false;if(career&&s._carrera!==career)return false;return true;});}
-  function options(values){var map={};(values||[]).forEach(function(x){x=text(x);if(x)map[x]=true;});return Object.keys(map).sort(function(a,b){return a.localeCompare(b,"es");});}
-  function careers(list){return options((list||rawStudents("ACTIVO").map(decorate)).map(function(s){return s._carrera||"SIN CARRERA";}));}
-  function divisions(list){var rows=list||rawStudents("ACTIVO").map(decorate);if(window.BLDivisionesService&&typeof window.BLDivisionesService.listDivisionsWithEmpty==="function")return window.BLDivisionesService.listDivisionsWithEmpty(rows,"");return options(rows.map(function(s){return divisionOf(s);}));}
-  function byCareer(list){var map={};list.forEach(function(s){var k=s._carrera;if(!map[k])map[k]={key:k,total:0,cumple:0,pendiente:0,no_cumple:0,avance:0};map[k].total++;map[k][s._estado.id]++;});Object.keys(map).forEach(function(k){map[k].avance=pct(map[k].cumple,map[k].total);});return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return b.no_cumple-a.no_cumple||b.pendiente-a.pendiente||a.key.localeCompare(b.key,"es");});}
-  function byRequirement(list){return FALLBACK_REQS.map(function(req){var r={key:req.key,label:req.label,total:list.length,cumple:0,pendiente:0,no_cumple:0,avance:0,atencion:0};list.forEach(function(row){var e=estadoCelda(valueOf(row,req.key));r[e==="cumple"?"cumple":"no_cumple"]++;});r.avance=pct(r.cumple,r.total);r.atencion=r.no_cumple*3+r.pendiente;return r;}).sort(function(a,b){return b.atencion-a.atencion;});}
-  function pendingStudents(list){return list.filter(function(s){return s._estado.id!=="cumple";}).sort(function(a,b){return (b._estado.no*3+b._estado.pend)-(a._estado.no*3+a._estado.pend)||a._nombres.localeCompare(b._nombres,"es");});}
-  function build(opts){opts=opts||{};if(opts.matricula==null)opts.matricula="ACTIVO";if(useBL2())return bl2().reportBuild(opts);var list=filtered(opts);var kpis={total:list.length,cumple:0,pendiente:0,no_cumple:0,avance:0};list.forEach(function(s){kpis[s._estado.id]++;});kpis.avance=pct(kpis.cumple,kpis.total);var baseForDivision=filtered({periodId:opts.periodId||"",division:"",matricula:opts.matricula||"",career:""});var baseForCareer=filtered({periodId:opts.periodId||"",division:opts.division||"",matricula:opts.matricula||"",career:""});var data={tipo:text(opts.tipo)||"general",generatedAt:new Date().toISOString(),kpis:kpis,carreras:byCareer(list),requisitos:byRequirement(list),pendientes:pendingStudents(list),periodList:periods(),divisionList:divisions(baseForDivision),careerList:careers(baseForCareer),rows:list,filters:opts,source:"RepoCore",version:VERSION};data.text=makeText(data);data.html=makeHtml(data);return data;}
-  function makeText(data){var k=data.kpis;var lines=["REPORTE DE REQUISITOS","Fecha: "+new Date(data.generatedAt).toLocaleString(),"Tipo: "+data.tipo,"Matrícula: "+(data.filters.matricula||"Todos"),"División: "+(data.filters.division||"Todas"),"","RESUMEN GENERAL","Total estudiantes: "+k.total,"Cumplen todo: "+k.cumple,"Con pendientes: "+k.pendiente,"No cumplen: "+k.no_cumple,"Avance general: "+k.avance+"%",""];if(data.carreras[0])lines.push("Carrera con mayor atención: "+data.carreras[0].key+" (No cumple: "+data.carreras[0].no_cumple+", pendientes: "+data.carreras[0].pendiente+")");if(data.requisitos[0])lines.push("Requisito crítico: "+data.requisitos[0].label+" (No cumple: "+data.requisitos[0].no_cumple+", pendientes: "+data.requisitos[0].pendiente+")");lines.push("","RECOMENDACIÓN","Priorizar estudiantes activos con no cumplen y luego los que tienen pendientes acumulados.");return lines.join("\n");}
+  function connector(){return window.ConReportes||window.BDLocalReportes||null;}
+  function rules(){return window.StatsRules||null;}
+  function text(value){return String(value==null?"":value).trim();}
+  function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();}
+  function compact(value){return norm(value).replace(/[^a-z0-9]+/g,"");}
+  function arr(value){return Array.isArray(value)?value:[];}
+  function pct(value,total){return total?Math.round((Number(value||0)*10000)/Number(total||0))/100:0;}
+  function clone(value){try{return JSON.parse(JSON.stringify(value));}catch(error){return value;}}
+  function canonicalPeriodId(value){
+    value=text(value);
+    var match=value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
+    return match?match[1]+"-"+match[2]+"__"+match[3]+"-"+match[4]:value.replace(/_+/g,"__");
+  }
+  function normalizeCedula(value){var raw=text(value).replace(/[^0-9A-Za-z]/g,"");return /^\d{9}$/.test(raw)?"0"+raw:raw;}
+  function samePeriod(a,b){a=canonicalPeriodId(a);b=canonicalPeriodId(b);return !b||a===b||compact(a)===compact(b);}
+  function first(row,keys){
+    row=row||{};
+    for(var i=0;i<keys.length;i+=1){if(row[keys[i]]!==undefined&&row[keys[i]]!==null&&text(row[keys[i]])!==""){return row[keys[i]];}}
+    return "";
+  }
+  function cedulaOf(row){return normalizeCedula(first(row||{},["_cedula","cedula","Cedula","Cédula","numeroIdentificacion","NumeroIdentificacion","identificacion","Identificacion","_bl2Id"]));}
+  function periodOf(row){return canonicalPeriodId(first(row||{},["_periodoId","periodoId","periodId","periodoCanonicoId","ultimoPeriodoId","idPeriodo","_bl2PeriodoId","periodo","Periodo"]));}
+  function requirementKey(req){
+    req=req||{};
+    var nested=req.requisito&&typeof req.requisito==="object"?req.requisito:null;
+    return text(req.requisitoKey||req.requirementKey||req.key||req.campo||req.field||req.codigo||req.nombre||(nested&&(nested.key||nested.id||nested.nombre))||(typeof req.requisito==="string"?req.requisito:""));
+  }
+  function requirementValue(req){
+    req=req||{};
+    var keys=["valor","value","estado","cumple","aprobado","resultado"];
+    for(var i=0;i<keys.length;i+=1){
+      var value=req[keys[i]];
+      if(value===undefined||value===null){continue;}
+      if(value&&typeof value==="object"){value=value.id||value.value||value.label||"";}
+      if(typeof value==="boolean"||typeof value==="number"||text(value)!==""){return value;}
+    }
+    return "";
+  }
+  function normalizeRequirement(req){
+    req=Object.assign({},req||{});
+    var key=requirementKey(req);
+    req.requisitoKey=key;
+    req.requirementKey=key;
+    req.valor=requirementValue(req);
+    req.cedula=cedulaOf(req);
+    req.periodoId=periodOf(req);
+    return req;
+  }
+  function periodList(){
+    var con=connector();
+    if(!con){return [];}
+    var rows=[];
+    try{
+      if(typeof con.listPeriods==="function"){rows=con.listPeriods()||[];}
+      else if(typeof con.getPeriods==="function"){rows=con.getPeriods()||[];}
+    }catch(error){}
+    return arr(rows).map(function(item){
+      if(typeof item==="string"){return {id:canonicalPeriodId(item),periodoId:canonicalPeriodId(item),label:item,periodoLabel:item};}
+      item=item||{};
+      var id=canonicalPeriodId(item.id||item.periodoId||item.periodId||item.value||item.label||item.periodoLabel);
+      var label=text(item.label||item.periodoLabel||item.nombre||item.name||id);
+      return id||label?Object.assign({},item,{id:id||label,periodoId:id||label,label:label||id,periodoLabel:label||id}):null;
+    }).filter(Boolean);
+  }
+  function readBundle(filters){
+    var con=connector();
+    if(!con){throw new Error("ConReportes no está disponible.");}
+    filters=Object.assign({},filters||{});
+    filters.periodoId=canonicalPeriodId(filters.periodoId||filters.periodId||"");
+    filters.periodId=filters.periodoId;
+    var result=null;
+    if(typeof con.buildReportData==="function"){result=con.buildReportData(filters);}
+    else if(typeof con.build==="function"){result=con.build(filters);}
+    else if(typeof con.report==="function"){result=con.report(filters);}
+    result=result||{};
+    if(result&&typeof result.then==="function"){throw new Error("ConReportes debe entregar datos síncronos a RepoCore.");}
+    var students=arr(result.estudiantes||result.rows||result.students);
+    var requirements=arr(result.requisitos||result.requirements);
+    if(!students.length&&typeof con.getStudents==="function"){students=arr(con.getStudents(filters));}
+    if(!requirements.length&&typeof con.getRequirements==="function"){requirements=arr(con.getRequirements(filters));}
+    return {students:students,requirements:requirements,periods:arr(result.periodos||result.periods).length?arr(result.periodos||result.periods):periodList(),source:text(result.source)||"ConReportes"};
+  }
+  function hydrateStudents(students,requirements){
+    var index=Object.create(null);
+    arr(requirements).map(normalizeRequirement).forEach(function(req){
+      if(!req.cedula||!req.requisitoKey){return;}
+      if(!index[req.cedula]){index[req.cedula]=[];}
+      index[req.cedula].push(req);
+    });
+    return arr(students).map(function(input){
+      var row=Object.assign({},input||{});
+      var cedula=cedulaOf(row);
+      var periodoId=periodOf(row);
+      var related=(index[cedula]||[]).filter(function(req){return !periodoId||!req.periodoId||samePeriod(req.periodoId,periodoId);});
+      row.requisitos=related.map(clone);
+      related.forEach(function(req){if(req.requisitoKey){row[req.requisitoKey]=req.valor;}});
+      return row;
+    });
+  }
+  function estadoMatricula(value){return norm(value||"ACTIVO")==="retirado"?"RETIRADO":"ACTIVO";}
+  function divisionOf(row){
+    row=row||{};
+    var list=arr(row.divisiones||row.Divisiones);
+    var firstDivision=list[0]&&typeof list[0]==="object"?(list[0].nombre||list[0].label||list[0].id):list[0];
+    return text(row._division||row._bl2Division||row.divisionPrincipal||row.division||row.Division||row["División"]||firstDivision||"Sin división")||"Sin división";
+  }
+  function valueOf(row,key){
+    try{if(rules()&&typeof rules().valueOf==="function"){return rules().valueOf(row||{},key);}}catch(error){}
+    if(row&&Object.prototype.hasOwnProperty.call(row,key)){return row[key];}
+    var wanted=compact(key),found="";
+    Object.keys(row||{}).some(function(property){if(compact(property)===wanted){found=row[property];return true;}return false;});
+    return found;
+  }
+  function estadoCelda(value){
+    try{if(rules()&&typeof rules().cellStatus==="function"){return rules().cellStatus(value);}}catch(error){}
+    return ["cumple","aprobado","aprobada","si","sí","ok","1","true","x"].indexOf(norm(value))>=0?"cumple":"no_cumple";
+  }
+  function applicableReqs(row){
+    try{if(rules()&&typeof rules().requirementsForStudent==="function"){return arr(rules().requirementsForStudent(row||{}));}}catch(error){}
+    return FALLBACK_REQS.slice();
+  }
+  function estadoGeneral(row){
+    try{
+      if(rules()&&typeof rules().studentApproval==="function"){
+        var approval=rules().studentApproval(row||{});
+        return {id:approval.approved?"cumple":"no_cumple",label:approval.approved?"Cumple todo":"No cumple",ok:arr(approval.applicableRequirements).length-arr(approval.missingRequirements).length,no:arr(approval.missingRequirements).length,pend:0,approved:approval.approved,applicableRequirements:arr(approval.applicableRequirements),missingRequirements:arr(approval.missingRequirements)};
+      }
+    }catch(error){}
+    var ok=0,no=0;
+    applicableReqs(row).forEach(function(req){if(estadoCelda(valueOf(row,req.key))==="cumple"){ok+=1;}else{no+=1;}});
+    return {id:no?"no_cumple":"cumple",label:no?"No cumple":"Cumple todo",ok:ok,no:no,pend:0,approved:no===0};
+  }
+  function decorate(input){
+    var row=Object.assign({},input||{});
+    row._cedula=cedulaOf(row);
+    row._nombres=text(first(row,["_nombres","nombres","Nombres","nombre","Nombre","estudiante","Estudiante"]));
+    row._carrera=text(first(row,["_carrera","nombreCarrera","NombreCarrera","nombrecarrera","carrera","Carrera","programa","Programa"]))||"SIN CARRERA";
+    row._division=divisionOf(row);
+    row._periodoId=periodOf(row);
+    row._periodo=text(first(row,["_periodo","periodoLabel","periodoCanonicoLabel","periodo","Periodo","_periodoId"]))||row._periodoId||"SIN PERÍODO";
+    row._estadoMatricula=estadoMatricula(first(row,["_estadoMatricula","estadoMatricula","EstadoMatricula","_bl2EstadoMatricula"]));
+    row._estado=estadoGeneral(row);
+    return row;
+  }
+  function filterList(list,opts){
+    opts=opts||{};
+    var periodId=canonicalPeriodId(opts.periodId||opts.periodoId||"");
+    var division=text(opts.division||"");
+    var career=text(opts.career||opts.carrera||"");
+    var matricula=opts.matricula==null?"ACTIVO":text(opts.matricula);
+    return arr(list).filter(function(row){
+      if(matricula&&row._estadoMatricula!==matricula){return false;}
+      if(periodId&&!samePeriod(row._periodoId||row._periodo,periodId)){return false;}
+      if(division&&norm(row._division)!==norm(division)){return false;}
+      if(career&&norm(row._carrera)!==norm(career)){return false;}
+      return true;
+    });
+  }
+  function options(values){var map=Object.create(null);arr(values).forEach(function(value){value=text(value);if(value){map[norm(value)]=value;}});return Object.keys(map).map(function(key){return map[key];}).sort(function(a,b){return a.localeCompare(b,"es");});}
+  function careers(list){return options(arr(list).map(function(row){return row._carrera||"SIN CARRERA";}));}
+  function divisions(list){return options(arr(list).map(function(row){return row._division||"Sin división";}));}
+  function byCareer(list){
+    var map=Object.create(null);
+    arr(list).forEach(function(row){var key=row._carrera||"SIN CARRERA";if(!map[key]){map[key]={key:key,total:0,cumple:0,pendiente:0,no_cumple:0,avance:0};}map[key].total+=1;map[key][row._estado.id]=(map[key][row._estado.id]||0)+1;});
+    Object.keys(map).forEach(function(key){map[key].avance=pct(map[key].cumple,map[key].total);});
+    return Object.keys(map).map(function(key){return map[key];}).sort(function(a,b){return b.no_cumple-a.no_cumple||a.key.localeCompare(b.key,"es");});
+  }
+  function requirementCatalog(list){
+    var map=Object.create(null);
+    FALLBACK_REQS.forEach(function(req){map[compact(req.key)]=clone(req);});
+    arr(list).forEach(function(row){
+      applicableReqs(row).forEach(function(req){var key=text(req.key||req.id);if(key){map[compact(key)]={key:key,label:text(req.label||req.nombre||key)};}});
+      arr(row.requisitos).forEach(function(req){var key=requirementKey(req);if(key&&!map[compact(key)]){map[compact(key)]={key:key,label:text(req.requisitoLabel||req.label||req.nombre||key)};}});
+    });
+    return Object.keys(map).map(function(key){return map[key];});
+  }
+  function byRequirement(list){
+    return requirementCatalog(list).map(function(req){
+      var result={key:req.key,label:req.label,total:0,cumple:0,pendiente:0,no_cumple:0,avance:0,atencion:0};
+      arr(list).forEach(function(row){
+        var applies=applicableReqs(row).some(function(item){return compact(item.key||item.id)===compact(req.key);});
+        if(!applies){return;}
+        result.total+=1;
+        if(estadoCelda(valueOf(row,req.key))==="cumple"){result.cumple+=1;}else{result.no_cumple+=1;}
+      });
+      result.avance=pct(result.cumple,result.total);
+      result.atencion=result.no_cumple*3+result.pendiente;
+      return result;
+    }).filter(function(result){return result.total>0;}).sort(function(a,b){return b.atencion-a.atencion||a.label.localeCompare(b.label,"es");});
+  }
+  function pendingStudents(list){return arr(list).filter(function(row){return row._estado.id!=="cumple";}).sort(function(a,b){return (b._estado.no*3+b._estado.pend)-(a._estado.no*3+a._estado.pend)||(a._nombres||"").localeCompare(b._nombres||"","es");});}
+  function makeText(data){
+    var k=data.kpis;
+    var lines=["REPORTE DE REQUISITOS","Fecha: "+new Date(data.generatedAt).toLocaleString(),"Tipo: "+data.tipo,"Matrícula: "+(data.filters.matricula||"Todos"),"División: "+(data.filters.division||"Todas"),"","RESUMEN GENERAL","Total estudiantes: "+k.total,"Cumplen todo: "+k.cumple,"Con pendientes: "+k.pendiente,"No cumplen: "+k.no_cumple,"Avance general: "+k.avance+"%",""];
+    if(data.carreras[0]){lines.push("Carrera con mayor atención: "+data.carreras[0].key+" (No cumple: "+data.carreras[0].no_cumple+")");}
+    if(data.requisitos[0]){lines.push("Requisito crítico: "+data.requisitos[0].label+" (No cumple: "+data.requisitos[0].no_cumple+")");}
+    lines.push("","RECOMENDACIÓN","Priorizar estudiantes activos que registran requisitos pendientes.");
+    return lines.join("\n");
+  }
   function makeHtml(data){return "<h1>Reporte de Requisitos</h1><pre>"+makeText(data).replace(/&/g,"&amp;").replace(/</g,"&lt;")+"</pre>";}
-  function source(){return useBL2()?"BL2ReportesRepo":(dataEngine()?"BL2DataEngine":"ExcelLocalRepo");}
-  window.RepoCore={version:VERSION,REQS:FALLBACK_REQS,periods:periods,careers:careers,divisions:divisions,build:build,estadoCelda:estadoCelda,estadoGeneral:estadoGeneral,estadoMatricula:estadoMatricula,divisionOf:divisionOf,source:source};
+  function build(opts){
+    opts=Object.assign({},opts||{});
+    if(opts.matricula==null){opts.matricula="ACTIVO";}
+    var broadFilters={periodoId:opts.periodId||opts.periodoId||"",periodId:opts.periodId||opts.periodoId||"",matricula:opts.matricula};
+    var bundle=readBundle(broadFilters);
+    var base=hydrateStudents(bundle.students,bundle.requirements).map(decorate);
+    var list=filterList(base,opts);
+    var baseForDivision=filterList(base,{periodId:opts.periodId||"",division:"",matricula:opts.matricula,career:""});
+    var baseForCareer=filterList(base,{periodId:opts.periodId||"",division:opts.division||"",matricula:opts.matricula,career:""});
+    var kpis={total:list.length,cumple:0,pendiente:0,no_cumple:0,avance:0};
+    list.forEach(function(row){kpis[row._estado.id]=(kpis[row._estado.id]||0)+1;});
+    kpis.avance=pct(kpis.cumple,kpis.total);
+    var data={tipo:text(opts.tipo)||"general",generatedAt:new Date().toISOString(),kpis:kpis,carreras:byCareer(list),requisitos:byRequirement(list),pendientes:pendingStudents(list),periodList:periodList(),divisionList:divisions(baseForDivision),careerList:careers(baseForCareer),rows:list,filters:clone(opts),source:"ConReportes",version:VERSION};
+    data.text=makeText(data);
+    data.html=makeHtml(data);
+    return data;
+  }
+  function source(){return "ConReportes";}
+
+  window.RepoCore={
+    version:VERSION,REQS:FALLBACK_REQS,periods:periodList,careers:careers,divisions:divisions,
+    build:build,estadoCelda:estadoCelda,estadoGeneral:estadoGeneral,estadoMatricula:estadoMatricula,
+    divisionOf:divisionOf,source:source,hydrateStudents:hydrateStudents
+  };
 })(window);
