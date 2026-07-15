@@ -4,6 +4,7 @@ Ruta: /Stats/stats.bootstrap.js
 Función:
 - Preparar BDLocalScreenDeps y ConStats.
 - Cargar la extensión oficial de notas antes de la pantalla.
+- Cargar el filtro de sede para todos los cálculos de Stats.
 - Cargar la sincronización de Telegram desde Firebase para Stats.
 - Mantener un arranque secuencial sin accesos paralelos.
 ========================================================= */
@@ -82,6 +83,7 @@ Función:
       .then(function(){return load("stats.rules.js",function(){return window.StatsRules;});})
       .then(function(){return load("stats.notes.guard.js");})
       .then(function(){return load("stats.core.js",function(){return window.StatsCore;});})
+      .then(function(){return load("stats.sede.filter.js",function(){return window.StatsSedeFilter;});})
       .then(function(){return load("stats.carrera.guard.js");})
       .then(function(){return load("stats.filters.patch.js",function(){return window.StatsFiltersPatch;});})
       .then(function(){return load("stats.charts.js",function(){return window.StatsCharts;});})
@@ -94,6 +96,7 @@ Función:
       .then(function(){return load("stats.summary.js",function(){return window.StatsSummary;});})
       .then(function(){return load("stats.sections.js",function(){return window.StatsSections;});})
       .then(function(){
+        if(window.StatsSedeFilter&&typeof window.StatsSedeFilter.install==="function"){window.StatsSedeFilter.install();}
         try{window.dispatchEvent(new CustomEvent("stats:bootstrap-ready",{detail:{ok:true,source:"ConStats"}}));}catch(error){}
       })
       .catch(function(error){
@@ -102,6 +105,6 @@ Función:
       });
   }
 
-  window.StatsBootstrap={version:"1.3.0-telegram-firebase-sync",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"1.4.0-sede-filter",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
