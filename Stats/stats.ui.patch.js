@@ -10,10 +10,9 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.2-telegram-final-status";
+  var VERSION="1.0.3-telegram-final-status";
   var scheduled=false;
   var statusTimer=null;
-  var lastStatusSignature="";
 
   function text(value){return String(value==null?"":value).trim();}
   function esc(value){return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
@@ -139,20 +138,12 @@ Función:
   function autoHideStatus(){
     var node=el("stats-status");
     if(!node){return;}
-    var isOk=node.classList.contains("ok");
-    var type=isOk?"ok":(node.classList.contains("warn")?"warn":"info");
-    var signature=type+"|"+text(node.textContent);
-
-    if(!isOk){
-      lastStatusSignature=signature;
+    if(!node.classList.contains("ok")){
       node.classList.remove("is-auto-hidden");
       if(statusTimer){clearTimeout(statusTimer);statusTimer=null;}
       return;
     }
-
-    if(signature===lastStatusSignature){return;}
-    lastStatusSignature=signature;
-    node.classList.remove("is-auto-hidden");
+    if(node.classList.contains("is-auto-hidden")){return;}
     if(statusTimer){clearTimeout(statusTimer);}
     statusTimer=setTimeout(function(){
       statusTimer=null;
