@@ -2,14 +2,16 @@
 Nombre completo: cone.ncomplex.js
 Ruta: /BDLocal/conexiones/cone.ncomplex.js
 Función:
+- Exponer inmediatamente un proxy oficial ConNcomplex.
 - Preparar internamente esquema V3, repositorios y servicios.
-- Cargar la API de ConNcomplex después de confirmar dependencias.
-- Ser la única entrada conocida por la pantalla Ncomplex.
+- Delegar las operaciones a cone.ncomplex.api.js cuando esté listo.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.0-self-contained-loader";
+  var VERSION="2.1.0-immediate-proxy";
+  var SCREEN="ncomplex";
+  var SOURCE="ConNcomplex";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
   var readyPromise=null;
@@ -25,9 +27,10 @@ Función:
     return loading[src];
   }
   function sequence(files){return files.reduce(function(chain,item){return chain.then(function(){return load(item.path,item.test);});},Promise.resolve());}
+  function actual(){var current=window.ConNcomplex;return current&&current.__loaderProxy!==true?current:null;}
 
   function prepare(){
-    if(window.ConNcomplex&&typeof window.ConNcomplex.ready==="function"){return Promise.resolve(window.ConNcomplex);}
+    if(actual()){return Promise.resolve(actual());}
     if(readyPromise){return readyPromise;}
     lastError="";
     readyPromise=sequence([
@@ -57,15 +60,40 @@ Función:
         {path:"../services/bdl.service.ncomplex.js",test:function(){return window.BDLServiceNcomplex;}},
         {path:"../migrations/bdl.migration.index.js"},
         {path:"../migrations/bdl.migration.v3.ncomplex.js",test:function(){return window.BDLMigrationV3Ncomplex;}},
-        {path:"cone.ncomplex.api.js",test:function(){return window.ConNcomplex;}}
+        {path:"cone.ncomplex.api.js",test:actual}
       ]);
-    }).then(function(){
-      if(!window.ConNcomplex){throw new Error("cone.ncomplex.api.js no expuso ConNcomplex.");}
-      return window.ConNcomplex;
-    }).catch(function(error){lastError=error&&error.message?error.message:String(error);throw error;}).finally(function(){readyPromise=null;});
+    }).then(function(){if(!actual()){throw new Error("cone.ncomplex.api.js no expuso la API real.");}return actual();}).catch(function(error){lastError=error&&error.message?error.message:String(error);throw error;}).finally(function(){readyPromise=null;});
     return readyPromise;
   }
 
-  window.ConNcomplexLoader={version:VERSION,prepare:prepare,status:function(){return {ok:!lastError,ready:!!window.ConNcomplex,source:"ConNcomplex",error:lastError};}};
+  function invoke(method,args,fallback){
+    return prepare().then(function(api){
+      if(!api||typeof api[method]!=="function"){if(fallback!==undefined){return fallback;}throw new Error("ConNcomplex no admite "+method+".");}
+      return api[method].apply(api,args||[]);
+    });
+  }
+  function ready(options){return invoke("ready",[options||{}]);}
+  function status(){var api=actual();return api&&typeof api.status==="function"?api.status():{ok:!lastError&&!!api,ready:!!api,loading:!!readyPromise,version:VERSION,screen:SCREEN,source:SOURCE,error:lastError};}
+
+  var proxy={
+    __loaderProxy:true,version:VERSION,screen:SCREEN,source:SOURCE,
+    ready:ready,status:status,
+    read:function(options){return invoke("read",[options||{}]);},
+    refresh:function(options){return invoke("refresh",[options||{}]);},reload:function(options){return invoke("refresh",[options||{}]);},
+    listPeriods:function(){return invoke("listPeriods",[],[]);},getPeriods:function(){return invoke("listPeriods",[],[]);},
+    listStudents:function(options){return invoke("listStudents",[options||{}],[]);},getStudents:function(options){return invoke("listStudents",[options||{}],[]);},
+    getPage:function(options){return invoke("getPage",[options||{}],{rows:[],page:1,limit:25,total:0,totalPages:1});},page:function(options){return invoke("getPage",[options||{}]);},
+    getSummary:function(options){return invoke("getSummary",[options||{}],{});},summary:function(options){return invoke("getSummary",[options||{}],{});},
+    listEvaluations:function(options){return invoke("listEvaluations",[options||{}],[]);},
+    getEvaluation:function(periodoId,cedula){return invoke("getEvaluation",[periodoId,cedula],null);},getByPeriodoCedula:function(periodoId,cedula){return invoke("getEvaluation",[periodoId,cedula],null);},
+    saveEvaluation:function(row,context){return invoke("saveEvaluation",[row||{},context||{}]);},save:function(row,context){return invoke("saveEvaluation",[row||{},context||{}]);},
+    saveMany:function(rows,context){return invoke("saveMany",[Array.isArray(rows)?rows:[],context||{}],[]);},
+    changeModality:function(periodoId,cedula,modalidad){return invoke("changeModality",[periodoId,cedula,modalidad]);},
+    saveImport:function(row){return invoke("saveImport",[row||{}]);},listImports:function(options){return invoke("listImports",[options||{}],[]);}
+  };
+
+  window.ConNcomplex=proxy;window.BDLocalConeNcomplex=proxy;window.BDLocalNcomplex=proxy;
+  window.ConNcomplexLoader={version:VERSION,prepare:prepare,status:status};
+  var hub=window.BDLocalConexiones;if(hub&&typeof hub.register==="function"){hub.register(SCREEN,proxy);}
   prepare().catch(function(error){try{console.error("[ConNcomplexLoader]",error);}catch(innerError){}});
 })(window,document);
