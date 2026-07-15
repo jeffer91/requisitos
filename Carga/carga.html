@@ -18,6 +18,7 @@ Función o funciones:
 
   <script defer src="./carga.config.js"></script>
   <script defer src="./carga.state.js"></script>
+  <script defer src="./carga.norm-compat.js"></script>
 
   <script defer src="./readers/carga.reader.csv.js"></script>
   <script defer src="./readers/carga.reader.txt.js"></script>
@@ -47,15 +48,10 @@ Función o funciones:
 </head>
 <body>
   <main class="carga-shell">
-    <header class="carga-title">
-      <h1>Carga de estudiantes</h1>
-    </header>
+    <header class="carga-title"><h1>Carga de estudiantes</h1></header>
 
     <section class="carga-card" aria-labelledby="tituloCrearPeriodo">
-      <div class="carga-card-title">
-        <h2 id="tituloCrearPeriodo">Crear período</h2>
-        <span class="carga-chip" id="cargaPeriodosCount">0 períodos</span>
-      </div>
+      <div class="carga-card-title"><h2 id="tituloCrearPeriodo">Crear período</h2><span class="carga-chip" id="cargaPeriodosCount">0 períodos</span></div>
       <div class="carga-period-create">
         <label><span>Mes de inicio</span><select id="cargaPeriodoDesdeMes"></select></label>
         <label><span>Año de inicio</span><input id="cargaPeriodoDesdeAnio" type="number" min="2020" max="2100" step="1" /></label>
@@ -67,24 +63,14 @@ Función o funciones:
     </section>
 
     <section class="carga-card" aria-labelledby="tituloCargaArchivo">
-      <div class="carga-card-title">
-        <h2 id="tituloCargaArchivo">Cargar estudiantes</h2>
-        <span class="carga-chip is-warn" id="cargaEstadoPill">Sin analizar</span>
-      </div>
-
-      <label class="carga-field carga-period-target">
-        <span>Período donde se guardará el archivo</span>
-        <select id="cargaPeriodoSelect"><option value="">Seleccione un período...</option></select>
-      </label>
+      <div class="carga-card-title"><h2 id="tituloCargaArchivo">Cargar estudiantes</h2><span class="carga-chip is-warn" id="cargaEstadoPill">Sin analizar</span></div>
+      <label class="carga-field carga-period-target"><span>Período donde se guardará el archivo</span><select id="cargaPeriodoSelect"><option value="">Seleccione un período...</option></select></label>
 
       <div class="carga-upload-grid">
         <label class="carga-dropzone" id="cargaDropzone" for="cargaArchivoInput">
           <input id="cargaArchivoInput" type="file" accept=".xlsx,.xls,.csv,.txt,.json,.html,.htm" />
-          <span class="carga-dropzone-icon">↑</span>
-          <strong>Seleccionar o arrastrar archivo</strong>
-          <small>XLSX, XLS, CSV, TXT, JSON o HTML</small>
+          <span class="carga-dropzone-icon">↑</span><strong>Seleccionar o arrastrar archivo</strong><small>XLSX, XLS, CSV, TXT, JSON o HTML</small>
         </label>
-
         <div class="carga-file-panel">
           <div><span>Archivo</span><strong id="cargaFileInfo">Ninguno seleccionado</strong></div>
           <div><span>Período</span><strong id="cargaResumenPeriodo">—</strong></div>
@@ -97,54 +83,30 @@ Función o funciones:
       </div>
 
       <section class="carga-guard carga-hidden" id="cargaGuardBox" aria-live="polite">
-        <div class="carga-guard-head">
-          <div><strong id="cargaGuardTitle">Resultado del análisis</strong><small id="cargaGuardMessage"></small></div>
-          <span class="carga-chip" id="cargaGuardChip">Pendiente</span>
-        </div>
+        <div class="carga-guard-head"><div><strong id="cargaGuardTitle">Resultado del análisis</strong><small id="cargaGuardMessage"></small></div><span class="carga-chip" id="cargaGuardChip">Pendiente</span></div>
         <div class="carga-guard-stats">
-          <div><span>En BDLocal</span><strong id="cargaGuardExisting">0</strong></div>
-          <div><span>En archivo</span><strong id="cargaGuardFile">0</strong></div>
-          <div><span>Coinciden</span><strong id="cargaGuardCommon">0</strong></div>
-          <div><span>Diferencias</span><strong id="cargaGuardDifferent">0</strong></div>
-          <div><span>Porcentaje</span><strong id="cargaGuardPercent">0%</strong></div>
+          <div><span>En BDLocal</span><strong id="cargaGuardExisting">0</strong></div><div><span>En archivo</span><strong id="cargaGuardFile">0</strong></div><div><span>Coinciden</span><strong id="cargaGuardCommon">0</strong></div><div><span>Diferencias</span><strong id="cargaGuardDifferent">0</strong></div><div><span>Porcentaje</span><strong id="cargaGuardPercent">0%</strong></div>
         </div>
       </section>
 
       <div class="carga-mini-stats">
-        <div><span>Estudiantes</span><strong id="cargaStatStudents">0</strong></div>
-        <div><span>Carreras</span><strong id="cargaStatCareers">0</strong></div>
-        <div><span>Divisiones</span><strong id="cargaStatDivisions">0</strong></div>
-        <div><span>Última carga</span><strong id="cargaStatLastLoad">—</strong></div>
+        <div><span>Estudiantes</span><strong id="cargaStatStudents">0</strong></div><div><span>Carreras</span><strong id="cargaStatCareers">0</strong></div><div><span>Divisiones</span><strong id="cargaStatDivisions">0</strong></div><div><span>Última carga</span><strong id="cargaStatLastLoad">—</strong></div>
       </div>
-
       <div class="carga-alert-grid">
-        <section><h3>Alertas</h3><div id="cargaWarnings" class="carga-list"><div class="carga-empty">Sin alertas.</div></div></section>
-        <section><h3>Errores</h3><div id="cargaErrors" class="carga-list"><div class="carga-empty">Sin errores.</div></div></section>
+        <section><h3>Alertas</h3><div id="cargaWarnings" class="carga-list"><div class="carga-empty">Sin alertas.</div></div></section><section><h3>Errores</h3><div id="cargaErrors" class="carga-list"><div class="carga-empty">Sin errores.</div></div></section>
       </div>
     </section>
 
     <section class="carga-card" aria-labelledby="tituloDivisiones">
-      <div class="carga-card-title">
-        <h2 id="tituloDivisiones">Divisiones</h2>
-        <span class="carga-chip" id="cargaDivisionesCount">0 divisiones</span>
-      </div>
-      <div class="carga-inline-control">
-        <label class="carga-field"><span>Período</span><select id="cargaDivisionesPeriodoSelect"><option value="">Seleccione un período...</option></select></label>
-        <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnDivisionesPeriodo" disabled>Administrar divisiones</button>
-      </div>
+      <div class="carga-card-title"><h2 id="tituloDivisiones">Divisiones</h2><span class="carga-chip" id="cargaDivisionesCount">0 divisiones</span></div>
+      <div class="carga-inline-control"><label class="carga-field"><span>Período</span><select id="cargaDivisionesPeriodoSelect"><option value="">Seleccione un período...</option></select></label><button type="button" class="carga-btn carga-btn-primary" id="cargaBtnDivisionesPeriodo" disabled>Administrar divisiones</button></div>
     </section>
 
     <section class="carga-card carga-danger-zone" aria-labelledby="tituloBorrar">
-      <div class="carga-card-title">
-        <h2 id="tituloBorrar">Borrar información</h2>
-        <span class="carga-chip is-danger">Zona delicada</span>
-      </div>
+      <div class="carga-card-title"><h2 id="tituloBorrar">Borrar información</h2><span class="carga-chip is-danger">Zona delicada</span></div>
       <div class="carga-inline-control">
         <label class="carga-field"><span>Período</span><select id="cargaBorrarPeriodoSelect"><option value="">Seleccione un período...</option></select></label>
-        <div class="carga-actions">
-          <button type="button" class="carga-btn carga-btn-danger-soft" id="cargaBtnBorrarEstudiantes" disabled>Borrar estudiantes</button>
-          <button type="button" class="carga-btn carga-btn-danger" id="cargaBtnBorrarPeriodoCompleto" disabled>Borrar período completo</button>
-        </div>
+        <div class="carga-actions"><button type="button" class="carga-btn carga-btn-danger-soft" id="cargaBtnBorrarEstudiantes" disabled>Borrar estudiantes</button><button type="button" class="carga-btn carga-btn-danger" id="cargaBtnBorrarPeriodoCompleto" disabled>Borrar período completo</button></div>
       </div>
       <p class="carga-danger-help" id="cargaBorrarResumen">Seleccione un período para revisar lo que se borrará.</p>
     </section>
