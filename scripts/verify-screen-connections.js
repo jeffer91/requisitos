@@ -101,7 +101,7 @@ contains("Ficha/ficha.html", "../BDLocal/conexiones/cone.ficha.js", "Ficha debe 
 contains("Ficha/ficha.html", "ficha.connection-bridge.js", "Ficha debe cargar su puente de ConFicha");
 order("Ficha/ficha.html", "../BDLocal/conexiones/cone.ficha.js", "ficha.connection-bridge.js");
 order("Ficha/ficha.html", "ficha.connection-bridge.js", "ficha.app.js");
-contains("Ficha/ficha.connection-bridge.js", "source:function(){return \"ConFicha\";}", "FichaCore debe declarar ConFicha como fuente");
+contains("Ficha/ficha.connection-bridge.js", "Core.source=function(){return \"ConFicha\";};", "FichaCore debe declarar ConFicha como fuente");
 contains("Ficha/ficha.modalidad.js", "con.updateStudent", "La modalidad debe guardarse mediante ConFicha.updateStudent");
 
 const fichaHtml = read("Ficha/ficha.html");
