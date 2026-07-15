@@ -3,14 +3,9 @@
 Nombre completo: ncomplex.html
 Ruta o ubicación: /Ncomplex/ncomplex.html
 Función o funciones:
-- Pantalla para cargar todos los estudiantes de un período desde BDLocal.
-- Filtrar por período, carrera, modalidad, estado y búsqueda.
-- Pegar, analizar y cruzar datos externos mediante la cédula.
-- Editar notas de complexivo y trabajo de titulación.
-- Cambiar modalidad mediante popup y guardar en evaluaciones_titulacion.
-Con qué se conecta:
-- BDLocal DB_VERSION 3 y cone.ncomplex.js
-- Todos los archivos de /Ncomplex/
+- Pantalla para cargar estudiantes y evaluaciones de titulación.
+- Conectarse mediante ConNcomplex.
+- Delegar la preparación interna al bootstrap controlado.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -22,214 +17,67 @@ Con qué se conecta:
 <body>
   <main class="ncomplex-app">
     <section id="ncomplex-status" class="ncomplex-statusbar is-info" aria-live="polite">
-      Preparando Ncomplex...
+      Conectando Ncomplex con BDLocal...
     </section>
 
     <section class="ncomplex-card ncomplex-toolbar" aria-label="Filtros de Ncomplex">
       <div class="ncomplex-toolbar-row">
-        <label class="ncomplex-field">
-          <span>Período</span>
-          <select id="ncomplex-filter-periodo">
-            <option value="">Seleccione un período</option>
-          </select>
-        </label>
-
-        <label class="ncomplex-field">
-          <span>Carrera</span>
-          <select id="ncomplex-filter-carrera">
-            <option value="">Todas las carreras</option>
-          </select>
-        </label>
-
-        <label class="ncomplex-field">
-          <span>Modalidad</span>
-          <select id="ncomplex-filter-modalidad">
-            <option value="">Todas las modalidades</option>
-            <option value="EXAMEN_COMPLEXIVO">Examen complexivo</option>
-            <option value="TRABAJO_TITULACION">Trabajo de titulación</option>
-          </select>
-        </label>
-
-        <label class="ncomplex-field">
-          <span>Estado</span>
-          <select id="ncomplex-filter-estado">
-            <option value="">Todos los estados</option>
-            <option value="SIN_NOTAS">Sin notas</option>
-            <option value="INCOMPLETO">Incompleto</option>
-            <option value="APROBADO">Aprobado</option>
-            <option value="NO_APROBADO">No aprobado</option>
-          </select>
-        </label>
+        <label class="ncomplex-field"><span>Período</span><select id="ncomplex-filter-periodo"><option value="">Seleccione un período</option></select></label>
+        <label class="ncomplex-field"><span>Carrera</span><select id="ncomplex-filter-carrera"><option value="">Todas las carreras</option></select></label>
+        <label class="ncomplex-field"><span>Modalidad</span><select id="ncomplex-filter-modalidad"><option value="">Todas las modalidades</option><option value="EXAMEN_COMPLEXIVO">Examen complexivo</option><option value="TRABAJO_TITULACION">Trabajo de titulación</option></select></label>
+        <label class="ncomplex-field"><span>Estado</span><select id="ncomplex-filter-estado"><option value="">Todos los estados</option><option value="SIN_NOTAS">Sin notas</option><option value="INCOMPLETO">Incompleto</option><option value="APROBADO">Aprobado</option><option value="NO_APROBADO">No aprobado</option></select></label>
       </div>
 
       <div class="ncomplex-toolbar-row ncomplex-toolbar-row-secondary">
-        <label class="ncomplex-field">
-          <span>Buscar estudiante</span>
-          <input id="ncomplex-filter-search" type="search" placeholder="Cédula, nombre, carrera o código de titulación..." />
-        </label>
-
-        <label class="ncomplex-checkbox">
-          <input id="ncomplex-filter-faltantes" type="checkbox" />
-          <span>Solo notas faltantes</span>
-        </label>
-
-        <div class="ncomplex-toolbar-actions">
-          <span id="ncomplex-visible-count" class="ncomplex-visible">0 visible(s)</span>
-          <button id="ncomplex-btn-clear-filters" class="ncomplex-btn" type="button">Limpiar filtros</button>
-          <button id="ncomplex-btn-refresh" class="ncomplex-btn" type="button">Actualizar</button>
-        </div>
+        <label class="ncomplex-field"><span>Buscar estudiante</span><input id="ncomplex-filter-search" type="search" placeholder="Cédula, nombre, carrera o código de titulación..." /></label>
+        <label class="ncomplex-checkbox"><input id="ncomplex-filter-faltantes" type="checkbox" /><span>Solo notas faltantes</span></label>
+        <div class="ncomplex-toolbar-actions"><span id="ncomplex-visible-count" class="ncomplex-visible">0 visible(s)</span><button id="ncomplex-btn-clear-filters" class="ncomplex-btn" type="button">Limpiar filtros</button><button id="ncomplex-btn-refresh" class="ncomplex-btn" type="button">Actualizar</button></div>
       </div>
     </section>
 
     <section id="ncomplex-summary" class="ncomplex-summary" aria-label="Resumen de notas"></section>
 
     <section class="ncomplex-card ncomplex-careers">
-      <div class="ncomplex-section-head">
-        <div>
-          <h2>Carreras y modalidades</h2>
-          <p>Seleccione un grupo para completar sus notas.</p>
-        </div>
-      </div>
-      <div id="ncomplex-career-summary" class="ncomplex-career-summary">
-        <div class="ncomplex-empty-inline">Seleccione un período para ver carreras y modalidades.</div>
-      </div>
+      <div class="ncomplex-section-head"><div><h2>Carreras y modalidades</h2><p>Seleccione un grupo para completar sus notas.</p></div></div>
+      <div id="ncomplex-career-summary" class="ncomplex-career-summary"><div class="ncomplex-empty-inline">Seleccione un período para ver carreras y modalidades.</div></div>
     </section>
 
     <section class="ncomplex-import" aria-label="Importar notas desde texto">
       <article class="ncomplex-card ncomplex-import-panel">
-        <div class="ncomplex-section-head">
-          <div>
-            <h2>Pegar datos</h2>
-            <p>El cruce se realiza por cédula dentro del período seleccionado.</p>
-          </div>
-        </div>
-
-        <label class="ncomplex-field">
-          <span>Texto copiado de la tabla</span>
-          <textarea id="ncomplex-paste-data" placeholder="Pegue aquí el encabezado y las filas de estudiantes..."></textarea>
-        </label>
-
-        <div class="ncomplex-import-actions">
-          <button id="ncomplex-btn-analyze" class="ncomplex-btn ncomplex-btn-primary" type="button">Analizar y cruzar</button>
-          <button id="ncomplex-btn-apply-import" class="ncomplex-btn ncomplex-btn-accent" type="button" disabled>Aplicar encontrados</button>
-          <button id="ncomplex-btn-clear-import" class="ncomplex-btn" type="button">Limpiar</button>
-        </div>
+        <div class="ncomplex-section-head"><div><h2>Pegar datos</h2><p>El cruce se realiza por cédula dentro del período seleccionado.</p></div></div>
+        <label class="ncomplex-field"><span>Texto copiado de la tabla</span><textarea id="ncomplex-paste-data" placeholder="Pegue aquí el encabezado y las filas de estudiantes..."></textarea></label>
+        <div class="ncomplex-import-actions"><button id="ncomplex-btn-analyze" class="ncomplex-btn ncomplex-btn-primary" type="button">Analizar y cruzar</button><button id="ncomplex-btn-apply-import" class="ncomplex-btn ncomplex-btn-accent" type="button" disabled>Aplicar encontrados</button><button id="ncomplex-btn-clear-import" class="ncomplex-btn" type="button">Limpiar</button></div>
       </article>
 
       <article class="ncomplex-card ncomplex-import-panel">
-        <div class="ncomplex-section-head">
-          <div>
-            <h2>Resultado del cruce</h2>
-            <p>Los conflictos no se sobrescriben automáticamente.</p>
-          </div>
-        </div>
-
-        <div id="ncomplex-import-results" class="ncomplex-import-results">
-          <div class="ncomplex-empty-inline">Todavía no se han analizado datos pegados.</div>
-        </div>
+        <div class="ncomplex-section-head"><div><h2>Resultado del cruce</h2><p>Los conflictos no se sobrescriben automáticamente.</p></div></div>
+        <div id="ncomplex-import-results" class="ncomplex-import-results"><div class="ncomplex-empty-inline">Todavía no se han analizado datos pegados.</div></div>
         <div id="ncomplex-import-details" class="ncomplex-import-details"></div>
       </article>
     </section>
 
     <section class="ncomplex-card ncomplex-table-card" aria-label="Notas de estudiantes">
-      <div class="ncomplex-table-note">
-        <span>Complexivo: teórico 40% + práctico 60%.</span>
-        <span>Trabajo de titulación: escrito 60% + defensa 40%.</span>
-        <span>Enter avanza al siguiente campo de nota.</span>
-      </div>
-      <div id="ncomplex-table-wrap" class="ncomplex-table-wrap">
-        <div class="ncomplex-empty">
-          <strong>No hay estudiantes para mostrar.</strong>
-          <span>Seleccione un período.</span>
-        </div>
-      </div>
+      <div class="ncomplex-table-note"><span>Complexivo: teórico 40% + práctico 60%.</span><span>Trabajo de titulación: escrito 60% + defensa 40%.</span><span>Enter avanza al siguiente campo de nota.</span></div>
+      <div id="ncomplex-table-wrap" class="ncomplex-table-wrap"><div class="ncomplex-empty"><strong>No hay estudiantes para mostrar.</strong><span>Seleccione un período.</span></div></div>
       <div id="ncomplex-pagination" class="ncomplex-pagination"></div>
     </section>
   </main>
 
-  <button id="ncomplex-btn-save" class="ncomplex-floating-save" type="button" disabled>
-    Guardar cambios
-  </button>
+  <button id="ncomplex-btn-save" class="ncomplex-floating-save" type="button" disabled>Guardar cambios</button>
 
   <section id="ncomplex-modality-modal" class="ncomplex-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
     <div class="ncomplex-modal-dialog">
-      <header class="ncomplex-modal-head">
-        <h2>Cambiar modalidad</h2>
-        <button class="ncomplex-modal-close" type="button" data-ncomplex-modal-close aria-label="Cerrar">×</button>
-      </header>
-
+      <header class="ncomplex-modal-head"><h2>Cambiar modalidad</h2><button class="ncomplex-modal-close" type="button" data-ncomplex-modal-close aria-label="Cerrar">×</button></header>
       <div class="ncomplex-modal-body">
-        <div class="ncomplex-modal-student">
-          <strong id="ncomplex-modal-student">Estudiante</strong>
-          <span id="ncomplex-modal-cedula"></span>
-        </div>
-
-        <div>
-          Modalidad actual:
-          <span id="ncomplex-modal-current" class="ncomplex-modal-current">Examen complexivo</span>
-        </div>
-
-        <label class="ncomplex-field">
-          <span>Nueva modalidad</span>
-          <select id="ncomplex-modal-select">
-            <option value="EXAMEN_COMPLEXIVO">Examen complexivo</option>
-            <option value="TRABAJO_TITULACION">Trabajo de titulación</option>
-          </select>
-        </label>
-
-        <div class="ncomplex-empty-inline">
-          Las notas anteriores se conservan. Solo cambia la modalidad activa y la nota oficial utilizada.
-        </div>
+        <div class="ncomplex-modal-student"><strong id="ncomplex-modal-student">Estudiante</strong><span id="ncomplex-modal-cedula"></span></div>
+        <div>Modalidad actual: <span id="ncomplex-modal-current" class="ncomplex-modal-current">Examen complexivo</span></div>
+        <label class="ncomplex-field"><span>Nueva modalidad</span><select id="ncomplex-modal-select"><option value="EXAMEN_COMPLEXIVO">Examen complexivo</option><option value="TRABAJO_TITULACION">Trabajo de titulación</option></select></label>
+        <div class="ncomplex-empty-inline">Las notas anteriores se conservan. Solo cambia la modalidad activa y la nota oficial utilizada.</div>
       </div>
-
-      <footer class="ncomplex-modal-actions">
-        <button class="ncomplex-btn" type="button" data-ncomplex-modal-close>Cancelar</button>
-        <button class="ncomplex-btn ncomplex-btn-primary" type="button" data-ncomplex-modal-save>Guardar cambio</button>
-      </footer>
+      <footer class="ncomplex-modal-actions"><button class="ncomplex-btn" type="button" data-ncomplex-modal-close>Cancelar</button><button class="ncomplex-btn ncomplex-btn-primary" type="button" data-ncomplex-modal-save>Guardar cambio</button></footer>
     </div>
   </section>
 
-  <!-- Base Local: configuración, reglas, repositorios y servicios -->
-  <script src="../BDLocal/bl2.config.js"></script>
-  <script src="../BDLocal/bl2.config.v2.js"></script>
-  <script src="../BDLocal/bl2.config.v3.js"></script>
-  <script src="../BDLocal/bl2.db.js"></script>
-
-  <script src="../BDLocal/rules/bdl.rules.index.js"></script>
-  <script src="../BDLocal/rules/bdl.rules.persona.js"></script>
-  <script src="../BDLocal/rules/bdl.rules.matricula.js"></script>
-  <script src="../BDLocal/rules/bdl.rules.evaluaciones-titulacion.js"></script>
-
-  <script src="../BDLocal/repositories/bdl.repo.index.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.periodos.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.estudiantes.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.personas.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.matriculas.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.cambios.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.evaluaciones-titulacion.js"></script>
-  <script src="../BDLocal/repositories/bdl.repo.importaciones.js"></script>
-
-  <script src="../BDLocal/services/bdl.service.index.js"></script>
-  <script src="../BDLocal/services/bdl.service.periodos.js"></script>
-  <script src="../BDLocal/services/bdl.service.estudiantes.js"></script>
-  <script src="../BDLocal/services/bdl.service.ncomplex.js"></script>
-
-  <script src="../BDLocal/migrations/bdl.migration.index.js"></script>
-  <script src="../BDLocal/migrations/bdl.migration.v3.ncomplex.js"></script>
-  <script src="../BDLocal/conexiones/cone.ncomplex.js"></script>
-
-  <!-- Pantalla Ncomplex -->
-  <script src="ncomplex.config.js"></script>
-  <script src="ncomplex.state.js"></script>
-  <script src="ncomplex.calculator.js"></script>
-  <script src="ncomplex.parser.js"></script>
-  <script src="ncomplex.matcher.js"></script>
-  <script src="ncomplex.filters.js"></script>
-  <script src="ncomplex.pagination.js"></script>
-  <script src="ncomplex.summary.js"></script>
-  <script src="ncomplex.table.js"></script>
-  <script src="ncomplex.modal.js"></script>
-  <script src="ncomplex.save.js"></script>
-  <script src="ncomplex.app.js"></script>
+  <script src="ncomplex.bootstrap.js"></script>
 </body>
 </html>
