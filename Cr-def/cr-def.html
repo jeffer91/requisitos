@@ -3,31 +3,13 @@
 Nombre completo: cr-def.html
 Ruta o ubicación: /Requisitos/Cr-def/cr-def.html
 Función o funciones:
-- Pantalla base del módulo Cr-def para cronogramas de defensas.
-- Preparar filtro principal por período.
-- Preparar buscador inteligente y filtros internos de trabajo.
-- Preparar tarjetas de resumen, alertas y tabla base.
-- Conectar configuración, reglas, plantillas, BDLocal, cache rápida, generador automático, render avanzado y exportaciones.
+- Pantalla del módulo Cr-def para cronogramas de defensas.
+- Consumir BDLocal exclusivamente mediante cone.crdef.js.
+- Preparar filtros, resumen, generación, tabla y exportación.
 Con qué se conecta:
-- cr-def.css
-- cr-def.scheduler.css
-- cr-def.render.css
-- ../BDLocal/bl2.config.js
-- ../BDLocal/bl2.config.v2.js
-- ../BDLocal/bl2.db.js
-- cr-def.config.js
-- cr-def.rules.js
-- cr-def.templates.js
-- cr-def.cache.js
-- cr-def.data.js
-- cr-def.scheduler.js
-- cr-def.js
-- cr-def.scheduler.bridge.js
-- cr-def.render.js
-- cr-def.export.js
-Pendiente para siguientes bloques:
-- Conexión al menú Maqueta.
-- Eliminación de sn-sacar-n.
+- ../BDLocal/adapters/bdl.screen-deps.js
+- ../BDLocal/conexiones/cone.crdef.js
+- Archivos internos de /Cr-def/
 ========================================================= -->
 <html lang="es">
 <head>
@@ -61,22 +43,17 @@ Pendiente para siguientes bloques:
 
     <section class="cr-status-panel" aria-live="polite">
       <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Bloque 5 activo.</strong>
-        Render visual avanzado y exportaciones están conectados. La exportación usa los filtros activos.
+        <strong>Conexión activa.</strong>
+        Los datos se consultan mediante ConCrDef y no desde IndexedDB directamente.
       </article>
     </section>
 
     <section class="cr-toolbar" aria-label="Herramientas internas">
       <div class="cr-search-box">
         <label for="crBusqueda">Buscador inteligente</label>
-        <input
-          id="crBusqueda"
-          class="cr-control"
-          type="search"
+        <input id="crBusqueda" class="cr-control" type="search"
           placeholder="Buscar por cédula, nombre, carrera, sede, aula o tribunal"
-          autocomplete="off"
-          data-cr-busqueda
-        />
+          autocomplete="off" data-cr-busqueda />
       </div>
 
       <div class="cr-filter-box" aria-label="Filtros internos de tabla">
@@ -117,40 +94,25 @@ Pendiente para siguientes bloques:
       <div class="cr-plan-grid">
         <label class="cr-plan-field" for="crDiasGlobales">
           <span>Días generales</span>
-          <input
-            id="crDiasGlobales"
-            class="cr-control"
-            type="text"
-            placeholder="Ej: 10/07/2026, 11/07/2026"
-            autocomplete="off"
-            data-cr-dias-globales
-          />
+          <input id="crDiasGlobales" class="cr-control" type="text"
+            placeholder="Ej: 10/07/2026, 11/07/2026" autocomplete="off"
+            data-cr-dias-globales />
           <small>Se aplican a todas las carreras que no tengan días propios.</small>
         </label>
         <label class="cr-plan-field" for="crDiasCarrera">
           <span>Días por carrera</span>
-          <textarea
-            id="crDiasCarrera"
-            class="cr-control cr-textarea"
-            rows="3"
+          <textarea id="crDiasCarrera" class="cr-control cr-textarea" rows="3"
             placeholder="Ej: Redes=10/07/2026,11/07/2026&#10;Administración=12/07/2026"
-            data-cr-dias-carrera
-          ></textarea>
+            data-cr-dias-carrera></textarea>
           <small>Formato: Carrera=fecha1,fecha2. También acepta Carrera|fecha1,fecha2.</small>
         </label>
       </div>
     </section>
 
     <section class="cr-actions" aria-label="Acciones principales">
-      <button type="button" class="cr-btn cr-btn--primary" data-cr-actualizar disabled>
-        Actualizar aptos
-      </button>
-      <button type="button" class="cr-btn" data-cr-generar disabled>
-        Generar cronograma
-      </button>
-      <button type="button" class="cr-btn" data-cr-exportar disabled>
-        Exportar
-      </button>
+      <button type="button" class="cr-btn cr-btn--primary" data-cr-actualizar disabled>Actualizar aptos</button>
+      <button type="button" class="cr-btn" data-cr-generar disabled>Generar cronograma</button>
+      <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
       <span class="cr-actions__hint" data-cr-actions-hint>Esperando período.</span>
     </section>
 
@@ -177,7 +139,7 @@ Pendiente para siguientes bloques:
       <div class="cr-table-card__head">
         <div>
           <h2>Estudiantes aptos</h2>
-          <p>La tabla final mostrará solo estudiantes aptos según período y filtros activos.</p>
+          <p>La tabla muestra estudiantes aptos según período y filtros activos.</p>
         </div>
         <span class="cr-pill" data-cr-cache-status>Cache pendiente</span>
       </div>
@@ -186,25 +148,14 @@ Pendiente para siguientes bloques:
         <table class="cr-table" aria-label="Tabla base de cronograma de defensas">
           <thead>
             <tr>
-              <th>Aula</th>
-              <th>Día</th>
-              <th>Hora</th>
-              <th>Sede</th>
-              <th>Cédula</th>
-              <th>Nombre</th>
-              <th>Carrera</th>
-              <th>Nota artículo</th>
-              <th>Tribunal 1</th>
-              <th>Tribunal 2</th>
-              <th>Tribunal 3</th>
-              <th>Estado</th>
+              <th>Aula</th><th>Día</th><th>Hora</th><th>Sede</th><th>Cédula</th><th>Nombre</th>
+              <th>Carrera</th><th>Nota artículo</th><th>Tribunal 1</th><th>Tribunal 2</th>
+              <th>Tribunal 3</th><th>Estado</th>
             </tr>
           </thead>
           <tbody data-cr-tabla-body>
             <tr class="cr-empty-row">
-              <td colspan="12">
-                Selecciona un período y presiona Actualizar aptos.
-              </td>
+              <td colspan="12">Selecciona un período y presiona Actualizar aptos.</td>
             </tr>
           </tbody>
         </table>
@@ -212,9 +163,8 @@ Pendiente para siguientes bloques:
     </section>
   </main>
 
-  <script src="../BDLocal/bl2.config.js"></script>
-  <script src="../BDLocal/bl2.config.v2.js"></script>
-  <script src="../BDLocal/bl2.db.js"></script>
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/conexiones/cone.crdef.js"></script>
 
   <script src="cr-def.config.js"></script>
   <script src="cr-def.rules.js"></script>
