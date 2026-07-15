@@ -10,7 +10,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-three-mail-types";
+  var VERSION = "2.0.1-global-alex-leon";
   var ELIGIBILITY_KEY = "__pendientes_defensa_nucleos__";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -36,10 +36,10 @@ Función o funciones:
     id:"global",
     tipo:"global",
     area:"Reporte general",
-    responsable:"Coordinadores de área",
-    saludo:"Estimados coordinadores de área",
-    correos:["mtomala@itsqmet.edu.ec","lsalinas@itsqmet.edu.ec"],
-    correo:"mtomala@itsqmet.edu.ec, lsalinas@itsqmet.edu.ec",
+    responsable:"Dr. Alex León",
+    saludo:"Estimado Dr. Alex León",
+    correos:["aleon@itsqmet.edu.ec"],
+    correo:"aleon@itsqmet.edu.ec",
     copias:[],
     whatsapp:"",
     descripcion:"Reporte general de cumplimiento de requisitos."
