@@ -5,6 +5,7 @@ Función o funciones:
 - Esperar a que BDLocalScreenDeps termine de preparar conexiones.
 - Cargar cone.ficha.js antes de FichaCore y FichaApp.
 - Instalar el puente de ConFicha y evitar condiciones de carrera.
+- Cargar los editores confirmados de matrícula y modalidad.
 Con qué se conecta:
 - ../BDLocal/adapters/bdl.screen-deps.js
 - ../BDLocal/conexiones/cone.ficha.js
@@ -12,6 +13,9 @@ Con qué se conecta:
 - ficha.connection-bridge.js
 - ficha.periodo-normalizer.js
 - ficha.app.js
+- ficha.modalidad.js
+- ficha.modalidad-ui.js
+- ficha.matricula.js
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -70,8 +74,13 @@ Con qué se conecta:
       .then(function(bridge){return bridge&&typeof bridge.ready==="function"?bridge.ready():bridge;})
       .then(function(){return load("ficha.periodo-normalizer.js",function(){return window.FichaPeriodoNormalizer;});})
       .then(function(){return load("ficha.app.js",function(){return window.FichaApp;});})
+      .then(function(){return load("ficha.modalidad.js",function(){return window.FichaModalidad;});})
+      .then(function(){return load("ficha.modalidad-ui.js",function(){return window.FichaModalidadUI;});})
+      .then(function(ui){if(ui&&typeof ui.bind==="function"){ui.bind();}return ui;})
+      .then(function(){return load("ficha.matricula.js",function(){return window.FichaMatricula;});})
+      .then(function(editor){if(editor&&typeof editor.render==="function"){editor.render();}})
       .then(function(){
-        emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",at:new Date().toISOString()});
+        emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],at:new Date().toISOString()});
       })
       .catch(function(error){
         if(status){status.textContent=error.message||String(error);status.className="ficha-status warn";}
@@ -79,6 +88,6 @@ Con qué se conecta:
       });
   }
 
-  window.FichaBootstrap={version:"1.0.0-sequential",boot:boot,readyConnector:readyConnector};
+  window.FichaBootstrap={version:"1.1.0-ficha-editors",boot:boot,readyConnector:readyConnector};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
