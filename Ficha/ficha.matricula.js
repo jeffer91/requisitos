@@ -14,7 +14,7 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-conficha";
+  var VERSION="1.0.1-confirmation";
   var saving=false;
   var observer=null;
 
@@ -164,13 +164,16 @@ Con qué se conecta:
       if(!result||result.ok!==true){throw new Error("ConFicha no confirmó el cambio de estado.");}
 
       patchRow(row,result.status||next);
-      setInfo("Guardado: "+(result.status||next)+".",false);
-      setGlobalStatus("Estado de matrícula guardado correctamente: "+(result.status||next)+".","ok");
 
       try{
         if(window.FichaCore&&typeof window.FichaCore.invalidate==="function"){window.FichaCore.invalidate();}
         if(window.FichaApp&&typeof window.FichaApp.render==="function"){window.FichaApp.render("bdlocal-refresh");}
       }catch(error){}
+
+      setInfo("Guardado: "+(result.status||next)+".",false);
+      setTimeout(function(){
+        setGlobalStatus("Estado de matrícula guardado correctamente: "+(result.status||next)+".","ok");
+      },0);
 
       return result;
     }).catch(function(error){
