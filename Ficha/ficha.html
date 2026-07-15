@@ -4,6 +4,7 @@ Nombre completo: ficha.html
 Ruta o ubicación: /Requisitos/Ficha/ficha.html
 Función:
 - Mostrar ficha individual de estudiantes desde BDLocal.
+- Conectarse exclusivamente mediante cone.ficha.js.
 - Usar búsqueda rápida con datos preparados en memoria.
 - Mantener estructura visual fija y solo llenar datos.
 - Mostrar acciones rápidas: aprobación, copiar ficha, correo, WhatsApp y Telegram.
@@ -107,43 +108,16 @@ Función:
           </header>
 
           <section class="ficha-grid-info" aria-label="Información general">
-            <article>
-              <span>División</span>
-              <strong id="ficha-division-label">—</strong>
-            </article>
-
-            <article>
-              <span>Matrícula</span>
-              <strong id="ficha-matricula-label">—</strong>
-            </article>
-
-            <article>
-              <span>Sede</span>
-              <strong id="ficha-sede">—</strong>
-            </article>
-
-            <article>
-              <span>Horario</span>
-              <strong id="ficha-horario">—</strong>
-            </article>
-
-            <article>
-              <span>Correo personal</span>
-              <strong id="ficha-correo-personal">—</strong>
-            </article>
-
-            <article>
-              <span>Celular</span>
-              <strong id="ficha-celular">—</strong>
-            </article>
+            <article><span>División</span><strong id="ficha-division-label">—</strong></article>
+            <article><span>Matrícula</span><strong id="ficha-matricula-label">—</strong></article>
+            <article><span>Sede</span><strong id="ficha-sede">—</strong></article>
+            <article><span>Horario</span><strong id="ficha-horario">—</strong></article>
+            <article><span>Correo personal</span><strong id="ficha-correo-personal">—</strong></article>
+            <article><span>Celular</span><strong id="ficha-celular">—</strong></article>
           </section>
 
           <section class="ficha-grid-info" aria-label="Datos adicionales">
-            <article>
-              <span>Correo institucional</span>
-              <strong id="ficha-correo-institucional">—</strong>
-            </article>
-
+            <article><span>Correo institucional</span><strong id="ficha-correo-institucional">—</strong></article>
             <article>
               <span>Modalidad</span>
               <strong>
@@ -152,32 +126,10 @@ Función:
                 </select>
               </strong>
             </article>
-
-            <article>
-              <span>Estado modalidad</span>
-              <strong id="ficha-modalidad-info">—</strong>
-            </article>
-
-            <article>
-              <span>Guardar</span>
-              <strong>
-                <button id="ficha-modalidad-save" type="button" class="ficha-action">Guardar modalidad</button>
-              </strong>
-            </article>
-
-            <article>
-              <span>Copiar cédula</span>
-              <strong>
-                <button id="ficha-copy-cedula" type="button" class="ficha-action">Copiar</button>
-              </strong>
-            </article>
-
-            <article>
-              <span>Copiar correos</span>
-              <strong>
-                <button id="ficha-copy-correo" type="button" class="ficha-action">Copiar</button>
-              </strong>
-            </article>
+            <article><span>Estado modalidad</span><strong id="ficha-modalidad-info">—</strong></article>
+            <article><span>Guardar</span><strong><button id="ficha-modalidad-save" type="button" class="ficha-action">Guardar modalidad</button></strong></article>
+            <article><span>Copiar cédula</span><strong><button id="ficha-copy-cedula" type="button" class="ficha-action">Copiar</button></strong></article>
+            <article><span>Copiar correos</span><strong><button id="ficha-copy-correo" type="button" class="ficha-action">Copiar</button></strong></article>
           </section>
 
           <section class="ficha-req-card">
@@ -195,11 +147,12 @@ Función:
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/conexiones/cone.ficha.js"></script>
   <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
   <script src="ficha.core.js"></script>
+  <script src="ficha.connection-bridge.js"></script>
   <script src="ficha.periodo-normalizer.js"></script>
   <script src="ficha.divisiones.fast.js"></script>
   <script src="ficha.app.js"></script>
-  <script src="ficha.contact-hydration.js"></script>
 </body>
 </html>
