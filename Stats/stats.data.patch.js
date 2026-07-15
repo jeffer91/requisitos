@@ -4,14 +4,14 @@ Ruta: /Stats/stats.data.patch.js
 Función:
 - Integrar notas_titulacion en los estudiantes entregados por ConStats.
 - Relacionar notas por cédula normalizada y período canónico.
+- Aceptar notas directas y notas anidadas de formatos anteriores.
 - Mantener Telegram y contactos ya hidratados por Base Local.
-- Recargar las notas después de una actualización de Base Local.
 - No escribir ni modificar información persistente.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-notes-hydration";
+  var VERSION="1.0.1-notes-hydration";
   var state={
     installed:false,
     readyPromise:null,
@@ -63,9 +63,12 @@ Función:
   }
   function normalizeNote(row){
     row=Object.assign({},row||{});
-    var nart=num(first(row,["Notart","Nart","nart","notart","notaArticulo","nota_articulo","_nart"]));
-    var ndef=num(first(row,["Notdef","Ndef","ndef","notdef","notaDefensa","nota_defensa","_ndef"]));
-    var nfin=num(first(row,["Notafinal","NotaFinal","Nfinal","Nfin","nfin","notafinal","notaFinal","nota_final","_nfin"]));
+    var nested=row._bdlNotas&&typeof row._bdlNotas==="object"?row._bdlNotas:(row.notas&&typeof row.notas==="object"?row.notas:{});
+    var source=Object.assign({},nested,row);
+    var nart=num(first(source,["Notart","Nart","nart","notart","notaArticulo","nota_articulo","_nart"]));
+    var ndef=num(first(source,["Notdef","Ndef","ndef","notdef","notaDefensa","nota_defensa","_ndef"]));
+    var rawFinal=first(source,["Notafinal","NotaFinal","Nfinal","Nfin","nfin","notafinal","notaFinal","nota_final","_nfin"]);
+    var nfin=num(rawFinal);
     if(nfin===null&&nart!==null&&ndef!==null&&nart>=7){
       nfin=Math.round(((nart*0.70)+(ndef*0.30))*100)/100;
     }
@@ -90,13 +93,13 @@ Función:
         ndef:ndef,
         nfin:nfin,
         nfinCalculado:nfin,
-        nfinGuardado:num(first(row,["Notafinal","NotaFinal","Nfinal","Nfin","nfin","notafinal","notaFinal","nota_final","_nfin"])),
+        nfinGuardado:num(rawFinal),
         completo:nfin!==null
       }
     });
   }
   function resolve(relative){
-    try{return new URL(relative,document.currentScript&&document.currentScript.src||document.baseURI).href;}
+    try{return new URL(relative,(document.currentScript&&document.currentScript.src)||document.baseURI).href;}
     catch(error){return relative;}
   }
   function ensureNotesRepo(){
@@ -153,8 +156,9 @@ Función:
     state.loadingNotes=ensureNotesRepo().then(function(repo){
       return repo.list({});
     }).then(buildIndexes).catch(function(error){
-      state.error=error&&error.message?error.message:String(error);
+      var message=error&&error.message?error.message:String(error);
       buildIndexes([]);
+      state.error=message;
       return [];
     }).finally(function(){state.loadingNotes=null;});
     return state.loadingNotes;
@@ -174,6 +178,9 @@ Función:
     copy._telegramUser=text(copy._telegramUser||copy.telegramUser||copy.usuarioTelegram||copy.telegram||"");
     copy._telegramChatId=text(copy._telegramChatId||copy.telegramChatId||copy.chatIdTelegram||copy.chatId||"");
     copy._hasTelegram=!!(copy._telegramUser||copy._telegramChatId);
+    if(!note&&copy._bdlNotas&&typeof copy._bdlNotas==="object"){
+      note=normalizeNote(Object.assign({cedula:cedulaOf(copy),periodoId:periodOf(copy)},copy._bdlNotas));
+    }
     if(!note){return copy;}
     ["Notart","Nart","nart","notaArticulo","Notdef","Ndef","ndef","notaDefensa","Notafinal","NotaFinal","Nfin","nfin","notaFinal"].forEach(function(key){
       if(note[key]!==undefined){copy[key]=note[key];}
