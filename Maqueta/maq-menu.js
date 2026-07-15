@@ -6,6 +6,7 @@ Función o funciones:
 - Manejar desplegable de Títulos.
 - Abrir por defecto Carga.
 - Mantener BL como centro de control de BDLocal y Firebase.
+- Mostrar Ncomplex como pantalla independiente de notas.
 - Mostrar Sacar N como pantalla independiente del menú principal.
 Con qué se conecta:
 - maq-config-service.js
@@ -23,7 +24,8 @@ Con qué se conecta:
     {tipo:"modulo",moduloId:"coordi",etiqueta:"Coordi"},
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
     {tipo:"modulo",moduloId:"modulo_reporte",etiqueta:"Repor"},
-    {tipo:"modulo",moduloId:"defart",etiqueta:"defensas"},
+    {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
+    {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"sacar_n",etiqueta:"Sacar N"},
     {tipo:"grupo",id:"titulos",etiqueta:"Titulos",hijos:[
       {tipo:"modulo",moduloId:"titulos_estudiante",etiqueta:"Estudiante"},
