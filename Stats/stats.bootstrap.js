@@ -4,6 +4,7 @@ Ruta: /Stats/stats.bootstrap.js
 Función:
 - Preparar BDLocalScreenDeps y ConStats.
 - Cargar la extensión oficial de notas antes de la pantalla.
+- Cargar la sincronización de Telegram desde Firebase para Stats.
 - Mantener un arranque secuencial sin accesos paralelos.
 ========================================================= */
 (function(window,document){
@@ -88,6 +89,7 @@ Función:
       .then(function(){return load("stats.students.js",function(){return window.StatsStudents;});})
       .then(function(){return load("stats.notes.js",function(){return window.StatsNotes;});})
       .then(function(){return load("stats.ui.patch.js",function(){return window.StatsUIPatch;});})
+      .then(function(){return load("stats.telegram.firebase-sync.js",function(){return window.StatsTelegramFirebaseSync;});})
       .then(function(){return load("stats.app.js",function(){return window.StatsApp;});})
       .then(function(){return load("stats.summary.js",function(){return window.StatsSummary;});})
       .then(function(){return load("stats.sections.js",function(){return window.StatsSections;});})
@@ -100,6 +102,6 @@ Función:
       });
   }
 
-  window.StatsBootstrap={version:"1.2.1-connector-data-patch",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"1.3.0-telegram-firebase-sync",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
