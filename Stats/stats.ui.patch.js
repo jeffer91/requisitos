@@ -10,9 +10,10 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-telegram-final-status";
+  var VERSION="1.0.1-telegram-final-status";
   var scheduled=false;
   var statusTimer=null;
+  var lastStatusSignature="";
 
   function text(value){return String(value==null?"":value).trim();}
   function esc(value){return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
@@ -138,11 +139,25 @@ Función:
   function autoHideStatus(){
     var node=el("stats-status");
     if(!node){return;}
-    node.classList.remove("is-auto-hidden");
-    if(statusTimer){clearTimeout(statusTimer);statusTimer=null;}
-    if(node.classList.contains("ok")){
-      statusTimer=setTimeout(function(){node.classList.add("is-auto-hidden");},3200);
+    var isOk=node.classList.contains("ok");
+    var type=isOk?"ok":(node.classList.contains("warn")?"warn":"info");
+    var signature=type+"|"+text(node.textContent);
+
+    if(!isOk){
+      lastStatusSignature=signature;
+      node.classList.remove("is-auto-hidden");
+      if(statusTimer){clearTimeout(statusTimer);statusTimer=null;}
+      return;
     }
+
+    if(signature===lastStatusSignature){return;}
+    lastStatusSignature=signature;
+    node.classList.remove("is-auto-hidden");
+    if(statusTimer){clearTimeout(statusTimer);}
+    statusTimer=setTimeout(function(){
+      statusTimer=null;
+      node.classList.add("is-auto-hidden");
+    },3200);
   }
   function renderAll(){
     organizeRequirementSelect();
