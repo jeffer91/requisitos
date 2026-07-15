@@ -6,6 +6,7 @@ Función:
 - Mostrar ficha individual de estudiantes desde BDLocal.
 - Esperar el conector exclusivo ConFicha antes de iniciar la pantalla.
 - Mantener búsqueda, detalle, requisitos, notas y acciones de comunicación.
+- Permitir editar estado de matrícula y modalidad mediante ConFicha.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -55,8 +56,16 @@ Función:
             <article><span>División</span><strong id="ficha-division-label">—</strong></article><article><span>Matrícula</span><strong id="ficha-matricula-label">—</strong></article><article><span>Sede</span><strong id="ficha-sede">—</strong></article><article><span>Horario</span><strong id="ficha-horario">—</strong></article><article><span>Correo personal</span><strong id="ficha-correo-personal">—</strong></article><article><span>Celular</span><strong id="ficha-celular">—</strong></article>
           </section>
 
-          <section class="ficha-grid-info" aria-label="Datos adicionales">
-            <article><span>Correo institucional</span><strong id="ficha-correo-institucional">—</strong></article><article><span>Modalidad</span><strong><select id="ficha-modalidad-select"><option value="">—</option></select></strong></article><article><span>Estado modalidad</span><strong id="ficha-modalidad-info">—</strong></article><article><span>Guardar</span><strong><button id="ficha-modalidad-save" type="button" class="ficha-action">Guardar modalidad</button></strong></article><article><span>Copiar cédula</span><strong><button id="ficha-copy-cedula" type="button" class="ficha-action">Copiar</button></strong></article><article><span>Copiar correos</span><strong><button id="ficha-copy-correo" type="button" class="ficha-action">Copiar</button></strong></article>
+          <section class="ficha-grid-info" aria-label="Edición de matrícula y titulación">
+            <article><span>Correo institucional</span><strong id="ficha-correo-institucional">—</strong></article>
+            <article><span>Estado de matrícula</span><strong><select id="ficha-matricula-edit"><option value="ACTIVO">ACTIVO</option><option value="RETIRADO">RETIRADO</option></select></strong></article>
+            <article><span>Guardar estado</span><strong><button id="ficha-matricula-save" type="button" class="ficha-action">Guardar estado</button></strong></article>
+            <article><span>Resultado del estado</span><strong id="ficha-matricula-info" class="ficha-modalidad-info">—</strong></article>
+            <article><span>Modalidad</span><strong><select id="ficha-modalidad-select"><option value="">—</option></select></strong></article>
+            <article><span>Estado modalidad</span><strong id="ficha-modalidad-info" class="ficha-modalidad-info">—</strong></article>
+            <article><span>Guardar modalidad</span><strong><button id="ficha-modalidad-save" type="button" class="ficha-action">Guardar modalidad</button></strong></article>
+            <article><span>Copiar cédula</span><strong><button id="ficha-copy-cedula" type="button" class="ficha-action">Copiar</button></strong></article>
+            <article><span>Copiar correos</span><strong><button id="ficha-copy-correo" type="button" class="ficha-action">Copiar</button></strong></article>
           </section>
 
           <section class="ficha-req-card"><div class="ficha-section-title">Requisitos</div><div id="ficha-requisitos" class="ficha-requisitos"></div></section>
