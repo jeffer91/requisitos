@@ -2,13 +2,13 @@
 Nombre completo: defart.bootstrap.js
 Ruta: /defart/defart.bootstrap.js
 Función:
-- Preparar dependencias internas de Defart en orden.
+- Esperar BDLocalScreenDeps antes de cargar dependencias específicas.
 - Confirmar ConDefart antes de cargar los módulos de pantalla.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-connector-first";
+  var VERSION="1.1.0-adapter-ready-first";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
 
@@ -18,13 +18,7 @@ Función:
     timeout=Math.max(500,Number(timeout||15000));
     var started=Date.now();
     return new Promise(function(resolve,reject){
-      (function check(){
-        var value=null;
-        try{value=test();}catch(error){}
-        if(value){resolve(value);return;}
-        if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}
-        setTimeout(check,40);
-      })();
+      (function check(){var value=null;try{value=test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}setTimeout(check,40);})();
     });
   }
   function load(relative,test){
@@ -34,9 +28,7 @@ Función:
     if(loading[src]){return loading[src];}
     if(existing(src)){return test?waitFor(test,relative,15000):Promise.resolve(src);}
     loading[src]=new Promise(function(resolve,reject){
-      var script=document.createElement("script");
-      script.src=src;script.async=false;script.defer=false;
-      script.setAttribute("data-defart-bootstrap-src",src);
+      var script=document.createElement("script");script.src=src;script.async=false;script.defer=false;script.setAttribute("data-defart-bootstrap-src",src);
       script.onload=function(){var value=src;try{value=test?test():src;}catch(error){value=null;}value?resolve(value):reject(new Error(relative+" no expuso la API esperada."));};
       script.onerror=function(){reject(new Error("No se pudo cargar "+relative+"."));};
       (document.head||document.documentElement).appendChild(script);
@@ -47,20 +39,31 @@ Función:
   function status(message,type){var box=document.getElementById("def-status");if(box){box.style.display="block";box.textContent=message;box.className="def-status "+(type||"");}}
   function connector(){return window.ConDefart||window.BDLocalConeDefart||null;}
 
+  function adapterReady(){
+    return load("../BDLocal/adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;}).then(function(adapter){
+      if(!adapter||typeof adapter.ready!=="function"){throw new Error("BDLocalScreenDeps.ready no está disponible.");}
+      return adapter.ready().then(function(result){
+        if(result&&result.ok===false){throw new Error(result.message||result.error||"BDLocalScreenDeps no quedó listo.");}
+        return adapter;
+      });
+    });
+  }
+
   function infrastructure(){
-    return sequence([
-      {path:"../BDLocal/adapters/bdl.screen-deps.js",test:function(){return window.BDLocalScreenDeps;}},
-      {path:"../BDLocal/rules/bdl.rules.index.js",test:function(){return window.BDLRules;}},
-      {path:"../BDLocal/rules/bdl.rules.notas.js"},
-      {path:"../BDLocal/rules/bdl.rules.sync.js"},
-      {path:"../BDLocal/repositories/bdl.repo.periodos.js"},
-      {path:"../BDLocal/repositories/bdl.repo.notas.js",test:function(){return window.BDLRepoNotas;}},
-      {path:"../BDLocal/repositories/bdl.repo.cambios.js",test:function(){return window.BDLRepoCambios;}},
-      {path:"../BDLocal/services/bdl.service.periodos.js"},
-      {path:"../BDLocal/services/bdl.service.defensas.js",test:function(){return window.BDLServiceDefensas;}},
-      {path:"../BDLocal/conexiones/cone.defart.js",test:connector},
-      {path:"../BDLocal/diagnostics/bdl.diagnostics.defensas.js"}
-    ]).then(function(){
+    return adapterReady().then(function(){
+      return sequence([
+        {path:"../BDLocal/rules/bdl.rules.index.js",test:function(){return window.BDLRules;}},
+        {path:"../BDLocal/rules/bdl.rules.notas.js"},
+        {path:"../BDLocal/rules/bdl.rules.sync.js"},
+        {path:"../BDLocal/repositories/bdl.repo.periodos.js"},
+        {path:"../BDLocal/repositories/bdl.repo.notas.js",test:function(){return window.BDLRepoNotas;}},
+        {path:"../BDLocal/repositories/bdl.repo.cambios.js",test:function(){return window.BDLRepoCambios;}},
+        {path:"../BDLocal/services/bdl.service.periodos.js"},
+        {path:"../BDLocal/services/bdl.service.defensas.js",test:function(){return window.BDLServiceDefensas;}},
+        {path:"../BDLocal/conexiones/cone.defart.js",test:connector},
+        {path:"../BDLocal/diagnostics/bdl.diagnostics.defensas.js"}
+      ]);
+    }).then(function(){
       var con=connector();
       return Promise.resolve(con&&typeof con.ready==="function"?con.ready():true).then(function(result){
         if(result&&result.ok===false){throw new Error(result.error||"ConDefart no está listo.");}
@@ -93,6 +96,6 @@ Función:
     }).catch(function(error){status(error&&error.message?error.message:String(error),"is-error");});
   }
 
-  window.DefartBootstrap={version:VERSION,boot:boot,infrastructure:infrastructure};
+  window.DefartBootstrap={version:VERSION,boot:boot,infrastructure:infrastructure,adapterReady:adapterReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
