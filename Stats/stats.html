@@ -1,15 +1,12 @@
 <!doctype html>
 <!-- =========================================================
 Nombre completo: stats.html
-Ruta o ubicación: /Requisitos/Stats/stats.html
+Ruta o ubicación: /Stats/stats.html
 Función o funciones:
 - Mostrar estadísticas del módulo Requisitos usando BDLocal.
+- Esperar el conector exclusivo ConStats antes de iniciar.
 - Resumir estudiantes por matrícula, período, división, carrera, estado, requisito y notas.
-- Conectar normalización de carreras y protección de notas vacías.
-- Mostrar una sola sección activa al presionar la navegación lateral.
-- Usar divisiones configuradas rápidas para filtros.
-- Mostrar el gráfico principal dentro de Resumen.
-- Adaptar el resumen al requisito seleccionado.
+- Evitar rutas paralelas de divisiones y adaptadores heredados.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -48,13 +45,9 @@ Función o funciones:
 
       <section id="stats-resumen-section" class="stats-section">
         <div class="stats-section-head">
-          <div>
-            <p id="stats-summary-eyebrow" class="stats-eyebrow">Resumen general</p>
-            <h1 id="stats-summary-title">Estadísticas de requisitos</h1>
-          </div>
+          <div><p id="stats-summary-eyebrow" class="stats-eyebrow">Resumen general</p><h1 id="stats-summary-title">Estadísticas de requisitos</h1></div>
           <span id="stats-period-type" class="stats-period-chip">Selecciona un período</span>
         </div>
-
         <section class="stats-kpis">
           <article><span id="stats-total-label">Total estudiantes</span><strong id="stats-total">0</strong></article>
           <article><span id="stats-ok-label">Estudiantes aprobados</span><strong id="stats-ok">0</strong></article>
@@ -62,12 +55,8 @@ Función o funciones:
           <article><span id="stats-avance-label">Cumplimiento general</span><strong id="stats-avance">0%</strong></article>
           <article id="stats-period-approval-card" class="stats-period-card"><span id="stats-period-approval-label">Aprobación por período</span><strong id="stats-period-approval">—</strong></article>
         </section>
-
         <article class="stats-card stats-summary-chart-card">
-          <div class="stats-card-head">
-            <h2 id="stats-summary-chart-title">Gráfico general</h2>
-            <span id="stats-summary-chart-meta">Aprobados / No aprobados</span>
-          </div>
+          <div class="stats-card-head"><h2 id="stats-summary-chart-title">Gráfico general</h2><span id="stats-summary-chart-meta">Aprobados / No aprobados</span></div>
           <div id="stats-chart-summary" class="stats-chart-placeholder">Selecciona un período para ver el gráfico.</div>
         </article>
       </section>
@@ -82,23 +71,6 @@ Función o funciones:
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
-  <script src="../BDLocal/adapters/bdl.divisiones.fast-cache.js"></script>
-  <script src="stats.rules.js"></script>
-  <script src="stats.notes.guard.js"></script>
-  <script src="stats.core.js"></script>
-  <script src="stats.divisiones.fast.js"></script>
-  <script src="stats.carrera.guard.js"></script>
-  <script src="stats.charts.js"></script>
-  <script src="stats.tables.js"></script>
-  <script src="stats.students.js"></script>
-  <script src="stats.notes.analysis.js"></script>
-  <script src="stats.notes.analytics.js"></script>
-  <script src="stats.notes.charts.js"></script>
-  <script src="stats.notes.js"></script>
-  <script src="stats.notes.enhancer.js"></script>
-  <script src="stats.notes.priorities.js"></script>
-  <script src="stats.app.js"></script>
-  <script src="stats.summary.js"></script>
-  <script src="stats.sections.js"></script>
+  <script src="stats.bootstrap.js"></script>
 </body>
 </html>
