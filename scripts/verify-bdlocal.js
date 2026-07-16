@@ -78,6 +78,7 @@ console.log("No abre Electron, IndexedDB, Firebase ni Google Sheets.\n");
   "BDLocal/migrations/bdl.migration.v3.ncomplex.js",
   "BDLocal/conexiones/cone.index.js",
   "BDLocal/conexiones/cone.ncomplex.js",
+  "BDLocal/conexiones/cone.ncomplex.api.js",
   "BDLocal/diagnostics/bdl.diagnostics.index.js",
   "BDLocal/diagnostics/bdl.diagnostics.general.js",
   "BDLocal/sync/bdl.firebase.telegram-pull.js",
@@ -135,14 +136,15 @@ contains("BDLocal/services/bdl.service.ncomplex.js",'Services.register("ncomplex
 contains("BDLocal/services/bdl.service.ncomplex.js",'tabla:"evaluaciones_titulacion"',"Ncomplex registra cambios pendientes por tabla");
 contains("BDLocal/migrations/bdl.migration.v3.ncomplex.js",'db.createObjectStore(STORE,{keyPath:"idEstudiantePeriodo"})',"Migración crea tabla V3 sin reemplazar tablas");
 contains("BDLocal/migrations/bdl.migration.v3.ncomplex.js",'destructive:false',"Migración Ncomplex no destructiva");
-contains("BDLocal/conexiones/cone.ncomplex.js",'ensureSchema',"Conector verifica esquema antes de operar");
-contains("BDLocal/conexiones/cone.ncomplex.js",'window.ConNcomplex=api;',"Conector Ncomplex expone API oficial");
+contains("BDLocal/conexiones/cone.ncomplex.js",'window.ConNcomplex=proxy;',"Conector Ncomplex expone proxy inmediato");
+contains("BDLocal/conexiones/cone.ncomplex.api.js",'function ensureSchema()',"Conector verifica esquema antes de operar");
+contains("BDLocal/conexiones/cone.ncomplex.api.js",'window.ConNcomplex=api;',"Conector Ncomplex expone API oficial");
 contains("BDLocal/diagnostics/bdl.diagnostics.index.js",'startNcomplexIntegration',"Centro BDLocal carga integración Ncomplex");
 contains("BDLocal/diagnostics/bdl.diagnostics.index.js",'registry.register("ncomplex"',"Ncomplex se registra en conexiones");
 contains("BDLocal/diagnostics/bdl.diagnostics.general.js",'safeCount("evaluaciones_titulacion")',"Diagnóstico cuenta evaluaciones_titulacion");
 contains("BDLocal/diagnostics/bdl.diagnostics.general.js",'ConNcomplex:exists(window.ConNcomplex)',"Diagnóstico verifica ConNcomplex");
 
-contains("Maqueta/maq-modulos-registry.js",'ruta: base + "/Ncomplex/ncomplex.html"',"Maqueta registra ruta Ncomplex");
+contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Ncomplex/ncomplex.html"',"Maqueta registra ruta Ncomplex");
 contains("Maqueta/maq-menu.js",'moduloId:"ncomplex",etiqueta:"Ncomplex"',"Menú principal incluye Ncomplex");
 contains("Maqueta/maq-config-service.js",'moduloId:"ncomplex",etiqueta:"Ncomplex"',"Configuración efectiva conserva Ncomplex");
 
@@ -193,7 +195,8 @@ contains("package.json","xlsx-0.20.3.tgz","SheetJS corregido y fijado");
 contains("package.json",'"diagnostico:bdlocal"',"Comando de diagnóstico BDLocal disponible");
 notContains("package.json",'"latest"',"Sin dependencias latest");
 notContains("package.json","npx --yes","Inicio sin descarga dinámica");
-contains("package.json",'"test": "node scripts/verify-bdlocal.js && node scripts/audit-repository.js"',"npm test ejecuta certificación y auditoría");
+contains("package.json","node scripts/verify-bdlocal.js","npm test ejecuta certificación BDLocal");
+contains("package.json","node scripts/audit-repository.js","npm test ejecuta auditoría integral");
 contains("package.json",'"test:electron": "electron electron/smoke-main.js"',"Existe prueba real de Electron");
 
 notContains("BDLocal/bl2.html","bdlocal-modal.js","No se carga modal legacy");

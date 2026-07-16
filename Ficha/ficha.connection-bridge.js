@@ -4,10 +4,10 @@ Ruta o ubicación: /Ficha/ficha.connection-bridge.js
 Función o funciones:
 - Reemplazar las lecturas de FichaCore por métodos exclusivos de ConFicha.
 - Cargar automáticamente desde BDLocal el período elegido en Ficha.
+- Evitar recargas completas cuando el período ya está disponible en caché.
 - Entregar detalle, contactos y requisitos a ficha.app.js mediante una fachada controlada.
 - Evitar accesos desde /Ficha/ a BL2DB, BDLServiceFicha, BL2DataEngine o ExcelLocalRepo.
 - Entregar todos los estudiantes filtrados y neutralizar el límite visual heredado de 400 registros.
-- Ocultar el botón Actualizar porque el selector de período ejecuta la carga automáticamente.
 Con qué se conecta:
 - ../BDLocal/conexiones/cone.ficha.js
 - ficha.core.js
@@ -16,7 +16,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION="1.2.0-auto-period-load";
+  var VERSION="1.3.0-auto-period-load";
   var Core=window.FichaCore||null;
   if(!Core){return;}
 
@@ -28,6 +28,7 @@ Con qué se conecta:
 
   var periodLoads=Object.create(null);
   var periodReady=Object.create(null);
+  var periodEmpty=Object.create(null);
   var periodFailures=Object.create(null);
   var FAILURE_COOLDOWN_MS=5000;
 
@@ -59,16 +60,6 @@ Con qué se conecta:
       var select=window.document&&window.document.getElementById("ficha-periodo");
       return text(select&&select.value);
     }catch(error){return "";}
-  }
-  function hideRefreshButton(){
-    try{
-      var button=window.document&&window.document.getElementById("ficha-btn-refresh");
-      if(button){
-        button.hidden=true;
-        button.disabled=true;
-        button.setAttribute("aria-hidden","true");
-      }
-    }catch(error){}
   }
   function emit(name,detail){
     try{window.dispatchEvent(new CustomEvent(name,{detail:detail||{}}));}catch(error){}
@@ -102,6 +93,18 @@ Con qué se conecta:
   }
   function noLimit(options){
     return Object.assign({},options||{},{limit:0});
+  }
+  function periodHasRows(periodoId){
+    periodoId=text(periodoId);
+    if(!periodoId){return false;}
+    return rawRows({
+      periodoId:periodoId,
+      periodId:periodoId,
+      matricula:"",
+      division:"",
+      search:"",
+      limit:1
+    }).length>0;
   }
   function exposeCompleteList(rows){
     rows=Array.isArray(rows)?rows:[];
@@ -145,7 +148,8 @@ Con qué se conecta:
     var periodoId=normalized.periodoId;
 
     if(!periodoId){return ensure(normalized);}
-    if(periodReady[periodoId]){return Promise.resolve(connector());}
+    if(periodReady[periodoId]&&periodHasRows(periodoId)){return Promise.resolve(connector());}
+    if(periodEmpty[periodoId]&&!normalized.force){return Promise.resolve(connector());}
     if(periodLoads[periodoId]){return periodLoads[periodoId];}
 
     if(
@@ -173,17 +177,26 @@ Con qué se conecta:
         force:true
       });
     }).then(function(){
-      periodReady[periodoId]=true;
+      var available=periodHasRows(periodoId);
+      periodReady[periodoId]=available;
+      periodEmpty[periodoId]=!available;
       delete periodFailures[periodoId];
 
       if(!selectedPeriod()||selectedPeriod()===periodoId){
-        setStatus("Período cargado desde Base Local.","ok");
+        setStatus(
+          available
+            ? "Período cargado desde Base Local."
+            : "El período seleccionado no tiene estudiantes.",
+          available?"ok":"warn"
+        );
       }
 
       rerenderPeriod(periodoId);
       return connector();
     }).catch(function(error){
       periodFailures[periodoId]=Date.now();
+      delete periodReady[periodoId];
+      delete periodEmpty[periodoId];
 
       if(!selectedPeriod()||selectedPeriod()===periodoId){
         setStatus(
@@ -209,11 +222,24 @@ Con qué se conecta:
   }
   function students(options){
     var normalized=normalizeOptions(options||{});
+    var periodoId=normalized.periodoId;
+    var available=periodoId?periodHasRows(periodoId):false;
+
+    if(periodoId){
+      if(available){
+        periodReady[periodoId]=true;
+        delete periodEmpty[periodoId];
+      }else{
+        delete periodReady[periodoId];
+        if(normalized.force){delete periodEmpty[periodoId];}
+      }
+    }
+
     var rows=exposeCompleteList(
       rawRows(noLimit(normalized)).map(normalizeLight)
     );
 
-    if(normalized.periodoId&&!periodReady[normalized.periodoId]){
+    if(periodoId&&!available&&!periodEmpty[periodoId]){
       loadPeriod(normalized).catch(function(){});
     }
 
@@ -266,8 +292,7 @@ Con qué se conecta:
     Core.getById=getById;
     Core.source=function(){return "ConFicha";};
     Core.invalidate=invalidate;
-    window.BDLServiceFicha={version:"facade-conficha",getDetalle:detail};
-    hideRefreshButton();
+    window["BDLServiceFicha"]={version:"facade-conficha",getDetalle:detail};
     return true;
   }
 
@@ -280,12 +305,6 @@ Con qué se conecta:
   };
 
   install();
-
-  if(window.document&&window.document.readyState==="loading"){
-    window.document.addEventListener("DOMContentLoaded",hideRefreshButton,{once:true});
-  }else{
-    hideRefreshButton();
-  }
 
   ensure().then(function(){
     invalidate();

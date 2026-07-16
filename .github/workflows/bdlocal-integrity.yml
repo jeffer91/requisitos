@@ -5,6 +5,7 @@
 # - Ejecutar certificación y auditoría estática en cada cambio de main.
 # - Instalar dependencias fijadas y abrir Electron en entorno aislado.
 # - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
+# - Preparar y configurar correctamente el helper sandbox de Electron en Linux CI.
 # - Guardar el reporte Electron como artefacto incluso si la prueba falla.
 # =========================================================
 name: BDLocal Integrity
@@ -55,14 +56,45 @@ jobs:
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Prepare Electron binary and sandbox helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/electron/install.js
+          executable="$(node -p "require('electron')")"
+          helper="$(dirname "$executable")/chrome-sandbox"
+          test -x "$executable"
+          test -f "$helper"
+          sudo chown root:root "$helper"
+          sudo chmod 4755 "$helper"
+          stat -c '%U %G %a %n' "$helper"
+
       - name: Run isolated Electron test
-        run: xvfb-run --auto-servernum npm run test:electron
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts
+          xvfb-run --auto-servernum npm run test:electron > artifacts/bdlocal-electron-smoke.log 2>&1
+          code=$?
+          cat artifacts/bdlocal-electron-smoke.log
+          echo "$code" > artifacts/bdlocal-electron-smoke.exit
+          exit 0
 
       - name: Upload Electron smoke report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bdlocal-electron-smoke
-          path: artifacts/bdlocal-electron-smoke.json
-          if-no-files-found: warn
+          path: |
+            artifacts/bdlocal-electron-smoke.json
+            artifacts/bdlocal-electron-smoke.log
+            artifacts/bdlocal-electron-smoke.exit
+          if-no-files-found: error
           retention-days: 14
+
+      - name: Enforce Electron smoke result
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(cat artifacts/bdlocal-electron-smoke.exit)"
+          exit "$code"
