@@ -36,7 +36,15 @@ jobs:
       - name: Ficha editors contract
         run: node scripts/verify-ficha-editors.js
       - name: Screen connection contract
-        run: node scripts/verify-screen-connections.js
+        id: screen_contract
+        shell: bash
+        run: |
+          set +e
+          node scripts/verify-screen-connections.js > screen-connections.log 2>&1
+          code=$?
+          cat screen-connections.log
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Paths and legacy references
         shell: bash
         run: |
@@ -49,3 +57,14 @@ jobs:
           test -f BDLocal/conexiones/cone.ficha.enrollment-lock.js
           ! grep -E "backup_|anterior_|dañado_|\.bak" Ficha/ficha.html Ficha/ficha.bootstrap.js Ficha/ficha.connection-bridge.js
           ! grep -q 'id="ficha-btn-refresh"' Ficha/ficha.html
+      - name: Upload connection diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ficha-screen-connections
+          path: screen-connections.log
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce screen connection contract
+        if: steps.screen_contract.outputs.exit_code != '0'
+        run: exit 1
