@@ -3,12 +3,13 @@ Nombre completo: infor.bootstrap.js
 Ruta: /Infor/frontend/infor.bootstrap.js
 Función:
 - Esperar InforPeriodo.ready y ConInfor.
+- Exponer connectorReady para validar la conexión exclusiva de Infor.
 - Cargar la aplicación, lectura automática y QA en orden.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-wait-infor";
+  var VERSION="1.1.0-connector-ready";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
 
@@ -51,12 +52,17 @@ Función:
     return loading[src];
   }
   function connector(){return window.ConInfor||window.BDLocalConeInfor||null;}
-  function ready(){
+  function connectorReady(){
     return waitFor(connector,"ConInfor",15000).then(function(current){
       return Promise.resolve(typeof current.ready==="function"?current.ready():true).then(function(status){
         if(status&&status.ok===false){throw new Error(status.error||"ConInfor no está listo.");}
-        return waitFor(function(){return window.InforPeriodo;},"InforPeriodo",15000);
+        return current;
       });
+    });
+  }
+  function ready(){
+    return connectorReady().then(function(){
+      return waitFor(function(){return window.InforPeriodo;},"InforPeriodo",15000);
     }).then(function(periodModule){
       return Promise.resolve(periodModule&&periodModule.ready).then(function(result){
         if(result===false){throw new Error("InforPeriodo no pudo cargar los períodos desde ConInfor.");}
@@ -78,6 +84,6 @@ Función:
       .catch(showError);
   }
 
-  window.InforBootstrap={version:VERSION,boot:boot,ready:ready};
+  window.InforBootstrap={version:VERSION,boot:boot,ready:ready,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
