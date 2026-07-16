@@ -1,0 +1,49 @@
+name: Ficha Fast Check
+
+on:
+  pull_request:
+    paths:
+      - "Ficha/**"
+      - "BDLocal/conexiones/cone.ficha*.js"
+      - "BDLocal/adapters/bdl.screen-deps.js"
+      - "scripts/verify-ficha-editors.js"
+      - "scripts/verify-screen-connections.js"
+      - ".github/workflows/ficha-fast-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  ficha:
+    name: Ficha static and wiring check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check active Ficha files
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check Ficha/ficha.connection-bridge.js
+          node --check Ficha/ficha.bootstrap.js
+          node --check Ficha/ficha.core.js
+          node --check Ficha/ficha.app.js
+          node --check Ficha/ficha.periodo-normalizer.js
+          node --check Ficha/ficha.modalidad.js
+          node --check Ficha/ficha.modalidad-ui.js
+          node --check Ficha/ficha.matricula.js
+          node --check BDLocal/conexiones/cone.ficha.js
+          node --check BDLocal/conexiones/cone.ficha.enrollment-lock.js
+          node scripts/verify-ficha-editors.js
+          node scripts/verify-screen-connections.js
+      - name: Check paths and legacy references
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Ficha/ficha.css
+          test -f Ficha/ficha.compact.css
+          test -f Ficha/ficha.bootstrap.js
+          test -f BDLocal/adapters/bdl.screen-deps.js
+          test -f BDLocal/conexiones/cone.ficha.js
+          test -f BDLocal/conexiones/cone.ficha.enrollment-lock.js
+          ! grep -E "backup_|anterior_|dañado_|\.bak" Ficha/ficha.html Ficha/ficha.bootstrap.js Ficha/ficha.connection-bridge.js
+          ! grep -q 'id="ficha-btn-refresh"' Ficha/ficha.html
