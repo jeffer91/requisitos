@@ -5,6 +5,7 @@ Función o funciones:
 - Reemplazar las lecturas de FichaCore por métodos exclusivos de ConFicha.
 - Entregar detalle, contactos y requisitos a ficha.app.js mediante una fachada controlada.
 - Evitar accesos desde /Ficha/ a BL2DB, BDLServiceFicha, BL2DataEngine o ExcelLocalRepo.
+- Entregar todos los estudiantes filtrados y neutralizar el límite visual heredado de 400 registros.
 Con qué se conecta:
 - ../BDLocal/conexiones/cone.ficha.js
 - ficha.core.js
@@ -12,6 +13,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
+  var VERSION="1.1.0-full-student-list";
   var Core=window.FichaCore||null;
   if(!Core){return;}
 
@@ -61,7 +63,33 @@ Con qué se conecta:
       return Array.isArray(rows)?rows:[];
     }catch(error){return [];}
   }
-  function students(options){return rawRows(options).map(normalizeLight);}
+  function noLimit(options){
+    return Object.assign({},options||{},{limit:0});
+  }
+  function exposeCompleteList(rows){
+    rows=Array.isArray(rows)?rows:[];
+
+    try{
+      Object.defineProperty(rows,"slice",{
+        configurable:true,
+        enumerable:false,
+        writable:true,
+        value:function(start,end){
+          if(Number(start||0)===0&&Number(end)===400&&this.length>400){
+            return Array.prototype.slice.call(this,0);
+          }
+          return Array.prototype.slice.call(this,start,end);
+        }
+      });
+    }catch(error){}
+
+    return rows;
+  }
+  function students(options){
+    return exposeCompleteList(
+      rawRows(noLimit(options)).map(normalizeLight)
+    );
+  }
   function filter(options){return students(options);}
   function divisions(list,options){
     var con=connector();if(!con){return [];}
@@ -113,11 +141,11 @@ Con qué se conecta:
     return true;
   }
 
-  window.FichaConnectionBridge={version:"1.0.0-conficha-only",install:install,ready:ensure,getDetalle:detail};
+  window.FichaConnectionBridge={version:VERSION,install:install,ready:ensure,getDetalle:detail};
   install();
   ensure().then(function(){
     invalidate();
-    try{window.dispatchEvent(new CustomEvent("ficha:connection-ready",{detail:{ok:true,source:"ConFicha"}}));}catch(error){}
+    try{window.dispatchEvent(new CustomEvent("ficha:connection-ready",{detail:{ok:true,source:"ConFicha",fullStudentList:true}}));}catch(error){}
   }).catch(function(error){
     try{window.dispatchEvent(new CustomEvent("ficha:connection-error",{detail:{ok:false,source:"ConFicha",error:error.message||String(error)}}));}catch(innerError){}
   });
