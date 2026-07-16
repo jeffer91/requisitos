@@ -4,6 +4,8 @@ Ruta o ubicación: /electron/main.js
 Función o funciones:
 - Abrir Requisitos desde Maqueta/maq-index.html.
 - Ejecutar la ventana principal con aislamiento, sandbox y seguridad web.
+- Mostrar el menú nativo de la aplicación en la ventana principal.
+- Permitir abrir la consola desde el menú, F12, Ctrl+Shift+I o Ctrl+Shift+J.
 - Limitar navegación y ventanas nuevas a archivos internos controlados.
 - Validar remitentes y argumentos de todos los canales IPC.
 - Abrir enlaces externos seguros fuera de la aplicación.
@@ -96,8 +98,87 @@ function secureWebPreferences(options={}){
     webSecurity:true,
     allowRunningInsecureContent:false,
     navigateOnDragDrop:false,
-    spellcheck:false
+    spellcheck:false,
+    devTools:true
   },options);
+}
+
+function toggleDevTools(browserWindow){
+  if(!browserWindow || browserWindow.isDestroyed()){return;}
+  const contents=browserWindow.webContents;
+  if(!contents || contents.isDestroyed()){return;}
+  if(contents.isDevToolsOpened()){
+    contents.closeDevTools();
+  }else{
+    contents.openDevTools({mode:"detach"});
+  }
+}
+
+function installApplicationMenu(){
+  const template=[
+    {
+      label:"Archivo",
+      submenu:[
+        {
+          label:"Salir",
+          accelerator:"Alt+F4",
+          click:()=>app.quit()
+        }
+      ]
+    },
+    {
+      label:"Ver",
+      submenu:[
+        {
+          label:"Recargar",
+          accelerator:"Ctrl+R",
+          click:()=>{
+            if(mainWindow&&!mainWindow.isDestroyed()){mainWindow.webContents.reload();}
+          }
+        },
+        {
+          label:"Recargar sin caché",
+          accelerator:"Ctrl+Shift+R",
+          click:()=>{
+            if(mainWindow&&!mainWindow.isDestroyed()){mainWindow.webContents.reloadIgnoringCache();}
+          }
+        },
+        {type:"separator"},
+        {
+          label:"Abrir o cerrar consola",
+          click:()=>toggleDevTools(mainWindow)
+        },
+        {type:"separator"},
+        {role:"resetZoom",label:"Restablecer zoom"},
+        {role:"zoomIn",label:"Acercar"},
+        {role:"zoomOut",label:"Alejar"},
+        {type:"separator"},
+        {role:"togglefullscreen",label:"Pantalla completa"}
+      ]
+    },
+    {
+      label:"Ventana",
+      submenu:[
+        {role:"minimize",label:"Minimizar"},
+        {role:"close",label:"Cerrar"}
+      ]
+    }
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function installDeveloperShortcuts(browserWindow){
+  if(!browserWindow || browserWindow.isDestroyed()){return;}
+  browserWindow.webContents.on("before-input-event",(event,input)=>{
+    if(!input || input.type!=="keyDown"){return;}
+    const key=String(input.key||"").toUpperCase();
+    const control=!!(input.control||input.meta);
+    const requested=key==="F12" || (control&&input.shift&&(key==="I"||key==="J"));
+    if(!requested){return;}
+    event.preventDefault();
+    toggleDevTools(browserWindow);
+  });
 }
 
 function blockPermissions(browserWindow){
@@ -173,6 +254,7 @@ async function openSisacadWindow(){
   });
 
   blockPermissions(snSisacadWindow);
+  installDeveloperShortcuts(snSisacadWindow);
   snSisacadWindow.once("ready-to-show",()=>{if(snSisacadWindow&&!snSisacadWindow.isDestroyed()){snSisacadWindow.show();}});
   snSisacadWindow.on("closed",()=>{snSisacadWindow=null;});
   snSisacadWindow.webContents.on("will-attach-webview",(event)=>event.preventDefault());
@@ -290,7 +372,7 @@ async function navigateRegistroNotasProyecto(){
   registro=await executeInSisacad(clickTextScript(["Registro Notas Proyecto","Registro de Notas Proyecto","Notas Proyecto"]));
   await wait(1500);
   page=await executeInSisacad(pageStatusScript());
-  return Object.assign({},getSisacadWindowStatus(),page||{},{
+  return Object.assign({},getSisacadWindowStatus(),page||{}, {
     ok:!!(page&&page.enRegistro),
     enRegistro:!!(page&&page.enRegistro),
     clickIngreso:ingreso,
@@ -327,13 +409,16 @@ function createMainWindow(){
     minWidth:1100,
     minHeight:680,
     show:false,
-    autoHideMenuBar:true,
+    autoHideMenuBar:false,
     backgroundColor:"#f8fafc",
     title:"Requisitos",
     webPreferences:secureWebPreferences({preload:PRELOAD_FILE})
   });
 
-  Menu.setApplicationMenu(null);
+  installApplicationMenu();
+  mainWindow.setAutoHideMenuBar(false);
+  mainWindow.setMenuBarVisibility(true);
+  installDeveloperShortcuts(mainWindow);
   blockPermissions(mainWindow);
   installInternalNavigationGuards(mainWindow);
   mainWindow.once("ready-to-show",()=>{if(mainWindow&&!mainWindow.isDestroyed()){mainWindow.show();}});
