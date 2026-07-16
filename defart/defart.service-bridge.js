@@ -3,68 +3,39 @@ Nombre completo: defart.service-bridge.js
 Ruta: /defart/defart.service-bridge.js
 Función:
 - Conectar DefartCore exclusivamente con ConDefart.
-- Consultar una sola página durante filtros y búsquedas.
-- Ignorar respuestas antiguas que ya no corresponden a los filtros activos.
-- Consultar la exportación completa únicamente al descargar Excel.
+- Cargar una base completa por período/búsqueda y filtrar localmente.
+- Aplicar Estado después de decorar requisitos y notas.
+- Construir catálogos completos de período, división y carrera.
+- Paginar únicamente después de aplicar todos los filtros.
+- Reutilizar caché para cambios rápidos de filtros.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.1.0-stable-lazy-export";
-  var cache=Object.create(null);
-  var loading=Object.create(null);
-  var exportCache=Object.create(null);
-  var exportLoading=Object.create(null);
+  var VERSION="2.0.0-correct-local-filters";
+  var baseCache=Object.create(null);
+  var baseLoading=Object.create(null);
+  var summaryCache=Object.create(null);
   var lastSummary=null;
+  var activeSummaryKey="";
   var lastFilterKey="";
-  var activeKey="";
   var epoch=0;
 
   function text(value){return String(value==null?"":value).trim();}
+  function norm(value){
+    return text(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g,"")
+      .replace(/\s+/g," ")
+      .trim()
+      .toLowerCase();
+  }
   function connector(){return window.ConDefart||window.BDLocalConeDefart||null;}
   function pageState(){
     window.DEFART_PAGING=window.DEFART_PAGING||{page:1,limit:25,filterKey:"",lastInfo:null};
     if(!window.DEFART_PAGING.limit){window.DEFART_PAGING.limit=25;}
     if(!window.DEFART_PAGING.page){window.DEFART_PAGING.page=1;}
     return window.DEFART_PAGING;
-  }
-  function filterKey(options){
-    options=options||{};
-    return JSON.stringify({
-      periodId:options.periodId||"",
-      division:options.division||"",
-      career:options.career||"",
-      status:options.status||"",
-      sede:options.sede||"",
-      search:options.search||"",
-      sortKey:options.sortKey||"_nombre",
-      sortDir:options.sortDir||"asc"
-    });
-  }
-  function cacheKey(options){
-    var paging=pageState();
-    return filterKey(options)+"::"+(paging.page||1)+"::"+(paging.limit||25);
-  }
-  function resetQueries(options){
-    options=options||{};
-    epoch+=1;
-    cache=Object.create(null);
-    loading=Object.create(null);
-    activeKey="";
-    if(options.clearExport!==false){
-      exportCache=Object.create(null);
-      exportLoading=Object.create(null);
-    }
-    if(options.resetPage){pageState().page=1;}
-    if(options.keepLast!==true){lastSummary=null;}
-  }
-  function clearCache(options){
-    options=options||{};
-    resetQueries({
-      resetPage:!!options.resetPage,
-      keepLast:!!options.keepLast,
-      clearExport:options.clearExport!==false
-    });
   }
   function renderApp(){
     window.setTimeout(function(){
@@ -74,41 +45,6 @@ Función:
         }
       }catch(error){}
     },0);
-  }
-  function refresh(){
-    resetQueries({resetPage:false,keepLast:false,clearExport:true});
-    renderApp();
-  }
-  function setPage(page){
-    var paging=pageState();
-    var info=paging.lastInfo||{};
-    var totalPages=Number(info.totalPages||1);
-    page=Number(page||1);
-    if(!Number.isFinite(page)||page<1){page=1;}
-    if(totalPages&&page>totalPages){page=totalPages;}
-    paging.page=page;
-    resetQueries({resetPage:false,keepLast:false,clearExport:false});
-    renderApp();
-  }
-  function nextPage(){setPage((pageState().lastInfo&&pageState().lastInfo.page||pageState().page||1)+1);}
-  function prevPage(){setPage((pageState().lastInfo&&pageState().lastInfo.page||pageState().page||1)-1);}
-  function applyPagingInfo(paged){
-    var paging=pageState();
-    paged=paged||{};
-    var info={
-      page:Number(paged.page||paging.page||1),
-      limit:Number(paged.limit||paging.limit||25),
-      total:Number(paged.total||0),
-      totalPages:Number(paged.totalPages||1),
-      start:paged.total?((Number(paged.page||1)-1)*Number(paged.limit||25))+1:0,
-      end:paged.total?Math.min(Number(paged.total||0),Number(paged.page||1)*Number(paged.limit||25)):0,
-      hasPrev:!!paged.hasPrev,
-      hasNext:!!paged.hasNext
-    };
-    paging.page=info.page;
-    paging.limit=info.limit;
-    paging.lastInfo=info;
-    return info;
   }
   function sourceRow(row,index){
     row=Object.assign({},row||{});
@@ -139,79 +75,213 @@ Función:
       var value=text(getter(row));
       if(value){map[value]=true;}
     });
-    return Object.keys(map).sort(function(a,b){return a.localeCompare(b,"es");});
+    return Object.keys(map).sort(function(a,b){return a.localeCompare(b,"es",{numeric:true,sensitivity:"base"});});
   }
-  function kpis(rows,total){
-    var result={total:Number(total||rows.length||0)};
-    ["Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def","Completo"].forEach(function(key){result[key]=0;});
-    rows.forEach(function(row){result[row._estadoDefensa]=(result[row._estadoDefensa]||0)+1;});
-    return result;
+  function periodItems(periods,rows,keep){
+    var map=Object.create(null);
+    (Array.isArray(periods)?periods:[]).forEach(function(item){
+      var id=text(item&&typeof item==="object"?(item.id||item.periodoId||item.periodId||item.value||item.key):item);
+      var label=text(item&&typeof item==="object"?(item.label||item.periodoLabel||item.nombre||item.name||id):item);
+      if(id){map[id]={id:id,label:label||id};}
+    });
+    (rows||[]).forEach(function(row){
+      var id=text(row._periodoId||row.periodoId||row.periodId);
+      var label=text(row._periodoLabel||row.periodoLabel||row.periodo||id);
+      if(id&&!map[id]){map[id]={id:id,label:label||id};}
+    });
+    if(text(keep)&&!map[text(keep)]){map[text(keep)]={id:text(keep),label:text(keep)};}
+    return Object.keys(map).map(function(key){return map[key];}).sort(function(a,b){
+      return text(a.label||a.id).localeCompare(text(b.label||b.id),"es",{numeric:true,sensitivity:"base"});
+    });
   }
-  function buildSummary(paged,options){
+  function states(){
+    return ["Requisitos no cargados","Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def","Completo"];
+  }
+  function baseKey(options){
     options=options||{};
-    paged=paged||{};
-    var rows=decorateRows(paged.rows||[]);
-    var info=applyPagingInfo(paged);
-    return {
-      rows:rows,
-      exportRows:rows.slice(),
-      kpis:kpis(rows,paged.total),
-      periodList:unique(rows,function(row){return row._periodoId;},options.periodId).map(function(id){return {id:id,label:id};}),
-      divisionList:unique(rows,function(row){return row._division;},options.division),
-      careerList:unique(rows,function(row){return row._carrera;},options.career),
-      sedeList:unique(rows,function(row){return row._sede;},options.sede),
-      states:["Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def","Completo"],
-      pagination:info,
-      diagnostics:{
-        ok:true,
-        generatedAt:new Date().toISOString(),
-        version:VERSION,
-        source:"ConDefart",
-        total:paged.total||rows.length,
-        visible:rows.length,
-        page:info.page,
-        limit:info.limit,
-        totalPages:info.totalPages,
-        queryMode:paged.source||"connector",
-        exportRows:rows.length,
-        exportMode:"lazy",
-        filters:options
-      }
-    };
+    return JSON.stringify({
+      periodId:options.periodId||"",
+      search:options.search||"",
+      sede:options.sede||""
+    });
   }
-  function connectorOptions(options){
-    var paging=pageState();
+  function fullFilterKey(options){
     options=options||{};
-    return Object.assign({},options,{
-      periodoId:options.periodId||"",
-      periodo:options.periodId||"",
+    return JSON.stringify({
+      periodId:options.periodId||"",
       division:options.division||"",
-      carrera:options.career||"",
       career:options.career||"",
-      estado:options.status||"",
-      estadoDefensa:options.status||"",
-      statusDefensa:options.status||"",
+      status:options.status||"",
       sede:options.sede||"",
       search:options.search||"",
       sortKey:options.sortKey||"_nombre",
-      sortDir:options.sortDir||"asc",
-      page:Number(paging.page||1),
-      limit:Number(paging.limit||25)
+      sortDir:options.sortDir||"asc"
     });
+  }
+  function summaryKey(options){
+    var paging=pageState();
+    return fullFilterKey(options)+"::"+(paging.page||1)+"::"+(paging.limit||25);
+  }
+  function connectorBaseOptions(options){
+    options=options||{};
+    return {
+      periodoId:options.periodId||"",
+      periodo:options.periodId||"",
+      search:options.search||"",
+      busqueda:options.search||"",
+      sede:options.sede||"",
+      page:1,
+      limit:0,
+      matricula:"ACTIVO"
+    };
+  }
+  function fetchBase(options){
+    options=options||{};
+    var key=baseKey(options);
+    if(baseCache[key]){return Promise.resolve(baseCache[key]);}
+    if(baseLoading[key]){return baseLoading[key];}
+
+    var current=connector();
+    if(!current||typeof current.getFiltered!=="function"){
+      return Promise.reject(new Error("ConDefart.getFiltered no está disponible."));
+    }
+
+    var requestEpoch=epoch;
+    var rowsPromise=Promise.resolve(current.getFiltered(connectorBaseOptions(options)));
+    var periodsPromise=typeof current.listPeriods==="function"
+      ? Promise.resolve(current.listPeriods()).catch(function(){return [];})
+      : Promise.resolve([]);
+
+    baseLoading[key]=Promise.all([rowsPromise,periodsPromise]).then(function(values){
+      if(requestEpoch!==epoch){throw new Error("Consulta reemplazada por filtros más recientes.");}
+      var result={
+        rows:decorateRows(values[0]||[]),
+        periods:Array.isArray(values[1])?values[1]:[],
+        generatedAt:new Date().toISOString()
+      };
+      baseCache[key]=result;
+      return result;
+    }).finally(function(){delete baseLoading[key];});
+
+    return baseLoading[key];
+  }
+  function same(value,expected){return !text(expected)||norm(value)===norm(expected);}
+  function applyLocalFilters(rows,options){
+    options=options||{};
+    return (rows||[]).filter(function(row){
+      if(options.division&&!same(row._division,options.division)){return false;}
+      if(options.career&&!same(row._carrera,options.career)){return false;}
+      if(options.status&&!same(row._estadoDefensa,options.status)){return false;}
+      if(options.sede&&!same(row._sede,options.sede)){return false;}
+      return true;
+    });
+  }
+  function compareValue(row,key){
+    if(key==="_nart"||key==="_ndef"||key==="_nfin"){
+      var number=Number(row&&row[key]);
+      return Number.isFinite(number)?number:-999;
+    }
+    return norm(row&&row[key]);
+  }
+  function sortRows(rows,options){
+    rows=(rows||[]).slice();
+    options=options||{};
+    var key=options.sortKey||"_nombre";
+    var direction=options.sortDir==="desc"?-1:1;
+    rows.sort(function(a,b){
+      var av=compareValue(a,key);
+      var bv=compareValue(b,key);
+      if(av<bv){return -1*direction;}
+      if(av>bv){return 1*direction;}
+      return 0;
+    });
+    return rows;
+  }
+  function kpis(rows){
+    var result={total:(rows||[]).length};
+    states().forEach(function(key){result[key]=0;});
+    (rows||[]).forEach(function(row){
+      var key=text(row._estadoDefensa||"Sin requisitos");
+      result[key]=(result[key]||0)+1;
+    });
+    return result;
+  }
+  function paginate(rows){
+    var paging=pageState();
+    var limit=Math.max(1,Number(paging.limit||25));
+    var total=rows.length;
+    var totalPages=Math.max(1,Math.ceil(total/limit));
+    var page=Math.max(1,Number(paging.page||1));
+    if(page>totalPages){page=totalPages;}
+    paging.page=page;
+    paging.limit=limit;
+    var start=(page-1)*limit;
+    var visible=rows.slice(start,start+limit);
+    var info={
+      page:page,
+      limit:limit,
+      total:total,
+      totalPages:totalPages,
+      start:total?start+1:0,
+      end:total?Math.min(start+limit,total):0,
+      hasPrev:page>1,
+      hasNext:page<totalPages
+    };
+    paging.lastInfo=info;
+    return {rows:visible,info:info};
+  }
+  function buildSummary(base,options){
+    options=options||{};
+    base=base||{rows:[],periods:[]};
+
+    var allRows=Array.isArray(base.rows)?base.rows:[];
+    var rowsForDivision=allRows.slice();
+    var rowsAfterDivision=rowsForDivision.filter(function(row){return same(row._division,options.division);});
+    var rowsAfterCareer=rowsAfterDivision.filter(function(row){return same(row._carrera,options.career);});
+    var rowsBeforeStatus=rowsAfterCareer.filter(function(row){return same(row._sede,options.sede);});
+    var filtered=sortRows(applyLocalFilters(allRows,options),options);
+    var paged=paginate(filtered);
+
+    return {
+      rows:paged.rows,
+      exportRows:filtered.slice(),
+      kpis:kpis(rowsBeforeStatus),
+      periodList:periodItems(base.periods,allRows,options.periodId),
+      divisionList:unique(rowsForDivision,function(row){return row._division;},options.division),
+      careerList:unique(rowsAfterDivision,function(row){return row._carrera;},options.career),
+      sedeList:unique(rowsAfterCareer,function(row){return row._sede;},options.sede),
+      states:states(),
+      pagination:paged.info,
+      diagnostics:{
+        ok:true,
+        loading:false,
+        generatedAt:new Date().toISOString(),
+        version:VERSION,
+        source:"ConDefart_local_filters",
+        totalBase:allRows.length,
+        totalFiltered:filtered.length,
+        visible:paged.rows.length,
+        page:paged.info.page,
+        limit:paged.info.limit,
+        totalPages:paged.info.totalPages,
+        filters:options
+      }
+    };
   }
   function errorSummary(error,options){
     return {
       rows:[],
       exportRows:[],
-      periodList:[],
-      divisionList:[],
-      careerList:[],
-      sedeList:[],
-      states:[],
+      periodList:lastSummary&&lastSummary.periodList?lastSummary.periodList:[],
+      divisionList:lastSummary&&lastSummary.divisionList?lastSummary.divisionList:[],
+      careerList:lastSummary&&lastSummary.careerList?lastSummary.careerList:[],
+      sedeList:lastSummary&&lastSummary.sedeList?lastSummary.sedeList:[],
+      states:states(),
       kpis:{total:0},
-      pagination:{page:1,limit:25,total:0,totalPages:1,start:0,end:0,hasPrev:false,hasNext:false},
+      pagination:{page:1,limit:pageState().limit||25,total:0,totalPages:1,start:0,end:0,hasPrev:false,hasNext:false},
       diagnostics:{
         ok:false,
+        loading:false,
         source:"ConDefart",
         version:VERSION,
         error:error&&error.message?error.message:String(error),
@@ -219,41 +289,12 @@ Función:
       }
     };
   }
-  function fetchPage(key,options){
-    var current=connector();
-    if(!current||typeof current.getPage!=="function"||loading[key]){return;}
-    var requestEpoch=epoch;
-    var request=Promise.resolve().then(function(){
-      return current.getPage(connectorOptions(options));
-    });
-    loading[key]=request;
-    request.then(function(paged){
-      if(requestEpoch!==epoch){return;}
-      var summary=buildSummary(paged||{},options||{});
-      cache[key]=summary;
-      if(activeKey===key){
-        lastSummary=summary;
-        renderApp();
-      }
-    }).catch(function(error){
-      if(requestEpoch!==epoch){return;}
-      var summary=errorSummary(error,options);
-      cache[key]=summary;
-      if(activeKey===key){
-        lastSummary=summary;
-        renderApp();
-      }
-      try{console.warn("[DefartServiceBridge] ConDefart:",error);}catch(innerError){}
-    }).finally(function(){
-      if(loading[key]===request){delete loading[key];}
-    });
-  }
   function loadingSummary(options){
-    var base=lastSummary||errorSummary(new Error("Cargando"),options);
-    return Object.assign({},base,{
+    var previous=lastSummary||errorSummary(new Error("Cargando"),options);
+    return Object.assign({},previous,{
       rows:[],
       exportRows:[],
-      diagnostics:Object.assign({},base.diagnostics||{}, {
+      diagnostics:Object.assign({},previous.diagnostics||{}, {
         ok:true,
         loading:true,
         requested:true,
@@ -263,40 +304,83 @@ Función:
       })
     });
   }
+  function requestSummary(options,key){
+    fetchBase(options).then(function(base){
+      var summary=buildSummary(base,options);
+      summaryCache[key]=summary;
+      if(activeSummaryKey===key){
+        lastSummary=summary;
+        renderApp();
+      }
+    }).catch(function(error){
+      if(/reemplazada/i.test(text(error&&error.message))){return;}
+      var summary=errorSummary(error,options);
+      summaryCache[key]=summary;
+      if(activeSummaryKey===key){
+        lastSummary=summary;
+        renderApp();
+      }
+      try{console.warn("[DefartServiceBridge]",error);}catch(innerError){}
+    });
+  }
   function connectorSummary(options){
     options=options||{};
-    var keyFilters=filterKey(options);
+    var currentFilterKey=fullFilterKey(options);
     var paging=pageState();
-    if(lastFilterKey&&lastFilterKey!==keyFilters){
+
+    if(lastFilterKey&&lastFilterKey!==currentFilterKey){
       paging.page=1;
-      resetQueries({resetPage:false,keepLast:true,clearExport:false});
     }
-    lastFilterKey=keyFilters;
-    paging.filterKey=keyFilters;
-    var key=cacheKey(options);
-    activeKey=key;
-    if(cache[key]){return cache[key];}
-    fetchPage(key,options);
+    lastFilterKey=currentFilterKey;
+    paging.filterKey=currentFilterKey;
+
+    var key=summaryKey(options);
+    activeSummaryKey=key;
+    if(summaryCache[key]){return summaryCache[key];}
+
+    var cachedBase=baseCache[baseKey(options)];
+    if(cachedBase){
+      var summary=buildSummary(cachedBase,options);
+      summaryCache[key]=summary;
+      lastSummary=summary;
+      return summary;
+    }
+
+    requestSummary(options,key);
     return loadingSummary(options);
   }
+  function clearCache(options){
+    options=options||{};
+    epoch+=1;
+    baseCache=Object.create(null);
+    baseLoading=Object.create(null);
+    summaryCache=Object.create(null);
+    activeSummaryKey="";
+    if(options.resetPage){pageState().page=1;}
+    if(options.keepLast!==true){lastSummary=null;}
+  }
+  function refresh(){
+    clearCache({resetPage:false,keepLast:false});
+    renderApp();
+  }
+  function setPage(page){
+    var paging=pageState();
+    var info=paging.lastInfo||{};
+    var totalPages=Number(info.totalPages||1);
+    page=Number(page||1);
+    if(!Number.isFinite(page)||page<1){page=1;}
+    if(totalPages&&page>totalPages){page=totalPages;}
+    paging.page=page;
+    summaryCache=Object.create(null);
+    renderApp();
+  }
+  function nextPage(){setPage((pageState().lastInfo&&pageState().lastInfo.page||pageState().page||1)+1);}
+  function prevPage(){setPage((pageState().lastInfo&&pageState().lastInfo.page||pageState().page||1)-1);}
   function getExportRows(options){
     options=options||{};
-    var key=filterKey(options);
-    if(exportCache[key]){return Promise.resolve(exportCache[key].slice());}
-    if(exportLoading[key]){return exportLoading[key];}
-    var current=connector();
-    if(!current||typeof current.getFiltered!=="function"){
-      return Promise.reject(new Error("ConDefart.getFiltered no está disponible."));
-    }
-    var exportOptions=connectorOptions(options);
-    exportOptions.page=1;
-    exportOptions.limit=0;
-    exportLoading[key]=Promise.resolve(current.getFiltered(exportOptions)).then(function(rows){
-      rows=decorateRows(rows||[]);
-      exportCache[key]=rows;
-      return rows.slice();
-    }).finally(function(){delete exportLoading[key];});
-    return exportLoading[key];
+    var cached=baseCache[baseKey(options)];
+    if(cached){return Promise.resolve(sortRows(applyLocalFilters(cached.rows,options),options));}
+    return fetchBase(options).then(function(base){return sortRows(applyLocalFilters(base.rows,options),options);});
   }
   function install(){
     if(!window.DefartCore||typeof window.DefartCore.summary!=="function"||window.DefartCore.__serviceBridge){return false;}
