@@ -36,16 +36,21 @@ jobs:
           node --check BDLocal/conexiones/cone.ficha.js
           node --check BDLocal/conexiones/cone.ficha.enrollment-lock.js
           node --check Infor/frontend/infor.bootstrap.js
-      - name: BDLocal contract
-        run: node scripts/verify-bdlocal.js
-      - name: Main menu contract
-        run: node scripts/verify-main-menu.js
-      - name: Ficha editors contract
-        run: node scripts/verify-ficha-editors.js
-      - name: Screen connection contract
-        run: node scripts/verify-screen-connections.js
-      - name: Repository audit
-        run: node scripts/audit-repository.js
+      - name: Run static contracts
+        shell: bash
+        run: |
+          set +e
+          node scripts/verify-bdlocal.js > verify-bdlocal.log 2>&1
+          echo $? > verify-bdlocal.exit
+          node scripts/verify-main-menu.js > verify-main-menu.log 2>&1
+          echo $? > verify-main-menu.exit
+          node scripts/verify-ficha-editors.js > verify-ficha-editors.log 2>&1
+          echo $? > verify-ficha-editors.exit
+          node scripts/verify-screen-connections.js > verify-screen-connections.log 2>&1
+          echo $? > verify-screen-connections.exit
+          node scripts/audit-repository.js > audit-repository.log 2>&1
+          echo $? > audit-repository.exit
+          exit 0
       - name: Paths and legacy references
         shell: bash
         run: |
@@ -58,3 +63,26 @@ jobs:
           test -f BDLocal/conexiones/cone.ficha.enrollment-lock.js
           ! grep -E "backup_|anterior_|dañado_|\.bak" Ficha/ficha.html Ficha/ficha.bootstrap.js Ficha/ficha.connection-bridge.js
           ! grep -q 'id="ficha-btn-refresh"' Ficha/ficha.html
+      - name: Upload static diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ficha-static-diagnostics
+          path: |
+            *.log
+            *.exit
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce static contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for file in *.exit; do
+            code="$(cat "$file")"
+            if [ "$code" != "0" ]; then
+              echo "$file failed with $code"
+              failed=1
+            fi
+          done
+          exit "$failed"
