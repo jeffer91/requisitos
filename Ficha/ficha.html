@@ -7,6 +7,7 @@ Función:
 - Esperar el conector exclusivo ConFicha antes de iniciar la pantalla.
 - Mantener búsqueda, detalle, requisitos, notas y acciones de comunicación.
 - Permitir editar estado de matrícula y modalidad mediante ConFicha.
+- Cargar automáticamente los estudiantes al seleccionar el período.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -25,7 +26,6 @@ Función:
       <label>División<select id="ficha-division"><option value="">Todas</option></select></label>
       <label>Matrícula<select id="ficha-matricula"><option value="ACTIVO" selected>ACTIVO</option><option value="">Todos</option><option value="RETIRADO">RETIRADO</option></select></label>
       <label class="ficha-filter-search">Buscar estudiante<input id="ficha-search" type="search" placeholder="Cédula, nombre, carrera, correo, celular..." autocomplete="off" /></label>
-      <button id="ficha-btn-refresh" type="button">Actualizar</button>
     </section>
 
     <section class="ficha-layout">
