@@ -6,6 +6,7 @@ Función o funciones:
 - Pantalla Defensas para cargar N-ART y N-DEF.
 - Conectarse mediante ConDefart.
 - Delegar la preparación interna al bootstrap controlado.
+- Mantener una cabecera compacta y estados de carga claros.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -15,11 +16,12 @@ Función o funciones:
   <link rel="stylesheet" href="defart.css" />
   <link rel="stylesheet" href="defart.table.visual.css" />
   <link rel="stylesheet" href="defart.pagination.css" />
+  <link rel="stylesheet" href="defart.compact.css" />
   <script src="../node_modules/xlsx/dist/xlsx.full.min.js" data-requisitos-dependency="sheetjs@0.20.3"></script>
 </head>
 <body>
   <main class="def-app">
-    <section id="def-status" class="def-status" style="display:block;">Conectando Defart con BDLocal...</section>
+    <section id="def-status" class="def-status is-info" style="display:block;">Preparando Defensas...</section>
 
     <section class="def-toolbar" aria-label="Filtros de Defensas">
       <div class="def-toolbar-row def-toolbar-row-main">
@@ -30,9 +32,9 @@ Función o funciones:
       </div>
 
       <div class="def-toolbar-row def-toolbar-row-secondary">
-        <label class="def-search-box"><span>Buscar</span><input id="def-filter-search" type="search" placeholder="Cédula, nombre, carrera o división..." /></label>
-        <div class="def-mini-summary" aria-label="Resumen de pantalla"><span id="def-visible-count">0 visibles</span><span id="def-save-state">Listo</span></div>
-        <div class="def-toolbar-actions"><button id="def-btn-clear" type="button">Limpiar filtros</button><button id="def-btn-export" type="button">Descargar Excel</button></div>
+        <label class="def-search-box"><span>Buscar estudiante</span><input id="def-filter-search" type="search" placeholder="Cédula, nombre, carrera o división..." /></label>
+        <div class="def-mini-summary" aria-label="Resumen de pantalla"><span id="def-visible-count">Cargando...</span><span id="def-save-state">Preparando...</span></div>
+        <div class="def-toolbar-actions"><button id="def-btn-export" class="def-btn-export" type="button">Descargar Excel</button></div>
       </div>
     </section>
 
