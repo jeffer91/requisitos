@@ -6,6 +6,7 @@ Función o funciones:
 - Unir estudiantes con contactos legacy y contactos_estudiante V2.
 - Priorizar los datos no vacíos de contactos_estudiante por idEstudiantePeriodo.
 - Consultar estudiantes, períodos, divisiones y requisitos.
+- Recuperar estudiantes desde BDLocal cuando la caché compartida está vacía.
 - Cambiar ACTIVO/RETIRADO mediante updateEnrollmentStatus.
 - Guardar la modalidad mediante updateGraduationModality.
 - Guardar ediciones mediante BL2Core.updateStudent.
@@ -14,10 +15,11 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION="1.3.0-ficha-editors";
+  var VERSION="1.4.0-ficha-empty-cache-recovery";
   var HUB=window.BDLocalConexiones;
   var U=window.BDLocalConUtils;
   var hydrationPromise=null;
+  var readyPromise=null;
 
   var ENROLLMENT={active:"ACTIVO",retired:"RETIRADO"};
   var MODALITY={
@@ -347,6 +349,51 @@ Función o funciones:
       .then(function(){return hydrateCache({force:true,source:"cone.ficha.refresh.contacts"});});
   }
 
+  function hasCachedStudents(cache){
+    return !!(cache&&Array.isArray(cache.students)&&cache.students.length);
+  }
+
+  function ready(options){
+    options=Object.assign({},options||{});
+    if(readyPromise&&!options.force){return readyPromise;}
+
+    var cache=U.readCache(true);
+    var source=options.source||"cone.ficha.ready";
+    var prepare;
+
+    if(hasCachedStudents(cache)){
+      prepare=Promise.resolve(cache);
+    }else{
+      setFichaStatus("Recuperando estudiantes desde Base Local...","");
+      prepare=HUB.refreshCache({
+        source:source+".empty-students",
+        mode:"full",
+        full:true,
+        light:false,
+        immediate:true,
+        force:true,
+        cooldown:0,
+        incremental:false
+      });
+    }
+
+    readyPromise=prepare.then(function(){
+      return hydrateCache({
+        force:true,
+        source:source+".contacts"
+      });
+    }).then(function(result){
+      if(!hasCachedStudents(result)){
+        setFichaStatus("Sin estudiantes disponibles en Base Local.","warn");
+      }
+      return result;
+    }).finally(function(){
+      readyPromise=null;
+    });
+
+    return readyPromise;
+  }
+
   function resolveStudentId(id,options){
     options=Object.assign({},options||{});
     var requested=text(id);
@@ -512,7 +559,7 @@ Función o funciones:
   var api={
     version:VERSION,
     source:"BDLocal/conexiones/cone.ficha.js",
-    ready:function(){return hydrateCache({source:"cone.ficha.ready"});},
+    ready:ready,
     refresh:refresh,
     hydrateContacts:function(){return hydrateCache({force:true,source:"cone.ficha.manual-hydration"});},
     periods:periods,
@@ -579,5 +626,8 @@ Función o funciones:
   window.addEventListener("bdlocal:conexiones-cache-updated",invalidateFichaCaches);
   window.addEventListener("bdlocal:screen-data-updated",invalidateFichaCaches);
 
-  hydrateCache({source:"cone.ficha.bootstrap"});
+  ready({source:"cone.ficha.bootstrap"}).catch(function(error){
+    try{console.error("[ConFicha inicio]",error);}catch(innerError){}
+    setFichaStatus(error&&error.message?error.message:String(error),"warn");
+  });
 })(window);
