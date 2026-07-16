@@ -6,11 +6,12 @@ Función o funciones:
 - Mostrar un único estado claro durante consultas y filtros.
 - Quitar completamente la acción heredada Limpiar filtros.
 - Mantener la tabla estable mientras se actualiza la interfaz.
+- Diferenciar período vacío de filtros sin coincidencias.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-clear-loading-state";
+  var VERSION="1.1.0-filter-aware-empty-state";
   var installed=false;
   var originalRender=null;
   var syncTimer=null;
@@ -34,9 +35,29 @@ Función o funciones:
   function loadingMessage(state){
     var data=state.data||{};
     var diagnostics=data.diagnostics||{};
-    if(diagnostics.loading===true){return "Cargando estudiantes y notas...";}
+    if(diagnostics.loading===true){return "Cargando estudiantes, requisitos y notas...";}
     if(!state.data){return "Preparando Defensas...";}
     return "";
+  }
+
+  function hasDetailedFilters(state){
+    return !!(
+      text(state.division)||
+      text(state.career)||
+      text(state.status)||
+      text(state.sede)||
+      text(state.search)
+    );
+  }
+
+  function emptyMessage(state){
+    if(hasDetailedFilters(state)){
+      return "No hay estudiantes que coincidan con los filtros seleccionados.";
+    }
+    if(text(state.periodId)){
+      return "No hay estudiantes activos para el período seleccionado.";
+    }
+    return "No hay estudiantes activos disponibles.";
   }
 
   function setStatus(message,kind){
@@ -81,30 +102,27 @@ Función o funciones:
     }
 
     if(error){
+      if(visible){visible.textContent="0 resultados";}
       if(save){save.textContent="Error de carga";}
       if(empty){empty.textContent="No se pudieron cargar los estudiantes.";}
       return;
     }
 
     if(!rows.length){
+      var message=emptyMessage(state);
       if(visible){visible.textContent="0 resultados";}
-      if(save){save.textContent="Sin resultados";}
-      if(empty){empty.textContent="No hay estudiantes con los filtros seleccionados.";}
+      if(save){save.textContent="Sin coincidencias";}
+      if(empty){empty.textContent=message;}
 
-      if(!currentStatus||/cargando|conectando|preparando/i.test(currentStatus)){
-        setStatus(
-          state.periodId
-            ? "No hay estudiantes activos para el período seleccionado. Revisa el período o los demás filtros."
-            : "No hay estudiantes activos con los filtros seleccionados.",
-          "is-empty"
-        );
+      if(!currentStatus||/cargando|conectando|preparando|no hay estudiantes/i.test(currentStatus)){
+        setStatus(message,"is-empty");
       }
       return;
     }
 
     if(save&&!state.saving&&!pending){save.textContent="Listo";}
 
-    if(statusBox&&/cargando|conectando|preparando/i.test(currentStatus)){
+    if(statusBox&&/cargando|conectando|preparando|no hay estudiantes/i.test(currentStatus)){
       setStatus("","");
     }
   }
