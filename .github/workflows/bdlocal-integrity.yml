@@ -56,13 +56,31 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Run isolated Electron test
-        run: xvfb-run --auto-servernum npm run test:electron
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts
+          xvfb-run --auto-servernum npm run test:electron > artifacts/bdlocal-electron-smoke.log 2>&1
+          code=$?
+          cat artifacts/bdlocal-electron-smoke.log
+          echo "$code" > artifacts/bdlocal-electron-smoke.exit
+          exit 0
 
       - name: Upload Electron smoke report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bdlocal-electron-smoke
-          path: artifacts/bdlocal-electron-smoke.json
-          if-no-files-found: warn
+          path: |
+            artifacts/bdlocal-electron-smoke.json
+            artifacts/bdlocal-electron-smoke.log
+            artifacts/bdlocal-electron-smoke.exit
+          if-no-files-found: error
           retention-days: 14
+
+      - name: Enforce Electron smoke result
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(cat artifacts/bdlocal-electron-smoke.exit)"
+          exit "$code"
