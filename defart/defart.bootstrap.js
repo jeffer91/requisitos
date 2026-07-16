@@ -4,11 +4,12 @@ Ruta: /defart/defart.bootstrap.js
 Función:
 - Cargar y esperar exclusivamente ConDefart.
 - Cargar después los módulos visuales de la pantalla.
+- Evitar una segunda consulta redundante durante el arranque.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.0-condefart-only";
+  var VERSION="2.1.0-single-load-ui-fix";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
 
@@ -35,11 +36,18 @@ Función:
     {path:"defart.service-bridge.js",test:function(){return window.DefartServiceBridge;}},
     {path:"defart.save-service-bridge.js",test:function(){return window.DefartSaveServiceBridge;}},
     {path:"defart.requirements-guard.js"},{path:"defart.periodo-normalizer.js"},
-    {path:"defart.app.js",test:function(){return window.DefartApp;}}
+    {path:"defart.app.js",test:function(){return window.DefartApp;}},
+    {path:"defart.ui-fix.js",test:function(){return window.DefartUIFix;}}
   ]);}
   function boot(){
-    status("Conectando Defart con BDLocal...","is-info");
-    connectorReady().then(screenModules).then(function(){if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.refresh==="function"){window.DefartServiceBridge.refresh();}try{window.dispatchEvent(new CustomEvent("defart:bootstrap-ready",{detail:{ok:true,source:"ConDefart",version:VERSION}}));}catch(error){}}).catch(function(error){status(error&&error.message?error.message:String(error),"is-error");});
+    status("Conectando Defensas con Base Local...","is-info");
+    connectorReady()
+      .then(screenModules)
+      .then(function(){
+        if(window.DefartUIFix&&typeof window.DefartUIFix.install==="function"){window.DefartUIFix.install();}
+        try{window.dispatchEvent(new CustomEvent("defart:bootstrap-ready",{detail:{ok:true,source:"ConDefart",version:VERSION,singleInitialLoad:true}}));}catch(error){}
+      })
+      .catch(function(error){status(error&&error.message?error.message:String(error),"warn");});
   }
 
   window.DefartBootstrap={version:VERSION,boot:boot,connectorReady:connectorReady};
