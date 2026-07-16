@@ -1,0 +1,274 @@
+/* =========================================================
+Nombre completo: defart.compact.css
+Ruta o ubicación: /defart/defart.compact.css
+Función o funciones:
+- Compactar los filtros de Defensas.
+- Reforzar la identidad institucional sin perder sobriedad.
+- Diferenciar claramente carga, disponibilidad y guardado.
+========================================================= */
+
+:root {
+  --primary: #1e3a8a;
+  --primary-dark: #172554;
+  --primary-soft: #eef4ff;
+  --line: #d7e0ee;
+  --line-strong: #b9c8dc;
+  --bg: #f1f5fb;
+  --row-alt: #f7faff;
+  --shadow: 0 7px 18px rgba(15, 23, 42, .07);
+}
+
+body {
+  background: linear-gradient(180deg, #eef3fa 0, #f7f9fc 180px, #f4f7fb 100%);
+}
+
+.def-app {
+  padding: 7px 10px 16px;
+}
+
+.def-status {
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  font-size: 11.5px;
+  box-shadow: none;
+}
+
+.def-status.is-info {
+  background: #e8f0ff;
+  border-color: #b9cff8;
+  color: #1e3a8a;
+}
+
+.def-status.is-empty {
+  background: #fff8e8;
+  border-color: #f4d58d;
+  color: #854d0e;
+}
+
+.def-toolbar {
+  gap: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-top: 3px solid var(--primary);
+  border-radius: 11px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  box-shadow: 0 5px 14px rgba(30, 58, 138, .07);
+}
+
+.def-toolbar-row {
+  gap: 7px;
+}
+
+.def-toolbar-row-main {
+  grid-template-columns: minmax(170px, .95fr) minmax(150px, .9fr) minmax(260px, 1.45fr) minmax(155px, .85fr);
+}
+
+.def-toolbar-row-secondary {
+  grid-template-columns: minmax(320px, 1fr) auto auto;
+  align-items: end;
+}
+
+.def-toolbar label {
+  gap: 3px;
+}
+
+.def-toolbar label span {
+  color: #253858;
+  font-size: 10.5px;
+  letter-spacing: .015em;
+}
+
+select,
+input {
+  min-height: 31px;
+  border-radius: 8px;
+  padding: 5px 9px;
+  border-color: #cfd9e7;
+  font-size: 11.5px;
+  background: #fff;
+}
+
+select:hover,
+input:hover {
+  border-color: #9fb4d0;
+}
+
+select:focus,
+input:focus {
+  border-color: #5276b9;
+  box-shadow: 0 0 0 2px rgba(30, 58, 138, .12);
+}
+
+.def-mini-summary {
+  gap: 5px;
+  align-self: end;
+}
+
+.def-mini-summary span {
+  min-height: 31px;
+  border-radius: 8px;
+  padding: 4px 9px;
+  border-color: #cbd8eb;
+  background: #edf3fc;
+  color: #27446f;
+  font-size: 10.5px;
+}
+
+.def-mini-summary span.is-loading {
+  background: #e8f0ff;
+  border-color: #aac4ef;
+  color: #1e3a8a;
+}
+
+.def-mini-summary span.is-empty {
+  background: #fff8e8;
+  border-color: #f4d58d;
+  color: #854d0e;
+}
+
+.def-toolbar-actions {
+  align-self: end;
+}
+
+.def-btn-export {
+  min-height: 31px;
+  border-radius: 8px;
+  padding: 0 13px;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(30, 58, 138, .16);
+}
+
+.def-btn-export:hover:not(:disabled) {
+  border-color: var(--primary-dark);
+  background: var(--primary-dark);
+}
+
+.def-progress-wrap {
+  padding: 6px 9px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border-left: 4px solid #5276b9;
+  box-shadow: none;
+}
+
+.def-progress-info {
+  margin-bottom: 4px;
+  color: #50627d;
+  font-size: 10.5px;
+}
+
+.def-progress-track {
+  height: 5px;
+}
+
+.def-progress-bar {
+  background: linear-gradient(90deg, #4f79c7, var(--primary));
+}
+
+.def-table-card {
+  padding: 8px;
+  border-radius: 11px;
+}
+
+.def-table-note {
+  margin-bottom: 6px;
+  gap: 5px;
+}
+
+.def-table-note span {
+  min-height: 25px;
+  border-radius: 7px;
+  padding: 3px 8px;
+  border-color: #c9d7ea;
+  background: #edf3fb;
+  color: #29476f;
+  font-size: 10px;
+}
+
+.def-table-wrap {
+  border-color: #cdd8e7;
+  border-radius: 9px;
+}
+
+.def-table thead th {
+  background: #dfe9f7;
+  color: #172554;
+  box-shadow: inset 0 -1px 0 #b8c7db;
+}
+
+.def-table tbody tr:hover td {
+  background: #edf4ff;
+}
+
+.def-empty {
+  padding: 18px;
+  color: #50627d;
+  background: linear-gradient(180deg, #ffffff, #f7faff);
+}
+
+.def-pagination {
+  margin-top: 6px;
+  border-color: #d1dbea;
+  background: #f7faff;
+}
+
+.def-floating-save {
+  border-radius: 9px;
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 10px 24px rgba(30, 58, 138, .22);
+}
+
+.def-diagnostics-card {
+  margin-top: 6px;
+  padding: 8px;
+  box-shadow: none;
+}
+
+@media (max-width: 1400px) and (min-width: 951px) {
+  .def-toolbar-row-main {
+    grid-template-columns: minmax(155px, .9fr) minmax(145px, .85fr) minmax(230px, 1.35fr) minmax(145px, .8fr);
+  }
+
+  .def-toolbar-row-secondary {
+    grid-template-columns: minmax(280px, 1fr) auto auto;
+  }
+
+  .def-mini-summary,
+  .def-toolbar-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 950px) {
+  .def-toolbar-row-main {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .def-toolbar-row-secondary {
+    grid-template-columns: 1fr auto;
+  }
+
+  .def-search-box {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .def-toolbar-row-main,
+  .def-toolbar-row-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .def-search-box {
+    grid-column: auto;
+  }
+
+  .def-mini-summary,
+  .def-toolbar-actions {
+    justify-content: flex-start;
+  }
+}
