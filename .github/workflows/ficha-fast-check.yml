@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Check active Ficha files
+      - name: Syntax
         shell: bash
         run: |
           set -euo pipefail
@@ -33,9 +33,11 @@ jobs:
           node --check Ficha/ficha.matricula.js
           node --check BDLocal/conexiones/cone.ficha.js
           node --check BDLocal/conexiones/cone.ficha.enrollment-lock.js
-          node scripts/verify-ficha-editors.js
-          node scripts/verify-screen-connections.js
-      - name: Check paths and legacy references
+      - name: Ficha editors contract
+        run: node scripts/verify-ficha-editors.js
+      - name: Screen connection contract
+        run: node scripts/verify-screen-connections.js
+      - name: Paths and legacy references
         shell: bash
         run: |
           set -euo pipefail
