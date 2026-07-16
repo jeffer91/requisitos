@@ -5,7 +5,7 @@
 # - Ejecutar certificación y auditoría estática en cada cambio de main.
 # - Instalar dependencias fijadas y abrir Electron en entorno aislado.
 # - Probar IndexedDB, módulos, conectores y BL2Test sin datos reales.
-# - Configurar correctamente el helper sandbox de Electron en Linux CI.
+# - Preparar y configurar correctamente el helper sandbox de Electron en Linux CI.
 # - Guardar el reporte Electron como artefacto incluso si la prueba falla.
 # =========================================================
 name: BDLocal Integrity
@@ -56,11 +56,14 @@ jobs:
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Configure Electron sandbox helper
+      - name: Prepare Electron binary and sandbox helper
         shell: bash
         run: |
           set -euo pipefail
-          helper="node_modules/electron/dist/chrome-sandbox"
+          node node_modules/electron/install.js
+          executable="$(node -p "require('electron')")"
+          helper="$(dirname "$executable")/chrome-sandbox"
+          test -x "$executable"
           test -f "$helper"
           sudo chown root:root "$helper"
           sudo chmod 4755 "$helper"
