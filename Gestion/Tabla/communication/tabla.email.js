@@ -2,8 +2,9 @@
 Nombre completo: tabla.email.js
 Ruta o ubicación: /Requisitos/Gestion/Tabla/communication/tabla.email.js
 Función o funciones:
-- Validar el correo del estudiante.
-- Construir asunto, cuerpo y enlace mailto sin registrar historial directamente.
+- Validar los correos personal e institucional del estudiante.
+- Construir asunto, cuerpo y enlace mailto con uno o ambos destinatarios.
+- Evitar destinatarios repetidos o inválidos.
 - Devolver un resultado uniforme para tabla.actions.js.
 - Aplicar el mensaje breve de proceso perdido a todos los canales de Tabla.
 Con qué se conecta:
@@ -14,17 +15,13 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-lost-process-message";
+  var VERSION = "2.2.0-dual-recipient-email";
   var U = window.TablaUtils || {};
 
   function text(value){
     return U.text
       ? U.text(value)
-      : String(
-          value == null
-            ? ""
-            : value
-        ).trim();
+      : String(value == null ? "" : value).trim();
   }
 
   function normalizeType(value){
@@ -63,7 +60,7 @@ Con qué se conecta:
     return labels;
   }
 
-  function lostProcessMessage(row, options){
+  function lostProcessMessage(row){
     var Message = window.TablaMessage || {};
     var data = typeof Message.datosEstudiante === "function"
       ? Message.datosEstudiante(row || {})
@@ -176,239 +173,163 @@ Con qué se conecta:
   function normalizeEmail(value){
     return U.normalizeEmail
       ? U.normalizeEmail(value)
-      : text(value)
-          .toLowerCase();
-  }
-
-  function addressOf(row){
-    row = row || {};
-
-    return normalizeEmail(
-      row._correo ||
-      row.CorreoPersonal ||
-      row.correoPersonal ||
-      row.CorreoInstitucional ||
-      row.correoInstitucional ||
-      row.correo ||
-      row.email ||
-      row.Email ||
-      ""
-    );
+      : text(value).toLowerCase();
   }
 
   function isValid(address){
     return U.isEmail
       ? U.isEmail(address)
-      : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-          normalizeEmail(
-            address
-          )
-        );
+      : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(address));
   }
 
-  function subjectFor(
-    row,
-    type,
-    options
-  ){
+  function emailCandidates(row){
+    row = row || {};
+
+    return [
+      row._correoPersonal,
+      row.CorreoPersonal,
+      row.correoPersonal,
+      row._correoInstitucional,
+      row.CorreoInstitucional,
+      row.correoInstitucional,
+      row.emailInstitucional,
+      row.EmailInstitucional,
+      row._correo,
+      row.correo,
+      row.email,
+      row.Email
+    ];
+  }
+
+  function addressesOf(row){
+    var seen = Object.create(null);
+    var addresses = [];
+
+    emailCandidates(row).forEach(function(value){
+      var address = normalizeEmail(value);
+      var identity = address.toLowerCase();
+
+      if(!address || !isValid(address) || seen[identity]){
+        return;
+      }
+
+      seen[identity] = true;
+      addresses.push(address);
+    });
+
+    return addresses;
+  }
+
+  function addressOf(row){
+    return addressesOf(row).join(", ");
+  }
+
+  function subjectFor(row, type, options){
     options = options || {};
 
     if(text(options.subject)){
-      return text(
-        options.subject
-      );
+      return text(options.subject);
     }
 
     if(
       window.TablaMessage &&
-      typeof window.TablaMessage
-        .asunto === "function"
+      typeof window.TablaMessage.asunto === "function"
     ){
-      return window.TablaMessage
-        .asunto(
-          row || {},
-          type ||
-            "requisitos"
-        );
+      return window.TablaMessage.asunto(row || {}, type || "requisitos");
     }
 
     return "Proceso de titulación";
   }
 
-  function buildUrl(
-    row,
-    type,
-    message,
-    options
-  ){
-    var address =
-      addressOf(row);
+  function buildUrl(row, type, message, options){
+    var addresses = addressesOf(row);
 
-    if(!isValid(address)){
+    if(!addresses.length){
       return "";
     }
 
-    var subject =
-      subjectFor(
-        row,
-        type,
-        options
-      );
+    var subject = subjectFor(row, type, options);
+    var recipients = addresses
+      .map(function(address){
+        return encodeURIComponent(address);
+      })
+      .join(",");
 
     return (
       "mailto:" +
-      encodeURIComponent(
-        address
-      ) +
+      recipients +
       "?subject=" +
-      encodeURIComponent(
-        subject
-      ) +
+      encodeURIComponent(subject) +
       "&body=" +
-      encodeURIComponent(
-        text(message)
-      )
+      encodeURIComponent(text(message))
     );
   }
 
-  function open(
-    row,
-    type,
-    message,
-    options
-  ){
-    var address =
-      addressOf(row);
-
-    var url =
-      buildUrl(
-        row,
-        type,
-        message,
-        options
-      );
+  function open(row, type, message, options){
+    var addresses = addressesOf(row);
+    var address = addresses.join(", ");
+    var url = buildUrl(row, type, message, options);
 
     if(!url){
       return {
-        ok:
-          false,
-
-        opened:
-          false,
-
-        address:
-          address,
-
-        url:
-          "",
-
-        message:
-          address
-            ? "El correo registrado no es válido."
-            : "Sin correo registrado."
+        ok: false,
+        opened: false,
+        address: address,
+        addresses: addresses,
+        url: "",
+        message: "Sin correo personal o institucional válido registrado."
       };
     }
 
     try{
-      var opened =
-        U.openWindow
-          ? U.openWindow(url)
-          : !!window.open(
-              url,
-              "_blank",
-              "noopener,noreferrer"
-            );
+      var opened = U.openWindow
+        ? U.openWindow(url)
+        : !!window.open(url, "_blank", "noopener,noreferrer");
 
       return {
-        ok:
-          opened,
-
-        opened:
-          opened,
-
-        address:
-          address,
-
-        url:
-          url,
-
-        subject:
-          subjectFor(
-            row,
-            type,
-            options
-          ),
-
-        message:
-          opened
-            ? "Correo abierto con el mensaje preparado."
-            : "El navegador bloqueó la apertura del correo."
+        ok: opened,
+        opened: opened,
+        address: address,
+        addresses: addresses,
+        url: url,
+        subject: subjectFor(row, type, options),
+        message: opened
+          ? addresses.length > 1
+            ? "Correo abierto para las direcciones personal e institucional."
+            : "Correo abierto con el mensaje preparado."
+          : "El navegador bloqueó la apertura del correo."
       };
     }catch(error){
       return {
-        ok:
-          false,
-
-        opened:
-          false,
-
-        address:
-          address,
-
-        url:
-          url,
-
-        error:
-          error,
-
-        message:
-          error &&
-          error.message
-            ? error.message
-            : "No se pudo abrir el correo."
+        ok: false,
+        opened: false,
+        address: address,
+        addresses: addresses,
+        url: url,
+        error: error,
+        message: error && error.message
+          ? error.message
+          : "No se pudo abrir el correo."
       };
     }
   }
 
   window.TablaEmail = {
-    version:
-      VERSION,
-
-    addressOf:
-      addressOf,
-
-    normalizeEmail:
-      normalizeEmail,
-
-    isValid:
-      isValid,
-
-    subjectFor:
-      subjectFor,
-
-    buildUrl:
-      buildUrl,
-
-    open:
-      open,
-
-    abrir:
-      open,
-
-    available:
-      function(row){
-        return isValid(
-          addressOf(row)
-        );
-      },
-
-    lostProcessMessage:
-      lostProcessMessage,
-
-    lostProcessSubject:
-      lostProcessSubject,
-
-    patchLostProcessMessage:
-      patchLostProcessMessage
+    version: VERSION,
+    emailCandidates: emailCandidates,
+    addressesOf: addressesOf,
+    addressOf: addressOf,
+    normalizeEmail: normalizeEmail,
+    isValid: isValid,
+    subjectFor: subjectFor,
+    buildUrl: buildUrl,
+    open: open,
+    abrir: open,
+    available: function(row){
+      return addressesOf(row).length > 0;
+    },
+    lostProcessMessage: lostProcessMessage,
+    lostProcessSubject: lostProcessSubject,
+    patchLostProcessMessage: patchLostProcessMessage
   };
 })(window);
