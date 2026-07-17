@@ -55,11 +55,11 @@ const registry = read("BDLocal/conexiones/cone.registry.js");
   ["stats", "ConStats", "cone.stats.js"], ["coordi", "ConCoordi", "cone.coordi.js"],
   ["global", "ConGlobal", "cone.global.js"], ["reportes", "ConReportes", "cone.reportes.js"],
   ["defart", "ConDefart", "cone.defart.js"], ["ncomplex", "ConNcomplex", "cone.ncomplex.js"],
-  ["cr_def", "ConCrDef", "cone.crdef.js"], ["infor", "ConInfor", "cone.infor.js"]
+  ["cr_def", "ConCrDef", "cone.crdef.js"], ["inpvc", "ConInPVC", "cone.inpvc.js"]
 ].forEach(([id, globalName, connectorFile]) => {
   ok(registry.includes(`id:"${id}"`) && registry.includes(`global:"${globalName}"`) && registry.includes(`file:"${connectorFile}"`), `Registro incompleto para ${id} → ${globalName}`);
 });
-ok(!/id:"stats"[^\n]*\/infor\//.test(registry), "Stats no debe registrar rutas de Infor");
+ok(!/id:"stats"[^\n]*\/inpvc\//.test(registry), "Stats no debe registrar rutas de InPVC");
 ok(!/id:"defensas"[^\n]*\/defart\//.test(registry), "Defensas legacy no debe registrar Defart");
 ok(!/id:"defensas"[^\n]*\/cr-def\//.test(registry), "Defensas legacy no debe registrar Cr-def");
 matches("BDLocal/conexiones/cone.registry.js", /id:"defensas"[\s\S]*?enabled:false/, "El conector legacy defensas debe permanecer deshabilitado");
@@ -155,14 +155,16 @@ contains("Cr-def/cr-def.bootstrap.js", "connectorReady");
 contains("Cr-def/cr-def.data.js", "ConCrDef");
 excludes("Cr-def/cr-def.data.js", forbiddenScreenAccess);
 
-// Infor.
-contains("Infor/frontend/titulacion.html", "cone.infor.js");
-contains("Infor/frontend/titulacion.html", "infor.bootstrap.js");
-excludes("Infor/frontend/titulacion.html", ['<script src="titulacion.app.js"></script>', '<script src="infor.excel-autoread.js"></script>']);
-contains("Infor/frontend/infor.bootstrap.js", "InforPeriodo");
-contains("Infor/frontend/infor.bootstrap.js", "connectorReady");
-contains("Infor/core/infor.periodo.js", "ConInfor");
-excludes("Infor/frontend/infor.bootstrap.js", forbiddenScreenAccess);
+// InPVC.
+contains("InPVC/inpvc.html", "cone.inpvc.js");
+contains("InPVC/inpvc.html", "inpvc.bootstrap.js");
+excludes("InPVC/inpvc.html", ['<script src="frontend/inpvc.app.js"></script>']);
+contains("InPVC/frontend/inpvc.bootstrap.js", "connectorReady");
+contains("InPVC/frontend/inpvc.bootstrap.js", "ConInPVC");
+contains("InPVC/core/inpvc.model.js", "InPVCSections");
+contains("InPVC/export/inpvc.zip.js", "folder(section.folder)");
+excludes("InPVC/frontend/inpvc.bootstrap.js", forbiddenScreenAccess);
+excludes("InPVC/frontend/inpvc.app.js", forbiddenScreenAccess);
 
 // Sintaxis de archivos críticos.
 [
@@ -175,7 +177,10 @@ excludes("Infor/frontend/infor.bootstrap.js", forbiddenScreenAccess);
   "Reportes/repo.core.js", "Reportes/repo.app.js", "defart/defart.bootstrap.js",
   "defart/defart.service-bridge.js", "defart/defart.save-service-bridge.js",
   "Ncomplex/ncomplex.bootstrap.js", "Ncomplex/ncomplex.save.js", "Cr-def/cr-def.bootstrap.js",
-  "Cr-def/cr-def.data.js", "Infor/frontend/infor.bootstrap.js", "Infor/core/infor.periodo.js"
+  "Cr-def/cr-def.data.js", "BDLocal/conexiones/cone.inpvc.js",
+  "InPVC/frontend/inpvc.bootstrap.js", "InPVC/frontend/inpvc.app.js",
+  "InPVC/core/inpvc.utils.js", "InPVC/core/inpvc.model.js",
+  "InPVC/export/inpvc.word.js", "InPVC/export/inpvc.excel.js", "InPVC/export/inpvc.zip.js"
 ].forEach(syntax);
 
 if (errors.length) {

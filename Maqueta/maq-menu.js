@@ -25,7 +25,7 @@ Con qué se conecta:
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"},
-    {tipo:"modulo",moduloId:"titulacion",etiqueta:"Infor"}
+    {tipo:"modulo",moduloId:"titulacion",etiqueta:"InPVC"}
   ];
   var state={items:[],initial:"carga_excel",rendered:false,started:false};var floating=null;var owner=null;
   function clone(value){return JSON.parse(JSON.stringify(value));}function getConfig(){return window.MAQ_CONFIG_SERVICE||{};}function getCore(){return window.MAQ_CORE||{};}function getRegistry(){return window.MAQ_MODULOS_REGISTRY||{};}function status(text){var el=document.getElementById("maq-status-text");if(el)el.textContent=text;}function nav(){return document.getElementById("maq-main-menu");}function closeSub(){if(floating&&floating.parentNode)floating.parentNode.removeChild(floating);floating=null;owner=null;}function posSub(btn){if(!floating||!btn)return;var r=btn.getBoundingClientRect();floating.style.left=Math.round(r.left)+"px";floating.style.top=Math.round(r.bottom+8)+"px";}

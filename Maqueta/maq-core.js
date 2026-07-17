@@ -57,7 +57,7 @@ Con qué se conecta:
     titulos_estudiante:{id:"titulos_estudiante",nombre:"Títulos - Estudiante",ruta:"../Titulos/public/ta-titulo-articulo-estudiante.html",estado:"activo"},
     titulos_admin:{id:"titulos_admin",nombre:"Títulos - Administrador",ruta:"../Titulos/electron/admin/ta-titulo-articulo-administrador.html",estado:"activo"},
     titulos_coordinador:{id:"titulos_coordinador",nombre:"Títulos - Coordinador",ruta:"../Titulos/public/ta-titulo-articulo-coordinador.html",estado:"activo"},
-    titulacion:{id:"titulacion",nombre:"Infor",ruta:"../Infor/frontend/titulacion.html",estado:"activo"}
+    titulacion:{id:"titulacion",nombre:"InPVC",ruta:"../InPVC/inpvc.html",estado:"activo"}
   };
 
   var MODULE_ALIASES={
@@ -96,6 +96,7 @@ Con qué se conecta:
     "titulos coordinador":"titulos_coordinador",
     "títulos coordinador":"titulos_coordinador",
     "infor":"titulacion",
+    "inpvc":"titulacion",
     "titulacion":"titulacion",
     "titulación":"titulacion"
   };

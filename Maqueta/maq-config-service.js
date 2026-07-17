@@ -25,7 +25,7 @@ Con qué se conecta:
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"},
-    {tipo:"modulo",moduloId:"titulacion",etiqueta:"Infor"}
+    {tipo:"modulo",moduloId:"titulacion",etiqueta:"InPVC"}
   ];
   function clone(v){return JSON.parse(JSON.stringify(v));}
   function obtenerConfigEfectiva(){return Promise.resolve({itemsMenuCalculados:clone(ORDER),moduloInicial:"carga_excel"});}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>InPVC · Informe PVC</title>
+  <link rel="stylesheet" href="frontend/inpvc.css">
+</head>
+<body data-bdl-screen="inpvc">
+  <main class="inpvc-app">
+    <header class="inpvc-hero">
+      <div><p class="inpvc-eyebrow">Unidad de Titulación y Eficiencia Terminal</p><h1>InPVC</h1><p>Informe institucional PVC por secciones, con cálculos, gráficos, Ishikawa y exportaciones independientes o globales.</p></div>
+      <button id="inpvc-refresh" class="secondary" type="button">Actualizar Base Local</button>
+    </header>
+    <div id="inpvc-status" class="inpvc-status">Conectando con Base Local...</div>
+
+    <section class="inpvc-panel inpvc-setup">
+      <div class="inpvc-panel-title"><div><span>Paso 1</span><h2>Preparar el período PVC</h2><p>Los estudiantes, carreras y notas se leen automáticamente.</p></div><button id="inpvc-generate" class="primary" type="button">Generar informe</button></div>
+      <div class="inpvc-fields">
+        <label>Período PVC<select id="inpvc-period"><option value="">Cargando períodos...</option></select></label>
+        <label>Código del informe<input id="inpvc-code" type="text" placeholder="UTET-INF-01-PRO-95-2026-03"></label>
+        <label>Fecha de elaboración<input id="inpvc-date" type="date"></label>
+      </div>
+    </section>
+
+    <section class="inpvc-kpis-ui">
+      <article><span>Estudiantes</span><strong id="inpvc-total">0</strong></article>
+      <article><span>Aprobados</span><strong id="inpvc-approved">0</strong></article>
+      <article><span>Reprobados</span><strong id="inpvc-failed">0</strong></article>
+      <article><span>Aprobación</span><strong id="inpvc-rate">0 %</strong></article>
+    </section>
+
+    <section class="inpvc-panel">
+      <div class="inpvc-panel-title"><div><span>Paso 2</span><h2>Secciones del informe</h2><p>Cada sección genera su propio Word y Excel.</p></div><div class="inpvc-inline"><button id="inpvc-select-all" type="button">Seleccionar todas</button><button id="inpvc-select-none" type="button">Quitar selección</button></div></div>
+      <div id="inpvc-sections" class="inpvc-sections"><div class="inpvc-empty">Selecciona el período y genera el informe.</div></div>
+    </section>
+
+    <section class="inpvc-panel inpvc-global">
+      <div><span>Paso 3</span><h2>Descarga global</h2><p>Se respetan las secciones seleccionadas. El ZIP crea una subcarpeta por sección e incluye también los archivos globales.</p></div>
+      <div class="inpvc-global-actions"><button id="inpvc-word-global" type="button" disabled>Word global</button><button id="inpvc-excel-global" type="button" disabled>Excel global</button><button id="inpvc-zip-global" class="primary" type="button" disabled>ZIP completo</button></div>
+    </section>
+  </main>
+
+  <script src="../node_modules/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="../node_modules/jszip/dist/jszip.min.js"></script>
+  <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/conexiones/cone.inpvc.js"></script>
+  <script src="core/inpvc.utils.js"></script>
+  <script src="sections/01-aspectos-generales/section.js"></script>
+  <script src="sections/02-marco-normativo/section.js"></script>
+  <script src="sections/03-lineamientos/section.js"></script>
+  <script src="sections/04-metodologia/section.js"></script>
+  <script src="sections/05-resultados/section.js"></script>
+  <script src="sections/06-ishikawa/section.js"></script>
+  <script src="sections/07-conclusiones/section.js"></script>
+  <script src="sections/08-calificaciones/section.js"></script>
+  <script src="core/inpvc.model.js"></script>
+  <script src="export/inpvc.word.js"></script>
+  <script src="export/inpvc.excel.js"></script>
+  <script src="export/inpvc.zip.js"></script>
+  <script src="frontend/inpvc.bootstrap.js"></script>
+</body>
+</html>

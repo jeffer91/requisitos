@@ -1616,7 +1616,8 @@ Con qué se conecta:
       "cone.coordi.js",
       "cone.reportes.js",
       "cone.defensas.js",
-      "cone.global.js"
+      "cone.global.js",
+      "cone.inpvc.js"
     ]);
   }
 

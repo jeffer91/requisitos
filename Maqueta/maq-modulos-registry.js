@@ -33,7 +33,7 @@ Con qué se conecta:
     titulos_estudiante:{id:"titulos_estudiante",nombre:"Títulos - Estudiante",ruta:base+"/Titulos/public/ta-titulo-articulo-estudiante.html",estado:"pendiente",pantallaConexion:"",conexion:""},
     titulos_admin:{id:"titulos_admin",nombre:"Títulos - Administrador",ruta:base+"/Titulos/electron/admin/ta-titulo-articulo-administrador.html",estado:"pendiente",pantallaConexion:"",conexion:""},
     titulos_coordinador:{id:"titulos_coordinador",nombre:"Títulos - Coordinador",ruta:base+"/Titulos/public/ta-titulo-articulo-coordinador.html",estado:"pendiente",pantallaConexion:"",conexion:""},
-    titulacion:{id:"titulacion",nombre:"Infor",ruta:base+"/Infor/frontend/titulacion.html",estado:"activo",pantallaConexion:"infor",conexion:conBase+"cone.infor.js"}
+    titulacion:{id:"titulacion",nombre:"InPVC",ruta:base+"/InPVC/inpvc.html",estado:"activo",pantallaConexion:"inpvc",conexion:conBase+"cone.inpvc.js"}
   };
 
   var aliases={
@@ -51,7 +51,7 @@ Con qué se conecta:
     "titulos estudiante":"titulos_estudiante","títulos estudiante":"titulos_estudiante",
     "titulos administrador":"titulos_admin","títulos administrador":"titulos_admin","titulos admin":"titulos_admin","títulos admin":"titulos_admin",
     "titulos coordinador":"titulos_coordinador","títulos coordinador":"titulos_coordinador",
-    infor:"titulacion",titulacion:"titulacion",titulación:"titulacion"
+    infor:"titulacion",inpvc:"titulacion",titulacion:"titulacion",titulación:"titulacion"
   };
 
   function text(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}

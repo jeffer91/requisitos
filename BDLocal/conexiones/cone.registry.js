@@ -4,7 +4,7 @@ Ruta: /BDLocal/conexiones/cone.registry.js
 Función:
 - Mantener el inventario oficial de pantallas y conectores.
 - Resolver una conexión exclusiva por pantalla.
-- Evitar asociaciones heredadas entre Infor/Stats y Defart/Cr-def.
+- Evitar asociaciones heredadas entre InPVC/Stats y Defart/Cr-def.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -161,7 +161,7 @@ Función:
     {id:"defart",label:"Defensas",global:"ConDefart",file:"cone.defart.js",pathHints:["/defart/","defart.html"],aliases:["pantalla_defensas"],canWrite:true,operations:["ready","read","save","update","refresh","status","diagnose"],tables:common.concat(["notas_titulacion","divisiones_estudiante","cambios_pendientes"])},
     {id:"ncomplex",label:"Ncomplex",global:"ConNcomplex",file:"cone.ncomplex.js",pathHints:["/ncomplex/","ncomplex.html"],aliases:["complexivo"],canWrite:true,operations:["ready","read","save","update","refresh","status","diagnose"],tables:common.concat(["evaluaciones_titulacion","importaciones","cambios_pendientes"])},
     {id:"cr_def",label:"Cr-def",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"],aliases:["crdef","cr-def","sacar_n"],tables:common.concat(["notas_titulacion","divisiones_estudiante"])},
-    {id:"infor",label:"Infor",global:"ConInfor",file:"cone.infor.js",pathHints:["/infor/","/titulacion/","titulacion.html"],aliases:["titulacion","informe_titulacion"],tables:common.concat(["notas_titulacion","evaluaciones_titulacion"])},
+    {id:"inpvc",label:"InPVC",global:"ConInPVC",file:"cone.inpvc.js",pathHints:["/inpvc/","inpvc.html"],aliases:["infor","titulacion","informe_pvc","titulacion_pvc"],tables:common.concat(["notas_titulacion","evaluaciones_titulacion"])},
     {id:"defensas",label:"Defensas legacy",global:"ConDefensas",file:"cone.defensas.js",pathHints:["__legacy_defensas__"],aliases:["defensas_legacy"],canWrite:true,enabled:false,operations:["ready","read","save","update","refresh","status"],tables:common.concat(["notas_titulacion","divisiones_estudiante"])}
   ];
 

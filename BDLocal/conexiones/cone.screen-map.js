@@ -21,7 +21,7 @@ Función o funciones:
     {id:"defart",label:"Defensas",global:"ConDefart",file:"cone.defart.js",pathHints:["/defart/","defart.html"],canWrite:true},
     {id:"ncomplex",label:"Ncomplex",global:"ConNcomplex",file:"cone.ncomplex.js",pathHints:["/ncomplex/","ncomplex.html"],canWrite:true},
     {id:"cr_def",label:"Cr-def",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"]},
-    {id:"infor",label:"Infor",global:"ConInfor",file:"cone.infor.js",pathHints:["/infor/","infor/frontend/titulacion.html"]}
+    {id:"inpvc",label:"InPVC",global:"ConInPVC",file:"cone.inpvc.js",pathHints:["/inpvc/","inpvc.html"]}
   ];
 
   var tables={
@@ -34,7 +34,7 @@ Función o funciones:
     reportes:["contactos_estudiante","notas_titulacion","divisiones_estudiante"],
     defart:["notas_titulacion","divisiones_estudiante","cambios_pendientes"],
     ncomplex:["evaluaciones_titulacion","importaciones","cambios_pendientes"],
-    cr_def:["notas_titulacion","divisiones_estudiante"],infor:["notas_titulacion","evaluaciones_titulacion"]
+    cr_def:["notas_titulacion","divisiones_estudiante"],inpvc:["notas_titulacion","evaluaciones_titulacion"]
   };
 
   function unique(values){var seen=Object.create(null);return (values||[]).filter(function(value){value=String(value||"").trim();if(!value||seen[value]){return false;}seen[value]=true;return true;});}

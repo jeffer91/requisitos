@@ -144,7 +144,7 @@ function auditFirebaseAndIdentity(){
 
 function auditConnections(files){
   const index="BDLocal/conexiones/cone.index.js";
-  const expected=["cone.carga.js","cone.tabla.js","cone.ficha.js","cone.stats.js","cone.coordi.js","cone.reportes.js","cone.defensas.js","cone.global.js"];
+  const expected=["cone.carga.js","cone.tabla.js","cone.ficha.js","cone.stats.js","cone.coordi.js","cone.reportes.js","cone.defensas.js","cone.global.js","cone.inpvc.js"];
   if(!exists(index)){fail("Conectores","Falta cone.index.js.");return;}
   const source=read(index);
   const missing=expected.filter((name)=>!source.includes('"'+name+'"')||!files.has("BDLocal/conexiones/"+name));

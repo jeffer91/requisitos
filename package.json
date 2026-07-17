@@ -11,11 +11,12 @@
     "start": "electron .",
     "dev": "electron .",
     "start:local": "electron .",
-    "test": "node scripts/verify-bdlocal.js && node scripts/verify-main-menu.js && node scripts/verify-screen-connections.js && node scripts/verify-ficha-editors.js && node scripts/audit-repository.js",
+    "test": "node scripts/verify-bdlocal.js && node scripts/verify-main-menu.js && node scripts/verify-screen-connections.js && node scripts/verify-ficha-editors.js && node scripts/verify-inpvc.js && node scripts/audit-repository.js",
     "test:bdlocal": "node scripts/verify-bdlocal.js",
     "test:menu": "node scripts/verify-main-menu.js",
     "test:connections": "node scripts/verify-screen-connections.js",
     "test:ficha-editors": "node scripts/verify-ficha-editors.js",
+    "test:inpvc": "node scripts/verify-inpvc.js",
     "test:electron": "electron electron/smoke-main.js",
     "diagnostico:bdlocal": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1",
     "diagnostico:bloqueo": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bloqueo.ps1",
@@ -23,6 +24,7 @@
     "verify": "npm test"
   },
   "dependencies": {
+    "jszip": "3.10.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {

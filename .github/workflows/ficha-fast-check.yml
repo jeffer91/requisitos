@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "Ficha/**"
-      - "Infor/frontend/infor.bootstrap.js"
+      - "InPVC/frontend/inpvc.bootstrap.js"
       - "BDLocal/conexiones/cone.ficha*.js"
       - "BDLocal/adapters/bdl.screen-deps.js"
       - "scripts/**"
@@ -35,7 +35,7 @@ jobs:
           node --check Ficha/ficha.matricula.js
           node --check BDLocal/conexiones/cone.ficha.js
           node --check BDLocal/conexiones/cone.ficha.enrollment-lock.js
-          node --check Infor/frontend/infor.bootstrap.js
+          node --check InPVC/frontend/inpvc.bootstrap.js
       - name: Run static contracts
         shell: bash
         run: |

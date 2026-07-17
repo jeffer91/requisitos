@@ -1,0 +1,38 @@
+name: InPVC Check
+
+on:
+  pull_request:
+    paths:
+      - "InPVC/**"
+      - "BDLocal/conexiones/cone.inpvc.js"
+      - "BDLocal/conexiones/cone.registry.js"
+      - "BDLocal/conexiones/cone.screen-map.js"
+      - "Maqueta/**"
+      - "scripts/verify-inpvc.js"
+      - "scripts/verify-screen-connections.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/inpvc-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "InPVC/**"
+      - "BDLocal/conexiones/cone.inpvc.js"
+      - "Maqueta/**"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:connections
+      - run: npm run test:menu
+      - run: npm run test:inpvc
