@@ -31,18 +31,18 @@
     </section>
 
     <section class="inpvc-panel">
-      <div class="inpvc-panel-title"><div><span>Paso 2</span><h2>Secciones del informe</h2><p>Cada sección genera su propio Word y Excel.</p></div><div class="inpvc-inline"><button id="inpvc-select-all" type="button">Seleccionar todas</button><button id="inpvc-select-none" type="button">Quitar selección</button></div></div>
+      <div class="inpvc-panel-title"><div><span>Paso 2</span><h2>Secciones del informe</h2><p>Cada sección genera su propio Word y PDF.</p></div><div class="inpvc-inline"><button id="inpvc-select-all" type="button">Seleccionar todas</button><button id="inpvc-select-none" type="button">Quitar selección</button></div></div>
       <div id="inpvc-sections" class="inpvc-sections"><div class="inpvc-empty">Selecciona el período y genera el informe.</div></div>
     </section>
 
     <section class="inpvc-panel inpvc-global">
       <div><span>Paso 3</span><h2>Descarga global</h2><p>Se respetan las secciones seleccionadas. El ZIP crea una subcarpeta por sección e incluye también los archivos globales.</p></div>
-      <div class="inpvc-global-actions"><button id="inpvc-word-global" type="button" disabled>Word global</button><button id="inpvc-excel-global" type="button" disabled>Excel global</button><button id="inpvc-zip-global" class="primary" type="button" disabled>ZIP completo</button></div>
+      <div class="inpvc-global-actions"><button id="inpvc-word-global" type="button" disabled>Word global</button><button id="inpvc-pdf-global" type="button" disabled>PDF global</button><button id="inpvc-zip-global" class="primary" type="button" disabled>ZIP completo</button></div>
     </section>
   </main>
 
-  <script src="../node_modules/xlsx/dist/xlsx.full.min.js"></script>
   <script src="../node_modules/jszip/dist/jszip.min.js"></script>
+  <script src="../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js"></script>
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/conexiones/cone.inpvc.js"></script>
   <script src="core/inpvc.utils.js"></script>
@@ -56,7 +56,7 @@
   <script src="sections/08-calificaciones/section.js"></script>
   <script src="core/inpvc.model.js"></script>
   <script src="export/inpvc.word.js"></script>
-  <script src="export/inpvc.excel.js"></script>
+  <script src="export/inpvc.pdf.js"></script>
   <script src="export/inpvc.zip.js"></script>
   <script src="frontend/inpvc.bootstrap.js"></script>
 </body>

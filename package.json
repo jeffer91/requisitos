@@ -24,6 +24,7 @@
     "verify": "npm test"
   },
   "dependencies": {
+    "html2pdf.js": "0.14.0",
     "jszip": "3.10.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },

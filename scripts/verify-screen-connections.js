@@ -180,7 +180,7 @@ excludes("InPVC/frontend/inpvc.app.js", forbiddenScreenAccess);
   "Cr-def/cr-def.data.js", "BDLocal/conexiones/cone.inpvc.js",
   "InPVC/frontend/inpvc.bootstrap.js", "InPVC/frontend/inpvc.app.js",
   "InPVC/core/inpvc.utils.js", "InPVC/core/inpvc.model.js",
-  "InPVC/export/inpvc.word.js", "InPVC/export/inpvc.excel.js", "InPVC/export/inpvc.zip.js"
+  "InPVC/export/inpvc.word.js", "InPVC/export/inpvc.pdf.js", "InPVC/export/inpvc.zip.js"
 ].forEach(syntax);
 
 if (errors.length) {

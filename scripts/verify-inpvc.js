@@ -3,11 +3,10 @@ const fs=require("node:fs");
 const path=require("node:path");
 const vm=require("node:vm");
 const assert=require("node:assert/strict");
-const XLSX=require("xlsx");
 const JSZip=require("jszip");
 
 const root=path.resolve(__dirname,"..");
-const sandbox={window:{XLSX,JSZip},document:{},Blob,URL,console,setTimeout,clearTimeout};
+const sandbox={window:{JSZip},document:{},Blob,URL,console,setTimeout,clearTimeout};
 sandbox.window.window=sandbox.window;
 vm.createContext(sandbox);
 function load(relative){vm.runInContext(fs.readFileSync(path.join(root,relative),"utf8"),sandbox,{filename:relative});}
@@ -24,13 +23,15 @@ function load(relative){vm.runInContext(fs.readFileSync(path.join(root,relative)
   "InPVC/sections/08-calificaciones/section.js",
   "InPVC/core/inpvc.model.js",
   "InPVC/export/inpvc.word.js",
-  "InPVC/export/inpvc.excel.js",
+  "InPVC/export/inpvc.pdf.js",
   "InPVC/export/inpvc.zip.js"
 ].forEach(load);
 
 async function main(){
   const html=fs.readFileSync(path.join(root,"InPVC/inpvc.html"),"utf8");
   assert.ok(!html.includes("<h1>InPVC</h1>"),"El encabezado no debe mostrar el título InPVC.");
+  assert.ok(html.includes("html2pdf.bundle.min.js"),"InPVC debe cargar el motor PDF local.");
+  assert.ok(html.includes("PDF global")&&!html.includes("Excel global"),"La descarga global debe ofrecer Word y PDF.");
   assert.match(html,/id="inpvc-code"[^>]*readonly/,"El código debe ser automático y no editable.");
   assert.equal(sandbox.window.InPVCUtils.reportCode("2026-07-17"),"UTET-INF-01-PRO-95-2026-07","El código debe derivarse del año y mes de la fecha.");
   assert.equal(sandbox.window.InPVCUtils.reportCode(""),"","Sin fecha no debe generarse un código.");
@@ -46,14 +47,14 @@ async function main(){
   assert.ok(ctx.sections.some((section)=>section.id==="ishikawa"&&section.html.includes("Ishikawa")));
   const word=sandbox.window.InPVCWord.build(ctx,ctx.sections);
   assert.ok(word.includes("Informe final del proceso de titulación PVC"));
-  const excel=sandbox.window.InPVCExcel.array(ctx,ctx.sections);
-  const wb=XLSX.read(excel,{type:"array"});
-  assert.ok(wb.SheetNames.length>=8,"El Excel global debe contener hojas por sección.");
+  assert.ok(sandbox.window.InPVCPdf.filename(ctx,"Completo").endsWith("_Completo.pdf"),"El PDF global debe tener extensión .pdf.");
+  sandbox.window.InPVCPdf.blob=async()=>new Blob(["%PDF-1.4\n% InPVC test"],{type:"application/pdf"});
   const zipBlob=await sandbox.window.InPVCZip.create(ctx,ctx.sections);
   const zip=await JSZip.loadAsync(await zipBlob.arrayBuffer());
   assert.ok(Object.keys(zip.files).some((name)=>name.startsWith("01_Aspectos_Generales/")));
   assert.ok(Object.keys(zip.files).some((name)=>name.endsWith("_Completo.doc")));
-  assert.ok(Object.keys(zip.files).some((name)=>name.endsWith("_Completo.xlsx")));
-  console.log("VERIFICACIÓN InPVC: OK (cálculos, 8 secciones, Word, Excel y ZIP)");
+  assert.ok(Object.keys(zip.files).some((name)=>name.endsWith("_Completo.pdf")));
+  assert.ok(!Object.keys(zip.files).some((name)=>name.endsWith(".xlsx")),"El ZIP no debe contener archivos Excel.");
+  console.log("VERIFICACIÓN InPVC: OK (cálculos, 8 secciones, Word, PDF y ZIP)");
 }
 main().catch((error)=>{console.error("VERIFICACIÓN InPVC: ERROR",error);process.exit(1);});
