@@ -9,7 +9,7 @@
 <body data-bdl-screen="inpvc">
   <main class="inpvc-app">
     <header class="inpvc-hero">
-      <div><p class="inpvc-eyebrow">Unidad de Titulación y Eficiencia Terminal</p><h1>InPVC</h1><p>Informe institucional PVC por secciones, con cálculos, gráficos, Ishikawa y exportaciones independientes o globales.</p></div>
+      <div><p class="inpvc-eyebrow">Unidad de Titulación y Eficiencia Terminal</p><p>Informe institucional PVC por secciones, con cálculos, gráficos, Ishikawa y exportaciones independientes o globales.</p></div>
       <button id="inpvc-refresh" class="secondary" type="button">Actualizar Base Local</button>
     </header>
     <div id="inpvc-status" class="inpvc-status">Conectando con Base Local...</div>
@@ -18,8 +18,8 @@
       <div class="inpvc-panel-title"><div><span>Paso 1</span><h2>Preparar el período PVC</h2><p>Los estudiantes, carreras y notas se leen automáticamente.</p></div><button id="inpvc-generate" class="primary" type="button">Generar informe</button></div>
       <div class="inpvc-fields">
         <label>Período PVC<select id="inpvc-period"><option value="">Cargando períodos...</option></select></label>
-        <label>Código del informe<input id="inpvc-code" type="text" placeholder="UTET-INF-01-PRO-95-2026-03"></label>
         <label>Fecha de elaboración<input id="inpvc-date" type="date"></label>
+        <label>Código del informe (automático)<input id="inpvc-code" type="text" readonly aria-readonly="true" placeholder="Se genera con la fecha"></label>
       </div>
     </section>
 

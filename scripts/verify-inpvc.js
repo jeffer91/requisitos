@@ -29,6 +29,11 @@ function load(relative){vm.runInContext(fs.readFileSync(path.join(root,relative)
 ].forEach(load);
 
 async function main(){
+  const html=fs.readFileSync(path.join(root,"InPVC/inpvc.html"),"utf8");
+  assert.ok(!html.includes("<h1>InPVC</h1>"),"El encabezado no debe mostrar el título InPVC.");
+  assert.match(html,/id="inpvc-code"[^>]*readonly/,"El código debe ser automático y no editable.");
+  assert.equal(sandbox.window.InPVCUtils.reportCode("2026-07-17"),"UTET-INF-01-PRO-95-2026-07","El código debe derivarse del año y mes de la fecha.");
+  assert.equal(sandbox.window.InPVCUtils.reportCode(""),"","Sin fecha no debe generarse un código.");
   const ctx=sandbox.window.InPVCModel.create({periodoId:"2025-04__2026-01",periodoLabel:"PVC Abril 2025 - Enero 2026",codigoInforme:"UTET-INF-01-PRO-95-2026-03",fechaElaboracion:"2026-03-02"},[
     {cedula:"1",nombres:"Ana Uno",carrera:"Administración",nart:8,ndef:9},
     {cedula:"2",nombres:"Beto Dos",carrera:"Administración",nart:6,ndef:8},
