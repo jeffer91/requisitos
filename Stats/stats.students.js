@@ -4,7 +4,8 @@ Ruta o ubicación: /Requisitos/Stats/stats.students.js
 Función o funciones:
 - Renderizar estudiantes con numeración y controles visibles.
 - Filtrar todos, completos o faltantes.
-- Ordenar por nombre, carrera o cantidad de faltantes.
+- Ordenar por nombre, carrera, estado o cantidad de faltantes.
+- Conservar el orden elegido en encabezados después de actualizaciones dinámicas.
 - Mostrar WhatsApp cuando se filtra Telegram y el estudiante no lo tiene.
 ========================================================= */
 (function(window,document){
@@ -138,7 +139,7 @@ Función o funciones:
   }
   function tableHtml(rows,data){
     if(!rows.length){return empty("Sin estudiantes para los filtros seleccionados.");}
-    return '<div class="stats-table-wrap"><table class="stats-sortable-table stats-students-table" data-sortable="true">'
+    return '<div class="stats-table-wrap"><table class="stats-sortable-table stats-students-table" data-sortable="true" data-sort-key="stats-students">'
       + '<thead><tr><th data-sort-type="number">#</th><th data-sort-type="text">Nombre</th><th data-sort-type="text">Cédula</th><th data-sort-type="text">Carrera</th><th data-sort-type="text">Estado</th>'
       + (selectedIsTelegram(data)?'<th>Acción</th>':'')
       + '</tr></thead>'
@@ -150,7 +151,24 @@ Función o funciones:
       button.addEventListener("click",function(){state.mode=button.getAttribute("data-student-mode")||"all";render(state.data,state.targetId,state.options);});
     });
     var order=target.querySelector("[data-student-order]");
-    if(order){order.addEventListener("change",function(){state.order=order.value||"name-asc";render(state.data,state.targetId,state.options);});}
+    if(order){order.addEventListener("change",function(){
+      if(window.StatsTables&&typeof window.StatsTables.clearState==="function"){window.StatsTables.clearState("stats-students");}
+      state.order=order.value||"name-asc";
+      render(state.data,state.targetId,state.options);
+    });}
+  }
+  function syncOrderFromHeader(event){
+    var detail=event&&event.detail||{};
+    if(detail.key!=="stats-students"){return;}
+    var mapped="";
+    if(detail.index===4){mapped="status";}
+    else if(detail.index===1&&detail.dir==="asc"){mapped="name-asc";}
+    else if(detail.index===3&&detail.dir==="asc"){mapped="career-asc";}
+    if(!mapped){return;}
+    state.order=mapped;
+    var target=el(state.targetId);
+    var order=target&&target.querySelector("[data-student-order]");
+    if(order){order.value=mapped;}
   }
   function render(data,targetId,options){
     var target=el(targetId||"stats-estudiantes");
@@ -182,5 +200,6 @@ Función o funciones:
     if(window.StatsTables&&typeof window.StatsTables.bindAll==="function"){window.StatsTables.bindAll(target);}
   }
 
+  window.addEventListener("stats:table-sort-changed",syncOrderFromHeader);
   window.StatsStudents={render:render,tableHtml:tableHtml,normalizeRows:normalizeRows,filterRows:filterSearch,helpers:{studentName:studentName,studentId:studentId,studentCareer:studentCareer,missingFromRow:missingFromRow,statusHtml:statusHtml,hasTelegram:hasTelegram}};
 })(window,document);
