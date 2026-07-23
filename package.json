@@ -8,6 +8,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "prestart": "node scripts/check-node-version.js",
+    "predev": "node scripts/check-node-version.js",
+    "prestart:local": "node scripts/check-node-version.js",
     "start": "electron .",
     "dev": "electron .",
     "start:local": "electron .",
