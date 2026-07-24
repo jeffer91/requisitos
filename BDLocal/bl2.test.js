@@ -1,18 +1,16 @@
 /* =========================================================
 Nombre completo: bl2.test.js
-Ruta o ubicación: /BDLocal/bl2.test.js
-Función o funciones:
+Ruta: /BDLocal/bl2.test.js
+Función:
 - Ejecutar certificación integral sin escribir datos ni usar internet.
-- Verificar arranque, tablas, registros, servicios y conectores.
-- Comprobar identidad ecuatoriana, claves locales y separación Firebase.
-- Certificar Telegram de solo lectura y mantenimientos manuales.
-- Confirmar política manual, lote máximo y puerta única.
-- Detectar duplicados lógicos en cambios_pendientes.
+- Verificar arranque, IndexedDB, tablas, registros, servicios y conectores.
+- Certificar la arquitectura Firebase V2 y sus identificadores.
+- Confirmar sincronización manual, cola única y pantallas seguras.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="4.0.0-final-certification";
+  var VERSION="4.1.0-firebase-v2-runtime-certification";
   var state={running:false,lastResult:null};
 
   function text(value){return String(value==null?"":value).trim();}
@@ -27,22 +25,37 @@ Función o funciones:
   function bad(name,message,payload){return result(name,"bad",message,payload);}
   function safe(name,fn){return Promise.resolve().then(fn).catch(function(error){return bad(name,error&&error.message?error.message:String(error));});}
   function emit(name,detail){try{window.dispatchEvent(new CustomEvent(name,{detail:clone(detail||{})}));}catch(error){}}
-  function registryList(registry){try{return registry&&registry.list?registry.list():[];}catch(error){return [];}}
-  function missing(existing,expected){return expected.filter(function(name){return existing.indexOf(name)<0;});}
+  function registryList(registry){try{return registry&&typeof registry.list==="function"?registry.list():[];}catch(error){return [];}}
+  function missing(existing,expected){existing=Array.isArray(existing)?existing:[];return expected.filter(function(name){return existing.indexOf(name)<0;});}
+  function hasOwn(row,key){return !!row&&Object.prototype.hasOwnProperty.call(row,key);}
 
   function activePeriod(){
-    if(window.BL2App&&window.BL2App.getSelectedPeriod){var selected=window.BL2App.getSelectedPeriod();if(selected&&text(selected.id)){return Promise.resolve(selected);}}
-    return core()&&core().getActivePeriod?core().getActivePeriod():Promise.resolve(null);
+    try{
+      if(window.RequisitosPeriodoGlobal&&typeof window.RequisitosPeriodoGlobal.get==="function"){
+        var shared=window.RequisitosPeriodoGlobal.get();
+        if(shared&&text(shared.id)){return Promise.resolve(shared);}
+      }
+    }catch(error){}
+    if(window.BL2App&&typeof window.BL2App.getSelectedPeriod==="function"){
+      var selected=window.BL2App.getSelectedPeriod();
+      if(selected&&text(selected.id)){return Promise.resolve(selected);}
+    }
+    return core()&&typeof core().getActivePeriod==="function"?core().getActivePeriod():Promise.resolve(null);
   }
 
   function prepareSupportModules(){
     var tasks=[];
-    if(window.BDLSyncV2&&window.BDLSyncV2.loadExtraTargets){tasks.push(window.BDLSyncV2.loadExtraTargets().catch(function(){return null;}));}
+    if(window.BDLSharedArchitectureReady&&typeof window.BDLSharedArchitectureReady.then==="function"){
+      tasks.push(window.BDLSharedArchitectureReady.catch(function(){return null;}));
+    }
+    if(window.BDLSyncV2&&typeof window.BDLSyncV2.loadExtraTargets==="function"){
+      tasks.push(window.BDLSyncV2.loadExtraTargets().catch(function(){return null;}));
+    }
     var fixups=window.BDLocalSyncFixups;
     if(fixups){
-      if(fixups.loadTelegramModule){tasks.push(fixups.loadTelegramModule().catch(function(){return null;}));}
-      if(fixups.loadFirebaseIdentityRepairModule){tasks.push(fixups.loadFirebaseIdentityRepairModule().catch(function(){return null;}));}
-      if(fixups.loadLocalIdentityRepairModule){tasks.push(fixups.loadLocalIdentityRepairModule().catch(function(){return null;}));}
+      if(typeof fixups.loadTelegramModule==="function"){tasks.push(fixups.loadTelegramModule().catch(function(){return null;}));}
+      if(typeof fixups.loadFirebaseIdentityRepairModule==="function"){tasks.push(fixups.loadFirebaseIdentityRepairModule().catch(function(){return null;}));}
+      if(typeof fixups.loadLocalIdentityRepairModule==="function"){tasks.push(fixups.loadLocalIdentityRepairModule().catch(function(){return null;}));}
     }
     return Promise.all(tasks);
   }
@@ -55,12 +68,13 @@ Función o funciones:
         "BDLSyncTargets","BDLSyncOutbox","BDLSyncOrchestrator","BDLSyncV2",
         "BDLSyncUIBridge","BDLocalSyncFixups","BL2CloudPullSafe","BL2FirebaseGuard",
         "BDLSyncTargetFirebase","BDLFirebaseTelegramPull","BDLFirebaseIdentityRepair",
-        "BDLLocalIdentityRepair"
+        "BDLLocalIdentityRepair","RequisitosFirebaseSchema","RequisitosFirebaseIdentity",
+        "RequisitosFirebaseMapper","RequisitosFirebaseRepository","RequisitosFirebaseSyncEngine"
       ];
       var absent=required.filter(function(name){return !window[name];});
       return absent.length
         ?bad("Módulos","Faltan módulos: "+absent.join(", "),{missing:absent})
-        :ok("Módulos",required.length+" módulos principales disponibles.");
+        :ok("Módulos",required.length+" módulos principales y Firebase V2 disponibles.");
     });
   }
 
@@ -70,12 +84,15 @@ Función o funciones:
     var services=registryList(window.BDLServices);
     var targets=registryList(window.BDLSyncTargets);
     var connectors=[];
-    try{var status=window.BDLocalConexiones&&window.BDLocalConexiones.status?window.BDLocalConexiones.status():{};connectors=Array.isArray(status.connectors)?status.connectors:[];}catch(error){}
+    try{
+      var status=window.BDLocalConexiones&&typeof window.BDLocalConexiones.status==="function"?window.BDLocalConexiones.status():{};
+      connectors=Array.isArray(status.connectors)?status.connectors:[];
+    }catch(error){}
     var failures={
       rules:missing(rules,["periodo.require","persona.normalize","matricula.normalize","requisitos.extract","notas.normalize","duplicados.merge","retirados.detect","sync.change","errors.collect","pipeline.import.rows","pipeline.sync.changes"]),
-      repositories:missing(repos,["periodos","estudiantes","personas","matriculas","requisitos","notas","contactos","cambios","logs","backups"]),
-      services:missing(services,["periodos","estudiantes","ficha","defensas","tabla","stats","reportes","coordi"]),
-      connectors:missing(connectors,["carga","tabla","ficha","stats","coordi","reportes","defensas","global"]),
+      repositories:missing(repos,["periodos","estudiantes","personas","matriculas","requisitos","notas","contactos","cambios","logs","backups","importaciones","cambios_pendientes","sync_estado"]),
+      services:missing(services,["periodos","estudiantes","ficha","defensas","tabla","stats","reportes","coordi","ncomplex"]),
+      connectors:missing(connectors,["carga","tabla","ficha","stats","coordi","reportes","defensas","global","ncomplex","inpvc","defart","cr_def"]),
       targets:missing(targets,["google","firebase","supabase"])
     };
     var failed=Object.keys(failures).filter(function(key){return failures[key].length;});
@@ -85,24 +102,28 @@ Función o funciones:
   }
 
   function checkApp(){
-    if(!window.BL2App||!window.BL2App.getState){return Promise.resolve(bad("Arranque","BL2App.getState no disponible."));}
+    if(!window.BL2App||typeof window.BL2App.getState!=="function"){return Promise.resolve(bad("Arranque","BL2App.getState no disponible."));}
     var app=window.BL2App.getState()||{};
+    var closing=/database connection is closing|conexi[oó]n.*cerrando/i.test(text(app.lastError));
+    if(closing){return Promise.resolve(bad("Arranque","IndexedDB fue cerrado durante el arranque.",app));}
     return Promise.resolve(app.ready&&app.scriptsReady
       ?ok("Arranque","Aplicación lista después de cargar scripts.",app)
       :bad("Arranque","La aplicación no está completamente lista.",app));
   }
 
   function checkDB(){
-    if(!db()||!db().open){return Promise.resolve(bad("IndexedDB","BL2DB.open no disponible."));}
-    return db().open().then(function(){var meta=db().meta?db().meta():{};return meta.open?ok("IndexedDB","Base abierta correctamente.",meta):bad("IndexedDB","La base no aparece abierta.",meta);});
+    if(!db()||typeof db().open!=="function"){return Promise.resolve(bad("IndexedDB","BL2DB.open no disponible."));}
+    return db().open().then(function(){
+      var meta=typeof db().meta==="function"?db().meta():{};
+      return meta.open?ok("IndexedDB","Base abierta correctamente.",meta):bad("IndexedDB","La base no aparece abierta.",meta);
+    });
   }
 
   function checkStores(){
-    var meta=db()&&db().meta?db().meta():{};
+    var meta=db()&&typeof db().meta==="function"?db().meta():{};
     var actual=Array.isArray(meta.stores)?meta.stores:[];
-    var map={};
-    Object.keys(config().stores||{}).forEach(function(key){var name=text(config().stores[key]);if(name){map[name]=true;}});
-    var expected=Object.keys(map);
+    var expected=[];
+    Object.keys(config().stores||{}).forEach(function(key){var name=text(config().stores[key]);if(name&&expected.indexOf(name)<0){expected.push(name);}});
     var absent=expected.filter(function(name){return actual.indexOf(name)<0;});
     return Promise.resolve(absent.length
       ?bad("Tablas físicas","Faltan tablas: "+absent.join(", "),{expected:expected,actual:actual})
@@ -111,11 +132,11 @@ Función o funciones:
 
   function checkQuery(){
     return activePeriod().then(function(period){
-      if(!period||!text(period.id)){return warn("Consulta","No hay período activo.");}
-      if(core()&&core().searchStudents){
+      if(!period||!text(period.id)){return warn("Consulta","No hay período activo en la base aislada.");}
+      if(core()&&typeof core().searchStudents==="function"){
         return core().searchStudents({periodoId:period.id,search:"",limit:1}).then(function(data){return ok("Consulta","Consulta respondió correctamente.",{periodoId:period.id,total:Number(data&&data.total||0)});});
       }
-      return core()&&core().getStudents
+      return core()&&typeof core().getStudents==="function"
         ?core().getStudents({periodoId:period.id,limit:1}).then(function(rows){return ok("Consulta","Consulta respondió correctamente.",{periodoId:period.id,rows:(rows||[]).length});})
         :Promise.resolve(bad("Consulta","No existe método de consulta."));
     });
@@ -123,7 +144,7 @@ Función o funciones:
 
   function checkBackup(){
     var backup=window.BL2Backup;
-    if(!backup||!backup.createPayload){return Promise.resolve(bad("Respaldo","BL2Backup.createPayload no disponible."));}
+    if(!backup||typeof backup.createPayload!=="function"){return Promise.resolve(bad("Respaldo","BL2Backup.createPayload no disponible."));}
     return activePeriod()
       .then(function(period){return backup.createPayload(period&&period.id?{scope:"period",periodoId:period.id,periodoLabel:period.label,type:"diagnostic"}:{scope:"all",type:"diagnostic"});})
       .then(function(payload){var total=payload&&payload.tables?Object.keys(payload.tables).length:0;return total?ok("Respaldo","Payload generado sin descargar.",{tables:total}):bad("Respaldo","Payload sin tablas.");});
@@ -137,19 +158,16 @@ Función o funciones:
     var problems=[];
     var period="2026-04__2026-09";
     var corrected="0706175312";
-
-    if(!persona||!persona.normalizeCedula||!persona.isValidEcuadorianCedula){problems.push("La regla central de identidad no está disponible.");}
+    if(!persona||typeof persona.normalizeCedula!=="function"||typeof persona.isValidEcuadorianCedula!=="function"){problems.push("La regla central de identidad no está disponible.");}
     else{
       if(persona.normalizeCedula("706175312")!==corrected){problems.push("No completa correctamente el cero de una cédula ecuatoriana válida.");}
       if(persona.normalizeCedula("123456789")!=="123456789"){problems.push("Transforma una identificación de nueve dígitos no validada.");}
       if(persona.isValidEcuadorianCedula(corrected)!==true){problems.push("No valida la cédula ecuatoriana de control.");}
     }
-
     var localId=corrected+"__"+period;
     if(!matricula||matricula.makeId(period,corrected)!==localId){problems.push("Matrícula no usa cedula__periodoId.");}
     if(!requisitos||requisitos.studentId(period,corrected)!==localId){problems.push("Requisitos no usan cedula__periodoId.");}
     if(!notas||notas.makeId(period,corrected)!==localId){problems.push("Notas no usan cedula__periodoId.");}
-
     return Promise.resolve(problems.length
       ?bad("Identidad y claves locales",problems.join(" "))
       :ok("Identidad y claves locales","Cédulas validadas y clave local cedula__periodoId confirmada.",{sample:localId}));
@@ -159,45 +177,70 @@ Función o funciones:
     var cfg=config();
     var policy=cfg.sync||{};
     var firebase=cfg.firebase||{};
+    var schema=window.RequisitosFirebaseSchema||{};
     var problems=[];
     if(policy.manualOnly!==true||policy.automatic!==false){problems.push("La política general no es manual.");}
     if(policy.syncOnIdle!==false||policy.syncOnClose!==false){problems.push("Existe disparador automático externo.");}
     if(Number(policy.maxBatchSize||25)>25||Number(firebase.maxBatchSize||firebase.batchSize||25)>25){problems.push("Un lote supera 25.");}
-    if(firebase.manualOnly!==true||firebase.automatic!==false){problems.push("Firebase académico no es manual.");}
-    var fixups=window.BDLocalSyncFixups&&window.BDLocalSyncFixups.status?window.BDLocalSyncFixups.status():{};
+    if(schema.architecture&&schema.architecture.sourceOfTruth!=="firebase"){problems.push("Firebase no está definido como fuente oficial.");}
+    if(schema.architecture&&schema.architecture.localRole!=="cache"){problems.push("BDLocal no está definido como caché.");}
+    var fixups=window.BDLocalSyncFixups&&typeof window.BDLocalSyncFixups.status==="function"?window.BDLocalSyncFixups.status():{};
     if(!fixups.installed||!fixups.manager||!fixups.legacy||!fixups.ui){problems.push("La puerta única está incompleta.");}
     return Promise.resolve(problems.length
       ?bad("Política de sincronización",problems.join(" "),{policy:policy,firebase:firebase,fixups:fixups})
-      :ok("Política de sincronización","Escrituras externas manuales y máximo 25.",{fixups:fixups}));
+      :ok("Política de sincronización","Firebase V2 es manual, diferencial y con máximo 25.",{fixups:fixups}));
   }
 
-  function checkFirebaseSplit(){
-    var firebase=config().firebase||{};
-    var target=window.BDLSyncTargetFirebase;
-    var guard=window.BL2FirebaseGuard;
+  function checkFirebaseV2(){
+    var schema=window.RequisitosFirebaseSchema||{};
+    var identity=window.RequisitosFirebaseIdentity||{};
+    var mapper=window.RequisitosFirebaseMapper||{};
+    var repository=window.RequisitosFirebaseRepository||{};
+    var target=window.BDLSyncTargetFirebase||{};
     var problems=[];
-    if(text(firebase.personCollection)!=="Estudiantes"){problems.push("La colección personal no es Estudiantes.");}
-    if(text(firebase.academicCollection||firebase.collection)!=="EstudiantesPeriodo"){problems.push("La colección académica no es EstudiantesPeriodo.");}
-    if(text(firebase.collection)!=="EstudiantesPeriodo"){problems.push("La colección de compatibilidad apunta al destino incorrecto.");}
-    if(text(firebase.personDocumentIdStrategy)!=="cedula"){problems.push("Estudiantes no usa solo cédula como ID.");}
-    if(text(firebase.academicDocumentIdStrategy||firebase.documentIdStrategy)!=="periodoId__cedula"){problems.push("EstudiantesPeriodo no usa período y cédula.");}
-    if(!target||!target.documentId||!target.buildDocument||!target.stripTelegramFields){problems.push("El destino Firebase no expone controles académicos.");}
+    var expectedCollections=["estudiantes","matriculas","requisitos","notas","periodos","carreras","historial","importaciones"];
+    var collections=schema.collections||{};
+    expectedCollections.forEach(function(name){if(text(collections[name])!==name){problems.push("Falta la colección V2 "+name+".");}});
 
     var period="2026-01__2026-06";
     var cedula="0123456789";
-    if(target){
-      var academicId=target.documentId(period,cedula);
-      if(academicId!==period+"__"+cedula){problems.push("El ID académico no es estable.");}
-      var documentData=target.buildDocument({cedula:cedula,numeroIdentificacion:cedula,Nombres:"Estudiante de prueba",periodoId:period,telegramUser:"@usuario",telegramChatId:"123",chatId:"456",telegramUpdatedAt:now()},{cedula:cedula,periodoId:period,changeIds:["c1"]});
-      ["telegramUser","telegramChatId","chatId","telegramUpdatedAt"].forEach(function(field){if(documentData&&Object.prototype.hasOwnProperty.call(documentData,field)){problems.push("El documento académico conserva "+field+".");}});
-      if(target.academicCollectionName&&target.academicCollectionName()!=="EstudiantesPeriodo"){problems.push("El target escribe en una colección académica incorrecta.");}
-    }
-    if(guard&&guard.academicCollectionName&&guard.academicCollectionName()!=="EstudiantesPeriodo"){problems.push("La descarga académica consulta una colección incorrecta.");}
-    if(guard&&guard.personCollectionName&&guard.personCollectionName()!=="Estudiantes"){problems.push("La colección personal del guard es incorrecta.");}
+    var localId=cedula+"__"+period;
+    var remoteId=period+"__"+cedula;
+    if(typeof identity.localStudentPeriodId!=="function"||identity.localStudentPeriodId(period,cedula)!==localId){problems.push("El ID local V2 no es estable.");}
+    if(typeof identity.remoteStudentPeriodId!=="function"||identity.remoteStudentPeriodId(period,cedula)!==remoteId){problems.push("El ID remoto V2 no es estable.");}
 
+    var bundle=null;
+    if(typeof mapper.bundle!=="function"){problems.push("El mapeador V2 no expone bundle.");}
+    else{
+      bundle=mapper.bundle({
+        periodoId:period,cedula:cedula,numeroIdentificacion:cedula,
+        Nombres:"Estudiante de prueba",CodigoCarrera:"ENF",NombreCarrera:"ENFERMERÍA",
+        estadoMatricula:"ACTIVO",telegramUser:"@usuario",telegramChatId:"123",
+        Academico:"CUMPLE",Financiero:"CUMPLE",Notart:8,Notdef:9,Notafinal:8.3
+      },{});
+      if(!bundle||bundle.ok===false){problems.push("El mapeador no pudo formar el paquete V2.");}
+    }
+
+    if(bundle&&bundle.documents){
+      ["matriculas","requisitos","notas"].forEach(function(entity){
+        var doc=bundle.documents[entity]||{};
+        ["telegramUser","telegramChatId","chatId","telegramUpdatedAt"].forEach(function(field){
+          if(hasOwn(doc,field)){problems.push(entity+" conserva "+field+".");}
+        });
+      });
+      if(typeof repository.documentId!=="function"){problems.push("El repositorio V2 no expone documentId.");}
+      else{
+        if(repository.documentId("estudiantes",bundle.documents.estudiantes)!==cedula){problems.push("estudiantes no usa cédula como ID.");}
+        if(repository.documentId("matriculas",bundle.documents.matriculas)!==remoteId){problems.push("matriculas no usa periodoId__cedula.");}
+        if(repository.documentId("requisitos",bundle.documents.requisitos)!==remoteId){problems.push("requisitos no usa periodoId__cedula.");}
+        if(repository.documentId("notas",bundle.documents.notas)!==remoteId){problems.push("notas no usa periodoId__cedula.");}
+      }
+    }
+
+    if(typeof target.push!=="function"||typeof target.entitiesFor!=="function"||typeof target.prepareEntries!=="function"){problems.push("El destino Firebase V2 no expone la puerta segura.");}
     return Promise.resolve(problems.length
-      ?bad("Separación Firebase",problems.join(" "),{firebase:firebase})
-      :ok("Separación Firebase","Estudiantes/{cedula} conserva persona/Telegram y EstudiantesPeriodo/{periodoId__cedula} conserva datos académicos.",{personCollection:"Estudiantes",personId:"cedula",academicCollection:"EstudiantesPeriodo",academicId:period+"__"+cedula,telegramExcluded:true}));
+      ?bad("Firebase V2",problems.join(" "),{collections:collections})
+      :ok("Firebase V2","Ocho colecciones, IDs canónicos y documentos separados confirmados.",{collections:expectedCollections,localId:localId,remoteId:remoteId}));
   }
 
   function checkTelegramPull(){
@@ -239,13 +282,13 @@ Función o funciones:
     var current=db();
     var queue=window.BDLSyncOutbox;
     var storeName=text(config().stores&&config().stores.cambiosPendientes||"cambios_pendientes");
-    if(!current||!current.getAll||!queue||!queue.logicalKey){return Promise.resolve(bad("Integridad de cola","No se puede analizar la cola."));}
+    if(!current||typeof current.getAll!=="function"||!queue||typeof queue.logicalKey!=="function"){return Promise.resolve(bad("Integridad de cola","No se puede analizar la cola."));}
     return activePeriod().then(function(period){
       return current.getAll(storeName).then(function(rows){
         rows=(rows||[]).filter(function(row){return !period||!period.id||!text(row.periodoId)||text(row.periodoId)===text(period.id);});
         var counts={};
-        rows.forEach(function(row){var key=queue.logicalKey(row);counts[key]=(counts[key]||0)+1;});
-        var duplicates=Object.keys(counts).filter(function(key){return counts[key]>1;});
+        rows.forEach(function(row){var logical=queue.logicalKey(row);counts[logical]=(counts[logical]||0)+1;});
+        var duplicates=Object.keys(counts).filter(function(logical){return counts[logical]>1;});
         return duplicates.length
           ?bad("Integridad de cola",duplicates.length+" claves duplicadas.",{duplicates:duplicates.slice(0,20)})
           :ok("Integridad de cola",rows.length+" cambios revisados sin duplicados.");
@@ -257,24 +300,28 @@ Función o funciones:
     var pull=window.BL2CloudPullSafe;
     var facade=window.BL2CloudPull;
     var problems=[];
-    if(!pull||!pull.diagnostics){problems.push("La descarga segura no está disponible.");}
+    if(!pull||typeof pull.diagnostics!=="function"){problems.push("La descarga segura no está disponible.");}
     if(!facade||facade.compatibilityOnly!==true){problems.push("La fachada antigua sigue activa.");}
     return Promise.resolve(problems.length?bad("Google Sheets seguro",problems.join(" ")):ok("Google Sheets seguro","Fachada única y descarga segura disponibles."));
   }
 
   function checkUI(){
-    var collection=document.getElementById("bdlc-firebase-collection");
-    var person=document.getElementById("bdlc-firebase-person-collection");
     var problems=[];
-    if(collection&&collection.value!=="EstudiantesPeriodo"){problems.push("La interfaz muestra una colección académica incorrecta.");}
-    if(collection&&!person){problems.push("La interfaz no muestra la colección personal.");}
     if(!window.BDLSyncUIBridge||window.BDLSyncUIBridge.__singleSyncGateInstalled!==true){problems.push("La interfaz no usa la puerta única.");}
-    return Promise.resolve(problems.length?bad("Interfaz Firebase",problems.join(" ")):ok("Interfaz Firebase","La separación de colecciones y la puerta única se muestran correctamente."));
+    if(!window.RequisitosFirebaseControlCenter){problems.push("El centro Firebase V2 no está disponible.");}
+    if(!window.RequisitosFirebaseMigration){problems.push("La migración Firebase V2 no está disponible.");}
+    return Promise.resolve(problems.length
+      ?bad("Interfaz Firebase",problems.join(" "))
+      :ok("Interfaz Firebase","Centro V2, migración segura y puerta única disponibles."));
   }
 
   function summarize(results){
     var summary={ok:true,total:results.length,passed:0,warned:0,failed:0,status:"ok",message:"Certificación correcta y de solo lectura."};
-    results.forEach(function(item){if(!item||item.level==="bad"||item.ok===false){summary.failed+=1;}else if(item.level==="warn"){summary.warned+=1;}else{summary.passed+=1;}});
+    results.forEach(function(item){
+      if(!item||item.level==="bad"||item.ok===false){summary.failed+=1;}
+      else if(item.level==="warn"){summary.warned+=1;}
+      else{summary.passed+=1;}
+    });
     if(summary.failed){summary.ok=false;summary.status="bad";summary.message="BDLocal tiene controles fallidos.";}
     else if(summary.warned){summary.status="warn";summary.message="Controles superados con advertencias.";}
     return summary;
@@ -285,10 +332,9 @@ Función o funciones:
     if(state.running){return Promise.resolve({ok:true,running:true,message:"La certificación ya está en ejecución."});}
     state.running=true;
     emit("bl2:test-start",{at:now(),readOnly:true,network:false});
-
     var tests=[
       checkModules,checkRegistries,checkApp,checkDB,checkStores,checkQuery,checkBackup,
-      checkIdentityRules,checkSyncPolicy,checkFirebaseSplit,checkTelegramPull,
+      checkIdentityRules,checkSyncPolicy,checkFirebaseV2,checkTelegramPull,
       checkMaintenanceSafety,checkQueue,checkSheets,checkUI
     ];
     var results=[];
@@ -296,7 +342,6 @@ Función o funciones:
     tests.forEach(function(test){
       chain=chain.then(function(){return safe("Prueba",test).then(function(item){results.push(item);emit("bl2:test-step",item);});});
     });
-
     return chain.then(function(){
       var report={ok:true,readOnly:true,network:false,version:VERSION,generatedAt:now(),summary:summarize(results),results:results};
       report.ok=report.summary.ok;
