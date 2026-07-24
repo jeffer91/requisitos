@@ -6,12 +6,12 @@ Función o funciones:
 - Espejar cambios legacy mediante el repositorio idempotente.
 - Actualizar el pendiente lógico existente en vez de crear otro.
 - Evitar duplicados por IDs aleatorios de código antiguo.
-- Cargar la arquitectura compartida de período y Firebase V2.
+- Cargar el esquema, adaptador de identidad y período compartido.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-shared-architecture";
+  var VERSION = "2.2.0-shared-identity";
   var FLAG = "__bdlOutboxBridgeInstalled";
   var document = window.document || null;
   var scriptBase = document && document.currentScript && document.currentScript.src
@@ -63,6 +63,9 @@ Función o funciones:
   function loadSharedArchitecture(){
     return loadSharedScript("../firebase/bdl.firebase.schema.v2.js","RequisitosFirebaseSchema")
       .then(function(){
+        return loadSharedScript("../firebase/bdl.firebase.identity.js","RequisitosFirebaseIdentity");
+      })
+      .then(function(){
         return loadSharedScript("../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal");
       })
       .then(function(){
@@ -70,6 +73,7 @@ Función o funciones:
           window.dispatchEvent(new CustomEvent("requisitos:arquitectura-compartida-lista",{
             detail:{
               firebaseSchema:!!window.RequisitosFirebaseSchema,
+              firebaseIdentity:!!window.RequisitosFirebaseIdentity,
               periodoGlobal:!!window.RequisitosPeriodoGlobal,
               version:VERSION,
               at:nowISO()
@@ -138,7 +142,11 @@ Función o funciones:
     }
     var result = [];
     var chain = Promise.resolve();
-    rows.forEach(function(row){ chain = chain.then(function(){ return mirrorOne(row,mode).then(function(saved){ if(saved){ result.push(saved); } }); }); });
+    rows.forEach(function(row){
+      chain = chain.then(function(){
+        return mirrorOne(row,mode).then(function(saved){ if(saved){ result.push(saved); } });
+      });
+    });
     return chain.then(function(){ return result; });
   }
 
@@ -185,6 +193,7 @@ Función o funciones:
           outbox:cfgStores().outbox,
           idempotent:true,
           sharedArchitecture:true,
+          firebaseIdentity:true,
           at:nowISO()
         }
       }));
