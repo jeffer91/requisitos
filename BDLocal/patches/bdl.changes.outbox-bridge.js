@@ -4,13 +4,13 @@ Ruta: /BDLocal/patches/bdl.changes.outbox-bridge.js
 Función:
 - Mantener una sola cola real: cambios_pendientes.
 - Espejar cambios legacy mediante el repositorio idempotente.
-- Cargar contrato, mapeadores, repositorio, conflictos, estado y motor Firebase V2.
+- Cargar contrato, mapeadores, repositorio, conflictos, estado, motor y UI Firebase V2.
 - No ejecutar sincronizaciones automáticamente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="2.7.0-conflict-aware-sync";
+  var VERSION="2.8.0-control-center-v2";
   var FLAG="__bdlOutboxBridgeInstalled";
   var document=window.document||null;
   var scriptBase=document&&document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
@@ -52,7 +52,8 @@ Función:
       ["../repositories/bdl.repo.conflictos.js","BDLRepoConflictos"],
       ["../repositories/bdl.repo.sync-estado.js","BDLRepoSyncEstado"],
       ["../firebase/bdl.firebase.sync-engine.v2.js","RequisitosFirebaseSyncEngine"],
-      ["../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal"]
+      ["../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal"],
+      ["../firebase/bdl.firebase.control-center.js","RequisitosFirebaseControlCenter"]
     ];
     var chain=Promise.resolve();
     files.forEach(function(item){chain=chain.then(function(){return loadSharedScript(item[0],item[1]);});});
@@ -67,6 +68,7 @@ Función:
         firebaseConflicts:!!window.BDLRepoConflictos,
         firebaseSyncState:!!window.BDLRepoSyncEstado,
         firebaseSyncEngine:!!window.RequisitosFirebaseSyncEngine,
+        firebaseControlCenter:!!window.RequisitosFirebaseControlCenter,
         periodoGlobal:!!window.RequisitosPeriodoGlobal,
         automatic:false,version:VERSION,at:nowISO()
       };
@@ -127,7 +129,8 @@ Función:
     db.__outboxBridgeInstalled=true;db.outboxBridgeVersion=VERSION;
     try{window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridge-ready",{detail:{
       version:VERSION,legacy:cfgStores().legacy,outbox:cfgStores().outbox,idempotent:true,
-      sharedArchitecture:true,firebaseV2:true,firebaseSyncEngine:true,firebaseConflicts:true,automatic:false,at:nowISO()
+      sharedArchitecture:true,firebaseV2:true,firebaseSyncEngine:true,firebaseConflicts:true,
+      firebaseControlCenter:true,automatic:false,at:nowISO()
     }}));}catch(error){}
     return true;
   }
