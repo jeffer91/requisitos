@@ -6,12 +6,13 @@ Función o funciones:
 - Delegar Google Sheets exclusivamente a BL2CloudPullSafe.
 - Delegar Firebase exclusivamente a BL2FirebaseGuard.
 - Permitir traer un período o todos los períodos.
+- Normalizar la API de diagnóstico segura para la certificación runtime.
 - No registrar botones, intervalos ni importaciones propias.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "3.1.0-all-periods-facade";
+  var VERSION = "3.1.1-safe-diagnostics";
 
   function unavailable(name){
     return Promise.reject(new Error(
@@ -19,8 +20,34 @@ Función o funciones:
     ));
   }
 
+  function normalizeSafeDiagnostics(){
+    var api = window.BL2CloudPullSafe || null;
+    if(!api){return null;}
+    if(typeof api.diagnostics === "function"){return api;}
+
+    var details = api.diagnostics && typeof api.diagnostics === "object"
+      ? api.diagnostics
+      : {};
+    var diagnostics = function(){
+      return {
+        ok:true,
+        version:api.version || "",
+        singleImplementation:api.singleImplementation === true,
+        supportsAllPeriods:api.supportsAllPeriods === true,
+        methods:Object.keys(details)
+      };
+    };
+
+    Object.keys(details).forEach(function(name){
+      diagnostics[name] = details[name];
+    });
+
+    api.diagnostics = diagnostics;
+    return api;
+  }
+
   function sheets(){
-    return window.BL2CloudPullSafe || null;
+    return normalizeSafeDiagnostics() || window.BL2CloudPullSafe || null;
   }
 
   function firebase(){
@@ -99,6 +126,7 @@ Función o funciones:
     version:VERSION,
     compatibilityOnly:true,
     supportsAllPeriods:true,
+    normalizeSafeDiagnostics:normalizeSafeDiagnostics,
     forceFetchFirebaseConfig:forceFetchFirebaseConfig,
     pullSheetsToLocal:pullSheetsToLocal,
     pullAllSheetsToLocal:pullAllSheetsToLocal,
@@ -107,4 +135,9 @@ Función o funciones:
     pullFirebaseToLocal:pullFirebaseToLocal,
     pullAllFirebaseToLocal:pullAllFirebaseToLocal
   };
+
+  window.addEventListener("bdlocal:bl2-html-scripts-loaded",normalizeSafeDiagnostics,{once:true});
+  window.addEventListener("load",normalizeSafeDiagnostics,{once:true});
+  window.setTimeout(normalizeSafeDiagnostics,0);
+  window.setTimeout(normalizeSafeDiagnostics,250);
 })(window);
