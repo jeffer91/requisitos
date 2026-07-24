@@ -4,7 +4,7 @@
 
 La migración se realizará directamente en `main`, por bloques pequeños y verificables. Ninguna colección antigua se eliminará hasta completar la migración, comparar cantidades y validar las pantallas.
 
-Estado actual: **Bloque 1 iniciado / contrato del Bloque 2 definido**.
+Estado actual: **Bloque 1 en proceso / Bloque 2 en implementación**.
 
 ## Modelo oficial
 
@@ -71,21 +71,23 @@ Estado: **EN PROCESO**.
 - [x] Identificar las 12 pantallas activas.
 - [x] Confirmar que las pantallas trabajan mediante conectores.
 - [x] Mantener la migración como no destructiva.
-- [x] Agregar una prueba ejecutable del contrato Firebase.
-- [ ] Ejecutar la suite completa en el equipo con la aplicación instalada.
+- [x] Agregar pruebas ejecutables del contrato, identidades y mapeo Firebase.
+- [ ] Confirmar el resultado de la suite completa en GitHub Actions y en el equipo con la aplicación instalada.
 - [ ] Exportar respaldo local antes de mover datos.
 - [ ] Exportar o respaldar las colecciones Firebase actuales.
 
 ### Bloque 2. Modelo e identificadores
 
-Estado: **CONTRATO DEFINIDO; ADAPTADORES PENDIENTES**.
+Estado: **EN IMPLEMENTACIÓN**.
 
 - [x] Definir las ocho colecciones oficiales.
 - [x] Definir IDs locales y remotos.
 - [x] Definir qué campos pertenecen a cada colección.
-- [ ] Crear adaptadores local → Firebase.
-- [ ] Crear adaptadores Firebase → local.
+- [x] Crear el adaptador de identidad local ↔ Firebase.
+- [x] Crear el mapeador local → estudiante, matrícula, requisitos y notas.
+- [ ] Crear los adaptadores Firebase → tablas locales.
 - [ ] Validar documentos incompletos y campos desconocidos.
+- [ ] Integrar el mapeador con la cola y los repositorios Firebase.
 
 ### Bloque 3. Período general
 
