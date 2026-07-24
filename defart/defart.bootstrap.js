@@ -4,12 +4,13 @@ Ruta: /defart/defart.bootstrap.js
 Función:
 - Cargar y esperar exclusivamente ConDefart.
 - Cargar después los módulos visuales de la pantalla.
+- Guardar notas una sola vez mediante ConDefart.
 - Evitar una segunda consulta redundante durante el arranque.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.1.0-single-load-ui-fix";
+  var VERSION="2.2.0-single-persistence-v2";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
 
@@ -32,7 +33,7 @@ Función:
   }
   function screenModules(){return sequence([
     {path:"defart.core.js",test:function(){return window.DefartCore;}},
-    {path:"defart.persistence.js"},{path:"defart.continuity.js"},{path:"defart.export.js"},{path:"defart.table.js"},{path:"defart.performance.js"},
+    {path:"defart.continuity.js"},{path:"defart.export.js"},{path:"defart.table.js"},{path:"defart.performance.js"},
     {path:"defart.service-bridge.js",test:function(){return window.DefartServiceBridge;}},
     {path:"defart.save-service-bridge.js",test:function(){return window.DefartSaveServiceBridge;}},
     {path:"defart.requirements-guard.js"},{path:"defart.periodo-normalizer.js"},
@@ -41,13 +42,10 @@ Función:
   ]);}
   function boot(){
     status("Conectando Defensas con Base Local...","is-info");
-    connectorReady()
-      .then(screenModules)
-      .then(function(){
-        if(window.DefartUIFix&&typeof window.DefartUIFix.install==="function"){window.DefartUIFix.install();}
-        try{window.dispatchEvent(new CustomEvent("defart:bootstrap-ready",{detail:{ok:true,source:"ConDefart",version:VERSION,singleInitialLoad:true}}));}catch(error){}
-      })
-      .catch(function(error){status(error&&error.message?error.message:String(error),"warn");});
+    connectorReady().then(screenModules).then(function(){
+      if(window.DefartUIFix&&typeof window.DefartUIFix.install==="function"){window.DefartUIFix.install();}
+      try{window.dispatchEvent(new CustomEvent("defart:bootstrap-ready",{detail:{ok:true,source:"ConDefart",version:VERSION,singleInitialLoad:true,singlePersistence:true,history:true}}));}catch(error){}
+    }).catch(function(error){status(error&&error.message?error.message:String(error),"warn");});
   }
 
   window.DefartBootstrap={version:VERSION,boot:boot,connectorReady:connectorReady};
