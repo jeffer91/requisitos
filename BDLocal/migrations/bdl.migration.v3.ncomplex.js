@@ -10,7 +10,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="3.2.0-no-forced-close";
+  var VERSION="3.2.1-no-forced-close";
   var config=window.BL2Config||{};
   var DB_NAME=config.dbName||"REQUISITOS_BL2";
   var STORE=(config.stores&&config.stores.evaluacionesTitulacion)||"evaluaciones_titulacion";
@@ -49,11 +49,11 @@ Función:
       var request=window.indexedDB.open(DB_NAME,version);
       request.onupgradeneeded=function(event){
         try{
-          var openedDb=event.target.result;
+          var db=event.target.result;
           var transaction=event.target.transaction;
-          var objectStore=hasStore(openedDb)
+          var objectStore=hasStore(db)
             ? transaction.objectStore(STORE)
-            : openedDb.createObjectStore(STORE,{keyPath:"idEstudiantePeriodo"});
+            : db.createObjectStore(STORE,{keyPath:"idEstudiantePeriodo"});
           prepare(objectStore);
         }catch(error){
           try{event.target.transaction.abort();}catch(innerError){}
