@@ -6,6 +6,7 @@
 # - Ejecutar cada prueba de npm test e identificar la primera que falla.
 # - Publicar también el primer mensaje de error verificable.
 # - Ejecutar Electron e IndexedDB en un entorno aislado.
+# - Publicar el control concreto que falla en Electron.
 # - Conservar los registros de ambas pruebas como artefactos.
 # =========================================================
 name: BDLocal Integrity
@@ -176,8 +177,25 @@ jobs:
           script: |
             const fs = require('fs');
             let code = 1;
+            let report = {};
+            let detail = 'Electron o IndexedDB tienen fallos';
             try {
               code = Number(fs.readFileSync('artifacts/bdlocal-electron-smoke.exit', 'utf8').trim());
+            } catch (error) {}
+            try {
+              report = JSON.parse(fs.readFileSync('artifacts/bdlocal-electron-smoke.json', 'utf8'));
+              const result = report && report.result || {};
+              const testReport = result && result.report || {};
+              const failed = Array.isArray(testReport.results)
+                ? testReport.results.find((item) => item && item.ok === false)
+                : null;
+              detail = String(
+                failed && `${failed.name || 'Control'}: ${failed.message || 'falló'}` ||
+                result.testError ||
+                result.message ||
+                report.message ||
+                detail
+              );
             } catch (error) {}
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
@@ -187,8 +205,21 @@ jobs:
               context: 'requisitos/electron-smoke',
               description: code === 0
                 ? 'Electron e IndexedDB aprobados'
-                : 'Electron o IndexedDB tienen fallos'
+                : detail.slice(0, 140)
             });
+            if (code !== 0) {
+              const slug = detail
+                .replace(/[^A-Za-z0-9._-]+/g, '-')
+                .slice(0, 58) || 'unknown';
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                state: 'failure',
+                context: `requisitos/electron-detalle/${slug}`,
+                description: detail.slice(0, 140)
+              });
+            }
 
       - name: Upload Electron smoke report
         if: always()
