@@ -4,7 +4,7 @@
 
 La migración se realizará directamente en `main`, por bloques pequeños y verificables. Ninguna colección antigua se eliminará hasta completar la migración, comparar cantidades y validar las pantallas.
 
-Estado actual: **Bloque 1 en proceso / Bloque 2 casi completo**.
+Estado actual: **Bloque 1 en proceso / Bloque 2 casi completo / Bloque 4 iniciado**.
 
 ## Modelo oficial
 
@@ -42,6 +42,20 @@ El adaptador de sincronización transforma una en otra. Las pantallas no deben f
 | `importaciones` | `importaciones` |
 
 Las filas provenientes de Firebase incluyen `_skipOutbox: true`, para que una descarga no vuelva a crear un cambio pendiente y no produzca ciclos de sincronización.
+
+## Repositorio central Firebase
+
+La app dispone ahora de una única puerta técnica para Firebase V2. Este repositorio:
+
+- resuelve los nombres de las ocho colecciones;
+- valida antes de escribir;
+- admite lectura completa e incremental por `updatedAt`;
+- admite escritura individual y por lotes;
+- prepara borrado lógico;
+- convierte respuestas Firebase a las tablas locales;
+- no realiza operaciones automáticamente al cargarse.
+
+Las pantallas todavía no utilizan directamente este repositorio. La integración se realizará mediante el sincronizador central.
 
 ## Flujo final
 
@@ -86,14 +100,14 @@ Estado: **EN PROCESO**.
 - [x] Identificar las 12 pantallas activas.
 - [x] Confirmar que las pantallas trabajan mediante conectores.
 - [x] Mantener la migración como no destructiva.
-- [x] Agregar pruebas ejecutables del contrato, identidades, validación y mapeo Firebase.
+- [x] Agregar pruebas ejecutables del contrato, identidades, validación, mapeo y repositorio Firebase.
 - [ ] Confirmar el resultado de la suite completa en GitHub Actions y en el equipo con la aplicación instalada.
 - [ ] Exportar respaldo local antes de mover datos.
 - [ ] Exportar o respaldar las colecciones Firebase actuales.
 
 ### Bloque 2. Modelo e identificadores
 
-Estado: **CASI COMPLETO; FALTA INTEGRACIÓN CON REPOSITORIOS**.
+Estado: **CASI COMPLETO; FALTA CONECTAR LA COLA REAL**.
 
 - [x] Definir las ocho colecciones oficiales.
 - [x] Definir IDs locales y remotos.
@@ -102,7 +116,8 @@ Estado: **CASI COMPLETO; FALTA INTEGRACIÓN CON REPOSITORIOS**.
 - [x] Crear el mapeador local → estudiante, matrícula, requisitos y notas.
 - [x] Crear el adaptador Firebase → tablas locales.
 - [x] Validar documentos incompletos, IDs incorrectos, tipos y campos desconocidos.
-- [ ] Integrar los mapeadores con la cola y los repositorios Firebase.
+- [x] Integrar los mapeadores con el repositorio central Firebase.
+- [ ] Integrar el repositorio central con `cambios_pendientes` y `sync_estado`.
 
 ### Bloque 3. Período general
 
@@ -117,14 +132,16 @@ Estado: **BASE PARCIAL EXISTENTE; VALIDACIÓN PANTALLA POR PANTALLA PENDIENTE**.
 
 ### Bloque 4. Repositorios Firebase
 
-Estado: **PENDIENTE**.
+Estado: **INICIADO**.
 
-- [ ] Repositorio `estudiantes`.
-- [ ] Repositorio `matriculas`.
-- [ ] Repositorio `requisitos`.
-- [ ] Repositorio `notas`.
-- [ ] Repositorios de catálogos, historial e importaciones.
-- [ ] Bloquear el acceso directo desde pantallas.
+- [x] Crear un repositorio central para las ocho colecciones.
+- [x] Validar escrituras individuales y por lotes.
+- [x] Preparar lecturas completas e incrementales por `updatedAt`.
+- [x] Preparar conversión Firebase → IndexedDB.
+- [x] Preparar borrado lógico.
+- [ ] Conectar el repositorio con la cola local.
+- [ ] Guardar el estado de la última descarga por colección.
+- [ ] Bloquear y retirar accesos directos desde pantallas.
 
 ### Bloque 5. Sincronización por diferencias
 
