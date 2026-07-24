@@ -35,11 +35,14 @@ contains(repositoryFile,"FIREBASE_CONFLICT","El repositorio debe detectar confli
 contains(repositoryFile,"state.readDocuments+=all.length","La cuota debe contar documentos leídos");
 
 contains(engineFile,"pendingRows(entity,data)","La descarga debe revisar cambios pendientes");
+contains(engineFile,'Promise.reject(new Error("Repositorio cambios_pendientes no disponible."))',"La descarga debe detenerse si no puede revisar la cola");
 contains(engineFile,"REMOTE_CHANGED_WITH_LOCAL_PENDING","La descarga debe registrar conflicto si Firebase cambió");
 contains(engineFile,"removeRequirements","La descarga debe reconciliar requisitos retirados");
-contains(engineFile,"data.eliminado===true","La descarga debe aplicar borrado lógico al caché");
+contains(engineFile,"isEmptyRequirementsDocument","Un mapa de requisitos vacío debe eliminar requisitos locales anteriores");
+contains(engineFile,"applyDeleted","La descarga debe aplicar borrado lógico al caché");
 contains(engineFile,"DEFAULT_ENTITIES_GLOBAL","La descarga global debe separar catálogos y personas");
 contains(engineFile,"DEFAULT_ENTITIES_PERIOD","La descarga por período debe separar datos académicos");
+contains(engineFile,"La paginación no avanzó","El motor debe bloquear ciclos de paginación");
 notContains(engineFile,"setInterval(","El motor no debe ejecutar intervalos automáticos");
 
 contains(targetFile,"requiresStudentIdentity","La identidad debe validarse según la entidad");
@@ -47,6 +50,9 @@ contains(targetFile,'return ["carreras"]',"Carreras debe procesarse sin identida
 contains(targetFile,"writeManyChecked","La subida debe usar control atómico");
 contains(targetFile,"processedChangeIds","Solo deben confirmarse cambios completamente procesados");
 contains(targetFile,"ATOMIC_REMOTE_CONFLICT","La subida debe registrar conflictos atómicos");
+contains(targetFile,"partial:written.conflicts>0","Los conflictos parciales no deben marcar todo el lote como error");
+contains(targetFile,'ok:true,',"El resultado parcial debe permitir confirmar únicamente processedIds");
+contains(targetFile,"Repositorio de conflictos no disponible","La subida debe bloquearse si no puede registrar el conflicto");
 notContains(targetFile,"EstudiantesPeriodo","El destino nuevo no debe escribir en EstudiantesPeriodo");
 
 contains(bridgeFile,"bdl.repo.conflictos.js","El cargador compartido debe incluir conflictos");
