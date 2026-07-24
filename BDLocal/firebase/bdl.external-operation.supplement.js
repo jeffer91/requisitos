@@ -5,22 +5,55 @@ Función:
 - Incorporar las descargas de Google Sheets al bloqueo externo único.
 - Bloquear cambios de período mientras una operación externa está activa.
 - Interceptar los controles legacy antes de sus listeners antiguos.
+- Cargar y esperar todos los conectores activos antes de certificar BDLocal.
 - Mantener las operaciones manuales y no destructivas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-cloud-pull-period-lock";
+  var VERSION="1.1.0-cloud-pull-period-connectors";
   var FLAG="__bdlExternalOperationSupplementInstalled";
   var PATCH_FLAG="__bdlExternalOperationSupplementPatched";
+  var CONNECTORS_SCRIPT_ID="bdl-active-connectors-ready-script";
   var timer=null;
   var attempts=0;
   var MAX_ATTEMPTS=180;
+  var scriptBase=document.currentScript&&document.currentScript.src?document.currentScript.src:document.baseURI;
 
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
   function gate(){return window.BDLExternalOperationGate||null;}
   function cloud(){return window.BL2CloudPullSafe||null;}
+  function connectorsUrl(){try{return new URL("../conexiones/cone.active-connectors.ready.js",scriptBase).href;}catch(error){return "../conexiones/cone.active-connectors.ready.js";}}
+
+  function ensureActiveConnectors(){
+    if(window.BDLActiveConnectors){
+      if(typeof window.BDLActiveConnectors.patch==="function"){window.BDLActiveConnectors.patch();}
+      if(typeof window.BDLActiveConnectors.ensure==="function"){return window.BDLActiveConnectors.ensure().catch(function(){return null;});}
+      return Promise.resolve(window.BDLActiveConnectors);
+    }
+    var existing=byId(CONNECTORS_SCRIPT_ID);
+    if(existing){
+      return window.BDLActiveConnectorsReady&&typeof window.BDLActiveConnectorsReady.then==="function"
+        ?window.BDLActiveConnectorsReady.catch(function(){return null;})
+        :Promise.resolve(null);
+    }
+    return new Promise(function(resolve){
+      var script=document.createElement("script");
+      script.id=CONNECTORS_SCRIPT_ID;
+      script.src=connectorsUrl();
+      script.async=false;
+      script.defer=false;
+      script.setAttribute("data-bdl-active-connectors","true");
+      script.onload=function(){
+        var ready=window.BDLActiveConnectorsReady;
+        if(ready&&typeof ready.then==="function"){ready.then(resolve).catch(function(){resolve(null);});return;}
+        resolve(window.BDLActiveConnectors||null);
+      };
+      script.onerror=function(){resolve(null);};
+      (document.head||document.documentElement).appendChild(script);
+    });
+  }
 
   function setDisabled(node,locked){
     if(!node||!("disabled" in node)){return;}
@@ -155,7 +188,8 @@ Función:
       attempts+=1;
       patchCloud();
       syncUi();
-      if(!cloud()){schedule(attempts<30?80:220);}
+      ensureActiveConnectors();
+      if(!cloud()||!window.BDLActiveConnectors){schedule(attempts<30?80:220);}
     },Math.max(30,Number(delay||60)));
   }
 
@@ -163,7 +197,7 @@ Función:
     window[FLAG]=true;
     document.addEventListener("click",clickHandler,true);
     window.addEventListener("bdlocal:external-operation-lock-changed",syncUi);
-    ["DOMContentLoaded","bdlocal:bl2-html-scripts-loaded","requisitos:firebase-redesign-ready"].forEach(function(name){
+    ["DOMContentLoaded","bdlocal:bl2-html-scripts-loaded","requisitos:firebase-redesign-ready","bl2:app-refreshed"].forEach(function(name){
       window.addEventListener(name,function(){attempts=0;schedule(20);});
     });
   }
@@ -174,11 +208,16 @@ Función:
     automatic:false,
     destructive:false,
     patchCloud:patchCloud,
+    ensureActiveConnectors:ensureActiveConnectors,
     syncUi:syncUi,
-    status:function(){return {version:VERSION,installed:!!window[FLAG],cloudPatched:!!(cloud()&&cloud().operationGuardVersion),locked:!!(gate()&&gate().isLocked&&gate().isLocked())};}
+    status:function(){
+      var active=window.BDLActiveConnectors&&typeof window.BDLActiveConnectors.status==="function"?window.BDLActiveConnectors.status():null;
+      return {version:VERSION,installed:!!window[FLAG],cloudPatched:!!(cloud()&&cloud().operationGuardVersion),activeConnectors:active,locked:!!(gate()&&gate().isLocked&&gate().isLocked())};
+    }
   };
 
   patchCloud();
   syncUi();
+  ensureActiveConnectors();
   schedule(30);
 })(window,document);
