@@ -5,18 +5,23 @@ Función:
 - Mantener un único bloqueo para sincronización, descargas y migración.
 - Evitar operaciones externas simultáneas entre Firebase, Sheets y Supabase.
 - Congelar el período y los botones mientras una operación está activa.
-- Revalidar las colecciones legacy antes de aplicar la migración V2.
-- Crear una vista previa fresca y un nuevo respaldo justo antes de escribir.
-- Detectar cambios de origen durante la vista previa o durante la aplicación.
+- Limitar la vista previa de migración a una sola lectura de las fuentes legacy.
+- Aplicar la migración desde el plan respaldado, sin volver a leer toda la fuente.
+- Imponer presupuestos máximos de lectura antes de habilitar escrituras.
 - No borrar colecciones ni iniciar tareas automáticas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-single-external-operation";
+  var VERSION="2.0.0-single-pass-read-budget";
   var INSTALL_FLAG="__bdlExternalOperationGuardInstalled";
   var PATCH_FLAG="__bdlExternalOperationGuardPatched";
   var MAX_PATCH_ATTEMPTS=180;
+  var MIGRATION_PAGE_SIZE=250;
+  var MIGRATION_MAX_PAGES=20;
+  var MIGRATION_READ_BUDGET=20000;
+  var MIGRATION_APPLY_READ_BUDGET=10000;
+  var PREVIEW_TTL_MS=10*60*1000;
   var patchAttempts=0;
   var patchTimer=null;
   var previewMeta=Object.create(null);
@@ -35,6 +40,7 @@ Función:
   function clone(value){try{return JSON.parse(JSON.stringify(value));}catch(error){return value;}}
   function byId(id){return document.getElementById(id);}
   function migration(){return window.RequisitosFirebaseMigration||null;}
+  function sumValues(source){return Object.keys(source||{}).reduce(function(total,key){return total+Number(source[key]||0);},0);}
 
   function stable(value){
     if(value===null||value===undefined){return String(value);}
@@ -107,9 +113,7 @@ Función:
 
   function emit(){
     try{
-      window.dispatchEvent(new CustomEvent("bdlocal:external-operation-lock-changed",{
-        detail:status()
-      }));
+      window.dispatchEvent(new CustomEvent("bdlocal:external-operation-lock-changed",{detail:status()}));
     }catch(error){}
   }
 
@@ -168,7 +172,13 @@ Función:
       lastReleasedAt:state.lastReleasedAt,
       manualOnly:true,
       automatic:false,
-      destructive:false
+      destructive:false,
+      budgets:{
+        migrationPreviewReads:MIGRATION_READ_BUDGET,
+        migrationApplyReads:MIGRATION_APPLY_READ_BUDGET,
+        migrationPageSize:MIGRATION_PAGE_SIZE,
+        migrationMaxPagesPerCollection:MIGRATION_MAX_PAGES
+      }
     };
   }
 
@@ -182,62 +192,65 @@ Función:
     }
   }
 
-  function readSignature(api,options){
-    if(!api||typeof api.readAllLegacy!=="function"){
-      return Promise.reject(new Error("La lectura legacy de migración no está disponible."));
-    }
-    return api.readAllLegacy(Object.assign({limit:400,maxPages:500},options||{})).then(function(raw){
-      return {signature:sourceSignature(raw),raw:raw};
-    });
-  }
-
-  function rememberPreview(result,signature){
+  function rememberPreview(result){
     if(!result||!text(result.token)){return result;}
+    var sourceReads=sumValues(result.sourceCounts||{});
+    var applyReads=sumValues(result.counts||{});
+    var expiresAt=new Date(Math.min(Date.parse(result.expiresAt||"")||Date.now()+PREVIEW_TTL_MS,Date.now()+PREVIEW_TTL_MS)).toISOString();
+    var errors=Array.isArray(result.errors)?result.errors.slice():[];
+
+    if(sourceReads>MIGRATION_READ_BUDGET){
+      errors.push({error:"La vista previa supera el presupuesto máximo de "+MIGRATION_READ_BUDGET+" lecturas."});
+    }
+    if(applyReads>MIGRATION_APPLY_READ_BUDGET){
+      errors.push({error:"La aplicación requeriría más de "+MIGRATION_APPLY_READ_BUDGET+" verificaciones remotas. Debe migrarse por bloques."});
+    }
+
     previewMeta[text(result.token)]={
       token:text(result.token),
       fingerprint:text(result.fingerprint),
-      sourceFingerprint:text(signature),
       counts:clone(result.counts||{}),
+      sourceCounts:clone(result.sourceCounts||{}),
+      sourceReads:sourceReads,
+      applyReads:applyReads,
       backupId:text(result.backup&&result.backup.backupId),
-      createdAt:now()
+      createdAt:now(),
+      expiresAt:expiresAt
     };
+
     var keys=Object.keys(previewMeta);
     if(keys.length>6){
       keys.sort(function(a,b){return text(previewMeta[a]&&previewMeta[a].createdAt).localeCompare(text(previewMeta[b]&&previewMeta[b].createdAt));});
       keys.slice(0,keys.length-6).forEach(function(key){delete previewMeta[key];});
     }
-    result.sourceFingerprint=text(signature);
-    result.sourceStable=true;
-    result.operationGuardVersion=VERSION;
-    return result;
+
+    return Object.assign({},result,{
+      errors:errors,
+      expiresAt:expiresAt,
+      singleReadPreview:true,
+      previewReadPasses:1,
+      estimatedSourceReads:sourceReads,
+      estimatedApplyReads:applyReads,
+      migrationReadBudget:MIGRATION_READ_BUDGET,
+      migrationApplyReadBudget:MIGRATION_APPLY_READ_BUDGET,
+      operationGuardVersion:VERSION
+    });
   }
 
   function patchMigration(){
     var api=migration();
     if(!api||api[PATCH_FLAG]){return !!api;}
-    if(typeof api.preview!=="function"||typeof api.apply!=="function"||typeof api.readAllLegacy!=="function"){return false;}
+    if(typeof api.preview!=="function"||typeof api.apply!=="function"){return false;}
 
     var originalPreview=api.preview.bind(api);
     var originalApply=api.apply.bind(api);
-    var originalReset=typeof api.resetPreview==="function"?api.resetPreview.bind(api):function(){return true;};
 
     api.preview=function(options){
-      options=Object.assign({limit:400,maxPages:500},options||{});
+      options=Object.assign({},options||{});
+      options.limit=Math.min(MIGRATION_PAGE_SIZE,Math.max(1,Number(options.limit||MIGRATION_PAGE_SIZE)));
+      options.maxPages=Math.min(MIGRATION_MAX_PAGES,Math.max(1,Number(options.maxPages||MIGRATION_MAX_PAGES)));
       return withLock("migration:preview",function(){
-        var before="";
-        return readSignature(api,options).then(function(check){
-          before=check.signature;
-          return originalPreview(options);
-        }).then(function(result){
-          return readSignature(api,options).then(function(check){
-            if(before!==check.signature){
-              originalReset();
-              invalidateMigrationUi("Los datos legacy cambiaron mientras se generaba la vista previa. Genérela nuevamente.");
-              throw new Error("Los datos legacy cambiaron durante la vista previa. No se habilitó la migración.");
-            }
-            return rememberPreview(result,check.signature);
-          });
-        });
+        return originalPreview(options).then(rememberPreview);
       },{kind:"migration-preview"});
     };
 
@@ -249,57 +262,30 @@ Función:
           invalidateMigrationUi("La vista previa segura ya no está disponible. Genere una nueva.");
           return Promise.reject(new Error("La vista previa segura ya no está disponible. Genere una nueva."));
         }
-
-        var readOptions={limit:400,maxPages:500};
-        var before="";
-        var stableBeforeApply="";
-        var fresh=null;
-
-        return readSignature(api,readOptions).then(function(check){
-          before=check.signature;
-          return originalPreview(readOptions);
-        }).then(function(result){
-          fresh=result;
-          return readSignature(api,readOptions);
-        }).then(function(check){
-          stableBeforeApply=check.signature;
-          if(before!==stableBeforeApply){
-            originalReset();
-            invalidateMigrationUi("Los datos legacy cambiaron durante la revalidación. Genere otra vista previa.");
-            throw new Error("Los datos legacy cambiaron durante la revalidación previa a la escritura.");
-          }
-          if(previous.sourceFingerprint!==stableBeforeApply){
-            originalReset();
-            invalidateMigrationUi("Los datos legacy cambiaron desde la vista previa revisada. Debe revisar una nueva vista previa.");
-            throw new Error("Los datos legacy cambiaron desde la vista previa. La migración fue bloqueada antes de escribir.");
-          }
-          if(fresh.errors&&fresh.errors.length){
-            originalReset();
-            invalidateMigrationUi("La revalidación encontró errores de transformación.");
-            throw new Error("La revalidación encontró errores de transformación. No se escribió información.");
-          }
-          return originalApply(fresh.token,confirmation,options);
-        }).then(function(result){
-          return readSignature(api,readOptions).then(function(finalCheck){
-            result=Object.assign({},result||{}, {
-              previewRefreshedBeforeApply:true,
-              previewConsumed:true,
-              sourceFingerprint:stableBeforeApply,
-              freshBackupId:text(fresh&&fresh.backup&&fresh.backup.backupId),
-              operationGuardVersion:VERSION
-            });
-            delete previewMeta[text(previewToken)];
-            if(finalCheck.signature!==stableBeforeApply){
-              result.ok=false;
-              result.sourceChangedDuringApply=true;
-              result.needsNewPreview=true;
-              result.message="La migración terminó de forma no destructiva, pero los datos legacy cambiaron durante el proceso. Genere una nueva vista previa para completar los cambios recientes.";
-            }else{
-              result.sourceStableDuringApply=true;
-            }
-            window.setTimeout(function(){var button=byId("bl2-btn-migration-apply");if(button){button.disabled=true;}},0);
-            return result;
+        if(Date.parse(previous.expiresAt)<Date.now()){
+          delete previewMeta[text(previewToken)];
+          invalidateMigrationUi("La vista previa expiró. Genere una nueva antes de migrar.");
+          return Promise.reject(new Error("La vista previa expiró. Genere una nueva."));
+        }
+        if(previous.sourceReads>MIGRATION_READ_BUDGET||previous.applyReads>MIGRATION_APPLY_READ_BUDGET){
+          invalidateMigrationUi("La operación supera el presupuesto seguro de lecturas.");
+          return Promise.reject(new Error("La migración supera el presupuesto seguro de lecturas y debe dividirse en bloques."));
+        }
+        return originalApply(previewToken,confirmation,options).then(function(result){
+          result=Object.assign({},result||{}, {
+            previewConsumed:true,
+            singleReadPreview:true,
+            previewReadPasses:1,
+            sourceValidation:"preview-token-and-backup",
+            sourceFingerprint:text(previous.fingerprint),
+            freshBackupId:text(previous.backupId),
+            estimatedSourceReads:Number(previous.sourceReads||0),
+            estimatedApplyReads:Number(previous.applyReads||0),
+            operationGuardVersion:VERSION
           });
+          delete previewMeta[text(previewToken)];
+          window.setTimeout(function(){var button=byId("bl2-btn-migration-apply");if(button){button.disabled=true;}},0);
+          return result;
         });
       },{kind:"migration-apply"});
     };
@@ -307,6 +293,7 @@ Función:
     api[PATCH_FLAG]=true;
     api.operationGuardVersion=VERSION;
     api.sourceSignature=sourceSignature;
+    api.readBudgets={preview:MIGRATION_READ_BUDGET,apply:MIGRATION_APPLY_READ_BUDGET};
     return true;
   }
 
@@ -387,7 +374,8 @@ Función:
     isLocked:function(){return state.locked;},
     status:status,
     sourceSignature:sourceSignature,
-    patchAll:patchAll
+    patchAll:patchAll,
+    budgets:{preview:MIGRATION_READ_BUDGET,apply:MIGRATION_APPLY_READ_BUDGET}
   };
 
   if(!window[INSTALL_FLAG]){
