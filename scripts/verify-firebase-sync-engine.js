@@ -51,7 +51,9 @@ contains(targetFile,"writeManyChecked","La subida debe usar control atómico");
 contains(targetFile,"processedChangeIds","Solo deben confirmarse cambios completamente procesados");
 contains(targetFile,"ATOMIC_REMOTE_CONFLICT","La subida debe registrar conflictos atómicos");
 contains(targetFile,"partial:written.conflicts>0","Los conflictos parciales no deben marcar todo el lote como error");
-contains(targetFile,'ok:true,',"El resultado parcial debe permitir confirmar únicamente processedIds");
+contains(targetFile,"allConflicted=written.conflicts>0&&processed.length===0","Debe detectarse un lote totalmente conflictuado");
+contains(targetFile,"ok:!allConflicted","Un lote totalmente conflictuado no debe declararse exitoso");
+contains(targetFile,"deferWithoutAttempt:allConflicted","Un lote totalmente conflictuado debe conservarse pendiente sin sumar intentos");
 contains(targetFile,"Repositorio de conflictos no disponible","La subida debe bloquearse si no puede registrar el conflicto");
 notContains(targetFile,"EstudiantesPeriodo","El destino nuevo no debe escribir en EstudiantesPeriodo");
 
