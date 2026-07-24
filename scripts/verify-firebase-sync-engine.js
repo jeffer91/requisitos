@@ -17,7 +17,9 @@ const engineFile="BDLocal/firebase/bdl.firebase.sync-engine.v2.js";
 const targetFile="BDLocal/sync/targets/bdl.sync.target.firebase.js";
 const bridgeFile="BDLocal/patches/bdl.changes.outbox-bridge.js";
 const repositoryFile="BDLocal/firebase/bdl.firebase.repository.v2.js";
-[stateFile,conflictFile,engineFile,targetFile,bridgeFile,repositoryFile].forEach(syntax);
+const centerFile="BDLocal/firebase/bdl.firebase.control-center.js";
+const pushFile="BDLocal/firebase/bdl.firebase.push-control.js";
+[stateFile,conflictFile,engineFile,targetFile,bridgeFile,repositoryFile,centerFile,pushFile].forEach(syntax);
 
 contains(stateFile,"lastCursorUpdatedAt","sync_estado debe guardar updatedAt del cursor");
 contains(stateFile,"lastCursorDocumentId","sync_estado debe guardar documentId del cursor");
@@ -58,7 +60,24 @@ contains(targetFile,"Repositorio de conflictos no disponible","La subida debe bl
 notContains(targetFile,"EstudiantesPeriodo","El destino nuevo no debe escribir en EstudiantesPeriodo");
 
 contains(bridgeFile,"bdl.repo.conflictos.js","El cargador compartido debe incluir conflictos");
+contains(bridgeFile,"bdl.firebase.control-center.js","El cargador compartido debe incluir controles de descarga Firebase V2");
+contains(bridgeFile,"bdl.firebase.push-control.js","El cargador compartido debe incluir la subida Firebase V2");
 contains(bridgeFile,"automatic:false","El cargador no debe iniciar sincronización automática");
+
+contains(centerFile,'replaceControl("bl2-btn-pull-firebase"',"Base Local debe sustituir la descarga Firebase heredada");
+contains(centerFile,'replaceControl("bl2-btn-pull-firebase-all"',"Base Local debe permitir descargar todos los períodos");
+contains(centerFile,'engine().pullAll({manual:true,periodoId:period.id',"La descarga del período debe usar el motor V2 manual");
+contains(centerFile,'entities:["periodos","carreras","estudiantes"]',"Traer todo debe descargar primero la base global");
+contains(centerFile,'entities:["matriculas","requisitos","notas"]',"Traer todo debe descargar los datos académicos por período");
+contains(centerFile,"bl2-firebase-conflicts-list","El Centro debe mostrar conflictos abiertos");
+contains(centerFile,"Firebase oficial · BDLocal caché","La interfaz debe declarar la arquitectura real");
+notContains(centerFile,"setInterval(","Los controles Firebase no deben ejecutar intervalos automáticos");
+
+contains(pushFile,'engine().pushPending({',"El botón de subida debe usar pushPending V2");
+contains(pushFile,"limit:25","La subida manual debe conservar el máximo de 25");
+contains(pushFile,"Los conflictos permanecerán pendientes","La confirmación debe explicar la protección de conflictos");
+notContains(pushFile,"EstudiantesPeriodo","El control de subida no debe mencionar la colección antigua");
+notContains(pushFile,"setInterval(","La subida no debe ejecutarse automáticamente");
 
 if(errors.length){console.error("\nVERIFICACIÓN FIREBASE SYNC V2: ERROR\n");errors.forEach((error,index)=>console.error(`${index+1}. ${error}`));process.exit(1);}
 console.log("VERIFICACIÓN FIREBASE SYNC V2: OK");
