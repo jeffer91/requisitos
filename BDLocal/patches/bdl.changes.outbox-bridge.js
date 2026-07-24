@@ -6,12 +6,12 @@ Función o funciones:
 - Espejar cambios legacy mediante el repositorio idempotente.
 - Actualizar el pendiente lógico existente en vez de crear otro.
 - Evitar duplicados por IDs aleatorios de código antiguo.
-- Cargar el esquema, adaptador de identidad y período compartido.
+- Cargar esquema, identidad, mapeo y período compartido.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.2.0-shared-identity";
+  var VERSION = "2.3.0-shared-mapper";
   var FLAG = "__bdlOutboxBridgeInstalled";
   var document = window.document || null;
   var scriptBase = document && document.currentScript && document.currentScript.src
@@ -66,6 +66,9 @@ Función o funciones:
         return loadSharedScript("../firebase/bdl.firebase.identity.js","RequisitosFirebaseIdentity");
       })
       .then(function(){
+        return loadSharedScript("../firebase/bdl.firebase.mapper.v2.js","RequisitosFirebaseMapper");
+      })
+      .then(function(){
         return loadSharedScript("../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal");
       })
       .then(function(){
@@ -74,6 +77,7 @@ Función o funciones:
             detail:{
               firebaseSchema:!!window.RequisitosFirebaseSchema,
               firebaseIdentity:!!window.RequisitosFirebaseIdentity,
+              firebaseMapper:!!window.RequisitosFirebaseMapper,
               periodoGlobal:!!window.RequisitosPeriodoGlobal,
               version:VERSION,
               at:nowISO()
@@ -194,6 +198,7 @@ Función o funciones:
           idempotent:true,
           sharedArchitecture:true,
           firebaseIdentity:true,
+          firebaseMapper:true,
           at:nowISO()
         }
       }));
