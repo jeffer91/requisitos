@@ -6,13 +6,14 @@ Función:
 - Presentar Firebase como fuente oficial y principal.
 - Agrupar Google Sheets y Supabase como fuentes secundarias.
 - Diferenciar acciones rutinarias, avanzadas y de riesgo.
-- Cargar las acciones operativas después de construir la interfaz.
+- Cargar primero el bloqueo operativo y después las acciones visibles.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-operational-actions";
+  var VERSION="1.2.0-operation-guard";
   var STYLE_ID="bdl-firebase-redesign-style";
+  var GUARD_SCRIPT_ID="bdl-external-operation-guard-script";
   var ACTIONS_SCRIPT_ID="bdl-firebase-user-actions-script";
   var WORKFLOW_ID="bdlc-safe-workflow";
   var applied=false;
@@ -23,6 +24,7 @@ Función:
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
   function styleUrl(){try{return new URL("bdl.firebase.redesign.css",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.redesign.css";}}
+  function guardUrl(){try{return new URL("bdl.external-operation.guard.js",scriptBase).href;}catch(error){return "./firebase/bdl.external-operation.guard.js";}}
   function actionsUrl(){try{return new URL("bdl.firebase.user-actions.js",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.user-actions.js";}}
 
   function ensureStyle(){
@@ -34,7 +36,17 @@ Función:
     (document.head||document.documentElement).appendChild(link);
   }
 
+  function disableUnsafeControls(message){
+    [
+      "bl2-btn-push-google","bl2-btn-push-firebase","bl2-btn-push-supabase",
+      "bl2-btn-correct-firebase-base","bl2-btn-migration-preview","bl2-btn-migration-apply"
+    ].forEach(function(id){var button=byId(id);if(button){button.disabled=true;}});
+    var status=byId("bl2-firebase-migration-status");
+    if(status){status.innerHTML="<strong>Operaciones bloqueadas</strong><span>"+text(message)+"</span>";}
+  }
+
   function ensureActions(){
+    if(!window.BDLExternalOperationGate){return;}
     if(window.RequisitosFirebaseUserActions){
       if(typeof window.RequisitosFirebaseUserActions.refresh==="function"){window.RequisitosFirebaseUserActions.refresh();}
       return;
@@ -46,7 +58,41 @@ Función:
     script.async=false;
     script.defer=false;
     script.setAttribute("data-bdl-firebase-actions","true");
-    script.onerror=function(){try{console.warn("[Firebase redesign] No se pudieron cargar las acciones operativas.");}catch(error){}};
+    script.onerror=function(){
+      disableUnsafeControls("No se pudieron cargar las acciones protegidas de Firebase.");
+      try{console.warn("[Firebase redesign] No se pudieron cargar las acciones operativas.");}catch(error){}
+    };
+    (document.head||document.documentElement).appendChild(script);
+  }
+
+  function ensureGuard(){
+    if(window.BDLExternalOperationGate){
+      if(typeof window.BDLExternalOperationGate.patchAll==="function"){window.BDLExternalOperationGate.patchAll();}
+      ensureActions();
+      return;
+    }
+    var existing=byId(GUARD_SCRIPT_ID);
+    if(existing){
+      if(existing.getAttribute("data-bdl-guard-waiting")!=="true"){
+        existing.setAttribute("data-bdl-guard-waiting","true");
+        existing.addEventListener("load",ensureActions,{once:true});
+      }
+      return;
+    }
+    var script=document.createElement("script");
+    script.id=GUARD_SCRIPT_ID;
+    script.src=guardUrl();
+    script.async=false;
+    script.defer=false;
+    script.setAttribute("data-bdl-external-operation-guard","true");
+    script.onload=function(){
+      if(window.BDLExternalOperationGate&&typeof window.BDLExternalOperationGate.patchAll==="function"){window.BDLExternalOperationGate.patchAll();}
+      ensureActions();
+    };
+    script.onerror=function(){
+      disableUnsafeControls("No se cargó el bloqueo único de operaciones. Reinicie la aplicación antes de continuar.");
+      try{console.warn("[Firebase redesign] No se pudo cargar el bloqueo operativo.");}catch(error){}
+    };
     (document.head||document.documentElement).appendChild(script);
   }
 
@@ -116,7 +162,7 @@ Función:
 
   function apply(){
     ensureStyle();
-    ensureActions();
+    ensureGuard();
 
     var section=byId("bl2-section-bases-externas");
     if(!section){return false;}
@@ -172,8 +218,8 @@ Función:
     if(migrationApply){migrationApply.classList.add("bdlc-action-danger");}
 
     applied=true;
-    ensureActions();
-    try{window.dispatchEvent(new CustomEvent("requisitos:firebase-redesign-ready",{detail:{ok:true,version:VERSION,at:new Date().toISOString()}}));}catch(error){}
+    ensureGuard();
+    try{window.dispatchEvent(new CustomEvent("requisitos:firebase-redesign-ready",{detail:{ok:true,version:VERSION,guard:!!window.BDLExternalOperationGate,at:new Date().toISOString()}}));}catch(error){}
     return true;
   }
 
@@ -194,10 +240,10 @@ Función:
     version:VERSION,
     apply:apply,
     refresh:function(){applied=false;attempts=0;schedule();},
-    status:function(){return {version:VERSION,applied:applied,attempts:attempts,actions:!!window.RequisitosFirebaseUserActions};}
+    status:function(){return {version:VERSION,applied:applied,attempts:attempts,guard:!!window.BDLExternalOperationGate,actions:!!window.RequisitosFirebaseUserActions};}
   };
 
   ensureStyle();
-  ensureActions();
+  ensureGuard();
   schedule();
 })(window,document);
