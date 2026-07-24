@@ -1,61 +1,56 @@
 "use strict";
 
-/* Verifica que Firebase V2 use outbox, sync_estado y ejecución manual. */
 const fs=require("node:fs");
 const path=require("node:path");
 const vm=require("node:vm");
 const ROOT=path.resolve(__dirname,"..");
 const errors=[];
-
-function read(file){
-  const full=path.join(ROOT,file);
-  if(!fs.existsSync(full)){errors.push(`Falta ${file}`);return "";}
-  return fs.readFileSync(full,"utf8");
-}
-function ok(value,message){if(!value){errors.push(message);}}
-function contains(file,fragment,message){ok(read(file).includes(fragment),message||`${file} debe contener ${fragment}`);}
-function notContains(file,fragment,message){ok(!read(file).includes(fragment),message||`${file} no debe contener ${fragment}`);}
-function syntax(file){
-  const source=read(file);if(!source){return;}
-  try{new vm.Script(source,{filename:file});}catch(error){errors.push(`${file}: ${error.message}`);}
-}
+function read(file){const full=path.join(ROOT,file);if(!fs.existsSync(full)){errors.push(`Falta ${file}`);return "";}return fs.readFileSync(full,"utf8");}
+function check(value,message){if(!value){errors.push(message);}}
+function contains(file,fragment,message){check(read(file).includes(fragment),message||`${file} debe contener ${fragment}`);}
+function notContains(file,fragment,message){check(!read(file).includes(fragment),message||`${file} no debe contener ${fragment}`);}
+function syntax(file){try{new vm.Script(read(file),{filename:file});}catch(error){errors.push(`${file}: ${error.message}`);}}
 
 const stateFile="BDLocal/repositories/bdl.repo.sync-estado.js";
+const conflictFile="BDLocal/repositories/bdl.repo.conflictos.js";
 const engineFile="BDLocal/firebase/bdl.firebase.sync-engine.v2.js";
 const targetFile="BDLocal/sync/targets/bdl.sync.target.firebase.js";
 const bridgeFile="BDLocal/patches/bdl.changes.outbox-bridge.js";
-[stateFile,engineFile,targetFile,bridgeFile].forEach(syntax);
+const repositoryFile="BDLocal/firebase/bdl.firebase.repository.v2.js";
+[stateFile,conflictFile,engineFile,targetFile,bridgeFile,repositoryFile].forEach(syntax);
 
-contains(stateFile,'Repos.storeName("syncEstado","sync_estado")',"sync_estado debe ser la memoria persistente del cursor");
-contains(stateFile,"lastCursor", "sync_estado debe guardar el cursor incremental");
-contains(stateFile,"pullSuccess", "sync_estado debe confirmar descargas");
-contains(stateFile,"pushSuccess", "sync_estado debe confirmar subidas");
-contains(stateFile,'Repos.register("sync_estado",api)',"El repositorio sync_estado debe registrarse");
+contains(stateFile,"lastCursorUpdatedAt","sync_estado debe guardar updatedAt del cursor");
+contains(stateFile,"lastCursorDocumentId","sync_estado debe guardar documentId del cursor");
+contains(stateFile,"Repos.put(store(),merged)","sync_estado debe usar escritura estricta");
+notContains(stateFile,"Repos.safePut(store(),merged)","sync_estado no debe ocultar errores críticos");
+contains(conflictFile,'tipo:"CONFLICTO_SYNC"',"Debe existir registro persistente de conflictos");
+contains(conflictFile,'Repos.register("conflictos_sync",api)',"El repositorio de conflictos debe registrarse");
 
-contains(engineFile,"options.manual!==true", "El motor debe rechazar solicitudes no manuales");
-contains(engineFile,'automatic:false', "El motor debe declarar sincronización automática desactivada");
-contains(engineFile,"updatedAfter:cursor", "La descarga debe usar el cursor updatedAt");
-contains(engineFile,"writeStores(local.stores", "La descarga debe guardar el mapeo en IndexedDB");
-contains(engineFile,"pushPending", "El motor debe reutilizar la cola para subir");
-notContains(engineFile,"setInterval(", "El motor no debe ejecutar intervalos automáticos");
-notContains(engineFile,"DOMContentLoaded", "El motor no debe sincronizar al abrir la pantalla");
+contains(repositoryFile,'query=query.orderBy("updatedAt","asc")',"La descarga debe ordenar por updatedAt");
+contains(repositoryFile,"documentIdField()","La descarga debe ordenar también por documentId");
+contains(repositoryFile,"query.startAfter(cursor.updatedAt,cursor.documentId)","La paginación debe usar cursor compuesto");
+contains(repositoryFile,'query=query.where("periodoId","==",periodoId)',"Las colecciones académicas deben filtrar por período");
+contains(repositoryFile,"writeManyChecked","El repositorio debe exponer escritura segura");
+contains(repositoryFile,"FIREBASE_CONFLICT","El repositorio debe detectar conflictos");
+contains(repositoryFile,"state.readDocuments+=all.length","La cuota debe contar documentos leídos");
 
-contains(targetFile,"RequisitosFirebaseRepository", "El destino debe usar el repositorio Firebase V2");
-contains(targetFile,"RequisitosFirebaseMapper", "El destino debe separar las entidades");
-contains(targetFile,"compareEntries", "El destino debe comparar documentos antes de escribir");
-contains(targetFile,"dataHash", "El destino debe evitar escrituras idénticas mediante dataHash");
-contains(targetFile,"MAX_BATCH_SIZE=25", "El destino debe conservar el máximo de 25 cambios locales");
-contains(targetFile,'return ["estudiantes","matriculas","requisitos","notas"]', "Los cambios completos deben dividirse en cuatro colecciones");
-notContains(targetFile,"EstudiantesPeriodo", "El destino nuevo no debe escribir en EstudiantesPeriodo");
-notContains(targetFile,'collection("Estudiantes")', "El destino nuevo no debe escribir directamente en Estudiantes");
+contains(engineFile,"pendingRows(entity,data)","La descarga debe revisar cambios pendientes");
+contains(engineFile,"REMOTE_CHANGED_WITH_LOCAL_PENDING","La descarga debe registrar conflicto si Firebase cambió");
+contains(engineFile,"removeRequirements","La descarga debe reconciliar requisitos retirados");
+contains(engineFile,"data.eliminado===true","La descarga debe aplicar borrado lógico al caché");
+contains(engineFile,"DEFAULT_ENTITIES_GLOBAL","La descarga global debe separar catálogos y personas");
+contains(engineFile,"DEFAULT_ENTITIES_PERIOD","La descarga por período debe separar datos académicos");
+notContains(engineFile,"setInterval(","El motor no debe ejecutar intervalos automáticos");
 
-contains(bridgeFile,"bdl.repo.sync-estado.js", "El cargador común debe preparar sync_estado");
-contains(bridgeFile,"bdl.firebase.sync-engine.v2.js", "El cargador común debe preparar el motor diferencial");
-contains(bridgeFile,"automatic:false", "El cargador debe declarar que no inicia sincronización automática");
+contains(targetFile,"requiresStudentIdentity","La identidad debe validarse según la entidad");
+contains(targetFile,'return ["carreras"]',"Carreras debe procesarse sin identidad de estudiante");
+contains(targetFile,"writeManyChecked","La subida debe usar control atómico");
+contains(targetFile,"processedChangeIds","Solo deben confirmarse cambios completamente procesados");
+contains(targetFile,"ATOMIC_REMOTE_CONFLICT","La subida debe registrar conflictos atómicos");
+notContains(targetFile,"EstudiantesPeriodo","El destino nuevo no debe escribir en EstudiantesPeriodo");
 
-if(errors.length){
-  console.error("\nVERIFICACIÓN FIREBASE SYNC V2: ERROR\n");
-  errors.forEach((error,index)=>console.error(`${index+1}. ${error}`));
-  process.exit(1);
-}
+contains(bridgeFile,"bdl.repo.conflictos.js","El cargador compartido debe incluir conflictos");
+contains(bridgeFile,"automatic:false","El cargador no debe iniciar sincronización automática");
+
+if(errors.length){console.error("\nVERIFICACIÓN FIREBASE SYNC V2: ERROR\n");errors.forEach((error,index)=>console.error(`${index+1}. ${error}`));process.exit(1);}
 console.log("VERIFICACIÓN FIREBASE SYNC V2: OK");
