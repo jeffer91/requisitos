@@ -2,7 +2,7 @@
 # Nombre completo: bdlocal-integrity.yml
 # Ruta: /.github/workflows/bdlocal-integrity.yml
 # Función:
-# - Ejecutar npm test en cada cambio de main.
+# - Ejecutar cada prueba de npm test e identificar la primera que falla.
 # - Ejecutar Electron e IndexedDB en un entorno aislado.
 # - Publicar estados verificables sobre el commit evaluado.
 # - Conservar los registros de ambas pruebas como artefactos.
@@ -41,7 +41,7 @@ jobs:
         run: |
           set +e
           mkdir -p artifacts
-          npm test > artifacts/npm-test.log 2>&1
+          node scripts/ci-run-tests.js > artifacts/npm-test.log 2>&1
           code=$?
           cat artifacts/npm-test.log
           echo "$code" > artifacts/npm-test.exit
@@ -54,8 +54,12 @@ jobs:
           script: |
             const fs = require('fs');
             let code = 1;
+            let failed = 'unknown';
             try {
               code = Number(fs.readFileSync('artifacts/npm-test.exit', 'utf8').trim());
+            } catch (error) {}
+            try {
+              failed = fs.readFileSync('artifacts/npm-test-failed.txt', 'utf8').trim() || 'none';
             } catch (error) {}
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
@@ -67,6 +71,21 @@ jobs:
                 ? 'Suite completa aprobada'
                 : 'La suite completa tiene fallos'
             });
+            if (code !== 0) {
+              const slug = failed
+                .replace(/^node\s+/, '')
+                .replace(/^npm\s+run\s+/, '')
+                .replace(/[^A-Za-z0-9._-]+/g, '-')
+                .slice(0, 70) || 'unknown';
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                state: 'failure',
+                context: `requisitos/fallo/${slug}`,
+                description: 'Primera prueba fallida'
+              });
+            }
 
       - name: Upload npm test report
         if: always()
@@ -76,6 +95,7 @@ jobs:
           path: |
             artifacts/npm-test.log
             artifacts/npm-test.exit
+            artifacts/npm-test-failed.txt
           if-no-files-found: error
           retention-days: 14
 
