@@ -3,10 +3,9 @@ Nombre completo: stats.bootstrap.js
 Ruta: /Stats/stats.bootstrap.js
 Función:
 - Preparar BDLocalScreenDeps y ConStats.
-- Cargar la extensión oficial de notas antes de la pantalla.
+- Cargar extensiones de notas y actualización oficial dentro del conector.
 - Cargar el filtro de sede para todos los cálculos de Stats.
-- Cargar la sincronización de Telegram desde Firebase para Stats.
-- Mantener un arranque secuencial sin accesos paralelos.
+- Mantener un arranque secuencial sin accesos directos a Firebase.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -70,6 +69,10 @@ Función:
       return load("../BDLocal/conexiones/cone.stats.notes.js",function(){return window.ConStatsNotes&&window.ConStatsNotes.install&&window.ConStatsNotes.install()?window.ConStatsNotes:null;})
         .then(function(){
           if(typeof con.listNotes!=="function"){throw new Error("ConStats.listNotes no quedó disponible.");}
+          return load("../BDLocal/conexiones/cone.stats.firebase.js",function(){return window.ConStatsFirebase&&window.ConStatsFirebase.install&&window.ConStatsFirebase.install()?window.ConStatsFirebase:null;});
+        })
+        .then(function(){
+          if(typeof con.refreshOfficialStudents!=="function"){throw new Error("ConStats.refreshOfficialStudents no quedó disponible.");}
           return con;
         });
     });
@@ -97,7 +100,7 @@ Función:
       .then(function(){return load("stats.sections.js",function(){return window.StatsSections;});})
       .then(function(){
         if(window.StatsSedeFilter&&typeof window.StatsSedeFilter.install==="function"){window.StatsSedeFilter.install();}
-        try{window.dispatchEvent(new CustomEvent("stats:bootstrap-ready",{detail:{ok:true,source:"ConStats"}}));}catch(error){}
+        try{window.dispatchEvent(new CustomEvent("stats:bootstrap-ready",{detail:{ok:true,source:"ConStats",directFirebase:false}}));}catch(error){}
       })
       .catch(function(error){
         if(status){status.textContent=error.message||String(error);status.className="stats-status warn";}
@@ -105,6 +108,6 @@ Función:
       });
   }
 
-  window.StatsBootstrap={version:"1.4.0-sede-filter",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"1.5.0-official-through-connector",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
