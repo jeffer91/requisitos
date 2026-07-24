@@ -6,6 +6,7 @@ const path = require("path");
 const root = path.resolve(__dirname,"..");
 const guardPath = path.join(root,"BDLocal","firebase","bdl.external-operation.guard.js");
 const supplementPath = path.join(root,"BDLocal","firebase","bdl.external-operation.supplement.js");
+const activeConnectorsPath = path.join(root,"BDLocal","conexiones","cone.active-connectors.ready.js");
 const redesignPath = path.join(root,"BDLocal","firebase","bdl.firebase.redesign.js");
 
 function read(file){
@@ -26,6 +27,7 @@ function check(condition,message){
 
 const guard = read(guardPath);
 const supplement = read(supplementPath);
+const activeConnectors = read(activeConnectorsPath);
 const redesign = read(redesignPath);
 
 check(guard.includes("window.BDLExternalOperationGate"),"Existe puerta global de operaciones externas.");
@@ -43,8 +45,19 @@ check(!/\.delete\s*\(/.test(guard),"El guard no elimina documentos ni coleccione
 check(supplement.includes("pullSheetsToLocal") && supplement.includes("pullAllSheetsToLocal"),"Las descargas de Google Sheets usan el bloqueo global.");
 check(supplement.includes("bl2-btn-pull-sheets") && supplement.includes("bl2-btn-pull-sheets-all"),"Los botones legacy de Google Sheets son interceptados.");
 check(supplement.includes("blockPeriodChange") && supplement.includes("[data-bl2-period]"),"No se puede cambiar de período durante una operación.");
+check(supplement.includes("cone.active-connectors.ready.js") && supplement.includes("ensureActiveConnectors"),"El suplemento espera el inventario activo completo.");
 check(supplement.includes("manualOnly:true") && supplement.includes("destructive:false"),"El suplemento es manual y no destructivo.");
 check(!/\.delete\s*\(/.test(supplement),"El suplemento no elimina datos.");
+
+[
+  "carga","tabla","ficha","stats","coordi","reportes",
+  "global","defart","ncomplex","cr_def","inpvc"
+].forEach((name) => check(activeConnectors.includes(`\"${name}\"`),`El inventario activo incluye ${name}.`));
+check(activeConnectors.includes("window.BDLActiveConnectorsReady"),"Existe una promesa única para esperar conectores activos.");
+check(activeConnectors.includes("current.ready=function(options)"),"BDLocalConexiones.ready espera los conectores completos.");
+check(activeConnectors.includes("test.run=function(options)"),"La certificación Electron espera los conectores completos.");
+check(activeConnectors.includes("externalReads:0") && activeConnectors.includes("externalWrites:0"),"Completar conectores no consulta ni modifica fuentes externas.");
+check(!/\.delete\s*\(/.test(activeConnectors),"El cargador de conectores no elimina datos.");
 
 check(redesign.includes("bdl.external-operation.guard.js"),"El rediseño carga el guard operativo.");
 check(redesign.includes("bdl.external-operation.supplement.js"),"El rediseño carga la protección de descargas y período.");
