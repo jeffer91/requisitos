@@ -6,18 +6,79 @@ Función o funciones:
 - Espejar cambios legacy mediante el repositorio idempotente.
 - Actualizar el pendiente lógico existente en vez de crear otro.
 - Evitar duplicados por IDs aleatorios de código antiguo.
+- Cargar la arquitectura compartida de período y Firebase V2.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.0-idempotent";
+  var VERSION = "2.1.0-shared-architecture";
   var FLAG = "__bdlOutboxBridgeInstalled";
+  var document = window.document || null;
+  var scriptBase = document && document.currentScript && document.currentScript.src
+    ? document.currentScript.src
+    : window.location.href;
 
   if(window[FLAG]){ return; }
   window[FLAG] = true;
 
   function text(value){ return String(value == null ? "" : value).trim(); }
   function nowISO(){ return new Date().toISOString(); }
+
+  function scriptUrl(relative){
+    try{ return new URL(relative,scriptBase).href; }
+    catch(error){ return relative; }
+  }
+
+  function loadSharedScript(relative,globalName){
+    if(!document || window[globalName]){ return Promise.resolve(window[globalName] || null); }
+
+    var url = scriptUrl(relative);
+    var existing = Array.prototype.slice.call(document.scripts || []).find(function(script){
+      return script.src === url || script.getAttribute("data-bdl-shared-src") === url;
+    });
+
+    if(existing){
+      return new Promise(function(resolve){
+        if(window[globalName]){ resolve(window[globalName]); return; }
+        existing.addEventListener("load",function(){ resolve(window[globalName] || null); },{ once:true });
+        window.setTimeout(function(){ resolve(window[globalName] || null); },1500);
+      });
+    }
+
+    return new Promise(function(resolve){
+      var script = document.createElement("script");
+      script.src = url;
+      script.async = false;
+      script.defer = false;
+      script.setAttribute("data-bdl-shared-src",url);
+      script.onload = function(){ resolve(window[globalName] || null); };
+      script.onerror = function(){
+        try{ console.warn("[BDLOutboxBridge] No se pudo cargar " + relative); }catch(error){}
+        resolve(null);
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  function loadSharedArchitecture(){
+    return loadSharedScript("../firebase/bdl.firebase.schema.v2.js","RequisitosFirebaseSchema")
+      .then(function(){
+        return loadSharedScript("../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal");
+      })
+      .then(function(){
+        try{
+          window.dispatchEvent(new CustomEvent("requisitos:arquitectura-compartida-lista",{
+            detail:{
+              firebaseSchema:!!window.RequisitosFirebaseSchema,
+              periodoGlobal:!!window.RequisitosPeriodoGlobal,
+              version:VERSION,
+              at:nowISO()
+            }
+          }));
+        }catch(error){}
+        return true;
+      });
+  }
 
   function cfgStores(){
     var cfg = window.BL2Config || {};
@@ -123,6 +184,7 @@ Función o funciones:
           legacy:cfgStores().legacy,
           outbox:cfgStores().outbox,
           idempotent:true,
+          sharedArchitecture:true,
           at:nowISO()
         }
       }));
@@ -135,8 +197,10 @@ Función o funciones:
     version:VERSION,
     install:install,
     mirrorOne:mirrorOne,
-    mirrorMany:mirrorMany
+    mirrorMany:mirrorMany,
+    loadSharedArchitecture:loadSharedArchitecture
   };
 
+  loadSharedArchitecture().catch(function(){});
   install();
 })(window);
