@@ -1,0 +1,455 @@
+/* =========================================================
+Nombre completo: bdl.firebase.redesign.css
+Ruta: /BDLocal/firebase/bdl.firebase.redesign.css
+Función:
+- Dar jerarquía visual a las fuentes externas del Centro BDLocal.
+- Presentar Firebase como fuente oficial y principal.
+- Separar acciones rutinarias, avanzadas y de riesgo.
+- Mantener intacta la lógica de sincronización y migración.
+========================================================= */
+
+#bl2-section-bases-externas {
+  --bdlc-primary: #2563eb;
+  --bdlc-primary-dark: #1d4ed8;
+  --bdlc-primary-soft: #eff6ff;
+  --bdlc-ink: #0f172a;
+  --bdlc-muted: #64748b;
+  --bdlc-line: #e2e8f0;
+  --bdlc-surface: #ffffff;
+  --bdlc-canvas: #f8fafc;
+  --bdlc-warning: #b45309;
+  --bdlc-warning-soft: #fffbeb;
+  --bdlc-danger: #b91c1c;
+}
+
+#bl2-section-bases-externas .bdlc-header {
+  margin-bottom: 14px;
+  align-items: center;
+}
+
+#bl2-section-bases-externas .bdlc-title {
+  font-size: clamp(25px, 2.4vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+#bl2-section-bases-externas .bdlc-description {
+  max-width: 850px;
+  font-size: 13px;
+}
+
+#bl2-section-bases-externas > .bdlc-alert.info {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-color: #bfdbfe;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #eff6ff, #f8fbff);
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+#bl2-section-bases-externas > .bdlc-alert.info::before {
+  content: "✓";
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #dbeafe;
+  color: var(--bdlc-primary-dark);
+  font-weight: 900;
+}
+
+.bdlc-safe-workflow {
+  margin: 0 0 18px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  border: 1px solid var(--bdlc-line);
+  border-radius: 18px;
+  background: var(--bdlc-canvas);
+}
+
+.bdlc-safe-workflow-step {
+  min-width: 0;
+  padding: 12px 13px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #e8edf5;
+  border-radius: 14px;
+  background: var(--bdlc-surface);
+}
+
+.bdlc-safe-workflow-step > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--bdlc-primary-soft);
+  color: var(--bdlc-primary-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.bdlc-safe-workflow-step strong,
+.bdlc-safe-workflow-step small {
+  display: block;
+}
+
+.bdlc-safe-workflow-step strong {
+  color: var(--bdlc-ink);
+  font-size: 12px;
+}
+
+.bdlc-safe-workflow-step small {
+  margin-top: 3px;
+  color: var(--bdlc-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.bdlc-connections-grid.bdlc-connections-redesigned {
+  display: block;
+}
+
+.bdlc-primary-source {
+  margin-bottom: 16px;
+}
+
+.bdlc-secondary-sources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bdlc-connection-card {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045);
+}
+
+.bdlc-connection-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #cbd5e1;
+}
+
+.bdlc-connection-firebase {
+  padding: 22px;
+  border-color: #bfdbfe;
+  background: linear-gradient(145deg, #ffffff 0%, #ffffff 68%, #f5f9ff 100%);
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.1);
+}
+
+.bdlc-connection-firebase::before {
+  width: 5px;
+  background: linear-gradient(180deg, #2563eb, #60a5fa);
+}
+
+.bdlc-connection-google::before {
+  background: #22c55e;
+}
+
+.bdlc-connection-supabase::before {
+  background: #94a3b8;
+}
+
+.bdlc-connection-head {
+  padding-bottom: 13px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.bdlc-connection-firebase .bdlc-connection-head h3 {
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.bdlc-connection-head p {
+  max-width: 760px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bdlc-official-badge {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.bdlc-official-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 4px #dbeafe;
+}
+
+.bdlc-connection-status {
+  min-height: 0;
+  margin-top: 14px;
+  padding: 12px 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border-radius: 13px;
+}
+
+.bdlc-connection-status span {
+  padding-right: 12px;
+  border-right: 1px solid #dbe2ea;
+}
+
+.bdlc-connection-status strong {
+  font-size: 12px;
+}
+
+#bl2-firebase-v2-detail {
+  margin: 15px 0 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#bl2-firebase-v2-detail .bdlc-card {
+  min-height: 104px;
+  padding: 13px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .88);
+}
+
+#bl2-firebase-v2-detail .bdlc-kpi-card > strong {
+  margin-top: 7px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+#bl2-firebase-v2-detail .bdlc-kpi-card > small {
+  line-height: 1.35;
+}
+
+.bdlc-connection-card > .bdlc-actions {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eef2f7;
+}
+
+.bdlc-connection-card .bdlc-button {
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 11px;
+  box-shadow: none;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.bdlc-connection-card .bdlc-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+}
+
+.bdlc-action-primary {
+  order: 1;
+  border-color: var(--bdlc-primary) !important;
+  background: var(--bdlc-primary) !important;
+  color: #fff !important;
+}
+
+.bdlc-action-secondary {
+  order: 2;
+  border-color: #cbd5e1 !important;
+  background: #fff !important;
+  color: #334155 !important;
+}
+
+.bdlc-action-utility {
+  order: 3;
+  border-color: transparent !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.bdlc-action-warning {
+  order: 4;
+  border-color: #f59e0b !important;
+  background: var(--bdlc-warning-soft) !important;
+  color: var(--bdlc-warning) !important;
+}
+
+.bdlc-action-danger,
+#bl2-btn-migration-apply {
+  border-color: #dc2626 !important;
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+
+.bdlc-connection-card details {
+  margin-top: 14px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 13px;
+  background: #f8fafc;
+}
+
+.bdlc-connection-card details > summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  list-style-position: inside;
+}
+
+.bdlc-connection-card details[open] > summary {
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  color: #1d4ed8;
+}
+
+.bdlc-connection-card details > .bdlc-form,
+.bdlc-connection-card details > .bdlc-actions,
+.bdlc-connection-card details > .bdlc-card {
+  margin-left: 14px;
+  margin-right: 14px;
+}
+
+.bdlc-connection-card details > :last-child {
+  margin-bottom: 14px;
+}
+
+#bl2-firebase-conflicts-list {
+  min-height: 0;
+  margin-top: 14px;
+  padding: 13px 15px;
+  align-items: flex-start;
+  border-style: solid;
+  border-radius: 13px;
+  background: #fff;
+  text-align: left;
+}
+
+#bl2-firebase-conflicts-list strong {
+  font-size: 12px;
+}
+
+#bl2-firebase-conflicts-list span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+#bl2-firebase-migration-panel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fffaf5, #ffffff);
+}
+
+#bl2-firebase-migration-panel .bdlc-section-heading {
+  padding-bottom: 13px;
+  border-bottom: 1px solid #ffedd5;
+}
+
+#bl2-firebase-migration-panel .bdlc-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #c2410c;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+#bl2-firebase-migration-panel h3 {
+  margin: 0;
+  color: #7c2d12;
+  font-size: 17px;
+}
+
+#bl2-firebase-migration-panel p {
+  margin-top: 6px;
+  max-width: 850px;
+}
+
+#bl2-firebase-migration-panel .bdlc-placeholder {
+  min-height: 0;
+  margin-top: 12px;
+  padding: 15px;
+  align-items: flex-start;
+  border-style: solid;
+  background: #fff;
+  text-align: left;
+}
+
+.bdlc-secondary-sources .bdlc-connection-card {
+  padding: 17px;
+  box-shadow: none;
+}
+
+.bdlc-secondary-sources .bdlc-connection-head h3 {
+  font-size: 15px;
+}
+
+.bdlc-secondary-sources .bdlc-connection-status {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.bdlc-secondary-sources .bdlc-connection-status span {
+  padding: 0;
+  border: 0;
+}
+
+.bdlc-secondary-sources .bdlc-form {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1180px) {
+  #bl2-firebase-v2-detail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .bdlc-safe-workflow,
+  .bdlc-secondary-sources {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .bdlc-connection-firebase {
+    padding: 16px;
+  }
+
+  #bl2-firebase-v2-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .bdlc-connection-status {
+    grid-template-columns: 1fr;
+  }
+
+  .bdlc-connection-status span {
+    padding: 0;
+    border: 0;
+  }
+}
