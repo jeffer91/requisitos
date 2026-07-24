@@ -3,17 +3,21 @@ Nombre completo: bdl.firebase.control-center.js
 Ruta: /BDLocal/firebase/bdl.firebase.control-center.js
 Función:
 - Conectar los controles Firebase del Centro BDLocal con el motor V2.
-- Descargar el período activo o todos los períodos de forma incremental.
-- Permitir una relectura completa explícita del período seleccionado.
+- Descargar manualmente el período activo con un presupuesto máximo de lectura.
+- Limitar la descarga de todos los períodos para proteger la cuota gratuita.
 - Mostrar estado, lecturas, escrituras, cursores y conflictos abiertos.
-- Sustituir los listeners Firebase heredados sin tocar los controles Google.
-- Mantener todas las operaciones exclusivamente manuales.
+- No iniciar consultas o escrituras automáticamente.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-control-center-v2";
+  var VERSION="1.1.0-bounded-manual-downloads";
   var FLAG="__firebaseV2ControlCenterBound";
+  var PERIOD_PAGE_SIZE=150;
+  var PERIOD_MAX_PAGES=5;
+  var PERIOD_READ_BUDGET=4500;
+  var ALL_PERIODS_MAX=3;
+  var ALL_PERIODS_READ_BUDGET=9000;
   var running=false;
   var refreshTimer=null;
 
@@ -39,7 +43,7 @@ Función:
         var selected=window.BL2App.getSelectedPeriod();
         if(selected&&text(selected.id)){return {id:text(selected.id),label:text(selected.label||selected.id)};}
       }
-    }catch(error){}
+    }catch(error2){}
     var select=byId("bl2-period-select");
     var id=text(select&&select.value);
     var option=select&&select.selectedOptions&&select.selectedOptions[0];
@@ -99,9 +103,9 @@ Función:
       detail.id="bl2-firebase-v2-detail";
       detail.className="bdlc-card-grid two";
       detail.innerHTML=
-        '<article class="bdlc-card bdlc-kpi-card"><span>Última operación</span><strong id="bl2-firebase-last-sync">Sin ejecutar</strong><small id="bl2-firebase-last-mode">Solo manual</small></article>'+
-        '<article class="bdlc-card bdlc-kpi-card"><span>Conflictos abiertos</span><strong id="bl2-firebase-conflict-count">0</strong><small>No se sobrescriben automáticamente</small></article>'+
-        '<article class="bdlc-card bdlc-kpi-card"><span>Documentos leídos</span><strong id="bl2-firebase-read-count">0</strong><small id="bl2-firebase-query-count">0 consultas</small></article>'+
+        '<article class="bdlc-card bdlc-kpi-card"><span>Última operación</span><strong id="bl2-firebase-last-sync">Sin ejecutar</strong><small id="bl2-firebase-last-mode">Solo manual</small></article>'+ 
+        '<article class="bdlc-card bdlc-kpi-card"><span>Conflictos abiertos</span><strong id="bl2-firebase-conflict-count">0</strong><small>No se sobrescriben automáticamente</small></article>'+ 
+        '<article class="bdlc-card bdlc-kpi-card"><span>Documentos leídos</span><strong id="bl2-firebase-read-count">0</strong><small id="bl2-firebase-query-count">0 consultas</small></article>'+ 
         '<article class="bdlc-card bdlc-kpi-card"><span>Documentos escritos</span><strong id="bl2-firebase-write-count">0</strong><small id="bl2-firebase-engine-version">Motor V2</small></article>';
       var actions=card.querySelector(".bdlc-actions");
       if(actions){card.insertBefore(detail,actions);}else{card.appendChild(detail);}
@@ -121,18 +125,14 @@ Función:
       full.id="bl2-btn-pull-firebase-full-period";
       full.className="bdlc-button subtle";
       full.type="button";
-      full.textContent="Releer período";
+      full.textContent="Releer período con límite";
       actionsBox.appendChild(full);
     }
 
     var configButton=byId("bl2-btn-fetch-firebase-config");
     if(configButton){configButton.textContent="Actualizar estado";}
-
-    var eyebrow=document.querySelector(".bl2-eyebrow");
-    if(eyebrow){eyebrow.textContent="Caché local de la aplicación";}
     var footer=document.querySelector(".bdlc-sidebar-footer");
     if(footer){footer.innerHTML="<span></span>Firebase oficial · BDLocal caché";}
-
     return card;
   }
 
@@ -188,7 +188,8 @@ Función:
       "\nGuardados: "+totals.written+
       "\nEliminados localmente: "+totals.removed+
       "\nConflictos: "+totals.conflicts+
-      "\nRechazados: "+totals.rejected;
+      "\nRechazados: "+totals.rejected+
+      "\nPresupuesto máximo de esta operación: "+(result&&result.readBudget||PERIOD_READ_BUDGET)+" lecturas.";
     window.alert(message);
     log(title+": "+totals.downloaded+" descargados, "+totals.written+" guardados y "+totals.conflicts+" conflictos.",totals.conflicts?"warn":"ok");
   }
@@ -201,7 +202,7 @@ Función:
     if(window.BL2App&&typeof window.BL2App.refresh==="function"){
       window.BL2App.refresh({force:true,reason:"firebase-v2-pull"}).catch(function(){});
     }
-    return refreshStatus({force:true}).then(function(){
+    return refreshStatus().then(function(){
       if(label){notifyResult(label,result);}
       return result;
     });
@@ -211,19 +212,28 @@ Función:
     if(running){return Promise.reject(new Error("Ya existe una operación Firebase en curso."));}
     var period=selectedPeriod();
     if(!period||!period.id){return Promise.reject(new Error("Seleccione un período."));}
-    var action=full?"releer completamente":"descargar cambios de";
-    if(!window.confirm("Firebase V2\n\nSe va a "+action+" "+period.label+".\nLos cambios locales pendientes serán protegidos y los conflictos no se sobrescribirán.\n\n¿Continuar?")){
+    var action=full?"releer de forma limitada":"descargar cambios de";
+    if(!window.confirm("Firebase V2\n\nSe va a "+action+" "+period.label+".\nPresupuesto máximo: "+PERIOD_READ_BUDGET+" lecturas.\nLos conflictos no se sobrescribirán.\n\n¿Continuar?")){
       return Promise.resolve({ok:true,cancelled:true});
     }
-    setBusy(true,full?"Releyendo período...":"Descargando cambios...");
+    setBusy(true,full?"Releyendo período con límite...":"Descargando cambios con límite...");
     progress(10,"Preparando "+period.label+"...");
     return waitReady().then(function(){
-      progress(25,"Consultando catálogos y datos del período...");
-      return engine().pullAll({manual:true,periodoId:period.id,full:full===true,limit:500,maxPages:50});
+      progress(25,"Consultando datos V2 dentro del presupuesto...");
+      return engine().pullAll({
+        manual:true,
+        periodoId:period.id,
+        full:full===true,
+        limit:PERIOD_PAGE_SIZE,
+        maxPages:PERIOD_MAX_PAGES
+      });
     }).then(function(result){
       if(!result||result.ok===false){throw new Error(text(result&&result.message)||"Firebase no completó la descarga.");}
+      result.readBudget=PERIOD_READ_BUDGET;
+      result.pageSize=PERIOD_PAGE_SIZE;
+      result.maxPages=PERIOD_MAX_PAGES;
       progress(100,"Firebase actualizado en BDLocal.");
-      return afterOperation(result,full?"Relectura completa finalizada":"Descarga incremental finalizada");
+      return afterOperation(result,full?"Relectura limitada finalizada":"Descarga incremental finalizada");
     }).finally(function(){setBusy(false,"Actualizando estado...");});
   }
 
@@ -240,37 +250,40 @@ Función:
 
   function runAllPeriods(){
     if(running){return Promise.reject(new Error("Ya existe una operación Firebase en curso."));}
-    if(!window.confirm("Firebase V2\n\nSe descargarán los catálogos, estudiantes y los datos académicos de todos los períodos registrados.\nLa operación será incremental y puede tardar varios minutos.\n\n¿Continuar?")){
-      return Promise.resolve({ok:true,cancelled:true});
-    }
-    setBusy(true,"Descargando todos los períodos...");
-    progress(5,"Preparando descarga global...");
-    var summary={ok:true,operation:"pull:all-periods",global:null,periods:[],startedAt:now()};
-    return waitReady().then(function(){
-      return engine().pullAll({manual:true,entities:["periodos","carreras","estudiantes"],limit:500,maxPages:50});
-    }).then(function(globalResult){
-      if(!globalResult||globalResult.ok===false){throw new Error(text(globalResult&&globalResult.message)||"No se pudo descargar la base global.");}
-      summary.global=globalResult;
-      return listPeriods();
-    }).then(function(periods){
+    return listPeriods().then(function(periods){
       periods=(periods||[]).filter(function(row){return text(row&&(row.id||row.periodoId));});
-      var chain=Promise.resolve();
-      periods.forEach(function(row,index){
-        chain=chain.then(function(){
-          var periodoId=text(row.id||row.periodoId);
-          progress(10+Math.round(((index+1)/Math.max(periods.length,1))*85),"Descargando "+text(row.label||row.periodoLabel||periodoId)+"...");
-          return engine().pullAll({manual:true,periodoId:periodoId,entities:["matriculas","requisitos","notas"],limit:500,maxPages:50}).then(function(result){
-            if(!result||result.ok===false){throw new Error("No se pudo descargar el período "+periodoId+": "+text(result&&result.message));}
-            summary.periods.push(result);
+      if(periods.length>ALL_PERIODS_MAX){
+        throw new Error("La descarga global está bloqueada porque existen "+periods.length+" períodos. Procese un período por vez para proteger la cuota Firebase.");
+      }
+      if(!window.confirm("Firebase V2\n\nSe descargarán los datos globales y "+periods.length+" período(s).\nPresupuesto máximo: "+ALL_PERIODS_READ_BUDGET+" lecturas.\n\n¿Continuar?")){
+        return {ok:true,cancelled:true};
+      }
+      setBusy(true,"Descargando períodos con límite...");
+      progress(5,"Preparando descarga global limitada...");
+      var summary={ok:true,operation:"pull:all-periods",global:null,periods:[],startedAt:now(),readBudget:ALL_PERIODS_READ_BUDGET};
+      return waitReady().then(function(){
+        return engine().pullAll({manual:true,entities:["periodos","carreras","estudiantes"],limit:PERIOD_PAGE_SIZE,maxPages:PERIOD_MAX_PAGES});
+      }).then(function(globalResult){
+        if(!globalResult||globalResult.ok===false){throw new Error(text(globalResult&&globalResult.message)||"No se pudo descargar la base global.");}
+        summary.global=globalResult;
+        var chain=Promise.resolve();
+        periods.forEach(function(row,index){
+          chain=chain.then(function(){
+            var periodoId=text(row.id||row.periodoId);
+            progress(10+Math.round(((index+1)/Math.max(periods.length,1))*85),"Descargando "+text(row.label||row.periodoLabel||periodoId)+"...");
+            return engine().pullAll({manual:true,periodoId:periodoId,entities:["matriculas","requisitos","notas"],limit:PERIOD_PAGE_SIZE,maxPages:PERIOD_MAX_PAGES}).then(function(result){
+              if(!result||result.ok===false){throw new Error("No se pudo descargar el período "+periodoId+": "+text(result&&result.message));}
+              summary.periods.push(result);
+            });
           });
         });
-      });
-      return chain;
-    }).then(function(){
-      summary.finishedAt=now();
-      progress(100,"Todos los períodos fueron procesados.");
-      return afterOperation(summary,"Descarga de todos los períodos finalizada");
-    }).finally(function(){setBusy(false,"Actualizando estado...");});
+        return chain;
+      }).then(function(){
+        summary.finishedAt=now();
+        progress(100,"Todos los períodos permitidos fueron procesados.");
+        return afterOperation(summary,"Descarga global limitada finalizada");
+      }).finally(function(){setBusy(false,"Actualizando estado...");});
+    });
   }
 
   function renderConflicts(rows){
@@ -283,7 +296,7 @@ Función:
       return;
     }
     box.className="bdlc-table-wrap";
-    box.innerHTML='<table class="bdlc-table"><thead><tr><th>Entidad</th><th>Cédula / documento</th><th>Motivo</th><th>Fecha</th></tr></thead><tbody>'+
+    box.innerHTML='<table class="bdlc-table"><thead><tr><th>Entidad</th><th>Cédula / documento</th><th>Motivo</th><th>Fecha</th></tr></thead><tbody>'+ 
       rows.slice(0,8).map(function(row){return "<tr><td>"+esc(row.entidad)+"</td><td>"+esc(row.cedula||row.documentoId)+"</td><td>"+esc(row.motivo)+"</td><td>"+esc(row.updatedAt?new Date(row.updatedAt).toLocaleString("es-EC"):"—")+"</td></tr>";}).join("")+"</tbody></table>";
   }
 
@@ -306,7 +319,7 @@ Función:
       if(status){
         status.textContent=sync.running
           ? "Operación manual en curso: "+text(sync.operation)
-          : "Manual · "+open.length+" conflicto(s) abierto(s) · "+states.length+" cursor(es) registrados.";
+          : "Manual · "+open.length+" conflicto(s) · presupuesto por período "+PERIOD_READ_BUDGET+" lecturas.";
       }
       var dot=byId("bl2-dot-firebase");
       if(dot){dot.className="bl2-dot "+(sync.lastError||open.length?"bl2-dot-warn":"bl2-dot-ok");}
@@ -318,7 +331,7 @@ Función:
       var writes=byId("bl2-firebase-write-count");if(writes){writes.textContent=String(Number(repo.writes||0));}
       var version=byId("bl2-firebase-engine-version");if(version){version.textContent="Motor "+text(sync.version||VERSION);}
       renderConflicts(open);
-      return {sync:sync,repository:repo,conflicts:open};
+      return {sync:sync,repository:repo,conflicts:open,budgets:{period:PERIOD_READ_BUDGET,allPeriods:ALL_PERIODS_READ_BUDGET}};
     }).catch(function(error){
       var status=byId("bl2-firebase-status");if(status){status.textContent="No disponible: "+error.message;}
       throw error;
@@ -337,7 +350,7 @@ Función:
     replaceControl("bl2-btn-pull-firebase",function(){return runPeriod(false);});
     replaceControl("bl2-btn-pull-firebase-all",runAllPeriods);
     replaceControl("bl2-btn-pull-firebase-full-period",function(){return runPeriod(true);});
-    replaceControl("bl2-btn-fetch-firebase-config",function(){return refreshStatus().then(function(){window.alert("Estado Firebase V2 actualizado.");});});
+    replaceControl("bl2-btn-fetch-firebase-config",function(){return refreshStatus().then(function(){window.alert("Estado Firebase V2 actualizado sin recorrer colecciones remotas.");});});
 
     ["requisitos:firebase-sync-finished","requisitos:firebase-sync-error","bdlocal:sync-conflict","bdlocal:sync-v2-finished","bl2:period-changed","requisitos:periodo-global-cambiado"].forEach(function(name){
       window.addEventListener(name,function(){scheduleRefresh(150);});
@@ -350,11 +363,12 @@ Función:
     version:VERSION,
     manualOnly:true,
     automatic:false,
+    budgets:{period:PERIOD_READ_BUDGET,allPeriods:ALL_PERIODS_READ_BUDGET},
     bind:bind,
     refreshStatus:refreshStatus,
     pullPeriod:function(options){return runPeriod(options&&options.full===true);},
     pullAllPeriods:runAllPeriods,
-    status:function(){return {version:VERSION,bound:!!window[FLAG],running:running,period:selectedPeriod()};}
+    status:function(){return {version:VERSION,bound:!!window[FLAG],running:running,period:selectedPeriod(),manualOnly:true,automatic:false,budgets:{period:PERIOD_READ_BUDGET,allPeriods:ALL_PERIODS_READ_BUDGET}};}
   };
 
   bind();
