@@ -1,8 +1,9 @@
 /* =========================================================
 Nombre completo: ficha.bootstrap.js
-Ruta o ubicación: /Ficha/ficha.bootstrap.js
-Función o funciones:
+Ruta: /Ficha/ficha.bootstrap.js
+Función:
 - Esperar BDLocalScreenDeps y ConFicha.
+- Activar escritura por entidades e historial.
 - Activar la protección del estado manual de matrícula.
 - Cargar Ficha y sus editores en orden secuencial.
 ========================================================= */
@@ -49,7 +50,12 @@ Función o funciones:
         return con;
       });
     }).then(function(con){
-      return load("../BDLocal/conexiones/cone.ficha.enrollment-lock.js",function(){return window.ConFichaEnrollmentLock&&window.ConFichaEnrollmentLock.install&&window.ConFichaEnrollmentLock.install()?window.ConFichaEnrollmentLock:null;}).then(function(){return con;});
+      return load("../BDLocal/conexiones/cone.ficha.entities.js",function(){return window.ConFichaEntities&&window.ConFichaEntities.install&&window.ConFichaEntities.install()?window.ConFichaEntities:null;})
+        .then(function(){
+          if(typeof con.updateStudent!=="function"||typeof con.entityWriteStatus!=="function"){throw new Error("ConFicha no activó la escritura por entidades.");}
+          return load("../BDLocal/conexiones/cone.ficha.enrollment-lock.js",function(){return window.ConFichaEnrollmentLock&&window.ConFichaEnrollmentLock.install&&window.ConFichaEnrollmentLock.install()?window.ConFichaEnrollmentLock:null;});
+        })
+        .then(function(){return con;});
     });
   }
   function boot(){
@@ -65,10 +71,10 @@ Función o funciones:
       .then(function(ui){if(ui&&typeof ui.bind==="function"){ui.bind();}return ui;})
       .then(function(){return load("ficha.matricula.js",function(){return window.FichaMatricula;});})
       .then(function(editor){if(editor&&typeof editor.render==="function"){editor.render();}})
-      .then(function(){emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],manualEnrollmentLock:true,at:new Date().toISOString()});})
+      .then(function(){emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],manualEnrollmentLock:true,entityWrites:true,history:true,at:new Date().toISOString()});})
       .catch(function(error){if(status){status.textContent=error.message||String(error);status.className="ficha-status warn";}emit("ficha:bootstrap-error",{ok:false,source:"ConFicha",error:error.message||String(error),at:new Date().toISOString()});});
   }
 
-  window.FichaBootstrap={version:"1.2.0-manual-enrollment-lock",boot:boot,readyConnector:readyConnector};
+  window.FichaBootstrap={version:"1.3.0-entity-writes",boot:boot,readyConnector:readyConnector};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
