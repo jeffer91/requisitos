@@ -11,7 +11,7 @@
     "start": "electron .",
     "dev": "electron .",
     "start:local": "electron .",
-    "test": "node scripts/verify-firebase-contract.js && node scripts/verify-firebase-identity.js && node scripts/verify-firebase-mapper.js && node scripts/verify-firebase-validator.js && node scripts/verify-firebase-reverse-mapper.js && node scripts/verify-firebase-repository.js && node scripts/verify-firebase-sync-engine.js && node scripts/verify-firebase-target-behavior.js && node scripts/verify-firebase-control-center.js && node scripts/verify-firestore-indexes.js && node scripts/verify-carga-save-v2.js && node scripts/verify-stats-official-refresh.js && node scripts/verify-periodo-global.js && node scripts/verify-periodo-global-behavior.js && node scripts/verify-ficha-entity-writes.js && node scripts/verify-active-cache-reportes.js && node scripts/verify-bdlocal.js && node scripts/verify-main-menu.js && node scripts/verify-screen-connections.js && node scripts/verify-ficha-editors.js && node scripts/verify-inpvc.js && node scripts/verify-autosync.js && node scripts/audit-repository.js",
+    "test": "node scripts/verify-firebase-contract.js && node scripts/verify-firebase-identity.js && node scripts/verify-firebase-mapper.js && node scripts/verify-firebase-validator.js && node scripts/verify-firebase-reverse-mapper.js && node scripts/verify-firebase-repository.js && node scripts/verify-firebase-sync-engine.js && node scripts/verify-firebase-target-behavior.js && node scripts/verify-firebase-control-center.js && node scripts/verify-firestore-indexes.js && node scripts/verify-carga-save-v2.js && node scripts/verify-stats-official-refresh.js && node scripts/verify-periodo-global.js && node scripts/verify-periodo-global-behavior.js && node scripts/verify-ficha-entity-writes.js && node scripts/verify-active-cache-reportes.js && node scripts/verify-defart-v2.js && node scripts/verify-ncomplex-v2.js && node scripts/verify-bdlocal.js && node scripts/verify-main-menu.js && node scripts/verify-screen-connections.js && node scripts/verify-ficha-editors.js && node scripts/verify-inpvc.js && node scripts/verify-autosync.js && node scripts/audit-repository.js",
     "test:firebase-contract": "node scripts/verify-firebase-contract.js",
     "test:firebase-identity": "node scripts/verify-firebase-identity.js",
     "test:firebase-mapper": "node scripts/verify-firebase-mapper.js",
@@ -27,6 +27,8 @@
     "test:periodo-global": "node scripts/verify-periodo-global.js && node scripts/verify-periodo-global-behavior.js",
     "test:ficha-entities": "node scripts/verify-ficha-entity-writes.js",
     "test:active-cache": "node scripts/verify-active-cache-reportes.js",
+    "test:defart-v2": "node scripts/verify-defart-v2.js",
+    "test:ncomplex-v2": "node scripts/verify-ncomplex-v2.js",
     "test:bdlocal": "node scripts/verify-bdlocal.js",
     "test:menu": "node scripts/verify-main-menu.js",
     "test:connections": "node scripts/verify-screen-connections.js",
@@ -42,7 +44,7 @@
   "dependencies": {
     "html2pdf.js": "0.14.0",
     "jszip": "3.10.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx.full.min.js"
   },
   "devDependencies": {
     "electron": "43.1.0"
