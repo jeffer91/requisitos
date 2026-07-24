@@ -6,12 +6,12 @@ Función o funciones:
 - Espejar cambios legacy mediante el repositorio idempotente.
 - Actualizar el pendiente lógico existente en vez de crear otro.
 - Evitar duplicados por IDs aleatorios de código antiguo.
-- Cargar esquema, identidad, mapeo y período compartido.
+- Cargar contrato, validación, mapeo en ambos sentidos y período compartido.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.3.0-shared-mapper";
+  var VERSION = "2.4.0-shared-roundtrip";
   var FLAG = "__bdlOutboxBridgeInstalled";
   var document = window.document || null;
   var scriptBase = document && document.currentScript && document.currentScript.src
@@ -66,7 +66,13 @@ Función o funciones:
         return loadSharedScript("../firebase/bdl.firebase.identity.js","RequisitosFirebaseIdentity");
       })
       .then(function(){
+        return loadSharedScript("../firebase/bdl.firebase.validator.v2.js","RequisitosFirebaseValidator");
+      })
+      .then(function(){
         return loadSharedScript("../firebase/bdl.firebase.mapper.v2.js","RequisitosFirebaseMapper");
+      })
+      .then(function(){
+        return loadSharedScript("../firebase/bdl.firebase.reverse-mapper.v2.js","RequisitosFirebaseReverseMapper");
       })
       .then(function(){
         return loadSharedScript("../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal");
@@ -77,7 +83,9 @@ Función o funciones:
             detail:{
               firebaseSchema:!!window.RequisitosFirebaseSchema,
               firebaseIdentity:!!window.RequisitosFirebaseIdentity,
+              firebaseValidator:!!window.RequisitosFirebaseValidator,
               firebaseMapper:!!window.RequisitosFirebaseMapper,
+              firebaseReverseMapper:!!window.RequisitosFirebaseReverseMapper,
               periodoGlobal:!!window.RequisitosPeriodoGlobal,
               version:VERSION,
               at:nowISO()
@@ -198,7 +206,9 @@ Función o funciones:
           idempotent:true,
           sharedArchitecture:true,
           firebaseIdentity:true,
+          firebaseValidator:true,
           firebaseMapper:true,
+          firebaseReverseMapper:true,
           at:nowISO()
         }
       }));
