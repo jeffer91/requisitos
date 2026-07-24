@@ -6,12 +6,12 @@ Función o funciones:
 - Espejar cambios legacy mediante el repositorio idempotente.
 - Actualizar el pendiente lógico existente en vez de crear otro.
 - Evitar duplicados por IDs aleatorios de código antiguo.
-- Cargar contrato, validación, mapeo en ambos sentidos y período compartido.
+- Cargar contrato, validación, mapeo, repositorio y período compartido.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.4.0-shared-roundtrip";
+  var VERSION = "2.5.0-shared-repository";
   var FLAG = "__bdlOutboxBridgeInstalled";
   var document = window.document || null;
   var scriptBase = document && document.currentScript && document.currentScript.src
@@ -75,6 +75,9 @@ Función o funciones:
         return loadSharedScript("../firebase/bdl.firebase.reverse-mapper.v2.js","RequisitosFirebaseReverseMapper");
       })
       .then(function(){
+        return loadSharedScript("../firebase/bdl.firebase.repository.v2.js","RequisitosFirebaseRepository");
+      })
+      .then(function(){
         return loadSharedScript("../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal");
       })
       .then(function(){
@@ -86,6 +89,7 @@ Función o funciones:
               firebaseValidator:!!window.RequisitosFirebaseValidator,
               firebaseMapper:!!window.RequisitosFirebaseMapper,
               firebaseReverseMapper:!!window.RequisitosFirebaseReverseMapper,
+              firebaseRepository:!!window.RequisitosFirebaseRepository,
               periodoGlobal:!!window.RequisitosPeriodoGlobal,
               version:VERSION,
               at:nowISO()
@@ -209,6 +213,7 @@ Función o funciones:
           firebaseValidator:true,
           firebaseMapper:true,
           firebaseReverseMapper:true,
+          firebaseRepository:true,
           at:nowISO()
         }
       }));
