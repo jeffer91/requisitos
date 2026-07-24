@@ -3,6 +3,7 @@ Nombre completo: bdl.firebase.migration-ui.js
 Ruta: /BDLocal/firebase/bdl.firebase.migration-ui.js
 Función:
 - Mostrar la migración V2 dentro de Base Local.
+- Esperar a que la tarjeta Firebase exista antes de insertar el panel.
 - Crear una vista previa y respaldo antes de habilitar escrituras.
 - Exigir una frase exacta para aplicar la migración.
 - Mostrar conteos, errores, conflictos y resultado por colección.
@@ -11,10 +12,13 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-migration-controls";
+  var VERSION="1.1.0-late-ui-bind";
   var FLAG="__firebaseMigrationUIBound";
   var busy=false;
   var preview=null;
+  var bindTimer=null;
+  var bindAttempts=0;
+  var MAX_BIND_ATTEMPTS=150;
 
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
@@ -133,17 +137,43 @@ Función:
       return result;
     }).finally(function(){setBusy(false);});
   }
+  function scheduleBind(delay){
+    if(window[FLAG]||bindTimer||bindAttempts>=MAX_BIND_ATTEMPTS){return;}
+    bindTimer=window.setTimeout(function(){
+      bindTimer=null;
+      bindAttempts+=1;
+      bind();
+    },Math.max(50,Number(delay||100)));
+  }
   function bind(){
     if(window[FLAG]){return window.RequisitosFirebaseMigrationUI;}
-    if(!ensurePanel()){return null;}
+    if(!ensurePanel()){
+      scheduleBind(100);
+      return null;
+    }
     var previewButton=byId("bl2-btn-migration-preview");
     var applyButton=byId("bl2-btn-migration-apply");
     if(previewButton){previewButton.addEventListener("click",function(event){event.preventDefault();createPreview().catch(function(error){log(error.message||String(error),"error");window.alert(error.message||String(error));setBusy(false);});});}
     if(applyButton){applyButton.addEventListener("click",function(event){event.preventDefault();applyMigration().catch(function(error){log(error.message||String(error),"error");window.alert(error.message||String(error));setBusy(false);});});}
     window[FLAG]=true;
+    if(bindTimer){window.clearTimeout(bindTimer);bindTimer=null;}
     return window.RequisitosFirebaseMigrationUI;
   }
 
-  window.RequisitosFirebaseMigrationUI={version:VERSION,manualOnly:true,destructive:false,bind:bind,preview:createPreview,apply:applyMigration,status:function(){return {version:VERSION,bound:!!window[FLAG],busy:busy,hasPreview:!!preview,destructive:false};}};
+  window.RequisitosFirebaseMigrationUI={
+    version:VERSION,
+    manualOnly:true,
+    destructive:false,
+    bind:bind,
+    preview:createPreview,
+    apply:applyMigration,
+    status:function(){return {version:VERSION,bound:!!window[FLAG],busy:busy,hasPreview:!!preview,destructive:false,bindAttempts:bindAttempts};}
+  };
+
+  ["DOMContentLoaded","bdlocal:bl2-html-scripts-loaded","requisitos:arquitectura-compartida-lista"].forEach(function(eventName){
+    window.addEventListener(eventName,function(){scheduleBind(50);},{once:true});
+  });
+
   bind();
+  scheduleBind(100);
 })(window,document);
