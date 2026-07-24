@@ -4,7 +4,7 @@
 
 La migración se realizará directamente en `main`, por bloques pequeños y verificables. Ninguna colección antigua se eliminará hasta completar la migración, comparar cantidades y validar las pantallas.
 
-Estado actual: **Bloque 1 en proceso / Bloque 2 en implementación**.
+Estado actual: **Bloque 1 en proceso / Bloque 2 casi completo**.
 
 ## Modelo oficial
 
@@ -26,7 +26,22 @@ La app utiliza dos representaciones intencionales:
 - IndexedDB: `cedula__periodoId`.
 - Firebase: `periodoId__cedula`.
 
-El adaptador de sincronización debe transformar una en otra. Las pantallas no deben formar IDs remotos por su cuenta.
+El adaptador de sincronización transforma una en otra. Las pantallas no deben formar IDs remotos por su cuenta.
+
+## Conversión entre Firebase e IndexedDB
+
+| Firebase | IndexedDB |
+|---|---|
+| `estudiantes` | `personas` |
+| `matriculas` | `matriculas_periodo` |
+| `requisitos` | `requisitos_estudiante`, una fila por requisito |
+| `notas` | `notas_titulacion` |
+| `periodos` | `periodos` |
+| `carreras` | `cache_views`, como catálogo local |
+| `historial` | `logs` |
+| `importaciones` | `importaciones` |
+
+Las filas provenientes de Firebase incluyen `_skipOutbox: true`, para que una descarga no vuelva a crear un cambio pendiente y no produzca ciclos de sincronización.
 
 ## Flujo final
 
@@ -71,23 +86,23 @@ Estado: **EN PROCESO**.
 - [x] Identificar las 12 pantallas activas.
 - [x] Confirmar que las pantallas trabajan mediante conectores.
 - [x] Mantener la migración como no destructiva.
-- [x] Agregar pruebas ejecutables del contrato, identidades y mapeo Firebase.
+- [x] Agregar pruebas ejecutables del contrato, identidades, validación y mapeo Firebase.
 - [ ] Confirmar el resultado de la suite completa en GitHub Actions y en el equipo con la aplicación instalada.
 - [ ] Exportar respaldo local antes de mover datos.
 - [ ] Exportar o respaldar las colecciones Firebase actuales.
 
 ### Bloque 2. Modelo e identificadores
 
-Estado: **EN IMPLEMENTACIÓN**.
+Estado: **CASI COMPLETO; FALTA INTEGRACIÓN CON REPOSITORIOS**.
 
 - [x] Definir las ocho colecciones oficiales.
 - [x] Definir IDs locales y remotos.
 - [x] Definir qué campos pertenecen a cada colección.
 - [x] Crear el adaptador de identidad local ↔ Firebase.
 - [x] Crear el mapeador local → estudiante, matrícula, requisitos y notas.
-- [ ] Crear los adaptadores Firebase → tablas locales.
-- [ ] Validar documentos incompletos y campos desconocidos.
-- [ ] Integrar el mapeador con la cola y los repositorios Firebase.
+- [x] Crear el adaptador Firebase → tablas locales.
+- [x] Validar documentos incompletos, IDs incorrectos, tipos y campos desconocidos.
+- [ ] Integrar los mapeadores con la cola y los repositorios Firebase.
 
 ### Bloque 3. Período general
 
