@@ -5,6 +5,7 @@ const path = require("path");
 
 const root = path.resolve(__dirname,"..");
 const guardPath = path.join(root,"BDLocal","firebase","bdl.external-operation.guard.js");
+const supplementPath = path.join(root,"BDLocal","firebase","bdl.external-operation.supplement.js");
 const redesignPath = path.join(root,"BDLocal","firebase","bdl.firebase.redesign.js");
 
 function read(file){
@@ -24,6 +25,7 @@ function check(condition,message){
 }
 
 const guard = read(guardPath);
+const supplement = read(supplementPath);
 const redesign = read(redesignPath);
 
 check(guard.includes("window.BDLExternalOperationGate"),"Existe puerta global de operaciones externas.");
@@ -34,12 +36,23 @@ check(guard.includes("readAllLegacy") && guard.includes("sourceSignature"),"La f
 check(guard.includes("previewRefreshedBeforeApply:true"),"La migración crea una vista previa fresca antes de escribir.");
 check(guard.includes("sourceChangedDuringApply=true"),"Se detectan cambios legacy ocurridos durante la aplicación.");
 check(guard.includes("freshBackupId"),"La aplicación conserva el identificador del respaldo fresco.");
-check(guard.includes("#bl2-period-select") && guard.includes("setUiLocked(true)"),"El período y los controles quedan congelados durante operaciones.");
+check(guard.includes("#bl2-period-select") && guard.includes("setUiLocked(true)"),"El selector de período principal queda congelado durante operaciones.");
 check(guard.includes("automatic:false") && guard.includes("destructive:false"),"El guard permanece manual y no destructivo.");
 check(!/\.delete\s*\(/.test(guard),"El guard no elimina documentos ni colecciones.");
+
+check(supplement.includes("pullSheetsToLocal") && supplement.includes("pullAllSheetsToLocal"),"Las descargas de Google Sheets usan el bloqueo global.");
+check(supplement.includes("bl2-btn-pull-sheets") && supplement.includes("bl2-btn-pull-sheets-all"),"Los botones legacy de Google Sheets son interceptados.");
+check(supplement.includes("blockPeriodChange") && supplement.includes("[data-bl2-period]"),"No se puede cambiar de período durante una operación.");
+check(supplement.includes("manualOnly:true") && supplement.includes("destructive:false"),"El suplemento es manual y no destructivo.");
+check(!/\.delete\s*\(/.test(supplement),"El suplemento no elimina datos.");
+
 check(redesign.includes("bdl.external-operation.guard.js"),"El rediseño carga el guard operativo.");
-check(redesign.indexOf("ensureGuard();") >= 0 && redesign.includes("if(!window.BDLExternalOperationGate){return;}"),"Las acciones visibles esperan a que el guard esté cargado.");
-check(redesign.includes("Operaciones bloqueadas"),"La interfaz bloquea escrituras si el guard no carga.");
+check(redesign.includes("bdl.external-operation.supplement.js"),"El rediseño carga la protección de descargas y período.");
+check(
+  redesign.includes("if(!window.BDLExternalOperationGate||!window.BDLExternalOperationSupplement){return;}"),
+  "Las acciones visibles esperan al guard y al suplemento."
+);
+check(redesign.includes("Operaciones bloqueadas"),"La interfaz bloquea escrituras si una protección no carga.");
 
 if(process.exitCode){
   console.error("VERIFICACIÓN DEL BLOQUEO OPERATIVO: ERROR");
