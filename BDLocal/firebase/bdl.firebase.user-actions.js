@@ -3,17 +3,21 @@ Nombre completo: bdl.firebase.user-actions.js
 Ruta: /BDLocal/firebase/bdl.firebase.user-actions.js
 Función:
 - Conectar de forma determinista los controles visibles de Firebase.
-- Probar una lectura real en el proyecto configurado.
-- Comparar y descargar el período legacy sin tocar Telegram.
+- Probar la conexión mediante una lectura V2 limitada a un documento.
+- Comparar el período activo con una muestra V2 limitada y sin escrituras.
+- Descargar mediante el controlador V2 con presupuesto de lectura.
 - Procesar lotes manuales de cambios_pendientes con resumen visible.
-- Exponer la migración V2 como Corrección de estructura Firebase.
-- No borrar colecciones ni ejecutar tareas automáticas.
+- Exponer la migración V2 dentro de Mantenimiento.
+- No consultar colecciones legacy ni ejecutar tareas automáticas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-operational-controls";
+  var VERSION="2.0.0-v2-read-budget-actions";
   var FLAG="__firebaseUserActionsInstalled";
+  var COMPARE_LIMIT=100;
+  var COMPARE_ENTITIES=["matriculas","requisitos","notas"];
+  var COMPARE_READ_BUDGET=COMPARE_LIMIT*COMPARE_ENTITIES.length;
   var busy=false;
   var bindTimer=null;
   var bindAttempts=0;
@@ -25,8 +29,7 @@ Función:
   function card(){var status=byId("bl2-firebase-status");return status&&status.closest?status.closest(".bdlc-connection-card"):null;}
   function config(){return window.BL2Config&&window.BL2Config.firebase&&window.BL2Config.firebase.config||window.FIREBASE_CONFIG||window.firebaseConfig||{};}
   function store(){return window.BDLocalConfigStore||null;}
-  function sync(){return window.BL2Sync||null;}
-  function guard(){return window.BL2FirebaseGuard||null;}
+  function repository(){return window.RequisitosFirebaseRepository||null;}
   function bridge(){return window.BDLSyncUIBridge||null;}
   function migrationUI(){return window.RequisitosFirebaseMigrationUI||null;}
   function controlCenter(){return window.RequisitosFirebaseControlCenter||null;}
@@ -50,12 +53,12 @@ Función:
     return id?{id:id,label:text(option&&option.textContent||id)}:null;
   }
 
-  function ensureFirebase(){
-    var current=sync();
-    if(!current||typeof current.ensureFirebase!=="function"){
-      return Promise.reject(new Error("BL2Sync.ensureFirebase no está disponible."));
+  function ensureRepository(){
+    var current=repository();
+    if(!current||typeof current.list!=="function"){
+      return Promise.reject(new Error("El repositorio Firebase V2 no está disponible."));
     }
-    return current.ensureFirebase();
+    return Promise.resolve(current);
   }
 
   function ensureResultBox(){
@@ -92,13 +95,16 @@ Función:
     }
   }
 
+  function migrationHost(){
+    return byId("bl2-firebase-migration-host")||card();
+  }
+
   function moveMigrationPanel(){
-    var host=card();
+    var host=migrationHost();
     var panel=byId("bl2-firebase-migration-panel");
     if(!host||!panel){return null;}
     panel.classList.add("bdlc-firebase-correction-panel");
-    var details=host.querySelector("details");
-    if(details&&panel.nextSibling!==details){host.insertBefore(panel,details);}
+    if(panel.parentNode!==host){host.appendChild(panel);}
     return panel;
   }
 
@@ -113,8 +119,8 @@ Función:
     var test=host.querySelector('[data-bdlc-action="test-firebase"]');
     var refresh=byId("bl2-btn-fetch-firebase-config");
 
-    if(compare){compare.textContent="Comparar período";compare.classList.add("bdlc-action-primary");}
-    if(download){download.textContent="Descargar a BDLocal";download.classList.add("bdlc-action-secondary");}
+    if(compare){compare.textContent="Comparar período V2";compare.classList.add("bdlc-action-primary");}
+    if(download){download.textContent="Traer cambios V2";download.classList.add("bdlc-action-secondary");}
     if(test){test.textContent="Probar conexión";test.classList.add("bdlc-action-utility");}
     if(refresh){refresh.textContent="Actualizar estado";refresh.classList.add("bdlc-action-utility");}
 
@@ -122,9 +128,9 @@ Función:
     if(!correct){
       correct=document.createElement("button");
       correct.id="bl2-btn-correct-firebase-base";
-      correct.className="bdlc-button bdlc-action-primary";
+      correct.className="bdlc-button bdlc-action-secondary";
       correct.type="button";
-      correct.textContent="Corregir estructura Firebase";
+      correct.textContent="Preparar migración Firebase V2";
       actions.appendChild(correct);
     }
 
@@ -145,20 +151,19 @@ Función:
   }
 
   function testConnection(){
-    showResult("Probando conexión","Leyendo un documento de Estudiantes en el proyecto configurado.","info");
-    return ensureFirebase().then(function(firestore){
-      if(!firestore||typeof firestore.collection!=="function"){throw new Error("Firestore no quedó disponible.");}
-      return firestore.collection("Estudiantes").limit(1).get();
-    }).then(function(snapshot){
-      var read=number(snapshot&&snapshot.size);
+    showResult("Probando conexión","Se realizará una sola lectura en la colección V2 de períodos.","info");
+    return ensureRepository().then(function(current){
+      return current.list("periodos",{limit:1,includeDeleted:false});
+    }).then(function(result){
+      var read=number(result&&result.total);
       setConnection(true,"");
-      var message="Conexión correcta con "+(projectId()||"Firebase")+". Lectura real completada: "+read+" documento(s).";
-      showResult("Conexión verificada",message,"success",{projectId:projectId(),documents:read});
+      var message="Conexión correcta con "+(projectId()||"Firebase")+". Lectura V2 completada: "+read+" documento(s).";
+      showResult("Conexión verificada",message,"success",{projectId:projectId(),documents:read,readBudget:1});
       window.alert(message);
-      return {ok:true,projectId:projectId(),documents:read,message:message};
+      return {ok:true,projectId:projectId(),documents:read,readBudget:1,message:message};
     }).catch(function(error){
       setConnection(false,error&&error.message);
-      var message="No se pudo leer Firebase: "+text(error&&error.message||error);
+      var message="No se pudo leer Firebase V2: "+text(error&&error.message||error);
       showResult("Error de conexión",message,"error");
       window.alert(message);
       return {ok:false,message:message};
@@ -167,50 +172,53 @@ Función:
 
   function renderComparison(result){
     var output=byId("bdlc-firebase-preview");
-    if(output){output.textContent=JSON.stringify({
-      modo:"SOLO LECTURA",
-      periodo:result.period&&text(result.period.label||result.period.id),
-      documentosRemotos:number(result.remoteDocuments),
-      estudiantesUnicos:number(result.remoteUnique),
-      cambiosSeguros:number(result.apply),
-      cambiosLocalesProtegidos:number(result.pendingConflict),
-      localesMasRecientes:number(result.localNewer),
-      conflictosAmbiguos:number(result.ambiguous),
-      duplicadosIgnorados:number(result.duplicateDocumentsIgnored)
-    },null,2);}
+    if(output){output.textContent=JSON.stringify(result,null,2);}
   }
 
   function comparePeriod(){
     var period=selectedPeriod();
-    var current=guard();
     if(!period){return Promise.reject(new Error("Seleccione un período."));}
-    if(!current||typeof current.previewFirebase!=="function"){
-      return Promise.reject(new Error("La comparación segura de Firebase no está disponible."));
-    }
-    showResult("Comparando período","Leyendo EstudiantesPeriodo sin modificar Firebase ni BDLocal.","info");
-    return current.previewFirebase(period).then(function(result){
-      renderComparison(result||{});
-      var message=(period.label||period.id)+": "+number(result&&result.remoteDocuments)+" documento(s) remotos, "+number(result&&result.apply)+" cambio(s) seguros y "+number(result&&result.pendingConflict)+" protegido(s) por pendientes locales.";
-      showResult("Comparación terminada",message,"success",result);
+    showResult("Comparando período V2","Se leerán como máximo "+COMPARE_READ_BUDGET+" documentos entre matrículas, requisitos y notas. No se escribirá información.","info");
+    return ensureRepository().then(function(current){
+      return Promise.all(COMPARE_ENTITIES.map(function(entity){
+        return current.list(entity,{
+          periodoId:period.id,
+          includeDeleted:true,
+          limit:COMPARE_LIMIT
+        });
+      }));
+    }).then(function(results){
+      var detail={
+        modo:"SOLO LECTURA V2",
+        periodo:period.label||period.id,
+        periodoId:period.id,
+        limitePorColeccion:COMPARE_LIMIT,
+        presupuestoMaximoLecturas:COMPARE_READ_BUDGET,
+        colecciones:{},
+        documentosLeidos:0,
+        limitado:false
+      };
+      results.forEach(function(result,index){
+        var entity=COMPARE_ENTITIES[index];
+        var total=number(result&&result.total);
+        detail.colecciones[entity]={documentos:total,hayMas:result&&result.hasMore===true};
+        detail.documentosLeidos+=total;
+        if(result&&result.hasMore===true){detail.limitado=true;}
+      });
+      renderComparison(detail);
+      var message=(period.label||period.id)+": "+detail.documentosLeidos+" documento(s) V2 leídos; máximo permitido "+COMPARE_READ_BUDGET+". "+(detail.limitado?"La vista es una muestra limitada.":"La muestra disponible quedó completa.");
+      showResult("Comparación V2 terminada",message,"success",detail);
       window.alert(message+"\n\nNo se escribió información.");
-      return result;
+      return detail;
     });
   }
 
   function downloadPeriod(){
-    var period=selectedPeriod();
-    var current=guard();
-    if(!period){return Promise.reject(new Error("Seleccione un período."));}
-    if(!current||typeof current.pullFirebaseToLocal!=="function"){
-      return Promise.reject(new Error("La descarga segura de Firebase no está disponible."));
+    var current=controlCenter();
+    if(!current||typeof current.pullPeriod!=="function"){
+      return Promise.reject(new Error("El controlador Firebase V2 no está disponible."));
     }
-    return current.pullFirebaseToLocal(period,{confirm:true,previewOnly:false}).then(function(result){
-      if(result&&result.cancelled){showResult("Descarga cancelada","No se modificó BDLocal.","info",result);return result;}
-      var message="Aplicados en BDLocal: "+number(result&&result.applied)+". Cambios seguros detectados: "+number(result&&result.apply)+". Telegram no fue modificado.";
-      showResult("Descarga finalizada",message,result&&result.ok===false?"warning":"success",result);
-      window.alert(message);
-      return result;
-    });
+    return current.pullPeriod({full:false});
   }
 
   function remainingFirebase(counts){
@@ -246,7 +254,7 @@ Función:
       ? current.refreshStatus({force:true})
       : testConnection();
     return Promise.resolve(work).then(function(result){
-      showResult("Estado actualizado","Se actualizaron conexión, cursores, lecturas, escrituras y conflictos.","success",result);
+      showResult("Estado actualizado","Se actualizaron cursores, métricas locales y conflictos sin recorrer colecciones remotas.","success",result);
       return result;
     });
   }
@@ -257,13 +265,13 @@ Función:
     if(typeof ui.bind==="function"){ui.bind();}
     moveMigrationPanel();
     if(typeof ui.preview!=="function"){return Promise.reject(new Error("La vista previa de migración no está disponible."));}
-    showResult("Corrección de estructura","Se creará un respaldo y una vista previa. Todavía no se escribirán las colecciones V2.","info");
+    showResult("Preparando migración","Se realizará una sola lectura paginada de las colecciones legacy y se creará un respaldo local.","info");
     return ui.preview().then(function(result){
       moveMigrationPanel();
       var panel=byId("bl2-firebase-migration-panel");
       if(panel&&typeof panel.scrollIntoView==="function"){panel.scrollIntoView({behavior:"smooth",block:"start"});}
-      if(result&&result.cancelled){showResult("Corrección cancelada","No se leyó ni modificó la estructura.","info",result);return result;}
-      var message="Vista previa y respaldo creados. Matrículas previstas: "+number(result&&result.counts&&result.counts.matriculas)+"; requisitos: "+number(result&&result.counts&&result.counts.requisitos)+"; notas: "+number(result&&result.counts&&result.counts.notas)+"; errores: "+number(result&&result.errors&&result.errors.length)+".";
+      if(result&&result.cancelled){showResult("Preparación cancelada","No se leyó ni modificó la estructura.","info",result);return result;}
+      var message="Vista previa y respaldo creados. Lecturas estimadas: "+number(result&&result.estimatedSourceReads)+" de "+number(result&&result.migrationReadBudget)+" permitidas; documentos previstos: "+number(result&&result.estimatedApplyReads)+"; errores: "+number(result&&result.errors&&result.errors.length)+".";
       showResult("Vista previa V2 lista",message,result&&result.errors&&result.errors.length?"warning":"success",result);
       return result;
     });
@@ -330,7 +338,9 @@ Función:
   window.RequisitosFirebaseUserActions={
     version:VERSION,
     manualOnly:true,
+    automatic:false,
     destructive:false,
+    compareReadBudget:COMPARE_READ_BUDGET,
     install:install,
     refresh:function(){bindAttempts=0;scheduleBind(20);},
     testConnection:testConnection,
@@ -338,7 +348,7 @@ Función:
     downloadPeriod:downloadPeriod,
     pushPending:pushPending,
     correctStructure:correctStructure,
-    status:function(){return {version:VERSION,installed:!!window[FLAG],busy:busy,bindAttempts:bindAttempts,projectId:projectId(),destructive:false};}
+    status:function(){return {version:VERSION,installed:!!window[FLAG],busy:busy,bindAttempts:bindAttempts,projectId:projectId(),manualOnly:true,automatic:false,compareReadBudget:COMPARE_READ_BUDGET,destructive:false};}
   };
 
   ["DOMContentLoaded","bdlocal:bl2-html-scripts-loaded","requisitos:arquitectura-compartida-lista","requisitos:firebase-redesign-ready","bdlocal:sync-ui-updated"].forEach(function(name){
