@@ -4,13 +4,13 @@ Ruta: /BDLocal/patches/bdl.changes.outbox-bridge.js
 Función:
 - Mantener una sola cola real: cambios_pendientes.
 - Espejar cambios legacy mediante el repositorio idempotente.
-- Cargar repositorios, contrato y controles compartidos de Firebase V2.
+- Cargar protección de caché, repositorios y controles Firebase V2.
 - No ejecutar sincronizaciones automáticamente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="3.0.0-import-audit-v2";
+  var VERSION="3.1.0-active-cache-v2";
   var FLAG="__bdlOutboxBridgeInstalled";
   var document=window.document||null;
   var scriptBase=document&&document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
@@ -43,6 +43,7 @@ Función:
   }
   function loadSharedArchitecture(){
     var files=[
+      ["../conexiones/cone.active-filter.js","BDLocalActiveFilter"],
       ["../repositories/bdl.repo.importaciones.js","BDLRepoImportaciones"],
       ["../firebase/bdl.firebase.schema.v2.js","RequisitosFirebaseSchema"],
       ["../firebase/bdl.firebase.identity.js","RequisitosFirebaseIdentity"],
@@ -61,6 +62,7 @@ Función:
     files.forEach(function(item){chain=chain.then(function(){return loadSharedScript(item[0],item[1]);});});
     return chain.then(function(){
       var detail={
+        activeCacheFilter:!!window.BDLocalActiveFilter,
         importacionesRepository:!!window.BDLRepoImportaciones,
         firebaseSchema:!!window.RequisitosFirebaseSchema,
         firebaseIdentity:!!window.RequisitosFirebaseIdentity,
@@ -133,8 +135,9 @@ Función:
     db.__outboxBridgeInstalled=true;db.outboxBridgeVersion=VERSION;
     try{window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridge-ready",{detail:{
       version:VERSION,legacy:cfgStores().legacy,outbox:cfgStores().outbox,idempotent:true,
-      sharedArchitecture:true,importacionesRepository:true,firebaseV2:true,firebaseSyncEngine:true,
-      firebaseConflicts:true,firebaseControlCenter:true,firebasePushControl:true,automatic:false,at:nowISO()
+      sharedArchitecture:true,activeCacheFilter:true,importacionesRepository:true,firebaseV2:true,
+      firebaseSyncEngine:true,firebaseConflicts:true,firebaseControlCenter:true,
+      firebasePushControl:true,automatic:false,at:nowISO()
     }}));}catch(error){}
     return true;
   }
