@@ -10,7 +10,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.0-local-remote-identity";
+  var VERSION = "1.0.1-stable-aliases";
 
   function text(value){
     return String(value == null ? "" : value).trim();
@@ -208,6 +208,8 @@ Función o funciones:
     periodOf:periodOf,
     makeLocalStudentPeriodId:makeLocalStudentPeriodId,
     makeRemoteStudentPeriodId:makeRemoteStudentPeriodId,
+    localStudentPeriodId:makeLocalStudentPeriodId,
+    remoteStudentPeriodId:makeRemoteStudentPeriodId,
     parseLocalStudentPeriodId:parseLocalStudentPeriodId,
     parseRemoteStudentPeriodId:parseRemoteStudentPeriodId,
     identityFromRow:identityFromRow,
