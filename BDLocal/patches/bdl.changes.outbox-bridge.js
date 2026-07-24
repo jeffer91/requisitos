@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="3.3.0-migration-ready";
+  var VERSION="3.4.0-migration-contract";
   var FLAG="__bdlOutboxBridgeInstalled";
   var document=window.document||null;
   var scriptBase=document&&document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
@@ -98,6 +98,7 @@ Función:
       ["../repositories/bdl.repo.sync-estado.js","BDLRepoSyncEstado"],
       ["../firebase/bdl.firebase.sync-engine.v2.js","RequisitosFirebaseSyncEngine"],
       ["../firebase/bdl.firebase.migration.v2.js","RequisitosFirebaseMigration"],
+      ["../firebase/bdl.firebase.migration.contract.js","RequisitosFirebaseMigrationContract"],
       ["../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal"],
       ["../firebase/bdl.firebase.control-center.js","RequisitosFirebaseControlCenter"],
       ["../firebase/bdl.firebase.push-control.js","RequisitosFirebasePushControl"],
@@ -123,6 +124,7 @@ Función:
         firebaseSyncState:!!window.BDLRepoSyncEstado,
         firebaseSyncEngine:!!window.RequisitosFirebaseSyncEngine,
         firebaseMigration:!!window.RequisitosFirebaseMigration,
+        firebaseMigrationContract:!!window.RequisitosFirebaseMigrationContract,
         firebaseMigrationUI:!!window.RequisitosFirebaseMigrationUI,
         firebaseControlCenter:!!window.RequisitosFirebaseControlCenter,
         firebasePushControl:!!window.RequisitosFirebasePushControl,
@@ -132,7 +134,8 @@ Función:
       var required=[
         "activeCacheFilter","firebaseOutboxPolicy","firebaseSchema","firebaseIdentity",
         "firebaseValidator","firebaseMapper","firebaseReverseMapper","firebaseRepository",
-        "firebaseConflicts","firebaseSyncState","firebaseSyncEngine","firebaseMigration","periodoGlobal"
+        "firebaseConflicts","firebaseSyncState","firebaseSyncEngine","firebaseMigration",
+        "firebaseMigrationContract","periodoGlobal"
       ];
       detail.ok=required.every(function(name){return detail[name]===true;});
       if(!detail.ok){throw new Error("La arquitectura compartida no terminó de cargar correctamente.");}
@@ -183,8 +186,8 @@ Función:
       version:VERSION,legacy:cfgStores().legacy,outbox:cfgStores().outbox,idempotent:true,
       sharedArchitecture:true,deterministicReady:true,activeCacheFilter:true,
       firebaseOutboxPolicy:true,firebaseV2:true,firebaseSyncEngine:true,
-      firebaseConflicts:true,firebaseMigration:true,firebaseControlCenter:true,
-      firebasePushControl:true,automatic:false,at:nowISO()
+      firebaseConflicts:true,firebaseMigration:true,firebaseMigrationContract:true,
+      firebaseControlCenter:true,firebasePushControl:true,automatic:false,at:nowISO()
     }}));}catch(error){}
     return true;
   }
