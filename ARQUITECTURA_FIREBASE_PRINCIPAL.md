@@ -4,7 +4,7 @@
 
 La migración se realizará directamente en `main`, por bloques pequeños y verificables. Ninguna colección antigua se eliminará hasta completar la migración, comparar cantidades y validar las pantallas.
 
-Estado actual: **Bloque 1 en proceso / Bloque 2 casi completo / Bloque 4 iniciado**.
+Estado actual: **Bloque 1 en proceso / Bloque 2 técnico completo / Bloque 4 avanzado / Bloque 5 iniciado**.
 
 ## Modelo oficial
 
@@ -43,31 +43,34 @@ El adaptador de sincronización transforma una en otra. Las pantallas no deben f
 
 Las filas provenientes de Firebase incluyen `_skipOutbox: true`, para que una descarga no vuelva a crear un cambio pendiente y no produzca ciclos de sincronización.
 
-## Repositorio central Firebase
+## Repositorio y sincronización central
 
-La app dispone ahora de una única puerta técnica para Firebase V2. Este repositorio:
+La app dispone ahora de una única puerta técnica para Firebase V2. Esta capa:
 
 - resuelve los nombres de las ocho colecciones;
 - valida antes de escribir;
 - admite lectura completa e incremental por `updatedAt`;
-- admite escritura individual y por lotes;
+- reconstruye documentos completos desde IndexedDB;
+- separa un cambio general en `estudiantes`, `matriculas`, `requisitos` y `notas`;
+- compara `dataHash` antes de escribir;
+- procesa únicamente `cambios_pendientes` confirmados;
+- guarda el cursor de cada colección en `sync_estado`;
 - prepara borrado lógico;
-- convierte respuestas Firebase a las tablas locales;
 - no realiza operaciones automáticamente al cargarse.
 
-Las pantallas todavía no utilizan directamente este repositorio. La integración se realizará mediante el sincronizador central.
+La subida sigue pasando por `BDLSyncV2` y su orquestador manual. No se creó una segunda cola ni un sincronizador paralelo.
 
 ## Flujo final
 
 ```text
 Firebase
   fuente oficial
-      ↓ cambios nuevos
+      ↓ documentos con updatedAt posterior al cursor
 IndexedDB
   caché y trabajo rápido
       ↓ modificaciones locales
 cambios_pendientes
-      ↓ documentos diferentes
+      ↓ reconstrucción + comparación dataHash
 Firebase
 ```
 
@@ -100,24 +103,24 @@ Estado: **EN PROCESO**.
 - [x] Identificar las 12 pantallas activas.
 - [x] Confirmar que las pantallas trabajan mediante conectores.
 - [x] Mantener la migración como no destructiva.
-- [x] Agregar pruebas ejecutables del contrato, identidades, validación, mapeo y repositorio Firebase.
-- [ ] Confirmar el resultado de la suite completa en GitHub Actions y en el equipo con la aplicación instalada.
+- [x] Agregar pruebas del contrato, identidades, validación, mapeo, repositorio y motor diferencial.
+- [ ] Confirmar la suite completa en GitHub Actions y en el equipo con la aplicación instalada.
 - [ ] Exportar respaldo local antes de mover datos.
 - [ ] Exportar o respaldar las colecciones Firebase actuales.
 
 ### Bloque 2. Modelo e identificadores
 
-Estado: **CASI COMPLETO; FALTA CONECTAR LA COLA REAL**.
+Estado: **TÉCNICAMENTE COMPLETO; PENDIENTE VALIDACIÓN CON DATOS REALES**.
 
 - [x] Definir las ocho colecciones oficiales.
 - [x] Definir IDs locales y remotos.
 - [x] Definir qué campos pertenecen a cada colección.
 - [x] Crear el adaptador de identidad local ↔ Firebase.
-- [x] Crear el mapeador local → estudiante, matrícula, requisitos y notas.
+- [x] Crear el mapeador local → Firebase.
 - [x] Crear el adaptador Firebase → tablas locales.
 - [x] Validar documentos incompletos, IDs incorrectos, tipos y campos desconocidos.
-- [x] Integrar los mapeadores con el repositorio central Firebase.
-- [ ] Integrar el repositorio central con `cambios_pendientes` y `sync_estado`.
+- [x] Integrar los mapeadores con el repositorio central.
+- [x] Integrar `cambios_pendientes` y `sync_estado`.
 
 ### Bloque 3. Período general
 
@@ -132,29 +135,33 @@ Estado: **BASE PARCIAL EXISTENTE; VALIDACIÓN PANTALLA POR PANTALLA PENDIENTE**.
 
 ### Bloque 4. Repositorios Firebase
 
-Estado: **INICIADO**.
+Estado: **AVANZADO**.
 
 - [x] Crear un repositorio central para las ocho colecciones.
 - [x] Validar escrituras individuales y por lotes.
 - [x] Preparar lecturas completas e incrementales por `updatedAt`.
 - [x] Preparar conversión Firebase → IndexedDB.
 - [x] Preparar borrado lógico.
-- [ ] Conectar el repositorio con la cola local.
-- [ ] Guardar el estado de la última descarga por colección.
+- [x] Conectar el repositorio con la cola local.
+- [x] Guardar el estado de la última descarga por colección.
 - [ ] Bloquear y retirar accesos directos desde pantallas.
+- [ ] Probar repositorios contra un entorno Firebase de prueba.
 
 ### Bloque 5. Sincronización por diferencias
 
-Estado: **PENDIENTE**.
+Estado: **INICIADO; MOTOR MANUAL IMPLEMENTADO, PRUEBAS REALES PENDIENTES**.
 
-- [ ] Primera descarga global.
-- [ ] Descargas posteriores por `updatedAt`.
-- [ ] Subida exclusiva de `cambios_pendientes`.
-- [ ] Comparación mediante `dataHash`.
-- [ ] Borrado lógico.
-- [ ] Reintentos y recuperación sin internet.
-- [ ] Resolución de conflictos.
-- [ ] Protección contra ciclos.
+- [x] Preparar primera descarga global manual.
+- [x] Preparar descargas posteriores por `updatedAt`.
+- [x] Preparar subida exclusiva de `cambios_pendientes`.
+- [x] Comparar mediante `dataHash`.
+- [x] Mantener límite de 25 cambios locales por subida.
+- [x] Evitar ciclos con `_skipOutbox`.
+- [x] Registrar cursores, éxitos y errores en `sync_estado`.
+- [ ] Probar descarga inicial con las nuevas colecciones reales.
+- [ ] Probar más de 1000 documentos y paginación.
+- [ ] Probar pérdida y recuperación de internet.
+- [ ] Implementar y probar resolución de conflictos entre dos equipos.
 
 ### Bloque 6. Carga y Centro BL
 
