@@ -11,9 +11,17 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="2.0.0-unified-notes-history";
+  var VERSION="2.0.1-official-outbox-descriptor";
   var Services=window.BDLServices;
   if(!Services){return;}
+
+  var OUTBOX_DESCRIPTOR={
+    tabla:"evaluaciones_titulacion",
+    target:"firebase",
+    manualOnly:true,
+    notesMirror:"notas_titulacion",
+    history:true
+  };
 
   var AUDIT_FIELDS=[
     "modalidadTitulacion","notaTeorica","notaPractica","notaComplexivo",
@@ -121,7 +129,7 @@ Función:
       source:"ncomplex",origen:"ncomplex",createdAt:stamp,updatedAt:stamp
     };
   }
-  function changeFromEvaluation(evaluation){return firebaseOnlyChange("evaluaciones_titulacion",evaluation,evaluation,evaluation.idEstudiantePeriodo);}
+  function changeFromEvaluation(evaluation){return firebaseOnlyChange(OUTBOX_DESCRIPTOR.tabla,evaluation,evaluation,evaluation.idEstudiantePeriodo);}
   function noteMirror(evaluation){
     evaluation=Object.assign({},evaluation||{});
     var id=studentPeriodId(evaluation.periodoId,evaluation.cedula);
@@ -204,7 +212,9 @@ Función:
   function listImports(options){var repo=importsRepo();return repo&&typeof repo.list==="function"?repo.list(options||{}):Promise.resolve([]);}
 
   var api={
-    version:VERSION,list:list,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,
+    version:VERSION,
+    outbox:OUTBOX_DESCRIPTOR,
+    list:list,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,
     getByPeriodoCedula:getByPeriodoCedula,saveEvaluation:saveEvaluation,save:saveEvaluation,
     saveMany:saveMany,changeModality:changeModality,listPeriods:listPeriods,
     saveImport:saveImport,listImports:listImports,applyFilters:applyFilters,
