@@ -65,8 +65,14 @@ contains(bridgeFile,"bdl.firebase.push-control.js","El cargador compartido debe 
 contains(bridgeFile,"automatic:false","El cargador no debe iniciar sincronización automática");
 
 contains(centerFile,'replaceControl("bl2-btn-pull-firebase"',"Base Local debe sustituir la descarga Firebase heredada");
-contains(centerFile,'replaceControl("bl2-btn-pull-firebase-all"',"Base Local debe permitir descargar todos los períodos");
-contains(centerFile,'engine().pullAll({manual:true,periodoId:period.id',"La descarga del período debe usar el motor V2 manual");
+contains(centerFile,'replaceControl("bl2-btn-pull-firebase-all"',"Base Local debe permitir descargar todos los períodos protegidos");
+contains(centerFile,"engine().pullAll({","La descarga del período debe usar el motor V2");
+contains(centerFile,"manual:true","La descarga del período debe ser manual");
+contains(centerFile,"periodoId:period.id","La descarga debe usar el período activo");
+contains(centerFile,"limit:PERIOD_PAGE_SIZE","La descarga debe aplicar tamaño de página limitado");
+contains(centerFile,"maxPages:PERIOD_MAX_PAGES","La descarga debe aplicar máximo de páginas");
+contains(centerFile,"PERIOD_READ_BUDGET=4500","La descarga del período debe declarar su presupuesto máximo");
+contains(centerFile,"ALL_PERIODS_READ_BUDGET=9000","La descarga global debe declarar su presupuesto máximo");
 contains(centerFile,'entities:["periodos","carreras","estudiantes"]',"Traer todo debe descargar primero la base global");
 contains(centerFile,'entities:["matriculas","requisitos","notas"]',"Traer todo debe descargar los datos académicos por período");
 contains(centerFile,"bl2-firebase-conflicts-list","El Centro debe mostrar conflictos abiertos");
