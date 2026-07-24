@@ -100,6 +100,7 @@ load("BDLocal/firebase/bdl.firebase.schema.v2.js");
 load("BDLocal/firebase/bdl.firebase.identity.js");
 load("BDLocal/firebase/bdl.firebase.mapper.v2.js");
 load("BDLocal/firebase/bdl.firebase.migration.v2.js");
+load("BDLocal/firebase/bdl.firebase.migration.contract.js");
 
 (async()=>{
   const migration=sandbox.RequisitosFirebaseMigration;
@@ -111,6 +112,7 @@ load("BDLocal/firebase/bdl.firebase.migration.v2.js");
   check(backups.length>=2,"El respaldo debe incluir manifiesto y documentos legacy");
   check(preview.sourceCounts.Estudiantes===1,"Debe contar Estudiantes legacy");
   check(preview.sourceCounts.EstudiantesPeriodo===1,"Debe contar EstudiantesPeriodo legacy");
+  check(preview.sourceCountContractVersion==="1.0.0-canonical-source-counts","La vista previa debe exponer el contrato canónico de conteos");
   check(preview.counts.estudiantes===1,"Debe producir un estudiante único");
   check(preview.counts.matriculas===1,"Debe producir una matrícula");
   check(preview.counts.requisitos===1,"Debe producir un documento de requisitos");
