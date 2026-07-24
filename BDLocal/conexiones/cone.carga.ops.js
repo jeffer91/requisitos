@@ -3,16 +3,28 @@ Archivo: cone.carga.ops.js
 Ruta: /BDLocal/conexiones/cone.carga.ops.js
 Función:
 - Extender ConCarga con lecturas y escrituras usadas por /Carga/.
-- Encerrar BL2Core y BLDivisionesService dentro de conexiones.
+- Encerrar BL2Core, divisiones, importaciones y cola dentro del conector.
+- Registrar cada carga de archivo para Firebase sin duplicar por archivo/período.
 ========================================================= */
 (function(window){
   "use strict";
   var api=window.ConCarga||window.BDLocalCarga;
   if(!api){return;}
-  var VERSION="1.0.0-carga-ops";
+  var VERSION="1.1.0-import-audit";
   function text(v){return String(v==null?"":v).trim();}
   function core(){return window.BL2Core||null;}
   function service(){return window.BLDivisionesService||null;}
+  function repositories(){return window.BDLRepositories||null;}
+  function importRepo(){
+    if(window.BDLRepoImportaciones){return window.BDLRepoImportaciones;}
+    var registry=repositories();
+    return registry&&typeof registry.get==="function"?registry.get("importaciones"):null;
+  }
+  function changesRepo(){
+    if(window.BDLRepoCambios){return window.BDLRepoCambios;}
+    var registry=repositories();
+    return registry&&typeof registry.get==="function"?(registry.get("cambios_pendientes")||registry.get("cambios")):null;
+  }
   function canon(v){
     var u=window.BDLocalConUtils;
     return u&&typeof u.canonicalPeriodId==="function"?u.canonicalPeriodId(v):text(v).replace(/_+/g,"__");
@@ -117,6 +129,59 @@ Función:
         return typeof api.refresh==="function"?Promise.resolve(api.refresh({periodoId:periodoId,force:true,changed:true})).then(function(){return result;}):result;
       });
   }
+  function waitImportRepository(timeoutMs){
+    timeoutMs=Math.max(1000,Number(timeoutMs||8000));
+    var started=Date.now();
+    return new Promise(function(resolve,reject){
+      (function check(){
+        var current=importRepo();
+        if(current&&typeof current.save==="function"){resolve(current);return;}
+        if(window.BDLOutboxBridge&&typeof window.BDLOutboxBridge.loadSharedArchitecture==="function"){
+          window.BDLOutboxBridge.loadSharedArchitecture().catch(function(){});
+        }
+        if(Date.now()-started>=timeoutMs){reject(new Error("No se pudo preparar el repositorio de importaciones."));return;}
+        window.setTimeout(check,60);
+      })();
+    });
+  }
+  function saveImport(row){
+    row=Object.assign({},row||{});
+    row.periodoId=canon(row.periodoId||row.periodId||"");
+    row.archivoHash=text(row.archivoHash||row.rawTextHash||row.hash);
+    row.archivoNombre=text(row.archivoNombre||row.fileName||row.archivo||"carga_estudiantes");
+    row.source=text(row.source||"CARGA_ARCHIVO").toUpperCase();
+    row.tipo=text(row.tipo||"ARCHIVO_ESTUDIANTES").toUpperCase();
+    row.createdAt=text(row.createdAt)||new Date().toISOString();
+    row.updatedAt=new Date().toISOString();
+    if(!row.periodoId){return Promise.reject(new Error("La importación no tiene período."));}
+    if(!row.archivoHash){return Promise.reject(new Error("La importación no tiene hash de archivo."));}
+    row.id=text(row.id)||"importacion__"+row.archivoHash+"__"+row.periodoId;
+    row.importacionId=row.id;
+
+    return waitImportRepository().then(function(current){return current.save(row);}).then(function(saved){
+      var changes=changesRepo();
+      if(!changes||typeof changes.save!=="function"){throw new Error("No se pudo preparar la cola para la importación.");}
+      return changes.save({
+        tabla:"importaciones",
+        periodoId:saved.periodoId,
+        registroId:saved.id,
+        accion:"UPSERT",
+        payload:saved,
+        estadoSheets:"SINCRONIZADO",
+        statusGoogle:"SINCRONIZADO",
+        estadoSupabase:"SINCRONIZADO",
+        statusSupabase:"SINCRONIZADO",
+        estadoFirebase:"PENDIENTE",
+        statusFirebase:"PENDIENTE",
+        createdAt:saved.createdAt,
+        updatedAt:saved.updatedAt
+      },{source:"cone.carga.saveImport"}).then(function(change){
+        try{window.dispatchEvent(new CustomEvent("bdlocal:carga-import-registered",{detail:{importacion:saved,cambioId:change&&change.id||""}}));}catch(error){}
+        return Object.assign({},saved,{cambioId:change&&change.id||""});
+      });
+    });
+  }
+
   api.versionOps=VERSION;
   api.listStudents=students;api.getStudents=students;
   api.updateStudent=updateStudent;api.actualizarEstudiante=updateStudent;
@@ -124,6 +189,7 @@ Función:
   api.listCareers=careers;api.getCareers=careers;
   api.listDivisions=divisions;api.getDivisions=divisions;
   api.saveDivisions=saveDivisions;
+  api.saveImport=saveImport;api.registrarImportacion=saveImport;
   api.read=function(options){
     options=options||{};
     return Promise.all([api.getPeriods(),students(options),api.getSummary(canon(options.periodoId||options.periodId||""))]).then(function(v){return {ok:true,source:"ConCarga",screen:"carga",data:{periods:v[0]||[],students:v[1]||[],summary:v[2]||{}}};});
