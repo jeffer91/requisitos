@@ -4,13 +4,13 @@ Ruta: /BDLocal/patches/bdl.changes.outbox-bridge.js
 Función:
 - Mantener una sola cola real: cambios_pendientes.
 - Espejar cambios legacy mediante el repositorio idempotente.
-- Cargar contrato, mapeadores, repositorio, estado y motor Firebase V2.
+- Cargar contrato, mapeadores, repositorio, conflictos, estado y motor Firebase V2.
 - No ejecutar sincronizaciones automáticamente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="2.6.0-shared-sync-engine";
+  var VERSION="2.7.0-conflict-aware-sync";
   var FLAG="__bdlOutboxBridgeInstalled";
   var document=window.document||null;
   var scriptBase=document&&document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
@@ -49,6 +49,7 @@ Función:
       ["../firebase/bdl.firebase.mapper.v2.js","RequisitosFirebaseMapper"],
       ["../firebase/bdl.firebase.reverse-mapper.v2.js","RequisitosFirebaseReverseMapper"],
       ["../firebase/bdl.firebase.repository.v2.js","RequisitosFirebaseRepository"],
+      ["../repositories/bdl.repo.conflictos.js","BDLRepoConflictos"],
       ["../repositories/bdl.repo.sync-estado.js","BDLRepoSyncEstado"],
       ["../firebase/bdl.firebase.sync-engine.v2.js","RequisitosFirebaseSyncEngine"],
       ["../shared/bdl.periodo-global.js","RequisitosPeriodoGlobal"]
@@ -63,6 +64,7 @@ Función:
         firebaseMapper:!!window.RequisitosFirebaseMapper,
         firebaseReverseMapper:!!window.RequisitosFirebaseReverseMapper,
         firebaseRepository:!!window.RequisitosFirebaseRepository,
+        firebaseConflicts:!!window.BDLRepoConflictos,
         firebaseSyncState:!!window.BDLRepoSyncEstado,
         firebaseSyncEngine:!!window.RequisitosFirebaseSyncEngine,
         periodoGlobal:!!window.RequisitosPeriodoGlobal,
@@ -125,7 +127,7 @@ Función:
     db.__outboxBridgeInstalled=true;db.outboxBridgeVersion=VERSION;
     try{window.dispatchEvent(new CustomEvent("bdlocal:outbox-bridge-ready",{detail:{
       version:VERSION,legacy:cfgStores().legacy,outbox:cfgStores().outbox,idempotent:true,
-      sharedArchitecture:true,firebaseV2:true,firebaseSyncEngine:true,automatic:false,at:nowISO()
+      sharedArchitecture:true,firebaseV2:true,firebaseSyncEngine:true,firebaseConflicts:true,automatic:false,at:nowISO()
     }}));}catch(error){}
     return true;
   }
