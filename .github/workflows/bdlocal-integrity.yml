@@ -3,8 +3,8 @@
 # Ruta: /.github/workflows/bdlocal-integrity.yml
 # Función:
 # - Ejecutar cada prueba de npm test e identificar la primera que falla.
+# - Publicar también el primer mensaje de error verificable.
 # - Ejecutar Electron e IndexedDB en un entorno aislado.
-# - Publicar estados verificables sobre el commit evaluado.
 # - Conservar los registros de ambas pruebas como artefactos.
 # =========================================================
 name: BDLocal Integrity
@@ -55,11 +55,15 @@ jobs:
             const fs = require('fs');
             let code = 1;
             let failed = 'unknown';
+            let detail = 'Fallo sin detalle';
             try {
               code = Number(fs.readFileSync('artifacts/npm-test.exit', 'utf8').trim());
             } catch (error) {}
             try {
               failed = fs.readFileSync('artifacts/npm-test-failed.txt', 'utf8').trim() || 'none';
+            } catch (error) {}
+            try {
+              detail = fs.readFileSync('artifacts/npm-test-detail.txt', 'utf8').trim() || detail;
             } catch (error) {}
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
@@ -72,18 +76,30 @@ jobs:
                 : 'La suite completa tiene fallos'
             });
             if (code !== 0) {
-              const slug = failed
+              const scriptSlug = failed
                 .replace(/^node\s+/, '')
                 .replace(/^npm\s+run\s+/, '')
                 .replace(/[^A-Za-z0-9._-]+/g, '-')
-                .slice(0, 70) || 'unknown';
+                .slice(0, 62) || 'unknown';
+              const detailSlug = detail
+                .replace(/^\d+\.\s*/, '')
+                .replace(/[^A-Za-z0-9._-]+/g, '-')
+                .slice(0, 55) || 'unknown';
               await github.rest.repos.createCommitStatus({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 sha: context.sha,
                 state: 'failure',
-                context: `requisitos/fallo/${slug}`,
-                description: 'Primera prueba fallida'
+                context: `requisitos/fallo/${scriptSlug}`,
+                description: detail.slice(0, 140)
+              });
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                state: 'failure',
+                context: `requisitos/detalle/${detailSlug}`,
+                description: detail.slice(0, 140)
               });
             }
 
@@ -96,6 +112,7 @@ jobs:
             artifacts/npm-test.log
             artifacts/npm-test.exit
             artifacts/npm-test-failed.txt
+            artifacts/npm-test-detail.txt
           if-no-files-found: error
           retention-days: 14
 
