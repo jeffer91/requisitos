@@ -10,7 +10,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "1.0.1-stable-aliases";
+  var VERSION = "1.0.2-stable-alias-order";
 
   function text(value){
     return String(value == null ? "" : value).trim();
@@ -97,6 +97,14 @@ Función o funciones:
     }
 
     return cedula && periodoId ? periodoId + "__" + cedula : "";
+  }
+
+  function localStudentPeriodId(periodoId,cedula){
+    return makeLocalStudentPeriodId(cedula,periodoId);
+  }
+
+  function remoteStudentPeriodId(periodoId,cedula){
+    return makeRemoteStudentPeriodId(periodoId,cedula);
   }
 
   function parseLocalStudentPeriodId(value){
@@ -208,8 +216,8 @@ Función o funciones:
     periodOf:periodOf,
     makeLocalStudentPeriodId:makeLocalStudentPeriodId,
     makeRemoteStudentPeriodId:makeRemoteStudentPeriodId,
-    localStudentPeriodId:makeLocalStudentPeriodId,
-    remoteStudentPeriodId:makeRemoteStudentPeriodId,
+    localStudentPeriodId:localStudentPeriodId,
+    remoteStudentPeriodId:remoteStudentPeriodId,
     parseLocalStudentPeriodId:parseLocalStudentPeriodId,
     parseRemoteStudentPeriodId:parseRemoteStudentPeriodId,
     identityFromRow:identityFromRow,
