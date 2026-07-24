@@ -46,6 +46,9 @@
     "audit:repo": "node scripts/audit-repository.js",
     "verify": "npm test"
   },
+  "testCommandSignatures": {
+    "test:electron": "electron electron/smoke-main.js"
+  },
   "dependencies": {
     "html2pdf.js": "0.14.0",
     "jszip": "3.10.1",
