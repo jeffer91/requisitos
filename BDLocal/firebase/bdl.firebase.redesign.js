@@ -6,12 +6,14 @@ Función:
 - Presentar Firebase como fuente oficial y principal.
 - Agrupar Google Sheets y Supabase como fuentes secundarias.
 - Diferenciar acciones rutinarias, avanzadas y de riesgo.
+- Cargar las acciones operativas después de construir la interfaz.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-source-hierarchy";
+  var VERSION="1.1.0-operational-actions";
   var STYLE_ID="bdl-firebase-redesign-style";
+  var ACTIONS_SCRIPT_ID="bdl-firebase-user-actions-script";
   var WORKFLOW_ID="bdlc-safe-workflow";
   var applied=false;
   var attempts=0;
@@ -21,6 +23,7 @@ Función:
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
   function styleUrl(){try{return new URL("bdl.firebase.redesign.css",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.redesign.css";}}
+  function actionsUrl(){try{return new URL("bdl.firebase.user-actions.js",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.user-actions.js";}}
 
   function ensureStyle(){
     if(byId(STYLE_ID)){return;}
@@ -29,6 +32,22 @@ Función:
     link.rel="stylesheet";
     link.href=styleUrl();
     (document.head||document.documentElement).appendChild(link);
+  }
+
+  function ensureActions(){
+    if(window.RequisitosFirebaseUserActions){
+      if(typeof window.RequisitosFirebaseUserActions.refresh==="function"){window.RequisitosFirebaseUserActions.refresh();}
+      return;
+    }
+    if(byId(ACTIONS_SCRIPT_ID)){return;}
+    var script=document.createElement("script");
+    script.id=ACTIONS_SCRIPT_ID;
+    script.src=actionsUrl();
+    script.async=false;
+    script.defer=false;
+    script.setAttribute("data-bdl-firebase-actions","true");
+    script.onerror=function(){try{console.warn("[Firebase redesign] No se pudieron cargar las acciones operativas.");}catch(error){}};
+    (document.head||document.documentElement).appendChild(script);
   }
 
   function cardOf(statusId){
@@ -97,6 +116,7 @@ Función:
 
   function apply(){
     ensureStyle();
+    ensureActions();
 
     var section=byId("bl2-section-bases-externas");
     if(!section){return false;}
@@ -124,7 +144,7 @@ Función:
     buildWorkflow(section,grid);
     addOfficialBadge(firebaseCard);
 
-    setButton("bl2-btn-pull-firebase","Descargar cambios","bdlc-action-secondary");
+    setButton("bl2-btn-pull-firebase","Descargar a BDLocal","bdlc-action-secondary");
     setButton("bl2-btn-push-firebase",null,"bdlc-action-warning");
     setButton("bl2-btn-fetch-firebase-config","Actualizar estado","bdlc-action-utility");
     setButton("bl2-btn-pull-firebase-full-period","Releer período","bdlc-action-utility");
@@ -152,6 +172,7 @@ Función:
     if(migrationApply){migrationApply.classList.add("bdlc-action-danger");}
 
     applied=true;
+    ensureActions();
     try{window.dispatchEvent(new CustomEvent("requisitos:firebase-redesign-ready",{detail:{ok:true,version:VERSION,at:new Date().toISOString()}}));}catch(error){}
     return true;
   }
@@ -173,9 +194,10 @@ Función:
     version:VERSION,
     apply:apply,
     refresh:function(){applied=false;attempts=0;schedule();},
-    status:function(){return {version:VERSION,applied:applied,attempts:attempts};}
+    status:function(){return {version:VERSION,applied:applied,attempts:attempts,actions:!!window.RequisitosFirebaseUserActions};}
   };
 
   ensureStyle();
+  ensureActions();
   schedule();
 })(window,document);
