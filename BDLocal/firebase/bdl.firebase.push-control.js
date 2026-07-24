@@ -5,12 +5,12 @@ Función:
 - Sustituir el botón Firebase heredado por la subida V2.
 - Procesar únicamente cambios_pendientes del período activo.
 - Mantener conflictos y cambios no procesados dentro de la cola.
-- Evitar referencias a EstudiantesPeriodo en la interfaz operativa.
+- Usar exclusivamente las colecciones oficiales V2.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-push-v2";
+  var VERSION="1.0.1-push-v2";
   var FLAG="__firebaseV2PushControlBound";
   var running=false;
 
