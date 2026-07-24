@@ -6,14 +6,15 @@ Función:
 - Presentar Firebase como fuente oficial y principal.
 - Agrupar Google Sheets y Supabase como fuentes secundarias.
 - Diferenciar acciones rutinarias, avanzadas y de riesgo.
-- Cargar primero el bloqueo operativo y después las acciones visibles.
+- Cargar primero el bloqueo operativo, su suplemento y después las acciones visibles.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.2.0-operation-guard";
+  var VERSION="1.3.0-operation-guard-supplement";
   var STYLE_ID="bdl-firebase-redesign-style";
   var GUARD_SCRIPT_ID="bdl-external-operation-guard-script";
+  var SUPPLEMENT_SCRIPT_ID="bdl-external-operation-supplement-script";
   var ACTIONS_SCRIPT_ID="bdl-firebase-user-actions-script";
   var WORKFLOW_ID="bdlc-safe-workflow";
   var applied=false;
@@ -25,6 +26,7 @@ Función:
   function byId(id){return document.getElementById(id);}
   function styleUrl(){try{return new URL("bdl.firebase.redesign.css",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.redesign.css";}}
   function guardUrl(){try{return new URL("bdl.external-operation.guard.js",scriptBase).href;}catch(error){return "./firebase/bdl.external-operation.guard.js";}}
+  function supplementUrl(){try{return new URL("bdl.external-operation.supplement.js",scriptBase).href;}catch(error){return "./firebase/bdl.external-operation.supplement.js";}}
   function actionsUrl(){try{return new URL("bdl.firebase.user-actions.js",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.user-actions.js";}}
 
   function ensureStyle(){
@@ -39,6 +41,7 @@ Función:
   function disableUnsafeControls(message){
     [
       "bl2-btn-push-google","bl2-btn-push-firebase","bl2-btn-push-supabase",
+      "bl2-btn-pull-sheets","bl2-btn-pull-sheets-all","bl2-btn-clean-sheets-duplicates",
       "bl2-btn-correct-firebase-base","bl2-btn-migration-preview","bl2-btn-migration-apply"
     ].forEach(function(id){var button=byId(id);if(button){button.disabled=true;}});
     var status=byId("bl2-firebase-migration-status");
@@ -46,7 +49,7 @@ Función:
   }
 
   function ensureActions(){
-    if(!window.BDLExternalOperationGate){return;}
+    if(!window.BDLExternalOperationGate||!window.BDLExternalOperationSupplement){return;}
     if(window.RequisitosFirebaseUserActions){
       if(typeof window.RequisitosFirebaseUserActions.refresh==="function"){window.RequisitosFirebaseUserActions.refresh();}
       return;
@@ -65,17 +68,47 @@ Función:
     (document.head||document.documentElement).appendChild(script);
   }
 
+  function ensureSupplement(){
+    if(!window.BDLExternalOperationGate){return;}
+    if(window.BDLExternalOperationSupplement){
+      if(typeof window.BDLExternalOperationSupplement.patchCloud==="function"){window.BDLExternalOperationSupplement.patchCloud();}
+      if(typeof window.BDLExternalOperationSupplement.syncUi==="function"){window.BDLExternalOperationSupplement.syncUi();}
+      ensureActions();
+      return;
+    }
+    var existing=byId(SUPPLEMENT_SCRIPT_ID);
+    if(existing){
+      if(existing.getAttribute("data-bdl-supplement-waiting")!=="true"){
+        existing.setAttribute("data-bdl-supplement-waiting","true");
+        existing.addEventListener("load",ensureActions,{once:true});
+      }
+      return;
+    }
+    var script=document.createElement("script");
+    script.id=SUPPLEMENT_SCRIPT_ID;
+    script.src=supplementUrl();
+    script.async=false;
+    script.defer=false;
+    script.setAttribute("data-bdl-external-operation-supplement","true");
+    script.onload=function(){ensureActions();};
+    script.onerror=function(){
+      disableUnsafeControls("No se cargó la protección de descargas y período. Reinicie la aplicación.");
+      try{console.warn("[Firebase redesign] No se pudo cargar el suplemento operativo.");}catch(error){}
+    };
+    (document.head||document.documentElement).appendChild(script);
+  }
+
   function ensureGuard(){
     if(window.BDLExternalOperationGate){
       if(typeof window.BDLExternalOperationGate.patchAll==="function"){window.BDLExternalOperationGate.patchAll();}
-      ensureActions();
+      ensureSupplement();
       return;
     }
     var existing=byId(GUARD_SCRIPT_ID);
     if(existing){
       if(existing.getAttribute("data-bdl-guard-waiting")!=="true"){
         existing.setAttribute("data-bdl-guard-waiting","true");
-        existing.addEventListener("load",ensureActions,{once:true});
+        existing.addEventListener("load",ensureSupplement,{once:true});
       }
       return;
     }
@@ -87,7 +120,7 @@ Función:
     script.setAttribute("data-bdl-external-operation-guard","true");
     script.onload=function(){
       if(window.BDLExternalOperationGate&&typeof window.BDLExternalOperationGate.patchAll==="function"){window.BDLExternalOperationGate.patchAll();}
-      ensureActions();
+      ensureSupplement();
     };
     script.onerror=function(){
       disableUnsafeControls("No se cargó el bloqueo único de operaciones. Reinicie la aplicación antes de continuar.");
@@ -219,7 +252,7 @@ Función:
 
     applied=true;
     ensureGuard();
-    try{window.dispatchEvent(new CustomEvent("requisitos:firebase-redesign-ready",{detail:{ok:true,version:VERSION,guard:!!window.BDLExternalOperationGate,at:new Date().toISOString()}}));}catch(error){}
+    try{window.dispatchEvent(new CustomEvent("requisitos:firebase-redesign-ready",{detail:{ok:true,version:VERSION,guard:!!window.BDLExternalOperationGate,supplement:!!window.BDLExternalOperationSupplement,at:new Date().toISOString()}}));}catch(error){}
     return true;
   }
 
@@ -240,7 +273,7 @@ Función:
     version:VERSION,
     apply:apply,
     refresh:function(){applied=false;attempts=0;schedule();},
-    status:function(){return {version:VERSION,applied:applied,attempts:attempts,guard:!!window.BDLExternalOperationGate,actions:!!window.RequisitosFirebaseUserActions};}
+    status:function(){return {version:VERSION,applied:applied,attempts:attempts,guard:!!window.BDLExternalOperationGate,supplement:!!window.BDLExternalOperationSupplement,actions:!!window.RequisitosFirebaseUserActions};}
   };
 
   ensureStyle();
