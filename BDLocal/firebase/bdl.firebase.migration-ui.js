@@ -4,6 +4,7 @@ Ruta: /BDLocal/firebase/bdl.firebase.migration-ui.js
 Función:
 - Mostrar la migración V2 dentro de Base Local.
 - Esperar a que la tarjeta Firebase exista antes de insertar el panel.
+- Cargar la capa de rediseño visual sin alterar la lógica de datos.
 - Crear una vista previa y respaldo antes de habilitar escrituras.
 - Exigir una frase exacta para aplicar la migración.
 - Mostrar conteos, errores, conflictos y resultado por colección.
@@ -12,13 +13,14 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-late-ui-bind";
+  var VERSION="1.2.0-redesign-loader";
   var FLAG="__firebaseMigrationUIBound";
   var busy=false;
   var preview=null;
   var bindTimer=null;
   var bindAttempts=0;
   var MAX_BIND_ATTEMPTS=150;
+  var scriptBase=document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
 
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
@@ -33,6 +35,31 @@ Función:
       item.innerHTML="<strong>Migración V2</strong><span>"+esc(message)+"</span>";
       box.insertBefore(item,box.firstChild);
     }
+  }
+  function redesignUrl(){try{return new URL("bdl.firebase.redesign.js",scriptBase).href;}catch(error){return "./firebase/bdl.firebase.redesign.js";}}
+  function loadRedesign(){
+    if(window.RequisitosFirebaseRedesign){
+      if(typeof window.RequisitosFirebaseRedesign.refresh==="function"){window.RequisitosFirebaseRedesign.refresh();}
+      return Promise.resolve(window.RequisitosFirebaseRedesign);
+    }
+    var url=redesignUrl();
+    var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){return script.src===url||script.getAttribute("data-bdl-redesign-src")===url;});
+    if(existing){
+      return new Promise(function(resolve){
+        if(window.RequisitosFirebaseRedesign){resolve(window.RequisitosFirebaseRedesign);return;}
+        existing.addEventListener("load",function(){resolve(window.RequisitosFirebaseRedesign||null);},{once:true});
+        window.setTimeout(function(){resolve(window.RequisitosFirebaseRedesign||null);},1800);
+      });
+    }
+    return new Promise(function(resolve){
+      var script=document.createElement("script");
+      script.src=url;
+      script.async=false;
+      script.setAttribute("data-bdl-redesign-src",url);
+      script.onload=function(){resolve(window.RequisitosFirebaseRedesign||null);};
+      script.onerror=function(){resolve(null);};
+      (document.head||document.documentElement).appendChild(script);
+    });
   }
   function ensureReady(timeoutMs){
     timeoutMs=Math.max(1000,Number(timeoutMs||10000));var started=Date.now();
@@ -54,14 +81,15 @@ Función:
     panel.id="bl2-firebase-migration-panel";
     panel.className="bdlc-card";
     panel.innerHTML=
-      '<div class="bdlc-section-heading"><div><span class="bdlc-kicker">Migración no destructiva</span><h3>Actualizar colecciones antiguas</h3><p>La vista previa crea un respaldo local antes de habilitar la migración. Estudiantes y EstudiantesPeriodo no se eliminan.</p></div></div>'+
-      '<div class="bdlc-actions">'+
-        '<button id="bl2-btn-migration-preview" class="bdlc-button primary" type="button">Crear vista previa y respaldo</button>'+
-        '<button id="bl2-btn-migration-apply" class="bdlc-button danger" type="button" disabled>Aplicar migración V2</button>'+
-      '</div>'+
-      '<div id="bl2-firebase-migration-status" class="bdlc-placeholder"><strong>Sin vista previa</strong><span>No se ha leído ni modificado información legacy.</span></div>'+
+      '<div class="bdlc-section-heading"><div><span class="bdlc-kicker">Migración no destructiva</span><h3>Actualizar colecciones antiguas</h3><p>La vista previa crea un respaldo local antes de habilitar la migración. Estudiantes y EstudiantesPeriodo no se eliminan.</p></div></div>'+ 
+      '<div class="bdlc-actions">'+ 
+        '<button id="bl2-btn-migration-preview" class="bdlc-button primary" type="button">Crear vista previa y respaldo</button>'+ 
+        '<button id="bl2-btn-migration-apply" class="bdlc-button danger" type="button" disabled>Aplicar migración V2</button>'+ 
+      '</div>'+ 
+      '<div id="bl2-firebase-migration-status" class="bdlc-placeholder"><strong>Sin vista previa</strong><span>No se ha leído ni modificado información legacy.</span></div>'+ 
       '<div id="bl2-firebase-migration-result"></div>';
     host.appendChild(panel);
+    loadRedesign().then(function(redesign){if(redesign&&typeof redesign.apply==="function"){redesign.apply();}});
     return panel;
   }
   function setBusy(value,message){
@@ -157,6 +185,7 @@ Función:
     if(applyButton){applyButton.addEventListener("click",function(event){event.preventDefault();applyMigration().catch(function(error){log(error.message||String(error),"error");window.alert(error.message||String(error));setBusy(false);});});}
     window[FLAG]=true;
     if(bindTimer){window.clearTimeout(bindTimer);bindTimer=null;}
+    loadRedesign();
     return window.RequisitosFirebaseMigrationUI;
   }
 
@@ -171,9 +200,10 @@ Función:
   };
 
   ["DOMContentLoaded","bdlocal:bl2-html-scripts-loaded","requisitos:arquitectura-compartida-lista"].forEach(function(eventName){
-    window.addEventListener(eventName,function(){scheduleBind(50);},{once:true});
+    window.addEventListener(eventName,function(){loadRedesign();scheduleBind(50);},{once:true});
   });
 
+  loadRedesign();
   bind();
   scheduleBind(100);
 })(window,document);
