@@ -90,9 +90,10 @@ new vm.Script(source,{filename:"Carga/process/carga.save.js"}).runInContext(cont
     Notart:"",
     CorreoPersonal:""
   }],{periodoId:"2026-04__2026-09"},{});
-  check(explicit[0].Financiero==="","Un campo presente y vacío no debe ser reemplazado por el valor anterior");
-  check(explicit[0].Notart==="","Una nota explícitamente vacía no debe restaurarse automáticamente");
-  check(explicit[0].CorreoPersonal==="","Un contacto explícitamente vacío no debe restaurarse automáticamente");
+  check(explicit[0].Financiero==="","Un requisito presente y vacío no debe restaurarse automáticamente");
+  check(explicit[0].Notart==="","Una nota presente y vacía no debe restaurarse automáticamente");
+  check(explicit[0].CorreoPersonal==="anterior@example.com","CorreoPersonal vacío debe conservar el correo existente");
+  check(explicit[0]._correoPersonalPreservado===true,"La fila debe indicar que protegió CorreoPersonal");
 
   if(errors.length){
     console.error("\nVERIFICACIÓN CARGA V2: ERROR\n");
