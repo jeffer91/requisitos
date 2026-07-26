@@ -3,7 +3,7 @@ Nombre completo: carga.ui.connector.js
 Ruta o ubicación: /Carga/carga.ui.connector.js
 Función o funciones:
 - Controlar la pantalla Carga mediante CargaApp y ConCarga.
-- Mostrar progreso real de lectura, análisis y guardado.
+- Mostrar progreso real, continuo y sin retrocesos.
 - Usar BDLocal como fuente oficial de períodos.
 - Renderizar textos sin insertar HTML proveniente de archivos.
 ========================================================= */
@@ -21,6 +21,7 @@ Función o funciones:
   var analyzedPeriodId="";
   var busy=false;
   var progressHideTimer=null;
+  var progressValue=0;
 
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
@@ -65,17 +66,26 @@ Función o funciones:
     [els.create,els.analyze,els.save,els.clear,els.divButton,els.deleteStudents,els.deletePeriod].forEach(function(button){if(button){button.disabled=busy;}});
     if(message){setText("cargaEstadoPill",message);}updateControls();
   }
+  function displayProgress(detail){
+    detail=detail||{};
+    var raw=Math.max(0,Math.min(100,Number(detail.percent)||0));
+    return detail.phase==="reading"?raw*0.5:raw;
+  }
   function setProgress(detail){
-    detail=detail||{};var percent=Math.max(0,Math.min(100,Number(detail.percent)||0));
+    detail=detail||{};
+    if(detail.reset===true){progressValue=0;}
+    var percent=displayProgress(detail);
+    if(detail.phase!=="error"){percent=Math.max(progressValue,percent);}
+    progressValue=Math.max(0,Math.min(100,percent));
     if(!els.progressBox){return;}
     clearTimeout(progressHideTimer);show(els.progressBox);
-    if(els.progressBar){els.progressBar.value=percent;}
-    if(els.progressPercent){els.progressPercent.textContent=Math.round(percent)+"%";els.progressPercent.className="carga-chip "+(percent>=100?"is-ok":"is-warn");}
+    if(els.progressBar){els.progressBar.value=progressValue;}
+    if(els.progressPercent){els.progressPercent.textContent=Math.round(progressValue)+"%";els.progressPercent.className="carga-chip "+(progressValue>=100?"is-ok":"is-warn");}
     if(els.progressText){els.progressText.textContent=text(detail.message||"Procesando archivo...");}
-    if(percent>=100){progressHideTimer=setTimeout(function(){hide(els.progressBox);},1200);}
+    if(progressValue>=100){progressHideTimer=setTimeout(function(){hide(els.progressBox);},1200);}
   }
   function resetProgress(){
-    clearTimeout(progressHideTimer);hide(els.progressBox);
+    progressValue=0;clearTimeout(progressHideTimer);hide(els.progressBox);
     if(els.progressBar){els.progressBar.value=0;}if(els.progressPercent){els.progressPercent.textContent="0%";}if(els.progressText){els.progressText.textContent="Preparando archivo...";}
   }
   function appendOption(select,value,label){var option=document.createElement("option");option.value=value;option.textContent=label;select.appendChild(option);}
@@ -126,14 +136,14 @@ Función o funciones:
   function analyze(){
     var period=selectedLoad();if(!period||!selectedFile){showMessage("warning","Selecciona un período y un archivo.");return;}
     if(!window.CargaApp){showMessage("error","CargaApp no está disponible.");return;}
-    setBusy(true,"Analizando");setProgress({percent:0,message:"Preparando archivo..."});
+    setBusy(true,"Analizando");resetProgress();setProgress({percent:0,message:"Preparando archivo...",phase:"reading",reset:true});
     window.CargaApp.readFile(selectedFile,{periodoId:period.id,periodoLabel:period.label,periodoCanonicoId:period.id,periodoCanonicoLabel:period.label,localOnly:true,sync:false})
       .then(function(){renderValidation();return window.CargaApp.compareWithPeriod(period);})
       .then(function(guard){renderGuard(guard);setText("cargaEstadoPill",guard.ok?"Listo para guardar":"Bloqueado");if(els.statusPill){els.statusPill.className="carga-chip "+(guard.ok?"is-ok":"is-danger");}})
       .catch(function(error){showMessage("error",error.message||String(error));invalidate();}).finally(function(){setBusy(false);});
   }
   function save(){
-    var period=selectedLoad();if(!period||!window.CargaApp){return;}setBusy(true,"Guardando");setProgress({percent:0,message:"Preparando guardado..."});
+    var period=selectedLoad();if(!period||!window.CargaApp){return;}setBusy(true,"Guardando");resetProgress();setProgress({percent:0,message:"Preparando guardado...",phase:"saving",reset:true});
     window.CargaApp.save({periodoId:period.id,periodoLabel:period.label,periodoCanonicoId:period.id,periodoCanonicoLabel:period.label,localOnly:true,sync:false,markRetired:true})
       .then(function(result){
         if(!result||result.ok===false){throw new Error(result&&result.message||"La carga no fue guardada.");}
@@ -155,7 +165,7 @@ Función o funciones:
   }
   function onPeriodChange(){
     var period=selectedLoad();if(period){storageSet(LS_PERIODO,period.id);storageSet(LS_LABEL,period.label);}else{try{localStorage.removeItem(LS_PERIODO);localStorage.removeItem(LS_LABEL);}catch(error){}}
-    invalidate();loadSummary(period);emit("bl2:period-change",period?{periodoId:period.id,periodoLabel:period.label,source:"CargaUI-ConCarga"}:{});
+    invalidate();loadSummary(period).catch(function(error){showMessage("error",error.message||"No se pudo actualizar el resumen del período.");});emit("bl2:period-change",period?{periodoId:period.id,periodoLabel:period.label,source:"CargaUI-ConCarga"}:{});
   }
   function deleteStudents(){
     var period=selectedDelete();if(!period||!confirm("¿Borrar todos los estudiantes de "+period.label+"?")){return;}
@@ -188,7 +198,7 @@ Función o funciones:
     if(els.deleteStudents){els.deleteStudents.addEventListener("click",deleteStudents);}if(els.deletePeriod){els.deletePeriod.addEventListener("click",deletePeriod);}
     window.addEventListener("carga:progress",function(event){setProgress(event&&event.detail||{});});
     window.addEventListener("carga:periods-refreshed",function(event){replacePeriods(event&&event.detail&&event.detail.periods||[]);renderSelectors();});
-    window.addEventListener("carga:divisions-saved",function(){refreshPeriods().then(function(){return loadSummary(selectedLoad());});});
+    window.addEventListener("carga:divisions-saved",function(){refreshPeriods().then(function(){return loadSummary(selectedLoad());}).catch(function(error){showMessage("error",error.message||"No se pudo actualizar el resumen de divisiones.");});});
   }
   function fillMonths(select,selected){if(!select){return;}select.replaceChildren();MONTHS.forEach(function(item){appendOption(select,item[0],item[1]);});select.value=selected;}
   function boot(){
@@ -198,6 +208,6 @@ Función o funciones:
     Promise.resolve(wait).then(refreshPeriods).then(function(){var selected=text(storageGet(LS_PERIODO,""));if(els.periodo&&periodById(selected)){els.periodo.value=selected;onPeriodChange();}return loadDeleteSummary(selectedDelete());}).then(function(){showMessage("success","Carga conectada mediante ConCarga.");}).catch(function(error){showMessage("error",error.message||String(error));});
   }
 
-  window.CargaUI={version:"4.0.0-safe-progress",refreshPeriods:refreshPeriods,updateControls:updateControls};
+  window.CargaUI={version:"4.1.0-monotonic-progress",refreshPeriods:refreshPeriods,updateControls:updateControls};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
