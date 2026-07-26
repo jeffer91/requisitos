@@ -22,6 +22,8 @@ Verificaciones completadas correctamente:
 - revisión de sintaxis y estructura de los archivos modificados;
 - auditoría estática completa del repositorio;
 - prueba aislada de Electron e IndexedDB;
-- comprobación de rutas, conexiones y referencias heredadas.
+- comprobación de rutas, conexiones y referencias heredadas;
+- medición temporal con 100.000 filas, conservando la primera y la última fila, todas las filas normalizadas y eventos de progreso;
+- lectura CSV inferior a 10 segundos, normalización inferior a 10 segundos y proceso combinado inferior a 15 segundos en el ejecutor de GitHub Actions.
 
-El flujo temporal utilizado para la comprobación específica fue retirado después de obtener un resultado correcto.
+Los flujos temporales utilizados para las comprobaciones específicas y de rendimiento fueron retirados después de obtener resultados correctos.
