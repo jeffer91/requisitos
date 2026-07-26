@@ -16,4 +16,12 @@ Cambios aplicados según las reglas operativas confirmadas:
 - Los mensajes y selectores dinámicos se renderizan como texto seguro.
 - Se eliminaron controladores y módulos antiguos sin uso.
 
-La rama incluye una verificación temporal de sintaxis que debe eliminarse después de obtener resultado correcto en GitHub Actions.
+Verificaciones completadas correctamente:
+
+- verificación específica del guardado de Carga;
+- revisión de sintaxis y estructura de los archivos modificados;
+- auditoría estática completa del repositorio;
+- prueba aislada de Electron e IndexedDB;
+- comprobación de rutas, conexiones y referencias heredadas.
+
+El flujo temporal utilizado para la comprobación específica fue retirado después de obtener un resultado correcto.
