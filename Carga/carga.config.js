@@ -2,10 +2,10 @@
   "use strict";
 
   window.CargaConfig = {
-    version: "1.0.0",
+    version: "1.1.0",
     maxPreviewRows: 100,
     defaultBatchSize: 250,
-    acceptedExtensions: ["xlsx", "xls", "csv", "txt", "json"],
+    acceptedExtensions: ["xlsx", "xls", "csv", "txt", "json", "html", "htm"],
     estados: {
       idle: "idle",
       reading: "reading",
