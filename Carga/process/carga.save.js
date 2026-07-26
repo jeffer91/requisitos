@@ -6,21 +6,48 @@ Función o funciones:
 - Preservar estados manuales y campos que el archivo no contiene.
 - Preservar CorreoPersonal cuando la columna existe pero llega vacía.
 - Informar por separado el guardado local y el registro de auditoría.
+- Reintentar auditorías pendientes sin repetir estudiantes.
 - Evitar copias completas y cadenas gigantes en cargas grandes.
 ========================================================= */
 (function(window){
   "use strict";
 
   var activeSave=null;
+  var auditRetryTask=null;
   var AUDIT_FALLBACK_KEY="carga.importaciones.pendientes.v1";
   var REQUIREMENT_GROUPS=[
-    ["Academico",["Academico","Académico","academico"]],["Documentacion",["Documentacion","Documentación","documentacion"]],["Financiero",["Financiero","financiero"]],["Titulacion",["Titulacion","Titulación","titulacion"]],["PracticasVinculacion",["PracticasVinculacion","PrácticasVinculacion","Prácticas/Vinculación","Practicas/Vinculacion"]],["Vinculacion",["Vinculacion","Vinculación","vinculacion"]],["SeguimientoGraduados",["SeguimientoGraduados","seguimientoGraduados"]],["Ingles",["Ingles","Inglés","ingles"]],["ActualizacionDatos",["ActualizacionDatos","ActualizaciónDatos","actualizacionDatos"]],["AprobacionTitulacion",["AprobacionTitulacion","AprobaciónTitulacion","aprobacionTitulacion"]],["AprobacionComplexivoProyecto",["AprobacionComplexivoProyecto","AprobaciónComplexivoProyecto","aprobacionComplexivoProyecto"]]
+    ["Academico",["Academico","Académico","academico"]],
+    ["Documentacion",["Documentacion","Documentación","documentacion"]],
+    ["Financiero",["Financiero","financiero"]],
+    ["Titulacion",["Titulacion","Titulación","titulacion"]],
+    ["PracticasVinculacion",["PracticasVinculacion","PrácticasVinculacion","Prácticas/Vinculación","Practicas/Vinculacion"]],
+    ["Vinculacion",["Vinculacion","Vinculación","vinculacion"]],
+    ["SeguimientoGraduados",["SeguimientoGraduados","seguimientoGraduados"]],
+    ["Ingles",["Ingles","Inglés","ingles"]],
+    ["ActualizacionDatos",["ActualizacionDatos","ActualizaciónDatos","actualizacionDatos"]],
+    ["AprobacionTitulacion",["AprobacionTitulacion","AprobaciónTitulacion","aprobacionTitulacion"]],
+    ["AprobacionComplexivoProyecto",["AprobacionComplexivoProyecto","AprobaciónComplexivoProyecto","aprobacionComplexivoProyecto"]]
   ];
   var CONTACT_GROUPS=[
-    ["CorreoPersonal",["CorreoPersonal","correoPersonal","correo_personal"]],["CorreoInstitucional",["CorreoInstitucional","correoInstitucional","correo_institucional"]],["Celular",["Celular","celular","Telefono","Teléfono","telefono"]],["telegramUser",["telegramUser","_telegramUser","usuarioTelegram","telegram"]],["telegramChatId",["telegramChatId","_telegramChatId","chatIdTelegram","chatId"]]
+    ["CorreoPersonal",["CorreoPersonal","correoPersonal","correo_personal"]],
+    ["CorreoInstitucional",["CorreoInstitucional","correoInstitucional","correo_institucional"]],
+    ["Celular",["Celular","celular","Telefono","Teléfono","telefono"]],
+    ["telegramUser",["telegramUser","_telegramUser","usuarioTelegram","telegram"]],
+    ["telegramChatId",["telegramChatId","_telegramChatId","chatIdTelegram","chatId"]]
   ];
   var NOTE_GROUPS=[
-    ["Notart",["Notart","Nart","notart","notaArticulo","NotaArticulo"]],["Notdef",["Notdef","Ndef","notdef","notaDefensa","NotaDefensa"]],["Notafinal",["Notafinal","NotaFinal","Nfinal","notafinal","notaFinal"]],["notaTeorica",["notaTeorica","teorico","NotaTeorica","Nota 1"]],["notaPractica",["notaPractica","practico","NotaPractica","Nota 2"]],["notaComplexivo",["notaComplexivo","complexivo","NotaComplexivo"]],["notaSupletorio",["notaSupletorio","supletorioComplexivo","Supletorio Complexivo"]],["notaEscrito",["notaEscrito","escrito","trabajoEscrito"]],["notaDefensaTrabajo",["notaDefensaTrabajo","defensaTrabajo"]],["notaTrabajoTitulacion",["notaTrabajoTitulacion","trabajoTitulacion"]],["notaOficial",["notaOficial"]],["estadoEvaluacion",["estadoEvaluacion","estadoDefensa","resultadoTitulacion"]]
+    ["Notart",["Notart","Nart","notart","notaArticulo","NotaArticulo"]],
+    ["Notdef",["Notdef","Ndef","notdef","notaDefensa","NotaDefensa"]],
+    ["Notafinal",["Notafinal","NotaFinal","Nfinal","notafinal","notaFinal"]],
+    ["notaTeorica",["notaTeorica","teorico","NotaTeorica","Nota 1"]],
+    ["notaPractica",["notaPractica","practico","NotaPractica","Nota 2"]],
+    ["notaComplexivo",["notaComplexivo","complexivo","NotaComplexivo"]],
+    ["notaSupletorio",["notaSupletorio","supletorioComplexivo","Supletorio Complexivo"]],
+    ["notaEscrito",["notaEscrito","escrito","trabajoEscrito"]],
+    ["notaDefensaTrabajo",["notaDefensaTrabajo","defensaTrabajo"]],
+    ["notaTrabajoTitulacion",["notaTrabajoTitulacion","trabajoTitulacion"]],
+    ["notaOficial",["notaOficial"]],
+    ["estadoEvaluacion",["estadoEvaluacion","estadoDefensa","resultadoTitulacion"]]
   ];
 
   function text(value){return String(value==null?"":value).trim();}
@@ -54,19 +81,32 @@ Función o funciones:
   }
   function fnvUpdate(hash,source){source=String(source==null?"":source);for(var i=0;i<source.length;i+=1){hash^=source.charCodeAt(i);hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);}return hash>>>0;}
   function valueForHash(value){if(value==null){return "";}if(typeof value==="object"){try{return JSON.stringify(value);}catch(error){return String(value);}}return String(value);}
-  function importHash(normalized,prepared,period,options){
-    var explicit=text(options&&options.fileHash||normalized&&normalized.fileHash||normalized&&normalized.archivoHash);if(explicit){return explicit;}
-    var hash=2166136261;hash=fnvUpdate(hash,period.periodoId);hash=fnvUpdate(hash,"|");hash=fnvUpdate(hash,text(normalized&&normalized.fileName));
-    (Array.isArray(prepared)?prepared:[]).forEach(function(row){Object.keys(row||{}).filter(function(key){return key.charAt(0)!=="_"&&["createdAt","updatedAt","ultimaEdicionLocal"].indexOf(key)<0;}).sort().forEach(function(key){hash=fnvUpdate(hash,"|");hash=fnvUpdate(hash,key);hash=fnvUpdate(hash,"=");hash=fnvUpdate(hash,valueForHash(row[key]));});});
-    return (hash>>>0).toString(16);
-  }
+  function importHash(normalized,prepared,period,options){var explicit=text(options&&options.fileHash||normalized&&normalized.fileHash||normalized&&normalized.archivoHash);if(explicit){return explicit;}var hash=2166136261;hash=fnvUpdate(hash,period.periodoId);hash=fnvUpdate(hash,"|");hash=fnvUpdate(hash,text(normalized&&normalized.fileName));(Array.isArray(prepared)?prepared:[]).forEach(function(row){Object.keys(row||{}).filter(function(key){return key.charAt(0)!=="_"&&["createdAt","updatedAt","ultimaEdicionLocal"].indexOf(key)<0;}).sort().forEach(function(key){hash=fnvUpdate(hash,"|");hash=fnvUpdate(hash,key);hash=fnvUpdate(hash,"=");hash=fnvUpdate(hash,valueForHash(row[key]));});});return (hash>>>0).toString(16);}
   function normalizeResult(result,period,rows){result=result||{};var warnings=result.warnings||result.advertencias||[],errors=result.errors||result.errores||[];return Object.assign({},result,{ok:result.ok!==false,engine:"ConCarga",periodoId:period.periodoId,periodoLabel:period.periodoLabel,total:result.total||result.totalEntrada||rows.length,totalEntrada:result.totalEntrada||result.total||rows.length,saved:result.saved||result.guardados||result.nuevos||0,guardados:result.guardados||result.saved||result.nuevos||0,updated:result.updated||result.actualizados||0,actualizados:result.actualizados||result.updated||0,merged:result.merged||result.duplicados||result.duplicadosCorregidos||0,duplicados:result.duplicados||result.merged||result.duplicadosCorregidos||0,warnings:warnings,advertencias:warnings,errors:errors,errores:errors,changes:result.changes||result.cambios||[]});}
   function buildImportRecord(normalized,period,prepared,result,options){return {periodoId:period.periodoId,archivoNombre:text(normalized.fileName||options.fileName||"carga_estudiantes"),archivoHash:importHash(normalized,prepared,period,options),archivoTipo:text(normalized.detectedType||normalized.fileType||options.fileType||"ARCHIVO"),totalFilas:Number(result.totalEntrada||prepared.length),nuevos:Number(result.guardados||0),actualizados:Number(result.actualizados||0),sinCambios:Number(result.sinCambios||0),retirados:Number(result.retirados||0),errores:Array.isArray(result.errores)?result.errores.slice():[],totalDetectados:Number(result.totalEntrada||prepared.length),totalEncontrados:Number(result.guardados||0)+Number(result.actualizados||0)+Number(result.sinCambios||0),totalNoEncontrados:0,totalDuplicados:Number(result.duplicados||0),totalConflictos:0,totalGuardados:Number(result.guardados||0)+Number(result.actualizados||0),estado:result.ok===false?"ERROR":"PROCESADA",source:"CARGA_ARCHIVO",tipo:"ARCHIVO_ESTUDIANTES",usuario:text(options.usuario||options.user||""),createdAt:text(result.finishedAt)||new Date().toISOString()};}
-  function queueAuditFallback(record,error){try{var current=[];try{current=JSON.parse(localStorage.getItem(AUDIT_FALLBACK_KEY)||"[]");}catch(parseError){current=[];}current=Array.isArray(current)?current:[];var id=record.archivoHash+"__"+record.periodoId;current=current.filter(function(item){return item&&item._fallbackId!==id;});current.push(Object.assign({},record,{_fallbackId:id,_error:text(error&&error.message||error),_queuedAt:new Date().toISOString()}));localStorage.setItem(AUDIT_FALLBACK_KEY,JSON.stringify(current.slice(-100)));return true;}catch(storageError){return false;}}
+  function readAuditQueue(){try{var current=JSON.parse(localStorage.getItem(AUDIT_FALLBACK_KEY)||"[]");return Array.isArray(current)?current:[];}catch(error){return [];}}
+  function writeAuditQueue(rows){try{rows=Array.isArray(rows)?rows:[];if(rows.length){localStorage.setItem(AUDIT_FALLBACK_KEY,JSON.stringify(rows.slice(-100)));}else{localStorage.removeItem(AUDIT_FALLBACK_KEY);}return true;}catch(error){return false;}}
+  function queueAuditFallback(record,error){var current=readAuditQueue(),id=record.archivoHash+"__"+record.periodoId;current=current.filter(function(item){return item&&item._fallbackId!==id;});current.push(Object.assign({},record,{_fallbackId:id,_error:text(error&&error.message||error),_queuedAt:new Date().toISOString()}));return writeAuditQueue(current);}
+  function auditRecord(item){var record=Object.assign({},item||{});delete record._fallbackId;delete record._error;delete record._queuedAt;return record;}
   function registerImport(con,record,result){if(!con||typeof con.saveImport!=="function"){return Promise.reject(new Error("ConCarga no permite registrar la importación."));}return con.saveImport(record).then(function(saved){result.importacion=saved;result.importacionId=saved&&saved.id||"";result.auditOk=true;return saved;});}
+  function retryPendingAudits(){
+    if(auditRetryTask){return auditRetryTask;}
+    var pending=readAuditQueue();
+    if(!pending.length){return Promise.resolve({ok:true,total:0,saved:0,pending:0});}
+    auditRetryTask=ensureConnector().then(function(con){
+      if(typeof con.saveImport!=="function"){throw new Error("ConCarga no permite reintentar auditorías.");}
+      var remaining=[],saved=0,task=Promise.resolve();
+      pending.forEach(function(item){task=task.then(function(){return con.saveImport(auditRecord(item)).then(function(){saved+=1;}).catch(function(error){remaining.push(Object.assign({},item,{_error:text(error&&error.message||error),_queuedAt:new Date().toISOString()}));});});});
+      return task.then(function(){writeAuditQueue(remaining);var result={ok:remaining.length===0,total:pending.length,saved:saved,pending:remaining.length};emit("bdlocal:carga-audit-retry",Object.assign({},result,{at:new Date().toISOString()}));return result;});
+    }).catch(function(error){emit("bdlocal:carga-audit-retry",{ok:false,total:pending.length,saved:0,pending:pending.length,error:text(error&&error.message||error),at:new Date().toISOString()});return {ok:false,total:pending.length,saved:0,pending:pending.length,error:text(error&&error.message||error)};}).finally(function(){auditRetryTask=null;});
+    return auditRetryTask;
+  }
   function executeSave(normalized,validation,options){
     normalized=normalized||{};validation=validation||{};options=localOptions(options||{});var rows=rowsFromNormalized(normalized),period=selectedPeriod(normalized,options),prepared=[],activeConnector=null;
-    if(!rows.length){return Promise.resolve({ok:false,total:0,saved:0,updated:0,merged:0,message:"No existen estudiantes para guardar."});}if(validation.ok===false&&options.allowErrors!==true){return Promise.resolve({ok:false,total:rows.length,saved:0,updated:0,merged:0,errors:validation.errors||[],warnings:validation.warnings||[],message:"La carga tiene errores y no fue guardada."});}if(!period.valid){return Promise.resolve({ok:false,total:rows.length,saved:0,updated:0,merged:0,message:"Selecciona un período antes de guardar."});}try{validateAnalysis(options.analysis,period);}catch(error){return Promise.resolve({ok:false,total:rows.length,saved:0,updated:0,merged:0,message:error.message||String(error)});}
+    if(!rows.length){return Promise.resolve({ok:false,total:0,saved:0,updated:0,merged:0,message:"No existen estudiantes para guardar."});}
+    if(validation.ok===false&&options.allowErrors!==true){return Promise.resolve({ok:false,total:rows.length,saved:0,updated:0,merged:0,errors:validation.errors||[],warnings:validation.warnings||[],message:"La carga tiene errores y no fue guardada."});}
+    if(!period.valid){return Promise.resolve({ok:false,total:rows.length,saved:0,updated:0,merged:0,message:"Selecciona un período antes de guardar."});}
+    try{validateAnalysis(options.analysis,period);}catch(error){return Promise.resolve({ok:false,total:rows.length,saved:0,updated:0,merged:0,message:error.message||String(error)});}
     prepared=rows.map(function(row){return injectPeriod(row,period);});progress(5,"Preparando "+prepared.length+" estudiantes");emit("bdlocal:carga-save-start",{total:prepared.length,periodoId:period.periodoId,periodoLabel:period.periodoLabel,source:"ConCarga",at:new Date().toISOString()});
     return ensureConnector().then(function(con){activeConnector=con;progress(15,"Protegiendo información existente");return preserveExistingFields(con,prepared,period,options).then(function(finalRows){prepared=finalRows;progress(35,"Guardando estudiantes en BDLocal");var task=typeof con.saveStudents==="function"?con.saveStudents(prepared,Object.assign({},options,period,{normalized:true,source:options.source||"carga_excel",fileName:normalized.fileName||"",origen:normalized.origen||"",markRetired:options.markRetired===true})):con.guardarEstudiantes(prepared,period,options);return Promise.resolve(task);});}).then(function(result){
       var finalResult=normalizeResult(result,period,prepared);if(finalResult.ok===false){return finalResult;}progress(82,"Estudiantes guardados. Registrando auditoría");var record=buildImportRecord(normalized,period,prepared,finalResult,options);
@@ -75,5 +115,12 @@ Función o funciones:
   }
   function save(normalized,validation,options){if(activeSave){return activeSave;}activeSave=executeSave(normalized,validation,options).finally(function(){activeSave=null;});return activeSave;}
 
-  window.CargaSave={version:"3.1.0-low-memory",save:save,isSaving:function(){return !!activeSave;},helpers:{selectedPeriod:selectedPeriod,injectPeriod:injectPeriod,normalizeCedula:normalizeCedula,validateAnalysis:validateAnalysis,ensureDependencies:ensureConnector,preserveManualEnrollment:preserveExistingFields,preserveExistingFields:preserveExistingFields,preserveBlankPersonalEmail:preserveBlankPersonalEmail,hasField:hasField,importHash:importHash,queueAuditFallback:queueAuditFallback}};
+  window.CargaSave={
+    version:"3.2.0-audit-retry",
+    save:save,
+    retryPendingAudits:retryPendingAudits,
+    pendingAuditCount:function(){return readAuditQueue().length;},
+    isSaving:function(){return !!activeSave;},
+    helpers:{selectedPeriod:selectedPeriod,injectPeriod:injectPeriod,normalizeCedula:normalizeCedula,validateAnalysis:validateAnalysis,ensureDependencies:ensureConnector,preserveManualEnrollment:preserveExistingFields,preserveExistingFields:preserveExistingFields,preserveBlankPersonalEmail:preserveBlankPersonalEmail,hasField:hasField,importHash:importHash,queueAuditFallback:queueAuditFallback,readAuditQueue:readAuditQueue,writeAuditQueue:writeAuditQueue}
+  };
 })(window);

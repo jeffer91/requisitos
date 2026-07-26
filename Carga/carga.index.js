@@ -5,6 +5,7 @@ Función o funciones:
 - Preparar BDLocal, cone.carga.js y sus operaciones exclusivas.
 - Exponer una única preparación del conector para la interfaz.
 - Evitar refrescos duplicados durante el arranque.
+- Reintentar auditorías pendientes después de recuperar la conexión.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -42,10 +43,18 @@ Función o funciones:
   function refreshPeriods(){
     return ensureConnector().then(function(con){return typeof con.getPeriods==="function"?con.getPeriods():typeof con.listPeriods==="function"?con.listPeriods():[];}).then(function(periods){periods=Array.isArray(periods)?periods:[];emit("carga:periods-refreshed",{ok:true,source:"ConCarga",periods:periods,total:periods.length,at:new Date().toISOString()});return periods;});
   }
+  function retryAudits(){
+    if(!window.CargaSave||typeof window.CargaSave.retryPendingAudits!=="function"){return Promise.resolve({ok:true,total:0,saved:0,pending:0});}
+    return window.CargaSave.retryPendingAudits().then(function(result){result=result||{};if(Number(result.saved||0)>0||Number(result.pending||0)>0){emit("carga:audit-recovery",Object.assign({source:"CargaConnectionIndex",at:new Date().toISOString()},result));}return result;});
+  }
   function boot(){
-    ensureConnector().then(function(con){emit("carga:bdlocal-ready",{ok:true,source:"ConCarga",status:typeof con.status==="function"?con.status():{},at:new Date().toISOString()});emit("carga:connection-ready",{ok:true,source:"ConCarga",app:window.CargaApp&&window.CargaApp.version||"",ui:window.CargaUI&&window.CargaUI.version||"",at:new Date().toISOString()});}).catch(function(error){emit("carga:bdlocal-error",{ok:false,source:"ConCarga",error:error.message||String(error),at:new Date().toISOString()});});
+    ensureConnector().then(function(con){
+      emit("carga:bdlocal-ready",{ok:true,source:"ConCarga",status:typeof con.status==="function"?con.status():{},at:new Date().toISOString()});
+      emit("carga:connection-ready",{ok:true,source:"ConCarga",app:window.CargaApp&&window.CargaApp.version||"",ui:window.CargaUI&&window.CargaUI.version||"",at:new Date().toISOString()});
+      return retryAudits();
+    }).catch(function(error){emit("carga:bdlocal-error",{ok:false,source:"ConCarga",error:error.message||String(error),at:new Date().toISOString()});});
   }
 
-  window.CargaConnectionIndex={version:"4.0.0-single-boot",ensureConnector:ensureConnector,refreshPeriods:refreshPeriods};
+  window.CargaConnectionIndex={version:"4.1.0-audit-recovery",ensureConnector:ensureConnector,refreshPeriods:refreshPeriods,retryAudits:retryAudits};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
