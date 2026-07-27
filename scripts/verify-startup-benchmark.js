@@ -43,13 +43,14 @@ check(runtime.includes("--startedAt="),"La sonda recibe la hora real de apertura
 check(runtime.includes("rendererAvailable"),"La sonda registra la disponibilidad del renderer.");
 check(runtime.includes("indexedDBOpen"),"La sonda registra la apertura de IndexedDB.");
 check(runtime.includes("conCargaReady")&&runtime.includes("periodsReady"),"La sonda exige ConCarga y períodos listos.");
+check(runtime.includes("127.0.0.1"),"La única consulta HTTP de la sonda apunta a DevTools local.");
 check(powershell.includes("[int]$Repeticiones = 1"),"PowerShell permite repetir la medición.");
 check(powershell.includes("--remote-debugging-port=$CurrentPort"),"PowerShell abre Electron con DevTools remoto.");
 check(powershell.includes("Export-Csv"),"PowerShell guarda un resumen comparable.");
 check(packageJson.scripts["diagnostico:tiempo-base"],"package.json expone diagnostico:tiempo-base.");
 check(packageJson.scripts["test:startup-benchmark"],"package.json expone la verificación del benchmark.");
 
-const forbidden=[
+const metricsForbidden=[
   /\bfetch\s*\(/,
   /firebase\.initialize/i,
   /supabase\.createClient/i,
@@ -57,9 +58,21 @@ const forbidden=[
   /BDLSyncV2\.request/i,
   /\.sync\s*\(/
 ];
-for(const expression of forbidden){
+for(const expression of metricsForbidden){
   check(!expression.test(metricsSource),`Las métricas no usan ${expression}.`);
-  check(!expression.test(runtime),`La sonda no usa ${expression}.`);
+}
+
+const runtimeForbidden=[
+  /firebase\.initialize/i,
+  /supabase\.createClient/i,
+  /google\.script/i,
+  /BDLSyncV2\.request/i,
+  /ConexionesExternas.*(?:push|pull|sync)/i,
+  /BDLSyncV2.*(?:push|pull|sync)/i
+];
+for(const expression of runtimeForbidden){
+  check(!expression.test(runtime),`La sonda no ejecuta ${expression}.`);
+  check(!expression.test(powershell),`PowerShell no ejecuta ${expression}.`);
 }
 
 class FakeCustomEvent{
