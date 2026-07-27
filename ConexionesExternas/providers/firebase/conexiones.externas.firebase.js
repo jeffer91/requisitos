@@ -49,7 +49,7 @@ Función:
 
     return Promise.resolve(value).then(function(detail){
       return {
-        ok:available,
+        ok:connected,
         target:"firebase",
         label:"Firebase",
         manualOnly:true,
@@ -69,7 +69,7 @@ Función:
     if(current&&typeof current.updateConnectionStatus==="function"){
       current.updateConnectionStatus("firebase",{
         connected:!!connected,
-        status:status|| (connected?"ok":"error"),
+        status:status||(connected?"ok":"error"),
         lastError:error||""
       });
     }
