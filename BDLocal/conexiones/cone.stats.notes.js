@@ -4,11 +4,15 @@ Ruta: /BDLocal/conexiones/cone.stats.notes.js
 Función:
 - Extender ConStats con lectura de notas_titulacion.
 - Mantener repositorios internos fuera de la pantalla Stats.
+- Resolver la ruta del repositorio desde la ubicación real del conector.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-connector-notes";
+  var VERSION="1.1.0-stable-script-base";
+  var scriptBase=document.currentScript&&document.currentScript.src
+    ?document.currentScript.src
+    :document.baseURI;
   var state={loading:null,reads:0,error:"",loadedAt:""};
 
   function connector(){return window.ConStats||window.BDLocalStats||null;}
@@ -19,8 +23,7 @@ Función:
         :null
     );
   }
-  function base(){return document.currentScript&&document.currentScript.src||document.baseURI;}
-  function repoUrl(){try{return new URL("../repositories/bdl.repo.notas.js",base()).href;}catch(error){return "../repositories/bdl.repo.notas.js";}}
+  function repoUrl(){try{return new URL("../repositories/bdl.repo.notas.js",scriptBase).href;}catch(error){return "../repositories/bdl.repo.notas.js";}}
   function existing(url){return Array.prototype.slice.call(document.scripts||[]).some(function(item){return item.src===url||item.getAttribute("data-stats-notes-src")===url;});}
   function waitRepo(){
     var started=Date.now();
