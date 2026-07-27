@@ -4,7 +4,7 @@ Ruta o ubicación: /Requisitos/Maqueta/maq-config-service.js
 Función o funciones:
 - Construir el menú superior de Requisitos en el orden definido.
 - Mantener Carga como pantalla inicial.
-- Mantener BL como pantalla de control de BDLocal y Firebase.
+- Mostrar una sola entrada Centro de datos para Base Local y conexiones externas.
 - Incluir los módulos activos de requisitos, estadísticas y titulación.
 - Excluir del menú superior el grupo antiguo Títulos.
 Con qué se conecta:
@@ -15,7 +15,7 @@ Con qué se conecta:
   "use strict";
   var ORDER=[
     {tipo:"modulo",moduloId:"carga_excel",etiqueta:"Carga"},
-    {tipo:"modulo",moduloId:"baselocal",etiqueta:"BL"},
+    {tipo:"modulo",moduloId:"baselocal",etiqueta:"Centro de datos"},
     {tipo:"modulo",moduloId:"tabla_principal",etiqueta:"tabla"},
     {tipo:"modulo",moduloId:"ficha_estudiante",etiqueta:"Ficha"},
     {tipo:"modulo",moduloId:"stat_main",etiqueta:"Stats"},
