@@ -37,16 +37,19 @@ check(
 );
 check(metricsSource.includes('"carga:bdlocal-ready"'),"Se registra la confirmación de Base Local.");
 check(metricsSource.includes('"carga:connection-ready"'),"Se registra la confirmación de ConCarga.");
-check(metricsSource.includes('"carga:periods-refreshed"'),"Se registra la lectura inicial de períodos.");
+check(metricsSource.includes('"carga:periods-refreshed"'),"Se registra la lectura inicial de períodos cuando está disponible.");
 check(metricsSource.includes("window.CargaStartupMetrics"),"Se expone CargaStartupMetrics.");
 check(runtime.includes("--startedAt="),"La sonda recibe la hora real de apertura del proceso.");
 check(runtime.includes("rendererAvailable"),"La sonda registra la disponibilidad del renderer.");
 check(runtime.includes("indexedDBOpen"),"La sonda registra la apertura de IndexedDB.");
-check(runtime.includes("conCargaReady")&&runtime.includes("periodsReady"),"La sonda exige ConCarga y períodos listos.");
+check(runtime.includes("baseLocalReady")&&runtime.includes("conCargaReady"),"La sonda exige Base Local y ConCarga listos.");
+check(runtime.includes("periodsReady"),"La lectura de períodos queda como hito adicional.");
+check(runtime.includes("report.milestones.baseLocalReady!=null&&report.milestones.conCargaReady!=null"),"El tiempo total no depende de tareas visuales secundarias.");
 check(runtime.includes("127.0.0.1"),"La única consulta HTTP de la sonda apunta a DevTools local.");
 check(powershell.includes("[int]$Repeticiones = 1"),"PowerShell permite repetir la medición.");
 check(powershell.includes("--remote-debugging-port=$CurrentPort"),"PowerShell abre Electron con DevTools remoto.");
 check(powershell.includes("Export-Csv"),"PowerShell guarda un resumen comparable.");
+check(powershell.includes("Requisitos ya está abierto"),"La prueba protege una sesión ya abierta.");
 check(packageJson.scripts["diagnostico:tiempo-base"],"package.json expone diagnostico:tiempo-base.");
 check(packageJson.scripts["test:startup-benchmark"],"package.json expone la verificación del benchmark.");
 
