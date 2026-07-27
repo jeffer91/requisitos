@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="1.1.0-verified-connections";
+  var VERSION="1.2.0-live-test-bridge";
 
   function C(){return window.ConexionesExternasContract||null;}
   function registry(){return window.ConexionesExternasProviders||null;}
@@ -68,9 +68,11 @@ Función:
       var configuredCount=providers.filter(function(item){return item&&item.configured===true;}).length;
       var connectedCount=providers.filter(function(item){return item&&item.connected===true;}).length;
       var availableCount=providers.filter(function(item){return item&&item.available===true;}).length;
+      var verifiedConfigured=configuredCount===connectedCount;
       var report={
-        ok:modulesReady,
+        ok:modulesReady&&verifiedConfigured,
         modulesReady:modulesReady,
+        connectionsVerified:configuredCount>0&&verifiedConfigured,
         version:VERSION,
         namespace:"ConexionesExternas",
         manualOnly:true,
@@ -114,6 +116,7 @@ Función:
         manualOnly:true,
         automatic:false,
         results:results,
+        message:results.map(function(item){return (item&&item.target||"proveedor")+": "+(item&&item.ok===true?"OK":"Error");}).join(", "),
         at:C().now()
       };
     });
@@ -187,6 +190,16 @@ Función:
     usage:usage
   };
 
+  function installLegacyTestBridge(){
+    var manager=window.BDLocalSyncManager||null;
+    if(!manager||manager.__conexionesExternasLiveTests){return false;}
+    manager.testFirebase=function(){return api.test("firebase",{source:"BDLocalSyncManager.testFirebase"});};
+    manager.testAll=function(){return api.testAll({source:"BDLocalSyncManager.testAll"});};
+    manager.__conexionesExternasLiveTests=true;
+    return true;
+  }
+
   window.ConexionesExternas=api;
+  installLegacyTestBridge();
   C().dispatch(C().EVENTS.READY,{ok:true,version:VERSION,providers:api.listProviders(),manualOnly:true,automatic:false,at:C().now()});
 })(window);
