@@ -39,7 +39,7 @@ Función:
         :"Supabase no está completamente configurado.";
 
     return Promise.resolve({
-      ok:available,
+      ok:connected,
       target:"supabase",
       label:"Supabase",
       manualOnly:true,
