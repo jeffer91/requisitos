@@ -6,7 +6,7 @@
 # - Medir desde el inicio del proceso hasta que Base Local y ConCarga estén listos.
 # - Repetir la prueba y calcular mínimo, promedio y máximo.
 # - Guardar reportes JSON, logs y un resumen CSV.
-# - No ejecutar sincronizaciones externas.
+# - No ejecutar sincronizaciones externas ni cerrar sesiones ajenas sin aviso.
 # =========================================================
 [CmdletBinding()]
 param(
@@ -30,18 +30,20 @@ $Probe = Join-Path $PSScriptRoot "medir-carga-base-runtime.js"
 $Output = Join-Path $Root ("artifacts\tiempo-carga-base-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
 $SummaryCsv = Join-Path $Output "resumen.csv"
 $SummaryTxt = Join-Path $Output "RESUMEN.txt"
+$NodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
 
-function Stop-RequisitosElectron {
+function Get-RequisitosElectron {
   try {
-    Get-CimInstance Win32_Process -Filter "Name='electron.exe'" |
-      Where-Object {
-        $_.CommandLine -and
-        $_.CommandLine.IndexOf($Root, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-      } |
-      ForEach-Object {
-        try { & taskkill.exe /PID ([int]$_.ProcessId) /T /F 2>$null | Out-Null } catch {}
-      }
-  } catch {}
+    return @(
+      Get-CimInstance Win32_Process -Filter "Name='electron.exe'" |
+        Where-Object {
+          $_.CommandLine -and
+          $_.CommandLine.IndexOf($Root, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
+    )
+  } catch {
+    return @()
+  }
 }
 
 function Stop-ProcessTree {
@@ -71,6 +73,14 @@ if (-not (Test-Path $Electron)) {
 if (-not (Test-Path $Probe)) {
   throw "No se encontró scripts/medir-carga-base-runtime.js"
 }
+if (-not $NodeCommand) {
+  throw "No se encontró node.exe en el PATH."
+}
+
+$Existing = Get-RequisitosElectron
+if ($Existing.Count -gt 0) {
+  throw "Requisitos ya está abierto. Ciérrelo completamente antes de iniciar la medición para obtener un arranque limpio."
+}
 
 New-Item -ItemType Directory -Path $Output -Force | Out-Null
 $Rows = [System.Collections.Generic.List[object]]::new()
@@ -87,8 +97,11 @@ for ($Run = 1; $Run -le $Repeticiones; $Run += 1) {
   Write-Host ""
   Write-Host ("=== PRUEBA {0} DE {1} ===" -f $Run, $Repeticiones) -ForegroundColor Cyan
 
-  Stop-RequisitosElectron
-  Start-Sleep -Milliseconds 500
+  if ((Get-RequisitosElectron).Count -gt 0) {
+    throw "Existe una instancia anterior de Requisitos. Cierre la aplicación y vuelva a ejecutar la prueba."
+  }
+
+  Start-Sleep -Milliseconds 350
 
   $CurrentPort = $Port + $Run - 1
   $StartedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -97,36 +110,44 @@ for ($Run = 1; $Run -le $Repeticiones; $Run += 1) {
   $AppErr = Join-Path $Output ("prueba-{0:00}-app.stderr.log" -f $Run)
   $ProbeOut = Join-Path $Output ("prueba-{0:00}-sonda.stdout.log" -f $Run)
   $ProbeErr = Join-Path $Output ("prueba-{0:00}-sonda.stderr.log" -f $Run)
+  $AppProcess = $null
+  $ProbeExit = -1
 
-  $AppProcess = Start-Process `
-    -FilePath "cmd.exe" `
-    -ArgumentList @(
-      "/d",
-      "/s",
-      "/c",
-      "`"$Electron`" --remote-debugging-port=$CurrentPort ."
-    ) `
-    -WorkingDirectory $Root `
-    -RedirectStandardOutput $AppOut `
-    -RedirectStandardError $AppErr `
-    -PassThru
+  try {
+    $AppProcess = Start-Process `
+      -FilePath "cmd.exe" `
+      -ArgumentList @(
+        "/d",
+        "/s",
+        "/c",
+        "`"$Electron`" --remote-debugging-port=$CurrentPort ."
+      ) `
+      -WorkingDirectory $Root `
+      -RedirectStandardOutput $AppOut `
+      -RedirectStandardError $AppErr `
+      -PassThru
 
-  $ProbeProcess = Start-Process `
-    -FilePath "node.exe" `
-    -ArgumentList @(
-      $Probe,
-      "--port=$CurrentPort",
-      "--timeoutMs=$($TimeoutSeconds * 1000)",
-      "--pollMs=40",
-      "--startedAt=$StartedAt",
-      "--output=$JsonPath"
-    ) `
-    -WorkingDirectory $Root `
-    -RedirectStandardOutput $ProbeOut `
-    -RedirectStandardError $ProbeErr `
-    -NoNewWindow `
-    -Wait `
-    -PassThru
+    $ProbeProcess = Start-Process `
+      -FilePath $NodeCommand.Source `
+      -ArgumentList @(
+        "`"$Probe`"",
+        "--port=$CurrentPort",
+        "--timeoutMs=$($TimeoutSeconds * 1000)",
+        "--pollMs=40",
+        "--startedAt=$StartedAt",
+        "--output=`"$JsonPath`""
+      ) `
+      -WorkingDirectory $Root `
+      -RedirectStandardOutput $ProbeOut `
+      -RedirectStandardError $ProbeErr `
+      -NoNewWindow `
+      -Wait `
+      -PassThru
+
+    $ProbeExit = [int]$ProbeProcess.ExitCode
+  } catch {
+    Write-Host ("No se pudo ejecutar la sonda: " + $_.Exception.Message) -ForegroundColor Red
+  }
 
   $Report = $null
   if (Test-Path $JsonPath) {
@@ -189,16 +210,16 @@ for ($Run = 1; $Run -le $Repeticiones; $Run += 1) {
       ConCargaMs = $null
       PeriodosMs = $null
       TotalMs = $null
-      Error = "La sonda no generó el reporte JSON."
+      Error = "La sonda no generó el reporte JSON. Código: $ProbeExit"
     })
-    Write-Host "La sonda no generó el reporte JSON." -ForegroundColor Red
+    Write-Host ("La sonda no generó el reporte JSON. Código: " + $ProbeExit) -ForegroundColor Red
   }
 
   $KeepThisRun = $MantenerAbierta -and ($Run -eq $Repeticiones)
-  if ($KeepThisRun) {
+  if ($KeepThisRun -and $AppProcess) {
     $OpenProcess = $AppProcess
     Write-Host "La aplicación permanecerá abierta para revisión." -ForegroundColor DarkGray
-  } else {
+  } elseif ($AppProcess) {
     Stop-ProcessTree -ProcessId $AppProcess.Id
   }
 
