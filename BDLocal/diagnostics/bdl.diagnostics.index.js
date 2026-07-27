@@ -5,16 +5,15 @@ Función:
 - Crear el punto de entrada de diagnóstico de BDLocal.
 - Preparar BDLocalPantallas y ConexionesExternas con compatibilidad temporal.
 - Cargar la interfaz final del Centro de datos únicamente en bl2.html.
-- Preparar Ncomplex y mantener el sincronizador seguro de Google Sheets.
+- Preparar Ncomplex sin iniciar operaciones externas automáticas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="0.7.0-centro-datos-ui";
+  var VERSION="0.8.0-manual-external-only";
   var KEY="REQ_BDL_DIAGNOSTICS_V1";
   var currentScript=document.currentScript;
   var scriptBase=currentScript&&currentScript.src?currentScript.src:window.location.href;
-  var autoLoader=null;
   var ncomplexLoader=null;
   var screenLoader=null;
   var pantallasLoader=null;
@@ -255,39 +254,13 @@ Función:
     return ncomplexLoader;
   }
 
-  function startGoogleAutoSync(){
-    if(window.BDLGoogleAutoSync){
-      if(typeof window.BDLGoogleAutoSync.start==="function"){window.BDLGoogleAutoSync.start();}
-      return Promise.resolve(window.BDLGoogleAutoSync);
+  function disableLegacyGoogleAutoSync(){
+    var current=window.BDLGoogleAutoSync||null;
+    if(current&&typeof current.disable==="function"){
+      try{return current.disable("Política manual de Conexiones Externas.");}
+      catch(error){return {ok:false,error:error.message||String(error)};}
     }
-    if(autoLoader){return autoLoader;}
-    autoLoader=new Promise(function(resolve){
-      var existing=document.querySelector('script[data-bdl-google-auto-sync="true"]');
-      if(existing){
-        existing.addEventListener("load",function(){
-          if(window.BDLGoogleAutoSync&&typeof window.BDLGoogleAutoSync.start==="function"){window.BDLGoogleAutoSync.start();}
-          resolve(window.BDLGoogleAutoSync||null);
-        },{once:true});
-        existing.addEventListener("error",function(){resolve(null);},{once:true});
-        return;
-      }
-      var script=document.createElement("script");
-      script.src="sync/bdl.sync.google-auto.js";
-      script.async=false;
-      script.setAttribute("data-bdl-google-auto-sync","true");
-      script.onload=function(){
-        if(window.BDLGoogleAutoSync&&typeof window.BDLGoogleAutoSync.start==="function"){window.BDLGoogleAutoSync.start();}
-        add("google_auto_sync","INFO","Automatización segura de Google Sheets cargada.",window.BDLGoogleAutoSync&&window.BDLGoogleAutoSync.status?window.BDLGoogleAutoSync.status():null);
-        resolve(window.BDLGoogleAutoSync||null);
-      };
-      script.onerror=function(){
-        add("google_auto_sync","ERROR","No se pudo cargar la automatización de Google Sheets.",null);
-        autoLoader=null;
-        resolve(null);
-      };
-      document.body.appendChild(script);
-    });
-    return autoLoader;
+    return {ok:true,loaded:false,manualOnly:true,automatic:false};
   }
 
   window.BDLDiagnostics={
@@ -296,7 +269,7 @@ Función:
     add:add,
     read:read,
     clear:clear,
-    startGoogleAutoSync:startGoogleAutoSync,
+    disableLegacyGoogleAutoSync:disableLegacyGoogleAutoSync,
     startPantallasFacade:startPantallasFacade,
     startExternalConnectionsFacade:startExternalConnectionsFacade,
     startCentroDatosUI:startCentroDatosUI,
@@ -306,12 +279,13 @@ Función:
   };
 
   window.setTimeout(function(){
+    disableLegacyGoogleAutoSync();
     startScreenConnections();
     startNcomplexIntegration().catch(function(){});
   },0);
 
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",function(){
-    startGoogleAutoSync();
+    disableLegacyGoogleAutoSync();
     startScreenConnections();
     startExternalConnectionsFacade()
       .then(function(){return startCentroDatosUI();})

@@ -6,11 +6,12 @@ Función:
 - Unificar Firebase, Supabase y Google Sheets.
 - Mantener operaciones manuales, independientes y con lotes limitados.
 - Delegar temporalmente en los motores existentes sin romper compatibilidad.
+- Diferenciar módulos cargados, proveedores configurados y conexiones verificadas.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-conexiones-externas";
+  var VERSION="1.2.0-live-test-bridge";
 
   function C(){return window.ConexionesExternasContract||null;}
   function registry(){return window.ConexionesExternasProviders||null;}
@@ -63,13 +64,25 @@ Función:
     return Promise.all([Promise.all(operations),syncStatus]).then(function(values){
       var providers=values[0];
       var engine=values[1];
+      var modulesReady=list.length===3;
+      var configuredCount=providers.filter(function(item){return item&&item.configured===true;}).length;
+      var connectedCount=providers.filter(function(item){return item&&item.connected===true;}).length;
+      var availableCount=providers.filter(function(item){return item&&item.available===true;}).length;
+      var verifiedConfigured=configuredCount===connectedCount;
       var report={
-        ok:list.length===3,
+        ok:modulesReady&&verifiedConfigured,
+        modulesReady:modulesReady,
+        connectionsVerified:configuredCount>0&&verifiedConfigured,
         version:VERSION,
         namespace:"ConexionesExternas",
         manualOnly:true,
         automatic:false,
         maxBatchSize:C().MAX_BATCH_SIZE,
+        providerCount:list.length,
+        availableCount:availableCount,
+        configuredCount:configuredCount,
+        connectedCount:connectedCount,
+        allConnected:connectedCount===list.length&&list.length===3,
         paused:!!(sync()&&typeof sync().isPaused==="function"&&sync().isPaused()),
         providers:providers,
         providerRegistry:registry()&&registry().status?registry().status():{},
@@ -87,6 +100,25 @@ Función:
       };
       C().dispatch(C().EVENTS.STATUS_UPDATED,report);
       return report;
+    });
+  }
+
+  function testAll(options){
+    options=options||{};
+    var targets=["firebase","supabase","google"];
+    return targets.reduce(function(chain,name){
+      return chain.then(function(rows){
+        return execute(name,"test",options).then(function(result){rows.push(result);return rows;});
+      });
+    },Promise.resolve([])).then(function(results){
+      return {
+        ok:results.every(function(item){return item&&item.ok===true;}),
+        manualOnly:true,
+        automatic:false,
+        results:results,
+        message:results.map(function(item){return (item&&item.target||"proveedor")+": "+(item&&item.ok===true?"OK":"Error");}).join(", "),
+        at:C().now()
+      };
     });
   }
 
@@ -146,6 +178,7 @@ Función:
     listProviders:function(){return registry()&&registry().list?registry().list():[];},
     provider:function(name){return provider(name);},
     test:function(name,options){return execute(name,"test",options||{});},
+    testAll:testAll,
     pull:function(name,options){return execute(name,"pull",options||{});},
     push:function(name,options){return execute(name,"push",C().manualOptions(options));},
     syncQueue:syncQueue,
@@ -157,6 +190,16 @@ Función:
     usage:usage
   };
 
+  function installLegacyTestBridge(){
+    var manager=window.BDLocalSyncManager||null;
+    if(!manager||manager.__conexionesExternasLiveTests){return false;}
+    manager.testFirebase=function(){return api.test("firebase",{source:"BDLocalSyncManager.testFirebase"});};
+    manager.testAll=function(){return api.testAll({source:"BDLocalSyncManager.testAll"});};
+    manager.__conexionesExternasLiveTests=true;
+    return true;
+  }
+
   window.ConexionesExternas=api;
+  installLegacyTestBridge();
   C().dispatch(C().EVENTS.READY,{ok:true,version:VERSION,providers:api.listProviders(),manualOnly:true,automatic:false,at:C().now()});
 })(window);

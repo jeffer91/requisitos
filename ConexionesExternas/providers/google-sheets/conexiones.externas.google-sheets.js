@@ -5,17 +5,19 @@ Función:
 - Encapsular estado, prueba, subida, descarga y consumo de Google Sheets.
 - Delegar temporalmente en Apps Script y el motor seguro existentes.
 - Mantener todas las operaciones como manuales.
+- Diferenciar módulos disponibles de conexión remota verificada.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-provider-google-sheets";
+  var VERSION="1.1.0-live-manual-test";
 
   function C(){return window.ConexionesExternasContract||null;}
   function registry(){return window.ConexionesExternasProviders||null;}
   function sync(){return window.BDLSyncOrchestrator||null;}
   function puller(){return window.BL2CloudPullSafe||null;}
   function store(){return window.BDLocalConfigStore||null;}
+  function manager(){return window.BDLocalSyncManager||null;}
   function usage(){return window.ConexionesExternasUsage||null;}
 
   function config(){
@@ -28,25 +30,48 @@ Función:
     var target=window.BDLSyncTargets&&typeof window.BDLSyncTargets.get==="function"
       ?window.BDLSyncTargets.get("google")
       :null;
+    var available=!!target&&!!puller();
+    var configured=!!current.enabled&&!!current.appsScriptUrl&&!!current.spreadsheetId;
+    var connected=!!current.connected&&String(current.status||"").toLowerCase()==="ok";
+    var message=connected
+      ?"Conexión verificada manualmente."
+      :configured
+        ?"Configurada; ejecute Probar para verificar Apps Script."
+        :"Google Sheets no está completamente configurado.";
+
     return Promise.resolve({
-      ok:!!target&&!!puller(),
+      ok:connected,
       target:"google",
       label:"Google Sheets",
       manualOnly:true,
       automatic:false,
-      configured:!!current.enabled&&!!current.spreadsheetId,
-      available:!!target&&!!puller(),
+      configured:configured,
+      connected:connected,
+      verified:connected,
+      available:available,
       pulling:!!(puller()&&typeof puller().isPulling==="function"&&puller().isPulling()),
+      message:message,
       detail:current
     });
   }
 
   function test(){
-    return state().then(function(detail){
-      if(detail.configured&&detail.available){
-        return C().success({target:"google",operation:"test",data:detail,message:"Google Sheets está configurado."});
-      }
-      return C().failure({target:"google",operation:"test",blocked:true,data:detail,message:"Google Sheets no está completamente configurado."});
+    var current=manager();
+    if(!current||typeof current.testSheets!=="function"){
+      return Promise.resolve(C().failure({
+        target:"google",
+        operation:"test",
+        blocked:true,
+        message:"La prueba manual de Google Sheets no está disponible."
+      }));
+    }
+
+    return Promise.resolve(current.testSheets()).then(function(result){
+      return result&&result.ok===true
+        ?C().success({target:"google",operation:"test",data:result,message:result.message||"Google Sheets respondió correctamente."})
+        :C().failure({target:"google",operation:"test",data:result,message:result&&result.message||"Google Sheets no respondió correctamente."});
+    }).catch(function(error){
+      return C().failure({target:"google",operation:"test",error:error});
     });
   }
 

@@ -1,6 +1,6 @@
 # Alcance de Base Local
 
-Base Local es el núcleo de datos de la aplicación y continuará siendo la fuente de trabajo principal.
+Base Local es el núcleo operativo de las pantallas y la fuente de trabajo rápida y sin conexión. Firebase conserva el rol de fuente oficial remota cuando está configurado; las pantallas nunca deben conectarse directamente con él.
 
 ## Pertenece a Base Local
 
@@ -27,7 +27,9 @@ Base Local es el núcleo de datos de la aplicación y continuará siendo la fuen
 
 ## Conexiones con pantallas
 
-La carpeta actual `BDLocal/conexiones/` conecta las pantallas con Base Local. No representa las conexiones con internet. Durante el bloque 2 se organizará con un nombre funcional más claro, conservando compatibilidad con las rutas existentes.
+La carpeta histórica `BDLocal/conexiones/` continúa activa únicamente como compatibilidad. La puerta oficial para las pantallas es `BDLocalPantallas`, ubicada en `BDLocal/pantallas/`.
+
+Estas conexiones son internas y no representan conexiones con internet.
 
 ## Regla de operación
 
@@ -35,6 +37,6 @@ La carpeta actual `BDLocal/conexiones/` conecta las pantallas con Base Local. No
 Pantalla → Base Local → cambios_pendientes → Conexiones Externas
 ```
 
-Ninguna reorganización debe impedir que la aplicación trabaje sin conexión a internet.
+Ninguna reorganización debe impedir que la aplicación trabaje sin conexión a internet. Las operaciones hacia Firebase, Supabase y Google Sheets requieren una acción manual y pasan por `ConexionesExternas`.
 
 La definición completa está en `docs/CENTRO_DATOS_BLOQUE_1_ARQUITECTURA.md`.
