@@ -39,7 +39,7 @@ check(metricsSource.includes('"carga:bdlocal-ready"'),"Se registra la confirmaci
 check(metricsSource.includes('"carga:connection-ready"'),"Se registra la confirmación de ConCarga.");
 check(metricsSource.includes('"carga:periods-refreshed"'),"Se registra la lectura inicial de períodos cuando está disponible.");
 check(metricsSource.includes("window.CargaStartupMetrics"),"Se expone CargaStartupMetrics.");
-check(runtime.includes("--startedAt="),"La sonda recibe la hora real de apertura del proceso.");
+check(runtime.includes('arg("startedAt"')&&powershell.includes("--startedAt=$StartedAt"),"La sonda recibe la hora real de apertura del proceso.");
 check(runtime.includes("rendererAvailable"),"La sonda registra la disponibilidad del renderer.");
 check(runtime.includes("indexedDBOpen"),"La sonda registra la apertura de IndexedDB.");
 check(runtime.includes("baseLocalReady")&&runtime.includes("conCargaReady"),"La sonda exige Base Local y ConCarga listos.");
