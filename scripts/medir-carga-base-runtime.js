@@ -3,8 +3,9 @@ Nombre completo: medir-carga-base-runtime.js
 Ruta: /scripts/medir-carga-base-runtime.js
 Función:
 - Conectarse a la aplicación Electron por DevTools remoto.
-- Medir desde el inicio del proceso hasta que Carga y Base Local quedan listas.
-- Registrar hitos sin ejecutar sincronizaciones externas.
+- Medir desde el inicio del proceso hasta que Base Local y ConCarga quedan listos.
+- Registrar la lectura de períodos como hito adicional cuando esté disponible.
+- No ejecutar sincronizaciones externas.
 - Guardar un reporte JSON reutilizable.
 ========================================================= */
 "use strict";
@@ -181,7 +182,8 @@ async function main(){
       const metrics=carga&&carga.metrics;
       if(carga){
         if(carga.readyState==="interactive"||carga.readyState==="complete"){
-          first(report,"cargaDomReady",metrics&&elapsed(metrics.domReadyAt)||snapshot.observedAt-startedAt);
+          const domElapsed=metrics&&elapsed(metrics.domReadyAt);
+          first(report,"cargaDomReady",domElapsed!=null?domElapsed:snapshot.observedAt-startedAt);
         }
         if(carga.globals&&carga.globals.BDLocalScreenDeps&&carga.globals.BL2DB&&carga.globals.BL2Core){
           first(report,"baseScriptsReady",snapshot.observedAt-startedAt);
@@ -192,8 +194,8 @@ async function main(){
         if(metrics&&metrics.periodsReadyAt){first(report,"periodsReady",elapsed(metrics.periodsReadyAt));}
       }
 
-      if(report.milestones.conCargaReady!=null&&report.milestones.periodsReady!=null){
-        report.milestones.complete=Math.max(report.milestones.conCargaReady,report.milestones.periodsReady);
+      if(report.milestones.baseLocalReady!=null&&report.milestones.conCargaReady!=null){
+        report.milestones.complete=Math.max(report.milestones.baseLocalReady,report.milestones.conCargaReady);
         report.ok=true;
         break;
       }
@@ -201,7 +203,7 @@ async function main(){
     }
 
     if(!report.ok){
-      report.error="La aplicación no confirmó ConCarga y la lectura de períodos dentro del tiempo límite.";
+      report.error="La aplicación no confirmó Base Local y ConCarga dentro del tiempo límite.";
     }
   }catch(error){
     report.error=error&&error.stack||error&&error.message||String(error);
