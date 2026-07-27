@@ -5,13 +5,14 @@ Función:
 - Crear el punto de entrada de diagnóstico de BDLocal.
 - Cargar ConBaseLocal y el mapa uno-a-uno de pantallas.
 - Preparar la API oficial BDLocalPantallas con compatibilidad temporal.
+- Preparar la API oficial ConexionesExternas con compatibilidad temporal.
 - Preparar de forma no destructiva Ncomplex.
 - Mantener el sincronizador automático seguro de Google Sheets.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="0.5.0-base-local-pantallas";
+  var VERSION="0.6.0-conexiones-externas";
   var KEY="REQ_BDL_DIAGNOSTICS_V1";
   var currentScript=document.currentScript;
   var scriptBase=currentScript&&currentScript.src?currentScript.src:window.location.href;
@@ -19,6 +20,7 @@ Función:
   var ncomplexLoader=null;
   var screenLoader=null;
   var pantallasLoader=null;
+  var externalLoader=null;
 
   function text(value){return String(value==null?"":value).trim();}
   function read(){
@@ -118,6 +120,46 @@ Función:
         throw error;
       });
     return pantallasLoader;
+  }
+
+  function startExternalConnectionsFacade(){
+    if(externalLoader){return externalLoader;}
+    externalLoader=Promise.resolve()
+      .then(function(){
+        return loadScript("../../ConexionesExternas/core/conexiones.externas.contract.js",function(){return window.ConexionesExternasContract;},"data-conexiones-externas");
+      })
+      .then(function(){
+        return loadScript("../../ConexionesExternas/core/conexiones.externas.providers.js",function(){return window.ConexionesExternasProviders;},"data-conexiones-externas");
+      })
+      .then(function(){
+        return loadScript("../../ConexionesExternas/usage/conexiones.externas.usage.js",function(){return window.ConexionesExternasUsage;},"data-conexiones-externas");
+      })
+      .then(function(){
+        return loadScript("../../ConexionesExternas/providers/firebase/conexiones.externas.firebase.js",function(){return window.ConexionesExternasFirebase;},"data-conexiones-externas");
+      })
+      .then(function(){
+        return loadScript("../../ConexionesExternas/providers/supabase/conexiones.externas.supabase.js",function(){return window.ConexionesExternasSupabase;},"data-conexiones-externas");
+      })
+      .then(function(){
+        return loadScript("../../ConexionesExternas/providers/google-sheets/conexiones.externas.google-sheets.js",function(){return window.ConexionesExternasGoogleSheets;},"data-conexiones-externas");
+      })
+      .then(function(){
+        return loadScript("../../ConexionesExternas/core/conexiones.externas.index.js",function(){return window.ConexionesExternas;},"data-conexiones-externas");
+      })
+      .then(function(api){
+        return Promise.resolve(api&&typeof api.status==="function"?api.status():{ok:!!api}).then(function(result){
+          add("external_connections","INFO","API de conexiones externas preparada.",result);
+          try{window.dispatchEvent(new CustomEvent("conexiones-externas:facade-ready",{detail:result}));}catch(error){}
+          return api;
+        });
+      })
+      .catch(function(error){
+        var result={ok:false,error:error&&error.message?error.message:String(error)};
+        add("external_connections","ERROR","No se pudo preparar la API de conexiones externas.",result);
+        externalLoader=null;
+        throw error;
+      });
+    return externalLoader;
   }
 
   function startScreenConnections(){
@@ -278,6 +320,7 @@ Función:
     version:VERSION,key:KEY,add:add,read:read,clear:clear,
     startGoogleAutoSync:startGoogleAutoSync,
     startPantallasFacade:startPantallasFacade,
+    startExternalConnectionsFacade:startExternalConnectionsFacade,
     startNcomplexIntegration:startNcomplexIntegration,ncomplexStatus:ncomplexStatus,
     startScreenConnections:startScreenConnections
   };
@@ -290,6 +333,7 @@ Función:
   window.addEventListener("bdlocal:bl2-html-scripts-loaded",function(){
     startGoogleAutoSync();
     startScreenConnections();
+    startExternalConnectionsFacade().catch(function(){});
     startNcomplexIntegration().catch(function(){});
   },{once:true});
 })(window,document);
