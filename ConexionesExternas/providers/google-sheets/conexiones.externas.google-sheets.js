@@ -40,7 +40,7 @@ Función:
         :"Google Sheets no está completamente configurado.";
 
     return Promise.resolve({
-      ok:available,
+      ok:connected,
       target:"google",
       label:"Google Sheets",
       manualOnly:true,
