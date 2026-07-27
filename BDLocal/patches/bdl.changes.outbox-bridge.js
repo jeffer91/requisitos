@@ -4,14 +4,14 @@ Ruta: /BDLocal/patches/bdl.changes.outbox-bridge.js
 Función:
 - Mantener una sola cola real: cambios_pendientes.
 - Instalar inmediatamente el filtro de eliminados.
-- Aplicar Firebase como destino operativo predeterminado.
+- Cargar el repositorio de cambios antes de aplicar la política Firebase.
 - Cargar sincronización y migración compartidas en orden determinista.
 - Exponer BDLSharedArchitectureReady sin ejecutar tareas automáticas.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="3.4.0-migration-contract";
+  var VERSION="3.5.0-deterministic-outbox-repository";
   var FLAG="__bdlOutboxBridgeInstalled";
   var document=window.document||null;
   var scriptBase=document&&document.currentScript&&document.currentScript.src?document.currentScript.src:window.location.href;
@@ -85,6 +85,7 @@ Función:
   function loadSharedArchitecture(){
     installActiveFilterInline();
     var files=[
+      ["../repositories/bdl.repo.cambios.js","BDLRepoCambios"],
       ["../conexiones/cone.active-filter.js","BDLocalActiveFilter"],
       ["bdl.changes.firebase-policy.js","BDLFirebaseOutboxPolicy"],
       ["../repositories/bdl.repo.importaciones.js","BDLRepoImportaciones"],
@@ -111,6 +112,7 @@ Función:
       return null;
     }).then(function(){
       var detail={
+        changesRepository:!!window.BDLRepoCambios,
         activeCacheFilter:!!window.BDLocalActiveFilter,
         firebaseOutboxPolicy:!!window.BDLFirebaseOutboxPolicy,
         importacionesRepository:!!window.BDLRepoImportaciones,
@@ -132,7 +134,7 @@ Función:
         automatic:false,version:VERSION,at:nowISO()
       };
       var required=[
-        "activeCacheFilter","firebaseOutboxPolicy","firebaseSchema","firebaseIdentity",
+        "changesRepository","activeCacheFilter","firebaseOutboxPolicy","firebaseSchema","firebaseIdentity",
         "firebaseValidator","firebaseMapper","firebaseReverseMapper","firebaseRepository",
         "firebaseConflicts","firebaseSyncState","firebaseSyncEngine","firebaseMigration",
         "firebaseMigrationContract","periodoGlobal"
