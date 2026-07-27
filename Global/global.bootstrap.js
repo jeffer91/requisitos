@@ -2,15 +2,18 @@
 Nombre completo: global.bootstrap.js
 Ruta o ubicación: /Global/global.bootstrap.js
 Función o funciones:
-- Esperar BDLocalScreenDeps y ConGlobal.
-- Validar que GlobalCore no use fuentes heredadas.
+- Preparar ConGlobal mediante la caché compartida sin bloquear la pantalla.
+- Dejar la inicialización completa de Base Local en segundo plano.
+- Validar que GlobalCore use exclusivamente ConGlobal.
 - Cargar los módulos de Global en orden secuencial.
 ========================================================= */
 (function(window,document){
   "use strict";
 
+  var VERSION="1.2.0-instant-conglobal";
   var loading={};
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
+  var adapterWarmup=null;
 
   function url(relative){try{return new URL(relative,base).href;}catch(error){return relative;}}
   function existing(src){return Array.prototype.slice.call(document.scripts||[]).some(function(script){return script.src===src||script.getAttribute("data-global-bootstrap-src")===src;});}
@@ -18,7 +21,13 @@ Función o funciones:
     timeout=Math.max(500,Number(timeout||15000));
     var started=Date.now();
     return new Promise(function(resolve,reject){
-      (function check(){var value=null;try{value=test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}setTimeout(check,40);})();
+      (function check(){
+        var value=null;
+        try{value=test();}catch(error){}
+        if(value){resolve(value);return;}
+        if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}
+        window.setTimeout(check,40);
+      })();
     });
   }
   function load(relative,test){
@@ -28,34 +37,76 @@ Función o funciones:
     if(loading[src]){return loading[src];}
     if(existing(src)){return test?waitFor(test,relative,15000):Promise.resolve(src);}
     loading[src]=new Promise(function(resolve,reject){
-      var script=document.createElement("script");script.src=src;script.async=false;script.defer=false;script.setAttribute("data-global-bootstrap-src",src);
-      script.onload=function(){var value=src;try{value=test?test():src;}catch(error){value=null;}value?resolve(value):reject(new Error(relative+" no expuso la API esperada."));};
+      var script=document.createElement("script");
+      script.src=src;
+      script.async=false;
+      script.defer=false;
+      script.setAttribute("data-global-bootstrap-src",src);
+      script.onload=function(){
+        var value=src;
+        try{value=test?test():src;}catch(error){value=null;}
+        value?resolve(value):reject(new Error(relative+" no expuso la API esperada."));
+      };
       script.onerror=function(){reject(new Error("No se pudo cargar "+relative+"."));};
       (document.head||document.documentElement).appendChild(script);
     }).finally(function(){delete loading[src];});
     return loading[src];
   }
+
   function adapterReady(){
     if(window.BDLocalScreenDeps&&typeof window.BDLocalScreenDeps.ready==="function"){return window.BDLocalScreenDeps.ready();}
     if(window.BDLScreenDepsReady&&typeof window.BDLScreenDepsReady.then==="function"){return window.BDLScreenDepsReady;}
     return Promise.reject(new Error("BDLocalScreenDeps no está disponible."));
   }
-  function connectorReady(){
-    return adapterReady().then(function(){
-      if(window.ConGlobal||window.BDLocalGlobal){return window.ConGlobal||window.BDLocalGlobal;}
-      return load("../BDLocal/conexiones/cone.global.js",function(){return window.ConGlobal||window.BDLocalGlobal;});
-    }).then(function(con){
-      return Promise.resolve(con&&typeof con.ready==="function"?con.ready():true).then(function(status){
-        if(status&&status.ok===false){throw new Error(status.error||"ConGlobal no está listo.");}
-        return con;
-      });
-    });
+
+  function startAdapterWarmup(){
+    if(adapterWarmup){return adapterWarmup;}
+    adapterWarmup=Promise.resolve().then(adapterReady).catch(function(error){
+      try{console.warn("[GlobalBootstrap] Base Local continuará preparándose en segundo plano.",error);}catch(innerError){}
+      return null;
+    }).finally(function(){adapterWarmup=null;});
+    return adapterWarmup;
   }
+
+  function ensureConnectorModules(){
+    startAdapterWarmup();
+    return Promise.resolve()
+      .then(function(){
+        return window.BDLocalConUtils
+          ?window.BDLocalConUtils
+          :load("../BDLocal/conexiones/cone.utils.js",function(){return window.BDLocalConUtils;});
+      })
+      .then(function(){
+        return window.BDLocalConexiones
+          ?window.BDLocalConexiones
+          :load("../BDLocal/conexiones/cone.index.js",function(){return window.BDLocalConexiones;});
+      })
+      .then(function(){
+        return window.ConGlobal||window.BDLocalGlobal
+          ?window.ConGlobal||window.BDLocalGlobal
+          :load("../BDLocal/conexiones/cone.global.js",function(){return window.ConGlobal||window.BDLocalGlobal;});
+      })
+      .then(function(){
+        return load("global.baselocal-fast.js",function(){return window.GlobalBaseLocalFast;});
+      })
+      .then(function(fast){
+        if(fast&&typeof fast.prepareConnector==="function"){fast.prepareConnector();}
+        var con=window.ConGlobal||window.BDLocalGlobal;
+        if(!con){throw new Error("ConGlobal no quedó disponible.");}
+        return Promise.resolve(typeof con.ready==="function"?con.ready({force:false,sharedTimeout:500}):con).then(function(){return con;});
+      });
+  }
+
+  function connectorReady(){return ensureConnectorModules();}
+
   function boot(){
     var state=document.getElementById("globalSectionState");
-    if(state){state.textContent="Conectando ConGlobal";state.setAttribute("data-state","loading");}
+    if(state){state.textContent="Leyendo Base Local";state.setAttribute("data-state","loading");}
     connectorReady()
-      .then(function(){return load("global.config.js",function(){return window.GlobalConfig;});})
+      .then(function(){
+        if(state){state.textContent="Caché local disponible";}
+        return load("global.config.js",function(){return window.GlobalConfig;});
+      })
       .then(function(){return load("global.core.js",function(){return window.GlobalCore;});})
       .then(function(){return load("global.connection-guard.js",function(){return window.GlobalConnectionGuard;});})
       .then(function(guard){return guard&&typeof guard.ready==="function"?guard.ready():Promise.reject(new Error("La protección de ConGlobal no está disponible."));})
@@ -64,18 +115,22 @@ Función o funciones:
       .then(function(){return load("global.pdf.js");})
       .then(function(){return load("global.word.js");})
       .then(function(){return load("global.app.js",function(){return window.GlobalApp;});})
-      .then(function(){return load("global.ui.fix.js");})
+      .then(function(){
+        var fast=window.GlobalBaseLocalFast;
+        if(fast&&typeof fast.installRuntime==="function"){fast.installRuntime();}
+        return load("global.ui.fix.js");
+      })
       .then(function(){return load("global.index.js");})
       .then(function(){
-        if(state){state.textContent="ConGlobal listo";state.setAttribute("data-state","ready");}
-        try{window.dispatchEvent(new CustomEvent("global:bootstrap-ready",{detail:{ok:true,source:"ConGlobal",strictSource:true}}));}catch(error){}
+        if(state){state.textContent="Datos listos";state.setAttribute("data-state","ready");}
+        try{window.dispatchEvent(new CustomEvent("global:bootstrap-ready",{detail:{ok:true,source:"ConGlobal",strictSource:true,instantCache:true,version:VERSION}}));}catch(error){}
       })
       .catch(function(error){
         if(state){state.textContent=error.message||String(error);state.setAttribute("data-state","error");}
-        try{window.dispatchEvent(new CustomEvent("global:bootstrap-error",{detail:{ok:false,source:"ConGlobal",error:error.message||String(error)}}));}catch(innerError){}
+        try{window.dispatchEvent(new CustomEvent("global:bootstrap-error",{detail:{ok:false,source:"ConGlobal",error:error.message||String(error),version:VERSION}}));}catch(innerError){}
       });
   }
 
-  window.GlobalBootstrap={version:"1.1.0-conglobal-strict",boot:boot,connectorReady:connectorReady};
+  window.GlobalBootstrap={version:VERSION,boot:boot,connectorReady:connectorReady,startAdapterWarmup:startAdapterWarmup};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
