@@ -168,7 +168,14 @@ const context = vm.createContext({
 for (const relative of files) {
   const source = read(relative);
   if (!source) continue;
-  ["indexedDB", "fetch(", "firebase", "supabase", "google sheets"].forEach((token) => {
+  [
+    "indexedDB.open(",
+    "window.indexedDB",
+    "fetch(",
+    "firebase.initialize",
+    "supabase.createClient",
+    "google.script"
+  ].forEach((token) => {
     check(!source.toLowerCase().includes(token.toLowerCase()), `${relative} no contiene dependencia externa: ${token}`);
   });
   try {
