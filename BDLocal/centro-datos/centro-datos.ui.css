@@ -1,0 +1,169 @@
+/* =========================================================
+Nombre completo: centro-datos.ui.css
+Ruta: /BDLocal/centro-datos/centro-datos.ui.css
+Función:
+- Estilizar la división final entre Base Local y Conexiones Externas.
+- Ampliar el menú lateral jerárquico y mantener el diseño adaptable.
+========================================================= */
+
+.bdlc-nav-group.is-open .bdlc-subnav {
+  max-height: 420px;
+}
+
+.bdlc-nav-group-button .bdlc-nav-icon {
+  font-size: 9px;
+}
+
+.cde-section-body {
+  min-width: 0;
+}
+
+.cde-local-grid,
+.cde-external-grid {
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
+.cde-kpi {
+  min-height: 118px;
+}
+
+.cde-quick-card,
+.cde-provider-overview {
+  margin-top: 4px;
+}
+
+.cde-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cde-card-head h3 {
+  margin: 0 0 5px;
+}
+
+.cde-card-head p {
+  margin: 0;
+}
+
+.cde-single-provider {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cde-single-provider .bdlc-connection-card {
+  width: 100%;
+}
+
+.cde-provider-summary {
+  margin-top: 14px;
+  display: grid;
+  gap: 9px;
+}
+
+.cde-provider-row {
+  padding: 12px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.cde-provider-identity,
+.cde-provider-metrics {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cde-provider-identity strong,
+.cde-provider-identity small {
+  display: block;
+}
+
+.cde-provider-identity strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.cde-provider-identity small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.cde-provider-metrics > span {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cde-conflict-host > * {
+  width: 100%;
+}
+
+.cde-usage-warning {
+  margin-top: 0;
+}
+
+.cde-usage-grid {
+  margin-top: 14px;
+}
+
+.cde-usage-card ul {
+  margin: 12px 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.cde-usage-card > small {
+  display: block;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.cde-provider-section details {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.cde-provider-section details > summary {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (max-width: 1180px) {
+  .cde-local-grid,
+  .cde-external-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .cde-local-grid,
+  .cde-external-grid,
+  .cde-usage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cde-card-head,
+  .cde-provider-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cde-provider-metrics {
+    justify-content: space-between;
+  }
+}
