@@ -6,7 +6,8 @@ Ruta: /scripts/verify-external-connections.js
 Función:
 - Verificar la API oficial ConexionesExternas.
 - Confirmar tres proveedores independientes y operación manual.
-- Comprobar delegación segura, límite de lote y consumo no oficial.
+- Comprobar pruebas remotas manuales, delegación segura y límite de lote.
+- Diferenciar módulos disponibles de conexiones verificadas.
 - Rechazar acceso directo a la persistencia local desde el nuevo módulo.
 ========================================================= */
 
@@ -52,6 +53,38 @@ class FakeCustomEvent {
 
 const listeners = Object.create(null);
 let paused = false;
+const connectionState = {
+  firebase: { connected: true, status: "ok" },
+  sheets: { connected: true, status: "ok" },
+  supabase: { connected: true, status: "ok" }
+};
+
+const firestore = {
+  collection(name) {
+    calls.push(["firebaseCollection", name]);
+    return {
+      limit(value) {
+        calls.push(["firebaseLimit", value]);
+        return this;
+      },
+      get() {
+        calls.push(["firebaseRead"]);
+        return Promise.resolve({ size: 1, empty: false });
+      }
+    };
+  }
+};
+
+const syncManager = {
+  testSheets() {
+    calls.push(["liveTest", "google"]);
+    return Promise.resolve({ ok: true, message: "Google Sheets / Apps Script respondió correctamente." });
+  },
+  testSupabase() {
+    calls.push(["liveTest", "supabase"]);
+    return Promise.resolve({ ok: true, message: "Supabase respondió correctamente." });
+  }
+};
 
 const windowObject = {
   addEventListener(name, callback) {
@@ -61,6 +94,20 @@ const windowObject = {
   dispatchEvent(event) {
     (listeners[event.type] || []).slice().forEach((callback) => callback(event));
     return true;
+  },
+  BL2Config: {
+    firebase: {
+      config: { apiKey: "fake-api-key", projectId: "fake-project" }
+    }
+  },
+  RequisitosFirebaseSchema: {
+    collections: { periodos: "periodos" }
+  },
+  BL2Sync: {
+    ensureFirebase() {
+      calls.push(["ensureFirebase"]);
+      return Promise.resolve(firestore);
+    }
   },
   BDLSyncTargets: {
     list: () => ["firebase", "google", "supabase"],
@@ -84,10 +131,40 @@ const windowObject = {
     isRunning: () => false
   },
   BDLocalConfigStore: {
+    loadConfig: () => ({
+      firebase: Object.assign({ enabled: true }, connectionState.firebase),
+      sheets: Object.assign({ enabled: true }, connectionState.sheets),
+      supabase: Object.assign({ enabled: true }, connectionState.supabase)
+    }),
     getFirebaseQuotaStatus: () => ({ allowed: true, level: "ok", limit: 500, used: 12, remaining: 488, percent: 2 }),
-    getSheetsConfig: () => ({ enabled: true, connected: true, status: "ok", spreadsheetId: "sheet-1", batchSize: 25, pendingCount: 2, lastSyncAt: "2026-07-27T00:00:00.000Z" }),
-    getSupabaseConfig: () => ({ enabled: true, connected: true, status: "ok", url: "https://example.supabase.co", tableName: "app_records", lastSyncAt: "2026-07-27T00:00:00.000Z" })
+    getSheetsConfig: () => ({
+      enabled: true,
+      connected: connectionState.sheets.connected,
+      status: connectionState.sheets.status,
+      appsScriptUrl: "https://script.google.com/macros/s/fake/exec",
+      spreadsheetId: "sheet-1",
+      batchSize: 25,
+      pendingCount: 2,
+      lastSyncAt: "2026-07-27T00:00:00.000Z"
+    }),
+    getSupabaseConfig: () => ({
+      enabled: true,
+      connected: connectionState.supabase.connected,
+      status: connectionState.supabase.status,
+      url: "https://example.supabase.co",
+      tableName: "app_records",
+      lastSyncAt: "2026-07-27T00:00:00.000Z"
+    }),
+    updateConnectionStatus(target, patch) {
+      calls.push(["connectionStatus", target, patch]);
+      const key = target === "sheets" ? "sheets" : target;
+      connectionState[key] = Object.assign({}, connectionState[key] || {}, patch || {});
+    },
+    registerFirebaseUsage(payload) {
+      calls.push(["firebaseUsage", payload]);
+    }
   },
+  BDLocalSyncManager: syncManager,
   RequisitosFirebaseRepository: {
     status: () => ({ reads: 4, writes: 2, queries: 1 })
   },
@@ -151,6 +228,29 @@ async function main() {
   const status = await windowObject.ConexionesExternas.status();
   check(status.manualOnly === true && status.automatic === false, "Conexiones externas opera únicamente de forma manual");
   check(status.maxBatchSize === 25, "El lote externo máximo es 25");
+  check(status.modulesReady === true && status.providerCount === 3, "Los tres módulos de proveedor están cargados");
+  check(status.configuredCount === 3 && status.connectedCount === 3, "Distingue y confirma tres conexiones configuradas y verificadas");
+  check(status.connectionsVerified === true && status.allConnected === true && status.ok === true, "El estado general solo es correcto con conexiones verificadas");
+
+  const googleTest = await windowObject.ConexionesExternas.test("google");
+  check(googleTest.ok === true, "Google Sheets ejecuta una prueba manual real");
+  check(calls.some((item) => item[0] === "liveTest" && item[1] === "google"), "Google delega en el ping real de Apps Script");
+
+  const supabaseTest = await windowObject.ConexionesExternas.test("supabase");
+  check(supabaseTest.ok === true, "Supabase ejecuta una prueba manual real");
+  check(calls.some((item) => item[0] === "liveTest" && item[1] === "supabase"), "Supabase delega en la consulta REST real");
+
+  const firebaseTest = await windowObject.ConexionesExternas.test("firebase");
+  check(firebaseTest.ok === true, "Firebase ejecuta una prueba manual de solo lectura");
+  check(calls.some((item) => item[0] === "ensureFirebase"), "Firebase inicializa Firestore mediante la puerta compatible");
+  check(calls.some((item) => item[0] === "firebaseCollection" && item[1] === "periodos"), "Firebase prueba la colección oficial periodos");
+  check(calls.some((item) => item[0] === "firebaseRead"), "Firebase confirma la conexión con una lectura mínima");
+
+  const allTests = await windowObject.ConexionesExternas.testAll();
+  check(allTests.ok === true && allTests.results.length === 3, "Probar conexiones ejecuta los tres proveedores manualmente");
+  check(windowObject.BDLocalSyncManager.__conexionesExternasLiveTests === true, "La interfaz antigua quedó enlazada con las pruebas reales");
+  const legacyFirebaseTest = await windowObject.BDLocalSyncManager.testFirebase();
+  check(legacyFirebaseTest.ok === true, "El botón antiguo Probar Firebase usa la nueva prueba remota");
 
   const firebasePush = await windowObject.ConexionesExternas.push("firebase", { periodoId: "2026-04__2026-11", limit: 100 });
   check(firebasePush.ok === true, "Firebase delega la subida correctamente");
