@@ -4,6 +4,7 @@ Ruta o ubicación: /Requisitos/Maqueta/maq-modulos-registry.js
 Función o funciones:
 - Definir las rutas internas reales del menú.
 - Declarar el conector exclusivo de cada pantalla activa.
+- Mantener Centro de datos en la ruta compatible de BDLocal.
 - Mantener pendientes las pantallas que todavía no existen.
 - Evitar que dos pantallas compartan accidentalmente la misma identidad de conexión.
 Con qué se conecta:
@@ -20,7 +21,7 @@ Con qué se conecta:
 
   var modules={
     carga_excel:{id:"carga_excel",nombre:"Carga",ruta:base+"/Carga/carga.html",estado:"activo",pantallaConexion:"carga",conexion:conBase+"cone.carga.js"},
-    baselocal:{id:"baselocal",nombre:"BL",ruta:base+"/BDLocal/bl2.html",estado:"activo",pantallaConexion:"baselocal",conexion:conBase+"cone.baselocal.js"},
+    baselocal:{id:"baselocal",nombre:"Centro de datos",ruta:base+"/BDLocal/bl2.html",estado:"activo",pantallaConexion:"baselocal",conexion:conBase+"cone.baselocal.js"},
     tabla_principal:{id:"tabla_principal",nombre:"Tabla",ruta:base+"/Gestion/Tabla/tabla.html",estado:"activo",pantallaConexion:"tabla",conexion:conBase+"cone.tabla.js"},
     ficha_estudiante:{id:"ficha_estudiante",nombre:"Ficha",ruta:base+"/Ficha/ficha.html",estado:"activo",pantallaConexion:"ficha",conexion:conBase+"cone.ficha.js"},
     stat_main:{id:"stat_main",nombre:"Estadísticas",ruta:base+"/Stats/stats.html",estado:"activo",pantallaConexion:"stats",conexion:conBase+"cone.stats.js"},
@@ -38,7 +39,7 @@ Con qué se conecta:
 
   var aliases={
     requisito:"carga_excel",requisitos:"carga_excel",carga:"carga_excel","carga excel":"carga_excel",excel:"carga_excel",
-    bl:"baselocal","base local":"baselocal","base-local":"baselocal",bdlocal:"baselocal",bl2:"baselocal",
+    bl:"baselocal","base local":"baselocal","base-local":"baselocal",bdlocal:"baselocal",bl2:"baselocal",datos:"baselocal","centro de datos":"baselocal","centro datos":"baselocal",
     tabla:"tabla_principal","tabla principal":"tabla_principal",
     ficha:"ficha_estudiante","ficha estudiante":"ficha_estudiante",
     stats:"stat_main",estadisticas:"stat_main",estadísticas:"stat_main","stat main":"stat_main",
@@ -79,7 +80,7 @@ Con qué se conecta:
 
   function buscarPorId(moduloId){return cloneModule(modules[canonicalModuleId(moduloId)]);}
   function existe(moduloId){return !!buscarPorId(moduloId);}
-  function listar(){return Object.keys(modules).map(function(id){return cloneModule(modules[id]);});}
+  function listar(){return Object.keys(modules).map(function(name){return cloneModule(modules[name]);});}
   function rutaDe(moduloId){var modulo=buscarPorId(moduloId);return modulo?modulo.ruta:"";}
   function estadoDe(moduloId){var modulo=buscarPorId(moduloId);return modulo?modulo.estado:"pendiente";}
   function conexionDe(moduloId){var modulo=buscarPorId(moduloId);return modulo?modulo.conexion:"";}
