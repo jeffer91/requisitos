@@ -4,19 +4,21 @@ Ruta: /BDLocal/diagnostics/bdl.diagnostics.index.js
 Función:
 - Crear el punto de entrada de diagnóstico de BDLocal.
 - Cargar ConBaseLocal y el mapa uno-a-uno de pantallas.
+- Preparar la API oficial BDLocalPantallas con compatibilidad temporal.
 - Preparar de forma no destructiva Ncomplex.
 - Mantener el sincronizador automático seguro de Google Sheets.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="0.4.0-screen-connectors";
+  var VERSION="0.5.0-base-local-pantallas";
   var KEY="REQ_BDL_DIAGNOSTICS_V1";
   var currentScript=document.currentScript;
   var scriptBase=currentScript&&currentScript.src?currentScript.src:window.location.href;
   var autoLoader=null;
   var ncomplexLoader=null;
   var screenLoader=null;
+  var pantallasLoader=null;
 
   function text(value){return String(value==null?"":value).trim();}
   function read(){
@@ -85,6 +87,39 @@ Función:
     });
   }
 
+  function startPantallasFacade(){
+    if(pantallasLoader){return pantallasLoader;}
+    pantallasLoader=Promise.resolve()
+      .then(function(){
+        return loadScript("../pantallas/bdl.pantallas.contract.js",function(){return window.BDLocalPantallasContract;},"data-bdl-pantallas");
+      })
+      .then(function(){
+        return loadScript("../pantallas/bdl.pantallas.registry.js",function(){return window.BDLocalPantallasRegistry;},"data-bdl-pantallas");
+      })
+      .then(function(){
+        return loadScript("../pantallas/bdl.pantallas.client.js",function(){return window.BDLocalPantallasClient;},"data-bdl-pantallas");
+      })
+      .then(function(){
+        return loadScript("../pantallas/bdl.pantallas.monitor.js",function(){return window.BDLocalPantallasMonitor;},"data-bdl-pantallas");
+      })
+      .then(function(){
+        return loadScript("../pantallas/bdl.pantallas.index.js",function(){return window.BDLocalPantallas;},"data-bdl-pantallas");
+      })
+      .then(function(api){
+        var result=api&&typeof api.status==="function"?api.status():{ok:!!api};
+        add("pantallas","INFO","API interna de Base Local para pantallas preparada.",result);
+        try{window.dispatchEvent(new CustomEvent("bdlocal:pantallas-facade-ready",{detail:result}));}catch(error){}
+        return api;
+      })
+      .catch(function(error){
+        var result={ok:false,error:error&&error.message?error.message:String(error)};
+        add("pantallas","ERROR","No se pudo preparar la API interna de pantallas.",result);
+        pantallasLoader=null;
+        throw error;
+      });
+    return pantallasLoader;
+  }
+
   function startScreenConnections(){
     if(screenLoader){return screenLoader;}
     screenLoader=Promise.resolve()
@@ -96,16 +131,21 @@ Función:
         return loadScript("../conexiones/cone.baselocal.js",function(){return window.ConBaseLocal;},"data-bdl-baselocal");
       })
       .then(function(connector){
-        var result={
-          ok:!!connector,
-          baselocal:!!window.ConBaseLocal,
-          screenMap:window.BDLocalConeScreenMap&&typeof window.BDLocalConeScreenMap.status==="function"
-            ?window.BDLocalConeScreenMap.status()
-            :null
-        };
-        add("connections","INFO","Conectores exclusivos de pantalla registrados.",result);
-        try{window.dispatchEvent(new CustomEvent("bdlocal:screen-connections-ready",{detail:result}));}catch(error){}
-        return result;
+        return startPantallasFacade().then(function(pantallas){
+          var result={
+            ok:!!connector&&!!pantallas,
+            baselocal:!!window.ConBaseLocal,
+            pantallas:window.BDLocalPantallas&&typeof window.BDLocalPantallas.status==="function"
+              ?window.BDLocalPantallas.status()
+              :null,
+            screenMap:window.BDLocalConeScreenMap&&typeof window.BDLocalConeScreenMap.status==="function"
+              ?window.BDLocalConeScreenMap.status()
+              :null
+          };
+          add("connections","INFO","Conectores exclusivos de pantalla registrados.",result);
+          try{window.dispatchEvent(new CustomEvent("bdlocal:screen-connections-ready",{detail:result}));}catch(error){}
+          return result;
+        });
       })
       .catch(function(error){
         var result={ok:false,error:error&&error.message?error.message:String(error)};
@@ -237,6 +277,7 @@ Función:
   window.BDLDiagnostics={
     version:VERSION,key:KEY,add:add,read:read,clear:clear,
     startGoogleAutoSync:startGoogleAutoSync,
+    startPantallasFacade:startPantallasFacade,
     startNcomplexIntegration:startNcomplexIntegration,ncomplexStatus:ncomplexStatus,
     startScreenConnections:startScreenConnections
   };
