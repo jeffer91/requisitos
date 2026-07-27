@@ -5,19 +5,21 @@ Función:
 - Permitir que Global use inmediatamente la caché compartida ya disponible.
 - Preparar BDLocalConexiones en segundo plano sin bloquear la interfaz.
 - Actualizar Global en el siguiente cuadro visual cuando cambia Base Local.
-- Evitar el segundo render heredado de la misma revisión.
+- Evitar únicamente el segundo refresco heredado de la misma revisión.
 - No consultar IndexedDB ni servicios externos directamente.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-global-instant-cache";
+  var VERSION="1.1.0-global-instant-cache";
   var eventsBound=false;
   var runtimeInstalled=false;
   var framePending=false;
   var pendingDetail=null;
   var warmup=null;
   var originalReady=null;
+  var legacyDuplicatePending=false;
+  var DUPLICATE_WINDOW_MS=650;
   var state={
     installed:false,
     connectorPrepared:false,
@@ -28,6 +30,7 @@ Función:
     renders:0,
     coalesced:0,
     duplicatesSkipped:0,
+    invalidationsSkipped:0,
     lastRevision:"",
     lastRenderedRevision:"",
     lastRenderAt:0,
@@ -54,13 +57,7 @@ Función:
   function revisionOf(value){
     value=value||cache();
     var meta=value.meta||{};
-    return text(
-      meta.revision||
-      meta.cacheRevision||
-      meta.updatedAt||
-      value.generatedAt||
-      ""
-    );
+    return text(meta.revision||meta.cacheRevision||meta.updatedAt||value.generatedAt||"");
   }
 
   function hasData(value){
@@ -140,25 +137,46 @@ Función:
 
   function currentRevision(){return revisionOf(cache());}
 
+  function isRecentSameRevision(){
+    var revision=currentRevision();
+    return !!(
+      state.lastRenderedRevision&&
+      revision===state.lastRenderedRevision&&
+      Date.now()-state.lastRenderAt<DUPLICATE_WINDOW_MS
+    );
+  }
+
   function installRuntime(){
     var app=window.GlobalApp||null;
-    if(!app||typeof app.render!=="function"){return false;}
+    var core=window.GlobalCore||null;
+    if(!app||typeof app.render!=="function"||!core){return false;}
     if(app.__globalInstantRender){runtimeInstalled=true;state.runtimeInstalled=true;return true;}
+
+    if(typeof core.invalidate==="function"&&!core.invalidate.__globalInstantInvalidation){
+      var originalInvalidate=core.invalidate;
+      core.invalidate=function(){
+        if(isRecentSameRevision()&&!framePending){
+          legacyDuplicatePending=true;
+          state.invalidationsSkipped+=1;
+          state.updatedAt=now();
+          return true;
+        }
+        legacyDuplicatePending=false;
+        return originalInvalidate.apply(core,arguments);
+      };
+      core.invalidate.__globalInstantInvalidation=true;
+      core.invalidate.__globalInstantOriginal=originalInvalidate;
+    }
 
     var originalRender=app.render;
     app.render=function(){
-      var revision=currentRevision();
-      var systemDuplicate=
-        state.lastRenderedRevision&&
-        revision===state.lastRenderedRevision&&
-        Date.now()-state.lastRenderAt<700&&
-        app.__globalInstantSystemInvalidation===true;
-
-      if(systemDuplicate){
-        app.__globalInstantSystemInvalidation=false;
+      if(legacyDuplicatePending&&isRecentSameRevision()){
+        legacyDuplicatePending=false;
         state.duplicatesSkipped+=1;
+        state.updatedAt=now();
         return Promise.resolve(null);
       }
+      legacyDuplicatePending=false;
 
       var started=Date.now();
       var result;
@@ -194,24 +212,24 @@ Función:
 
   function renderLatest(detail){
     var started=Date.now();
-    var revision=currentRevision();
-    state.lastRevision=revision;
-
-    if(window.GlobalCore&&typeof window.GlobalCore.invalidate==="function"){
-      try{window.GlobalCore.invalidate();}
-      catch(error){}
-    }
+    state.lastRevision=currentRevision();
 
     if(!installRuntime()){
       pendingDetail=detail||{};
       return false;
     }
 
-    window.GlobalApp.__globalInstantSystemInvalidation=false;
+    legacyDuplicatePending=false;
+    if(window.GlobalCore&&typeof window.GlobalCore.invalidate==="function"){
+      try{
+        var invalidator=window.GlobalCore.invalidate.__globalInstantOriginal||window.GlobalCore.invalidate;
+        invalidator.call(window.GlobalCore);
+      }catch(error){}
+    }
+
     return Promise.resolve(window.GlobalApp.render()).then(function(result){
       state.lastDurationMs=Date.now()-started;
       state.updatedAt=now();
-      window.GlobalApp.__globalInstantSystemInvalidation=true;
       return result;
     }).catch(function(error){
       state.lastError=error&&error.message?error.message:String(error);
@@ -260,7 +278,8 @@ Función:
       cacheAvailable:hasData(cache()),
       revision:currentRevision(),
       warming:!!warmup,
-      framePending:framePending
+      framePending:framePending,
+      legacyDuplicatePending:legacyDuplicatePending
     },state);
   }
 
