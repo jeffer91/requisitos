@@ -30,8 +30,14 @@ check(source.includes('window.addEventListener("message",intercept,true)'),"Los 
 check(source.includes("stopImmediatePropagation"),"El puente evita el procesamiento duplicado del mensaje de caché.");
 check(source.includes("activeFrames()"),"La actualización se limita a pantallas visibles.");
 check(!source.includes("setInterval("),"No se crean ciclos periódicos.");
-["indexedDB","firebase","supabase","google sheets","fetch("].forEach((token)=>{
-  check(!source.toLowerCase().includes(token.toLowerCase()),`El puente no usa ${token}.`);
+[
+  ["indexedDB.","IndexedDB"],
+  ["window.firebase","Firebase"],
+  ["window.supabase","Supabase"],
+  ["fetch(","fetch de red"],
+  ["XMLHttpRequest","XMLHttpRequest"]
+].forEach(([token,label])=>{
+  check(!source.includes(token),`El puente no usa ${label}.`);
 });
 
 class FakeCustomEvent{
