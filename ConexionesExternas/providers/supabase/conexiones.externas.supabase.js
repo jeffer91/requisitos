@@ -5,16 +5,18 @@ Función:
 - Encapsular estado, prueba, subida y consumo de Supabase.
 - Delegar temporalmente en el adaptador seguro existente.
 - Declarar explícitamente que la descarga todavía no está disponible.
+- Diferenciar módulos disponibles de conexión remota verificada.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-provider-supabase";
+  var VERSION="1.1.0-live-manual-test";
 
   function C(){return window.ConexionesExternasContract||null;}
   function registry(){return window.ConexionesExternasProviders||null;}
   function sync(){return window.BDLSyncOrchestrator||null;}
   function store(){return window.BDLocalConfigStore||null;}
+  function manager(){return window.BDLocalSyncManager||null;}
   function usage(){return window.ConexionesExternasUsage||null;}
 
   function config(){
@@ -27,24 +29,47 @@ Función:
     var target=window.BDLSyncTargets&&typeof window.BDLSyncTargets.get==="function"
       ?window.BDLSyncTargets.get("supabase")
       :null;
+    var available=!!target;
+    var configured=!!current.enabled&&!!current.url&&!!current.tableName;
+    var connected=!!current.connected&&String(current.status||"").toLowerCase()==="ok";
+    var message=connected
+      ?"Conexión verificada manualmente."
+      :configured
+        ?"Configurada; ejecute Probar para verificar REST."
+        :"Supabase no está completamente configurado.";
+
     return Promise.resolve({
-      ok:!!target,
+      ok:available,
       target:"supabase",
       label:"Supabase",
       manualOnly:true,
       automatic:false,
-      configured:!!current.enabled&&!!current.url,
-      available:!!target,
+      configured:configured,
+      connected:connected,
+      verified:connected,
+      available:available,
+      message:message,
       detail:current
     });
   }
 
   function test(){
-    return state().then(function(detail){
-      if(detail.configured&&detail.available){
-        return C().success({target:"supabase",operation:"test",data:detail,message:"Supabase está configurado."});
-      }
-      return C().failure({target:"supabase",operation:"test",blocked:true,data:detail,message:"Supabase no está completamente configurado."});
+    var current=manager();
+    if(!current||typeof current.testSupabase!=="function"){
+      return Promise.resolve(C().failure({
+        target:"supabase",
+        operation:"test",
+        blocked:true,
+        message:"La prueba manual de Supabase no está disponible."
+      }));
+    }
+
+    return Promise.resolve(current.testSupabase()).then(function(result){
+      return result&&result.ok===true
+        ?C().success({target:"supabase",operation:"test",data:result,message:result.message||"Supabase respondió correctamente."})
+        :C().failure({target:"supabase",operation:"test",data:result,message:result&&result.message||"Supabase no respondió correctamente."});
+    }).catch(function(error){
+      return C().failure({target:"supabase",operation:"test",error:error});
     });
   }
 
