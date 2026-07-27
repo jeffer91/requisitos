@@ -4,7 +4,7 @@ Ruta o ubicación: /Maqueta/maq-screen-fast-sync.js
 Función o funciones:
 - Mantener una sola copia compartida de Base Local en la ventana principal.
 - Interceptar únicamente los mensajes internos de caché entre iframes conocidos.
-- Evitar enviar y clonar la caché completa hacia pantallas ocultas.
+- Evitar enviar, clonar y renderizar la caché completa en pantallas ocultas.
 - Invalidar y actualizar de inmediato solamente la pantalla visible.
 - Entregar la última revisión al abrir una pantalla ya cargada o recién creada.
 - No consultar IndexedDB, Firebase, Supabase ni Google Sheets.
@@ -16,12 +16,19 @@ Con qué se conecta:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-active-frame-only";
+  var VERSION="1.1.0-active-frame-only";
   var MESSAGE={
     publish:"requisitos:bdlocal-cache:publish",
     request:"requisitos:bdlocal-cache:request",
     response:"requisitos:bdlocal-cache:response"
   };
+  var STORAGE_KEYS=[
+    "REQ_BDLOCAL_CONEXIONES_CACHE_V1",
+    "REQ_BDLOCAL_CONEXIONES_SIGNAL_V1",
+    "REQ_BL_SIGNAL_V1",
+    "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1",
+    "REQ_EXCEL_LOCAL_V1:snapshot"
+  ];
   var state={
     installed:false,
     messages:0,
@@ -29,6 +36,8 @@ Con qué se conecta:
     requests:0,
     activeUpdates:0,
     hiddenSkipped:0,
+    hiddenStorageBlocked:0,
+    childGuards:0,
     fallbacks:0,
     failures:0,
     lastModuleId:"",
@@ -93,6 +102,25 @@ Con qué se conecta:
       child.dispatchEvent(new EventCtor(name,{detail:payload||{}}));
       return true;
     }catch(error){return false;}
+  }
+
+  function installChildGuard(frame){
+    if(!frame){return false;}
+    var child=null;
+    try{child=frame.contentWindow||null;}catch(error){child=null;}
+    if(!child||typeof child.addEventListener!=="function"||child.__maqFastStorageGuard){return false;}
+    try{
+      child.__maqFastStorageGuard=true;
+      child.addEventListener("storage",function(event){
+        if(isVisible(frame)){return;}
+        if(!event||STORAGE_KEYS.indexOf(text(event.key))<0){return;}
+        state.hiddenStorageBlocked+=1;
+        if(event.stopImmediatePropagation){event.stopImmediatePropagation();}
+        if(event.preventDefault){event.preventDefault();}
+      },true);
+      state.childGuards+=1;
+      return true;
+    }catch(error2){return false;}
   }
 
   function invalidateChild(child){
@@ -192,6 +220,7 @@ Con qué se conecta:
   function syncFrame(frame,reason){
     var started=Date.now();
     if(!frame||!isVisible(frame)){state.hiddenSkipped+=1;return false;}
+    installChildGuard(frame);
     var snapshot=sharedSnapshot();
     if(!snapshot){return false;}
     var child=null;
@@ -205,7 +234,7 @@ Con qué se conecta:
         dispatchChild(child,"bdlocal:screen-data-updated",payload);
         dispatchChild(child,"bdlocal:pantallas:updated",payload);
         var run=function(){refreshKnownScreen(child,payload);};
-        if(typeof child.requestAnimationFrame==="function"){child.requestAnimationFrame(run);}else{child.setTimeout(run,0);}
+        if(typeof child.requestAnimationFrame==="function"){child.requestAnimationFrame(run);}else if(typeof child.setTimeout==="function"){child.setTimeout(run,0);}else{run();}
       }else{
         postFallback(frame,snapshot,reason);
       }
@@ -225,7 +254,10 @@ Con qué se conecta:
 
   function syncVisible(reason,exceptSource){
     var visible=activeFrames();
-    frames().forEach(function(frame){if(!isVisible(frame)){state.hiddenSkipped+=1;}});
+    frames().forEach(function(frame){
+      installChildGuard(frame);
+      if(!isVisible(frame)){state.hiddenSkipped+=1;}
+    });
     visible.forEach(function(frame){
       if(!exceptSource||frame.contentWindow!==exceptSource){syncFrame(frame,reason);}
     });
@@ -293,6 +325,7 @@ Con qué se conecta:
     var id=text(payload.moduloId||payload.id||"");
     var frame=frameForModule(id);
     if(frame){
+      installChildGuard(frame);
       window.setTimeout(function(){syncFrame(frame,"module-activated");},0);
     }
   }
@@ -300,7 +333,9 @@ Con qué se conecta:
   function observeFrame(frame){
     if(!frame||observedFrames.indexOf(frame)>=0){return;}
     observedFrames.push(frame);
+    installChildGuard(frame);
     frame.addEventListener("load",function(){
+      installChildGuard(frame);
       if(isVisible(frame)){window.setTimeout(function(){syncFrame(frame,"frame-loaded");},0);}
     });
   }
