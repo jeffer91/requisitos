@@ -6,7 +6,7 @@ Ruta: /scripts/verify-global-baselocal.js
 Función:
 - Verificar que Global arranque desde la caché compartida sin esperar tareas secundarias.
 - Confirmar que cambios_pendientes se prepare antes de la política Firebase.
-- Comprobar la actualización visual inmediata y la eliminación de renders duplicados.
+- Comprobar la actualización visual inmediata y la eliminación del refresco heredado duplicado.
 - Evitar regresiones en la ruta interna del repositorio de notas.
 ========================================================= */
 
@@ -48,6 +48,8 @@ check(bridge.includes('"changesRepository","activeCacheFilter"'),"El repositorio
 check(statsNotes.includes("var scriptBase=document.currentScript"),"El conector de notas captura su ruta mientras el script está activo.");
 check(statsNotes.includes('new URL("../repositories/bdl.repo.notas.js",scriptBase)'),"El repositorio de notas se resuelve desde BDLocal/conexiones.");
 check(!statsNotes.includes("function base()"),"La ruta de notas no depende de document.currentScript después de cargar.");
+check(fastSource.includes("invalidationsSkipped"),"El puente distingue la invalidación heredada duplicada.");
+check(fastSource.includes("__globalInstantOriginal"),"El refresco inmediato puede invalidar GlobalCore sin activar el bloqueo heredado.");
 
 class FakeCustomEvent{
   constructor(type,options){this.type=type;this.detail=options&&options.detail;}
@@ -121,10 +123,17 @@ async function main(){
   check(invalidations===1,"Global invalida su cálculo una sola vez.");
   check(renders===1,"Global renderiza la actualización una sola vez de forma inmediata.");
 
+  windowObject.GlobalCore.invalidate();
   await windowObject.GlobalApp.render();
+  check(invalidations===1,"La invalidación heredada de la misma revisión se descarta.");
   check(renders===1,"El render heredado posterior de la misma revisión se descarta.");
+
+  await windowObject.GlobalApp.render();
+  check(renders===2,"Una acción normal posterior de Global sí puede renderizar.");
+
   const status=fast.status();
   check(status.coalesced>=1,"El diagnóstico registra eventos agrupados.");
+  check(status.invalidationsSkipped>=1,"El diagnóstico registra la invalidación duplicada evitada.");
   check(status.duplicatesSkipped>=1,"El diagnóstico registra el render duplicado evitado.");
 
   if(errors.length){
