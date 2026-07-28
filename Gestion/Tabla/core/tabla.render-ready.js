@@ -5,19 +5,27 @@ Función:
 - Convertir el evento interno tabla:rendered en la confirmación estándar de pantalla lista.
 - Esperar dos ciclos de pintado antes de confirmar el resultado visible.
 - Verificar que la tabla y el resumen ya estén visibles.
+- Recuperar el estado actual si el evento ocurrió antes de cargar la sonda.
 - No consultar IndexedDB ni servicios externos.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.1-visible-ready";
+  var VERSION="1.0.2-visible-ready";
   var READY_EVENT="maqueta:screen-render-complete";
   var state={installed:false,sequence:0,lastReadyAt:0,lastDurationMs:0,lastDetail:null,emissions:0};
 
   function text(value){return String(value==null?"":value).trim();}
+  function appState(){try{return window.TablaApp&&typeof window.TablaApp.getState==="function"?window.TablaApp.getState()||{}:{};}catch(error){return {};}}
   function statusText(){var node=document.getElementById("tabla-status");return text(node&&node.textContent);}
+  function detailFromState(){
+    var current=appState();
+    var rows=Array.isArray(current.rows)?current.rows:[];
+    var allRows=Array.isArray(current.filteredRows)?current.filteredRows:Array.isArray(current.allRows)?current.allRows:rows;
+    return {total:allRows.length,visible:rows.length,duration:0,source:"TablaApp.state"};
+  }
   function ready(detail){
-    var current=window.TablaApp&&typeof window.TablaApp.getState==="function"?window.TablaApp.getState()||{}:{};
+    var current=appState();
     var wrap=document.getElementById("tabla-table-wrap");
     var status=statusText();
     var visible=Number(detail&&detail.visible||0);
@@ -48,19 +56,25 @@ Función:
     return true;
   }
 
-  function onRendered(event){
+  function schedule(detail){
     state.sequence+=1;
     var seq=state.sequence;
     var started=Date.now();
-    var detail=event&&event.detail&&typeof event.detail==="object"?event.detail:{};
+    detail=detail&&typeof detail==="object"?detail:{};
     var raf=window.requestAnimationFrame||function(fn){return window.setTimeout(fn,16);};
     raf(function(){raf(function(){window.setTimeout(function(){emit(detail,seq,started);},25);});});
   }
+
+  function onRendered(event){schedule(event&&event.detail&&typeof event.detail==="object"?event.detail:{});}
 
   function install(){
     if(state.installed){return status();}
     state.installed=true;
     window.addEventListener("tabla:rendered",onRendered);
+    window.setTimeout(function(){
+      var detail=detailFromState();
+      if(ready(detail)){schedule(detail);}
+    },0);
     return status();
   }
 
