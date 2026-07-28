@@ -5,22 +5,25 @@ Función o funciones:
 - Medir cuánto tarda la entrega de datos desde BDLocal hasta la pantalla activa.
 - Iniciar el contador al abrir o refrescar una pantalla.
 - Detenerlo cuando la pantalla recibe el evento de actualización de BDLocal.
+- Confirmar también la llegada inicial de períodos en la pantalla Carga.
 - Mostrar la medición en la barra inferior de la aplicación.
 - No leer IndexedDB ni ejecutar sincronizaciones externas.
 Con qué se conecta:
 - maq-core.js.
 - maq-screen-fast-sync.js.
+- Carga/carga.startup-metrics.js.
 - maq-index.html.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-bdlocal-delivery";
+  var VERSION="1.1.0-bdlocal-delivery";
   var MAX_WAIT_MS=30000;
   var EVENT_NAMES=[
     "bdlocal:screen-data-updated",
     "bdlocal:pantallas:updated",
-    "bdlocal:connections:updated"
+    "bdlocal:connections:updated",
+    "carga:periods-refreshed"
   ];
 
   var state={
@@ -29,6 +32,7 @@ Con qué se conecta:
     moduloId:"",
     moduloNombre:"",
     startedAt:0,
+    startedEpochAt:0,
     elapsedMs:0,
     lastDurationMs:0,
     lastModuleId:"",
@@ -99,9 +103,12 @@ Con qué se conecta:
     childHandler=null;
   }
 
-  function finish(reason){
+  function finish(reason,durationOverrideMs){
     if(!state.running){return false;}
-    state.elapsedMs=Math.max(0,clock()-state.startedAt);
+    var override=Number(durationOverrideMs);
+    state.elapsedMs=Number.isFinite(override)
+      ? Math.max(0,override)
+      : Math.max(0,clock()-state.startedAt);
     state.lastDurationMs=Math.round(state.elapsedMs);
     state.lastModuleId=state.moduloId;
     state.lastModuleName=state.moduloNombre;
@@ -143,15 +150,29 @@ Con qué se conecta:
 
   function checkFastSync(){
     var api=fastSync();
-    if(!state.running||!api||typeof api.status!=="function"){return;}
+    if(!state.running||!api||typeof api.status!=="function"){return false;}
     var current={};
     try{current=api.status()||{};}catch(error){current={};}
     if(
       Number(current.activeUpdates||0)>Number(state.baselineActiveUpdates||0)&&
       text(current.lastModuleId)===state.moduloId
     ){
-      finish("fast-sync-confirmed");
+      return finish("fast-sync-confirmed");
     }
+    return false;
+  }
+
+  function checkCargaMetrics(){
+    if(!state.running||state.moduloId!=="carga_excel"||!boundChild){return false;}
+    var metrics=null;
+    try{
+      metrics=boundChild.CargaStartupMetrics&&typeof boundChild.CargaStartupMetrics.status==="function"
+        ? boundChild.CargaStartupMetrics.status()
+        : null;
+    }catch(error){metrics=null;}
+    if(!metrics||!Number(metrics.periodsReadyAt||0)){return false;}
+    var duration=Math.max(0,Number(metrics.periodsReadyAt)-Number(state.startedEpochAt||0));
+    return finish("carga-periods-ready",duration);
   }
 
   function tick(){
@@ -162,6 +183,7 @@ Con qué se conecta:
       "running",
       "Midiendo la entrega de datos de BDLocal a "+(state.moduloNombre||state.moduloId||"la pantalla")+"."
     );
+    if(checkCargaMetrics()){return;}
     checkFastSync();
   }
 
@@ -183,6 +205,7 @@ Con qué se conecta:
       var detail=event&&event.detail&&typeof event.detail==="object"?event.detail:{};
       var target=text(detail.targetModuleId||detail.moduloId||"");
       if(target&&target!==state.moduloId){return;}
+      if(event&&event.type==="carga:periods-refreshed"&&state.moduloId!=="carga_excel"){return;}
       finish(event&&event.type||"screen-event");
     };
 
@@ -192,6 +215,7 @@ Con qué se conecta:
         child.addEventListener(name,childHandler);
       }catch(error){}
     });
+    window.setTimeout(checkCargaMetrics,0);
     return true;
   }
 
@@ -210,7 +234,13 @@ Con qué se conecta:
 
   function start(payload,reason){
     payload=payload||{};
-    var moduloId=text(payload.moduloId||payload.id||core()&&core().state&&core().state.moduloActivoId||"");
+    var currentCore=core();
+    var moduloId=text(
+      payload.moduloId||
+      payload.id||
+      currentCore&&currentCore.state&&currentCore.state.moduloActivoId||
+      ""
+    );
     if(!moduloId){return false;}
 
     clearTimers();
@@ -224,6 +254,7 @@ Con qué se conecta:
     state.moduloId=moduloId;
     state.moduloNombre=text(payload.modulo&&payload.modulo.nombre||payload.moduloNombre||moduloId);
     state.startedAt=clock();
+    state.startedEpochAt=Date.now();
     state.elapsedMs=0;
     state.lastReason=text(reason||"module-activated");
     state.baselineActiveUpdates=Number(syncState.activeUpdates||0);
