@@ -7,6 +7,7 @@ Función:
 - Verificar la instrumentación de arranque de Carga.
 - Confirmar que la prueba PowerShell mide sin sincronizar fuentes externas.
 - Validar la API local de CargaStartupMetrics en un entorno simulado.
+- Verificar el contador visible de entrega BDLocal hacia las pantallas.
 ========================================================= */
 
 const fs=require("node:fs");
@@ -28,6 +29,8 @@ const html=read("Carga/carga.html");
 const metricsSource=read("Carga/carga.startup-metrics.js");
 const runtime=read("scripts/medir-carga-base-runtime.js");
 const powershell=read("scripts/medir-carga-base.ps1");
+const mainHtml=read("Maqueta/maq-index.html");
+const deliveryTimerSource=read("Maqueta/maq-bdlocal-delivery-timer.js");
 const packageJson=JSON.parse(read("package.json"));
 
 check(html.includes('src="./carga.startup-metrics.js"'),"Carga incluye las métricas de arranque.");
@@ -53,6 +56,19 @@ check(powershell.includes("Requisitos ya está abierto"),"La prueba protege una 
 check(packageJson.scripts["diagnostico:tiempo-base"],"package.json expone diagnostico:tiempo-base.");
 check(packageJson.scripts["test:startup-benchmark"],"package.json expone la verificación del benchmark.");
 
+check(mainHtml.includes('id="maq-bdlocal-delivery-time"'),"La ventana principal incluye el contador BDLocal hacia pantalla.");
+check(mainHtml.includes('src="maq-bdlocal-delivery-timer.js"'),"La ventana principal carga el controlador del contador.");
+check(
+  mainHtml.indexOf("maq-screen-fast-sync.js")<mainHtml.indexOf("maq-bdlocal-delivery-timer.js"),
+  "El contador se carga después del sincronizador rápido que confirma la entrega."
+);
+check(deliveryTimerSource.includes('current.bus.on("modulo:cambiado"'),"El contador inicia al cambiar de pantalla.");
+check(deliveryTimerSource.includes('getElementById("maq-btn-refresh")'),"El contador reinicia al refrescar la pantalla activa.");
+check(deliveryTimerSource.includes('"carga:periods-refreshed"'),"El contador reconoce la llegada real de períodos en Carga.");
+check(deliveryTimerSource.includes("CargaStartupMetrics"),"El contador recupera la marca de Carga aunque el evento ocurra antes de load.");
+check(deliveryTimerSource.includes("baselineActiveUpdates"),"El contador diferencia una entrega nueva de una entrega anterior.");
+check(deliveryTimerSource.includes("MAX_WAIT_MS=30000"),"El contador tiene un límite visible de espera de 30 segundos.");
+
 const metricsForbidden=[
   /\bfetch\s*\(/,
   /firebase\.initialize/i,
@@ -63,6 +79,7 @@ const metricsForbidden=[
 ];
 for(const expression of metricsForbidden){
   check(!expression.test(metricsSource),`Las métricas no usan ${expression}.`);
+  check(!expression.test(deliveryTimerSource),`El contador visible no usa ${expression}.`);
 }
 
 const runtimeForbidden=[
@@ -119,6 +136,64 @@ check(status.connectionReadyAt>0,"La marca ConCarga queda registrada.");
 check(status.periodsReadyAt>0&&status.periodCount===1,"La marca de períodos queda registrada.");
 check(status.database&&status.database.open===true,"El estado informa que IndexedDB está abierta.");
 check(status.cache&&status.cache.students===2,"El estado informa los conteos de la caché.");
+
+class FakeEventTarget{
+  constructor(){this.listeners=Object.create(null);}
+  addEventListener(name,handler){this.listeners[name]=this.listeners[name]||[];this.listeners[name].push(handler);}
+  removeEventListener(name,handler){this.listeners[name]=(this.listeners[name]||[]).filter((item)=>item!==handler);}
+  dispatchEvent(event){(this.listeners[event.type]||[]).slice().forEach((handler)=>handler(event));}
+}
+
+const child=new FakeEventTarget();
+child.CargaStartupMetrics={status(){return {periodsReadyAt:0};}};
+const frame=new FakeEventTarget();
+frame.dataset={moduleId:"carga_excel"};
+frame.contentWindow=child;
+const counter={textContent:"",dataset:{},title:""};
+const refreshButton=new FakeEventTarget();
+const busHandlers=Object.create(null);
+const deliveryDocument={
+  readyState:"complete",
+  getElementById(id){
+    if(id==="maq-bdlocal-delivery-time"){return counter;}
+    if(id==="maq-btn-refresh"){return refreshButton;}
+    return null;
+  },
+  querySelectorAll(selector){return selector==="iframe"?[frame]:[];},
+  addEventListener(){}
+};
+let timerId=0;
+const deliveryWindow=new FakeEventTarget();
+deliveryWindow.window=deliveryWindow;
+deliveryWindow.document=deliveryDocument;
+deliveryWindow.performance={now(){return Date.now();}};
+deliveryWindow.CustomEvent=FakeCustomEvent;
+deliveryWindow.setInterval=function(){timerId+=1;return timerId;};
+deliveryWindow.clearInterval=function(){};
+deliveryWindow.setTimeout=function(){timerId+=1;return timerId;};
+deliveryWindow.clearTimeout=function(){};
+deliveryWindow.MAQ_CORE={
+  state:{moduloActivoId:"carga_excel"},
+  bus:{on(name,handler){busHandlers[name]=handler;}},
+  router:{buscarModulo(){return {id:"carga_excel",nombre:"Carga"};}}
+};
+deliveryWindow.MAQ_SCREEN_FAST_SYNC={status(){return {activeUpdates:0,lastModuleId:""};}};
+
+const deliveryContext=vm.createContext({
+  window:deliveryWindow,
+  document:deliveryDocument,
+  CustomEvent:FakeCustomEvent,
+  Date,Object,Array,Number,String,Boolean,JSON,Math,Error,Intl,console
+});
+new vm.Script(deliveryTimerSource,{filename:"maq-bdlocal-delivery-timer.js"}).runInContext(deliveryContext);
+check(Boolean(deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER),"El contador visible se ejecuta en un renderer aislado.");
+check(typeof busHandlers["modulo:cambiado"]==="function","El contador quedó conectado al cambio de módulo.");
+busHandlers["modulo:cambiado"]({moduloId:"carga_excel",modulo:{nombre:"Carga"}});
+check(deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status().running===true,"El contador empieza al abrir Carga.");
+child.dispatchEvent(new FakeCustomEvent("carga:periods-refreshed",{detail:{total:2}}));
+const deliveryStatus=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
+check(deliveryStatus.running===false&&deliveryStatus.completions===1,"El contador se detiene cuando Carga recibe los períodos.");
+check(deliveryStatus.lastModuleId==="carga_excel"&&counter.dataset.state==="ok","El resultado queda asociado a Carga y visible como correcto.");
 
 if(errors.length){
   console.error(`\nVERIFICACIÓN BENCHMARK DE ARRANQUE: ERROR (${errors.length})`);
