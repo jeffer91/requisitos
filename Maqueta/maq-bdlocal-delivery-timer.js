@@ -4,14 +4,14 @@ Ruta o ubicación: /Maqueta/maq-bdlocal-delivery-timer.js
 Función o funciones:
 - Medir desde la apertura de una pantalla hasta que sus datos quedan visibles y utilizables.
 - Diferenciar la llegada técnica de datos del renderizado final de la interfaz.
-- Exigir confirmación visual propia en Carga, Tabla, Ficha, Stats y Coordi.
-- Usar estabilidad real del DOM como respaldo para las demás pantallas.
+- Exigir confirmación visual propia en todas las pantallas activas del menú.
+- Usar estabilidad real del DOM solo como respaldo para futuras pantallas sin sonda propia.
 - Mostrar la medición en la barra inferior sin consultar fuentes externas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.2.0-explicit-screen-ready";
+  var VERSION="3.0.0-all-active-screens-ready";
   var MAX_WAIT_MS=30000;
   var READY_EVENT="maqueta:screen-render-complete";
   var DATA_EVENTS=[
@@ -23,15 +23,29 @@ Función o funciones:
   var ALL_EVENTS=DATA_EVENTS.concat([READY_EVENT]);
   var EXPLICIT_READY_MODULES={
     carga_excel:true,
+    baselocal:true,
     tabla_principal:true,
     ficha_estudiante:true,
     stat_main:true,
-    coordi:true
+    coordi:true,
+    global:true,
+    modulo_reporte:true,
+    defart:true,
+    ncomplex:true,
+    cr_def:true,
+    titulacion:true
   };
   var READY_PROBES={
+    baselocal:{path:"centro-datos/centro-datos.render-ready.js",global:"CentroDatosRenderReady"},
     tabla_principal:{path:"core/tabla.render-ready.js",global:"TablaRenderReady"},
     stat_main:{path:"stats.render-ready.js",global:"StatsRenderReady"},
-    coordi:{path:"coordi.render-ready.js",global:"CoordiRenderReady"}
+    coordi:{path:"coordi.render-ready.js",global:"CoordiRenderReady"},
+    global:{path:"global.render-ready.js",global:"GlobalRenderReady"},
+    modulo_reporte:{path:"repo.render-ready.js",global:"ReportesRenderReady"},
+    defart:{path:"defart.render-ready.js",global:"DefartRenderReady"},
+    ncomplex:{path:"ncomplex.render-ready.js",global:"NcomplexRenderReady"},
+    cr_def:{path:"cr-def.render-ready.js",global:"CrDefRenderReady"},
+    titulacion:{path:"frontend/inpvc.render-ready.js",global:"InPVCRenderReady"}
   };
 
   var state={
@@ -268,6 +282,17 @@ Función o funciones:
     return !target||target===state.moduloId;
   }
 
+  function readyProbeApi(child,moduleId){
+    var config=READY_PROBES[moduleId];
+    if(config&&child){
+      try{return child[config.global]||null;}catch(error){return null;}
+    }
+    if(moduleId==="ficha_estudiante"&&child){
+      try{return child.FichaRenderReady||null;}catch(error){return null;}
+    }
+    return null;
+  }
+
   function ensureReadyProbe(child,moduleId){
     var config=READY_PROBES[moduleId];
     if(!config||!child||!child.document){return false;}
@@ -286,6 +311,18 @@ Función o funciones:
       (doc.head||doc.documentElement).appendChild(script);
       return true;
     }catch(error){return false;}
+  }
+
+  function triggerReadyProbe(child,moduleId,attempt){
+    if(!state.running||child!==boundChild||moduleId!==state.moduloId){return false;}
+    attempt=Number(attempt||0);
+    var api=readyProbeApi(child,moduleId);
+    if(api&&typeof api.track==="function"){
+      try{api.track("main-module-activated");return true;}catch(error){return false;}
+    }
+    if(attempt>=40){return false;}
+    window.setTimeout(function(){triggerReadyProbe(child,moduleId,attempt+1);},50);
+    return false;
   }
 
   function attachChild(frame){
@@ -327,7 +364,12 @@ Función o funciones:
     ALL_EVENTS.forEach(function(name){
       try{child.removeEventListener(name,childHandler);child.addEventListener(name,childHandler);}catch(error){}
     });
-    window.setTimeout(function(){ensureReadyProbe(child,state.moduloId);checkCargaMetrics();checkFichaReady();},0);
+    window.setTimeout(function(){
+      ensureReadyProbe(child,state.moduloId);
+      triggerReadyProbe(child,state.moduloId,0);
+      checkCargaMetrics();
+      checkFichaReady();
+    },0);
     return true;
   }
 
