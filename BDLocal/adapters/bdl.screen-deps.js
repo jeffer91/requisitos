@@ -6,12 +6,13 @@ Función:
 - Evitar abrir IndexedDB, reconstruir BDLocal y cargar todos los conectores al entrar a una pantalla.
 - Mantener las APIs síncronas usadas por Tabla, Ficha, Stats, Coordi, Global y Reportes.
 - Activar el núcleo pesado únicamente cuando una acción solicita lectura completa o escritura.
-- Respetar el orquestador completo cuando se ejecuta dentro del Centro de datos.
+- Respetar el orquestador y los adaptadores completos cuando se ejecuta dentro del Centro de datos.
+- Publicar cada escritura local a la ventana principal para mantener coherencia entre pantallas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.1-full-hub-safe";
+  var VERSION="2.1.0-shared-cache-coherent";
   var CACHE_KEY="REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var OLD_SNAPSHOT_KEY="REQ_EXCEL_LOCAL_V1:snapshot";
   var MESSAGE={
@@ -27,7 +28,7 @@ Función:
   var heavyPromise=null;
   var readyPromise=null;
   var connectors=Object.create(null);
-  var metrics={parentRequests:0,parentResponses:0,localFallbacks:0,heavyActivations:0,cacheUpdates:0};
+  var metrics={parentRequests:0,parentResponses:0,parentPublishes:0,localFallbacks:0,heavyActivations:0,cacheUpdates:0,cacheInvalidations:0,storageWrites:0,storageFailures:0};
   var memory={cache:null,revision:0,updatedAt:"",source:"empty"};
 
   function text(value){return String(value==null?"":value).trim();}
@@ -53,6 +54,8 @@ Función:
   function containsText(haystack,needle){needle=normalizeBasic(needle).toLowerCase();return !needle||normalizeBasic(haystack).toLowerCase().indexOf(needle)>=0;}
   function emptyCache(){return {meta:{source:"empty",updatedAt:nowISO(),revision:0,totalPeriods:0,totalStudents:0,totalRequirements:0},periods:[],students:[],requirements:[],summaries:{},diagnostics:[]};}
   function cacheRevision(cache){return Math.max(0,Number(cache&&cache.meta&&cache.meta.revision||0));}
+  function cacheTime(cache){var value=Date.parse(text(cache&&cache.meta&&cache.meta.updatedAt||""));return Number.isFinite(value)?value:0;}
+  function cacheWeight(cache){return array(cache&&cache.students).length*1000000+array(cache&&cache.periods).length*1000+array(cache&&cache.requirements).length;}
   function hasData(cache){return !!(cache&&(array(cache.periods).length||array(cache.students).length||array(cache.requirements).length));}
 
   function normalizePeriod(period){
@@ -97,31 +100,115 @@ Función:
     return result;
   }
 
-  function setMemory(cache,source){
-    cache=normalizeCache(cache||emptyCache());
-    var incoming=cacheRevision(cache);var current=cacheRevision(memory.cache);
-    if(memory.cache&&incoming>0&&current>incoming){return memory.cache;}
-    memory.cache=cache;memory.revision=Math.max(incoming,current);memory.updatedAt=text(cache.meta.updatedAt||nowISO());memory.source=text(source||cache.meta.source||"shared");
+  function incomingWins(incoming,current){
+    var incomingRevision=cacheRevision(incoming);var currentRevision=cacheRevision(current);
+    if(incomingRevision!==currentRevision){return incomingRevision>currentRevision;}
+    var incomingAt=cacheTime(incoming);var currentAt=cacheTime(current);
+    if(incomingAt!==currentAt){return incomingAt>currentAt;}
+    return cacheWeight(incoming)>=cacheWeight(current);
+  }
+
+  function mergeCache(incoming,current,options){
+    options=options||{};incoming=normalizeCache(incoming||emptyCache());current=normalizeCache(current||emptyCache());
+    var preferred=options.preferIncoming===true?incoming:(incomingWins(incoming,current)?incoming:current);
+    var fallback=preferred===incoming?current:incoming;
+    var result=normalizeCache(preferred);
+    if(options.allowEmpty!==true){
+      if(!result.periods.length&&fallback.periods.length){result.periods=fallback.periods;}
+      if(!result.students.length&&fallback.students.length){result.students=fallback.students;}
+      if(!result.requirements.length&&fallback.requirements.length){result.requirements=fallback.requirements;}
+      if(!result.diagnostics.length&&fallback.diagnostics.length){result.diagnostics=fallback.diagnostics;}
+    }
+    result.summaries=Object.assign({},fallback.summaries||{},result.summaries||{});
+    result.meta=Object.assign({},fallback.meta||{},result.meta||{}, {
+      totalPeriods:result.periods.length,totalStudents:result.students.length,totalRequirements:result.requirements.length,fastAdapterVersion:VERSION
+    });
+    return result;
+  }
+
+  function setMemory(cache,source,options){
+    options=options||{};cache=normalizeCache(cache||emptyCache());
+    var prepared=options.force===true?cache:mergeCache(cache,memory.cache||emptyCache(),{allowEmpty:options.allowEmpty===true,preferIncoming:options.preferIncoming===true});
+    var incoming=cacheRevision(prepared);var current=cacheRevision(memory.cache);
+    if(memory.cache&&options.force!==true&&incoming>0&&current>incoming){return memory.cache;}
+    memory.cache=prepared;memory.revision=Math.max(incoming,current);memory.updatedAt=text(prepared.meta.updatedAt||nowISO());memory.source=text(source||prepared.meta.source||"shared");
     metrics.cacheUpdates+=1;
     return memory.cache;
   }
 
   function storageValue(key){try{return window.localStorage.getItem(key)||"";}catch(error){return "";}}
+  function persist(cache){
+    var raw="";try{raw=JSON.stringify(cache);}catch(error){metrics.storageFailures+=1;return false;}
+    try{window.localStorage.setItem(CACHE_KEY,raw);metrics.storageWrites+=1;return true;}catch(error2){metrics.storageFailures+=1;return false;}
+  }
   function loadLocalFallback(){
     var cache=safeParse(storageValue(CACHE_KEY),null)||safeParse(storageValue(OLD_SNAPSHOT_KEY),null)||emptyCache();
-    metrics.localFallbacks+=1;return setMemory(cache,"localStorage-fallback");
+    metrics.localFallbacks+=1;return setMemory(cache,"localStorage-fallback",{allowEmpty:false,preferIncoming:true});
   }
-  function readCache(force){if(!memory.cache||force===true&&!hasData(memory.cache)){loadLocalFallback();}return memory.cache||emptyCache();}
-
-  function writeCache(cache,options){
-    options=options||{};var prepared=setMemory(cache,options.source||"writeCache");
-    if(options.persist!==false){try{window.localStorage.setItem(CACHE_KEY,JSON.stringify(prepared));}catch(error){}}
-    emit("bdlocal:conexiones-cache-updated",{source:options.source||"writeCache",revision:cacheRevision(prepared),periods:prepared.periods.length,students:prepared.students.length,requirements:prepared.requirements.length});
-    return prepared;
+  function readCache(force){
+    if(force===true){return loadLocalFallback();}
+    if(!memory.cache){loadLocalFallback();}
+    return memory.cache||emptyCache();
   }
 
   function emit(name,detail){try{window.dispatchEvent(new CustomEvent(name,{detail:Object.assign({at:nowISO()},detail||{})}));}catch(error){}}
   function post(message){try{return !!(window.parent&&window.parent!==window&&typeof window.parent.postMessage==="function"&&(window.parent.postMessage(message,"*"),true));}catch(error){return false;}}
+
+  function acceptSharedCache(cache,source,options){
+    options=options||{};
+    var prepared=setMemory(cache||emptyCache(),source||"parent-update",{
+      allowEmpty:options.allowEmpty===true,
+      preferIncoming:options.preferIncoming!==false,
+      force:options.force===true
+    });
+    if(options.persist===true){persist(prepared);}
+    if(options.emit!==false){
+      emit("bdlocal:screen-data-updated",{
+        source:source||"parent-update",revision:cacheRevision(prepared),periods:prepared.periods.length,students:prepared.students.length,requirements:prepared.requirements.length,periodoId:text(prepared.meta&&prepared.meta.periodoId||"")
+      });
+    }
+    return prepared;
+  }
+
+  function writeCache(cache,options){
+    options=options||{};
+    var current=readCache();
+    var prepared=mergeCache(cache,current,{allowEmpty:options.allowEmpty===true,preferIncoming:true});
+    var incomingRevision=cacheRevision(prepared);
+    var nextRevision=options.respectIncomingRevision===true&&incomingRevision>cacheRevision(current)
+      ? incomingRevision
+      : Math.max(memory.revision+1,cacheRevision(current)+1,incomingRevision+1);
+    prepared.meta=Object.assign({},prepared.meta||{}, {
+      source:options.source||prepared.meta.source||"BDLocalScreenDeps.fast",
+      updatedAt:nowISO(),revision:nextRevision,
+      totalPeriods:prepared.periods.length,totalStudents:prepared.students.length,totalRequirements:prepared.requirements.length,
+      periodoId:canonicalPeriodId(options.periodoId||prepared.meta.periodoId||""),
+      operation:text(options.operation||prepared.meta.operation||"refresh").toLowerCase(),
+      sourceScreen:text(options.sourceScreen||prepared.meta.sourceScreen||"screen").toLowerCase(),
+      fastAdapterVersion:VERSION
+    });
+    var saved=setMemory(prepared,options.source||"writeCache",{allowEmpty:options.allowEmpty===true,preferIncoming:true,force:true});
+    memory.revision=nextRevision;
+    var stored=options.persist===false?false:persist(saved);
+    emit("bdlocal:conexiones-cache-updated",{
+      source:options.source||"writeCache",revision:nextRevision,periods:saved.periods.length,students:saved.students.length,requirements:saved.requirements.length,volatile:!stored
+    });
+    if(options.broadcast!==false){
+      metrics.parentPublishes+=1;
+      post({
+        type:MESSAGE.publish,source:options.source||saved.meta.source||"BDLocalScreenDeps.fast",cache:saved,cacheKey:CACHE_KEY,revision:nextRevision,
+        allowEmpty:options.allowEmpty===true,persisted:stored,periodoId:saved.meta.periodoId||"",operation:saved.meta.operation||"refresh",sourceScreen:saved.meta.sourceScreen||"screen",at:nowISO()
+      });
+    }
+    return saved;
+  }
+
+  function invalidateCache(options){
+    options=options||{};metrics.cacheInvalidations+=1;
+    if(options.dropData===true){memory.cache=null;memory.revision=0;memory.updatedAt="";memory.source=text(options.reason||"invalidated");return null;}
+    memory.source=text(options.reason||"invalidated");
+    return memory.cache;
+  }
 
   function requestSharedCache(options){
     options=options||{};var timeout=Math.max(150,Number(options.timeout||650));
@@ -129,7 +216,7 @@ Función:
     var requestId="bdl-fast-"+Date.now()+"-"+(++sequence);metrics.parentRequests+=1;
     return new Promise(function(resolve){
       var timer=window.setTimeout(function(){delete pending[requestId];resolve(readCache());},timeout);
-      pending[requestId]={resolve:function(cache){window.clearTimeout(timer);delete pending[requestId];resolve(setMemory(cache,"parent-response"));}};
+      pending[requestId]={resolve:function(cache){window.clearTimeout(timer);delete pending[requestId];resolve(acceptSharedCache(cache,"parent-response",{emit:false,preferIncoming:true}));}};
       if(!post({type:MESSAGE.request,requestId:requestId,cacheKey:CACHE_KEY,revision:memory.revision,at:nowISO()})){
         window.clearTimeout(timer);delete pending[requestId];resolve(readCache());
       }
@@ -140,10 +227,9 @@ Función:
     var data=event&&event.data;if(!data||typeof data!=="object"){return;}
     if(data.cacheKey&&data.cacheKey!==CACHE_KEY){return;}
     if(data.type!==MESSAGE.response&&data.type!==MESSAGE.updated){return;}
-    var cache=setMemory(data.cache||data.snapshot||readCache(),data.type===MESSAGE.response?"parent-response":"parent-update");
+    var cache=acceptSharedCache(data.cache||data.snapshot||readCache(),data.type===MESSAGE.response?"parent-response":"parent-update",{emit:data.type===MESSAGE.updated,preferIncoming:true});
     metrics.parentResponses+=1;
     if(data.type===MESSAGE.response&&data.requestId&&pending[data.requestId]){pending[data.requestId].resolve(cache);}
-    if(data.type===MESSAGE.updated){emit("bdlocal:screen-data-updated",{source:"parent-frame-cache",revision:cacheRevision(cache),periods:cache.periods.length,students:cache.students.length,requirements:cache.requirements.length,periodoId:text(cache.meta&&cache.meta.periodoId||data.periodoId||"")});}
   }
 
   function filterStudents(rows,options){
@@ -184,7 +270,7 @@ Función:
     typeof existingHub.ensureCoreReady==="function"&&
     typeof existingHub.refreshCache==="function"&&
     typeof existingHub.status==="function"&&
-    !/shared-cache-first|full-hub-safe/i.test(text(existingHub.version))
+    !/shared-cache-first|full-hub-safe|shared-cache-coherent/i.test(text(existingHub.version))
   );
   var nativeRegister=fullHub&&typeof existingHub.register==="function"?existingHub.register.bind(existingHub):null;
   var nativeGet=fullHub&&typeof existingHub.get==="function"?existingHub.get.bind(existingHub):null;
@@ -244,7 +330,8 @@ Función:
     normalizeBasic:normalizeBasic,normalizeKey:normalizeKey,normalizeCedula:normalizeCedula,canonicalPeriodId:canonicalPeriodId,
     studentPeriodId:studentPeriodId,samePeriod:samePeriod,containsText:containsText,normalizePeriod:normalizePeriod,
     normalizeStudent:normalizeStudent,filterStudents:filterStudents,emptyCache:emptyCache,hasData:hasData,
-    cacheRevision:cacheRevision,readCache:readCache,writeCache:writeCache,requestSharedCache:requestSharedCache,emit:emit
+    cacheRevision:cacheRevision,readCache:readCache,writeCache:writeCache,requestSharedCache:requestSharedCache,
+    acceptSharedCache:acceptSharedCache,invalidateCache:invalidateCache,emit:emit
   });
   window.BDLocalConUtils=utils;
 
@@ -277,15 +364,26 @@ Función:
   var studentsAdapter={version:VERSION,source:"BDLocalScreenDeps.fast",ready:ready,buscar:listStudentsSync,getStudents:getStudentsSync,listStudents:listStudentsSync,filterStudents:getStudentsSync,listAllStudents:function(){return getStudentsSync({matricula:""});},obtenerPorCedula:getStudentByCedula,getStudentByCedula:getStudentByCedula,getStudentById:getStudentById,listPeriods:listPeriodsSync,getPeriods:listPeriodsSync,invalidate:function(){return true;}};
   var reportsAdapter={version:VERSION,source:"BDLocalScreenDeps.fast",ready:ready,buildReportData:function(filters){var rows=getStudentsSync(filters||{});return {ok:true,source:"BDLocalScreenDeps.fast",filters:filters||{},generatedAt:nowISO(),estudiantes:rows,rows:rows,requisitos:getRequirementsSync(filters||{}),periodos:listPeriodsSync(),resumen:{totalEstudiantes:rows.length}};},getStudents:getStudentsSync,listStudents:listStudentsSync,getRequirements:getRequirementsSync,getSummary:getSummarySync,getPeriods:listPeriodsSync,listPeriods:listPeriodsSync,invalidate:function(){return true;}};
 
-  window.ExcelLocalRepo=Object.assign({},window.ExcelLocalRepo||{},excel);
-  window.BL2DataEngine=Object.assign({},window.BL2DataEngine||{},engine);
-  window.BL2EstudiantesRepo=Object.assign({},window.BL2EstudiantesRepo||{},studentsAdapter);
-  window.BL2ReportesRepo=Object.assign({},window.BL2ReportesRepo||{},reportsAdapter);
+  function mergeAdapter(existing,fast){return fullHub&&existing?existing:Object.assign({},existing||{},fast);}
+  window.ExcelLocalRepo=mergeAdapter(window.ExcelLocalRepo,excel);
+  window.BL2DataEngine=mergeAdapter(window.BL2DataEngine,engine);
+  window.BL2EstudiantesRepo=mergeAdapter(window.BL2EstudiantesRepo,studentsAdapter);
+  window.BL2ReportesRepo=mergeAdapter(window.BL2ReportesRepo,reportsAdapter);
 
-  window.BDLocalScreenDeps={version:VERSION,ready:ready,status:hubStatus,load:loadScript,readCache:readCache,clearMemo:function(){memory.cache=null;},filterStudents:getStudentsSync,listStudents:listStudentsSync,listPeriods:listPeriodsSync,getRequirements:getRequirementsSync,getSummary:getSummarySync,getStudentByCedula:getStudentByCedula,getStudentById:getStudentById,ensureSyncAdapters:function(){return {excel:excel,engine:engine,estudiantes:studentsAdapter,reportes:reportsAdapter};},ensureDivisionesService:function(){return Promise.resolve(window.BLDivisionesService||null);},normalizeStudent:normalizeStudent,normalizePeriod:normalizePeriod,activateHeavy:ensureHeavy};
+  window.BDLocalScreenDeps={
+    version:VERSION,ready:ready,status:hubStatus,load:loadScript,readCache:readCache,writeCache:writeCache,
+    acceptSharedCache:acceptSharedCache,invalidate:invalidateCache,clearMemo:function(){return invalidateCache({dropData:true,reason:"clearMemo"});},
+    filterStudents:getStudentsSync,listStudents:listStudentsSync,listPeriods:listPeriodsSync,getRequirements:getRequirementsSync,getSummary:getSummarySync,getStudentByCedula:getStudentByCedula,getStudentById:getStudentById,
+    ensureSyncAdapters:function(){return {excel:window.ExcelLocalRepo,engine:window.BL2DataEngine,estudiantes:window.BL2EstudiantesRepo,reportes:window.BL2ReportesRepo};},
+    ensureDivisionesService:function(){return Promise.resolve(window.BLDivisionesService||null);},normalizeStudent:normalizeStudent,normalizePeriod:normalizePeriod,activateHeavy:ensureHeavy
+  };
 
   window.addEventListener("message",handleMessage);
-  window.addEventListener("storage",function(event){if(event&&[CACHE_KEY,OLD_SNAPSHOT_KEY].indexOf(event.key)>=0){memory.cache=null;readCache(true);emit("bdlocal:screen-data-updated",{source:"storage",revision:cacheRevision(memory.cache)});}});
+  window.addEventListener("storage",function(event){
+    if(event&&[CACHE_KEY,OLD_SNAPSHOT_KEY].indexOf(event.key)>=0){
+      invalidateCache({dropData:true,reason:"storage"});readCache(true);emit("bdlocal:screen-data-updated",{source:"storage",revision:cacheRevision(memory.cache)});
+    }
+  });
   readCache();
   window.BDLScreenDepsReady=ready();
 })(window,document);
