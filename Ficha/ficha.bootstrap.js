@@ -6,6 +6,7 @@ Función:
 - Activar escritura por entidades e historial.
 - Activar la protección del estado manual de matrícula.
 - Cargar Ficha y sus editores en orden secuencial.
+- Activar la confirmación de renderizado visible para el contador principal.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -66,15 +67,16 @@ Función:
       .then(function(bridge){return bridge&&typeof bridge.ready==="function"?bridge.ready():bridge;})
       .then(function(){return load("ficha.periodo-normalizer.js",function(){return window.FichaPeriodoNormalizer;});})
       .then(function(){return load("ficha.app.js",function(){return window.FichaApp;});})
+      .then(function(){return load("ficha.render-ready.js",function(){return window.FichaRenderReady;});})
       .then(function(){return load("ficha.modalidad.js",function(){return window.FichaModalidad;});})
       .then(function(){return load("ficha.modalidad-ui.js",function(){return window.FichaModalidadUI;});})
       .then(function(ui){if(ui&&typeof ui.bind==="function"){ui.bind();}return ui;})
       .then(function(){return load("ficha.matricula.js",function(){return window.FichaMatricula;});})
       .then(function(editor){if(editor&&typeof editor.render==="function"){editor.render();}})
-      .then(function(){emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],manualEnrollmentLock:true,entityWrites:true,history:true,at:new Date().toISOString()});})
+      .then(function(){emit("ficha:bootstrap-ready",{ok:true,source:"ConFicha",editors:["matricula","modalidad"],manualEnrollmentLock:true,entityWrites:true,history:true,renderReady:true,at:new Date().toISOString()});})
       .catch(function(error){if(status){status.textContent=error.message||String(error);status.className="ficha-status warn";}emit("ficha:bootstrap-error",{ok:false,source:"ConFicha",error:error.message||String(error),at:new Date().toISOString()});});
   }
 
-  window.FichaBootstrap={version:"1.3.0-entity-writes",boot:boot,readyConnector:readyConnector};
+  window.FichaBootstrap={version:"1.4.0-visible-ready",boot:boot,readyConnector:readyConnector};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
