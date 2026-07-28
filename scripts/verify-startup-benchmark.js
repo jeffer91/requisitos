@@ -6,7 +6,7 @@ Ruta: /scripts/verify-startup-benchmark.js
 Función:
 - Verificar las métricas locales de arranque de Carga.
 - Verificar que el contador espere la pantalla realmente lista.
-- Cubrir Carga, Tabla, Ficha, Stats y Coordi sin usar servicios externos.
+- Cubrir las doce pantallas activas sin usar servicios externos.
 ========================================================= */
 
 const fs=require("node:fs");
@@ -32,9 +32,16 @@ const mainHtml=read("Maqueta/maq-index.html");
 const timerSource=read("Maqueta/maq-bdlocal-delivery-timer.js");
 const fichaBootstrap=read("Ficha/ficha.bootstrap.js");
 const fichaReady=read("Ficha/ficha.render-ready.js");
+const centroReady=read("BDLocal/centro-datos/centro-datos.render-ready.js");
+const tablaReady=read("Gestion/Tabla/core/tabla.render-ready.js");
 const statsReady=read("Stats/stats.render-ready.js");
 const coordiReady=read("Coordi/coordi.render-ready.js");
-const tablaReady=read("Gestion/Tabla/core/tabla.render-ready.js");
+const globalReady=read("Global/global.render-ready.js");
+const reportesReady=read("Reportes/repo.render-ready.js");
+const defartReady=read("defart/defart.render-ready.js");
+const ncomplexReady=read("Ncomplex/ncomplex.render-ready.js");
+const crDefReady=read("Cr-def/cr-def.render-ready.js");
+const inpvcReady=read("InPVC/frontend/inpvc.render-ready.js");
 const packageJson=JSON.parse(read("package.json"));
 
 check(cargaHtml.includes('src="./carga.startup-metrics.js"'),"Carga incluye las métricas de arranque.");
@@ -47,23 +54,74 @@ check(packageJson.scripts["diagnostico:tiempo-base"]&&packageJson.scripts["test:
 
 check(mainHtml.includes("BDLocal → pantalla lista"),"La interfaz aclara que mide la pantalla lista.");
 check(mainHtml.includes('src="maq-bdlocal-delivery-timer.js"'),"La ventana principal carga el contador.");
+check(timerSource.includes('VERSION="3.0.0-all-active-screens-ready"'),"El contador usa la versión para todas las pantallas activas.");
 check(timerSource.includes('READY_EVENT="maqueta:screen-render-complete"'),"El contador usa el evento estándar de pantalla lista.");
 check(timerSource.includes("EXPLICIT_READY_MODULES"),"El contador distingue pantallas con confirmación explícita.");
-check(timerSource.includes("tabla_principal:true")&&timerSource.includes("stat_main:true")&&timerSource.includes("coordi:true"),"Tabla, Stats y Coordi no usan el cierre genérico.");
-check(timerSource.includes('path:"core/tabla.render-ready.js"')&&timerSource.includes('path:"stats.render-ready.js"')&&timerSource.includes('path:"coordi.render-ready.js"'),"El contador instala las sondas visuales correctas.");
-check(timerSource.includes("generic-dom-stable"),"Las demás pantallas esperan estabilidad del DOM.");
+
+const activeModuleIds=[
+  "carga_excel","baselocal","tabla_principal","ficha_estudiante","stat_main","coordi",
+  "global","modulo_reporte","defart","ncomplex","cr_def","titulacion"
+];
+for(const moduleId of activeModuleIds){
+  check(timerSource.includes(`${moduleId}:true`),`${moduleId} exige confirmación visual explícita.`);
+}
+
+const expectedProbePaths=[
+  'path:"centro-datos/centro-datos.render-ready.js"',
+  'path:"core/tabla.render-ready.js"',
+  'path:"stats.render-ready.js"',
+  'path:"coordi.render-ready.js"',
+  'path:"global.render-ready.js"',
+  'path:"repo.render-ready.js"',
+  'path:"defart.render-ready.js"',
+  'path:"ncomplex.render-ready.js"',
+  'path:"cr-def.render-ready.js"',
+  'path:"frontend/inpvc.render-ready.js"'
+];
+for(const probePath of expectedProbePaths){
+  check(timerSource.includes(probePath),`El contador registra la sonda ${probePath}.`);
+}
+check(timerSource.includes("triggerReadyProbe"),"El contador reactiva la sonda al volver a una pantalla conservada en memoria.");
+check(timerSource.includes("generic-dom-stable"),"Las futuras pantallas sin sonda conservan un respaldo por estabilidad del DOM.");
 check(timerSource.includes("MAX_WAIT_MS=30000"),"La espera máxima es visible y limitada.");
 
 check(fichaBootstrap.includes('load("ficha.render-ready.js"'),"Ficha carga su sonda visual.");
 check(fichaReady.includes('moduleId:"ficha_estudiante"')&&fichaReady.includes('el("ficha-requisitos")')&&fichaReady.includes('el("ficha-notas")'),"Ficha espera detalle, requisitos y notas.");
-check(statsReady.includes('moduleId:"stat_main"')&&statsReady.includes('el("stats-notes")')&&statsReady.includes('el("stats-estudiantes")'),"Stats espera notas y estudiantes renderizados.");
-check(statsReady.includes("current.rendering===true")&&statsReady.includes("current.pendingRender"),"Stats no confirma durante un render pendiente.");
-check(coordiReady.includes('moduleId:"coordi"')&&coordiReady.includes('el("coordi-email-preview")')&&coordiReady.includes('el("coordi-mail-subject")'),"Coordi espera el correo completamente visible.");
-check(coordiReady.includes("current.loading===true")&&coordiReady.includes("current.pendingRender"),"Coordi no confirma durante otro reporte.");
+
+check(centroReady.includes('moduleId:"baselocal"')&&centroReady.includes('el("bl2-db-pill")')&&centroReady.includes('el("bl2-view-status")'),"Centro de datos espera BDLocal y su resumen actualizado.");
+check(centroReady.includes("current.mounted!==true")&&centroReady.includes("requestAnimationFrame"),"Centro de datos espera montaje y pintado final.");
+
 check(tablaReady.includes('moduleId:"tabla_principal"')&&tablaReady.includes('"tabla:rendered"'),"Tabla usa su evento interno de render final.");
 check(tablaReady.includes('getElementById("tabla-table-wrap")'),"Tabla comprueba las filas visibles.");
 
-const localSources=[metricsSource,timerSource,fichaReady,statsReady,coordiReady,tablaReady];
+check(statsReady.includes('moduleId:"stat_main"')&&statsReady.includes('el("stats-notes")')&&statsReady.includes('el("stats-estudiantes")'),"Stats espera notas y estudiantes renderizados.");
+check(statsReady.includes("current.rendering===true")&&statsReady.includes("current.pendingRender"),"Stats no confirma durante un render pendiente.");
+
+check(coordiReady.includes('moduleId:"coordi"')&&coordiReady.includes('el("coordi-email-preview")')&&coordiReady.includes('el("coordi-mail-subject")'),"Coordi espera el correo completamente visible.");
+check(coordiReady.includes("current.loading===true")&&coordiReady.includes("current.pendingRender"),"Coordi no confirma durante otro reporte.");
+
+check(globalReady.includes('moduleId:"global"')&&globalReady.includes('el("globalSectionBody")')&&globalReady.includes('el("globalSectionState")'),"Global espera estado y sección visibles.");
+check(globalReady.includes("getLastData")&&globalReady.includes("requestAnimationFrame"),"Global espera datos calculados y pintado final.");
+
+check(reportesReady.includes('moduleId:"modulo_reporte"')&&reportesReady.includes('el("repo-preview")')&&reportesReady.includes('el("repo-estudiantes")'),"Reportes espera vista previa y tablas completas.");
+check(reportesReady.includes("current.rendering===true")&&reportesReady.includes('el("repo-diagnostics")'),"Reportes espera fin del cálculo y diagnóstico.");
+
+check(defartReady.includes('moduleId:"defart"')&&defartReady.includes('el("def-table-wrap")')&&defartReady.includes('el("def-visible-count")'),"Defensas espera tabla y conteo visible.");
+check(defartReady.includes("current.renderQueued===true")&&defartReady.includes("diagnostics.loading===true"),"Defensas no confirma con render o datos pendientes.");
+
+check(ncomplexReady.includes('moduleId:"ncomplex"')&&ncomplexReady.includes('el("ncomplex-table-wrap")')&&ncomplexReady.includes('el("ncomplex-visible-count")'),"Ncomplex espera tabla y conteo visible.");
+check(ncomplexReady.includes("current.loading===true")&&ncomplexReady.includes("NcomplexState.subscribe"),"Ncomplex sigue el estado local hasta quedar listo.");
+
+check(crDefReady.includes('moduleId:"cr_def"')&&crDefReady.includes('query("[data-cr-tabla-body]")')&&crDefReady.includes('query("[data-cr-cache-status]")'),"Cr-def espera tabla y estado de cache.");
+check(crDefReady.includes("current.loading===true")&&crDefReady.includes("requestAnimationFrame"),"Cr-def espera fin de carga y pintado final.");
+
+check(inpvcReady.includes('moduleId:"titulacion"')&&inpvcReady.includes('el("inpvc-sections")')&&inpvcReady.includes('el("inpvc-period")'),"InPVC espera períodos y secciones visibles.");
+check(inpvcReady.includes("current.context")&&inpvcReady.includes(".inpvc-section-card")&&inpvcReady.includes("requestAnimationFrame"),"InPVC valida el informe generado y su pintado final.");
+
+const localSources=[
+  metricsSource,timerSource,fichaReady,centroReady,tablaReady,statsReady,coordiReady,
+  globalReady,reportesReady,defartReady,ncomplexReady,crDefReady,inpvcReady
+];
 const forbidden=[/\bfetch\s*\(/,/firebase\.initialize/i,/supabase\.createClient/i,/google\.script/i,/BDLSyncV2\.request/i,/\.sync\s*\(/];
 for(const expression of forbidden){
   for(const source of localSources){check(!expression.test(source),`Las métricas visuales no usan ${expression}.`);}
@@ -157,12 +215,20 @@ function verifyExplicitModule(moduleId,label,source,expectedCompletions){
   flush(1000);
   current=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
   check(current.running===false&&current.completions===expectedCompletions,`${label} termina con su confirmación visual.`);
+  check(current.lastModuleId===moduleId&&counter.dataset.state==="ok",`${label} deja el resultado asociado a la pantalla correcta.`);
 }
 
-verifyExplicitModule("ficha_estudiante","Ficha","FichaRenderReady",2);
+verifyExplicitModule("baselocal","Centro de datos","CentroDatosRenderReady",2);
 verifyExplicitModule("tabla_principal","Tabla","TablaRenderReady",3);
-verifyExplicitModule("stat_main","Stats","StatsRenderReady",4);
-verifyExplicitModule("coordi","Coordi","CoordiRenderReady",5);
+verifyExplicitModule("ficha_estudiante","Ficha","FichaRenderReady",4);
+verifyExplicitModule("stat_main","Stats","StatsRenderReady",5);
+verifyExplicitModule("coordi","Coordi","CoordiRenderReady",6);
+verifyExplicitModule("global","Global","GlobalRenderReady",7);
+verifyExplicitModule("modulo_reporte","Reportes","ReportesRenderReady",8);
+verifyExplicitModule("defart","Defensas","DefartRenderReady",9);
+verifyExplicitModule("ncomplex","Ncomplex","NcomplexRenderReady",10);
+verifyExplicitModule("cr_def","Cr-def","CrDefRenderReady",11);
+verifyExplicitModule("titulacion","InPVC","InPVCRenderReady",12);
 
 if(errors.length){
   console.error(`\nVERIFICACIÓN BENCHMARK DE ARRANQUE: ERROR (${errors.length})`);
