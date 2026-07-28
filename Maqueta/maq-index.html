@@ -13,6 +13,7 @@ Función o funciones:
 - Cargar el registro de módulos antes de cualquier puente local.
 - Proteger rutas todavía inexistentes antes de construir el menú.
 - Evitar navegaciones heredadas fuera de la aplicación.
+- Mostrar el tiempo de entrega de datos desde BDLocal hasta la pantalla activa.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -38,7 +39,13 @@ Función o funciones:
     </main>
     <footer class="maq-statusbar">
       <span id="maq-status-text">Listo</span>
-      <span id="maq-memory-text">Memoria activa</span>
+      <div class="maq-status-metrics">
+        <span class="maq-delivery-counter" title="Tiempo desde que se abre la pantalla hasta que recibe los datos de BDLocal.">
+          <span class="maq-delivery-counter-label">BDLocal → pantalla</span>
+          <strong id="maq-bdlocal-delivery-time" class="maq-delivery-counter-value" data-state="idle">—</strong>
+        </span>
+        <span id="maq-memory-text">Memoria activa</span>
+      </div>
     </footer>
   </div>
   <script src="maq-utils.js"></script>
@@ -48,6 +55,7 @@ Función o funciones:
   <script src="maq-config-service.js"></script>
   <script src="maq-core.js"></script>
   <script src="maq-screen-fast-sync.js"></script>
+  <script src="maq-bdlocal-delivery-timer.js"></script>
   <script src="maq-menu.js"></script>
   <script src="maq-health.js"></script>
   <script src="maq-baselocal-background-sync.js"></script>
