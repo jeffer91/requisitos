@@ -7,7 +7,7 @@ Función:
 - Verificar la instrumentación de arranque de Carga.
 - Confirmar que la prueba PowerShell mide sin sincronizar fuentes externas.
 - Validar la API local de CargaStartupMetrics en un entorno simulado.
-- Verificar que el contador visible espere el renderizado real de Ficha.
+- Verificar que el contador espere la pantalla realmente lista en Carga, Tabla, Ficha, Stats y Coordi.
 ========================================================= */
 
 const fs=require("node:fs");
@@ -33,6 +33,9 @@ const mainHtml=read("Maqueta/maq-index.html");
 const deliveryTimerSource=read("Maqueta/maq-bdlocal-delivery-timer.js");
 const fichaBootstrap=read("Ficha/ficha.bootstrap.js");
 const fichaReadySource=read("Ficha/ficha.render-ready.js");
+const statsReadySource=read("Stats/stats.render-ready.js");
+const coordiReadySource=read("Coordi/coordi.render-ready.js");
+const tablaReadySource=read("Gestion/Tabla/core/tabla.render-ready.js");
 const packageJson=JSON.parse(read("package.json"));
 
 check(html.includes('src="./carga.startup-metrics.js"'),"Carga incluye las métricas de arranque.");
@@ -64,6 +67,10 @@ check(deliveryTimerSource.includes('getElementById("maq-btn-refresh")'),"El cont
 check(deliveryTimerSource.includes('READY_EVENT="maqueta:screen-render-complete"'),"El contador espera una confirmación de renderizado final.");
 check(deliveryTimerSource.includes("markData"),"El contador separa llegada de datos y pantalla visible.");
 check(deliveryTimerSource.includes("checkFichaReady"),"El contador verifica el estado visual específico de Ficha.");
+check(deliveryTimerSource.includes("EXPLICIT_READY_MODULES"),"El contador distingue las pantallas con confirmación explícita.");
+check(deliveryTimerSource.includes("tabla_principal:true")&&deliveryTimerSource.includes("stat_main:true")&&deliveryTimerSource.includes("coordi:true"),"Tabla, Stats y Coordi no pueden finalizar con el respaldo genérico.");
+check(deliveryTimerSource.includes('path:"core/tabla.render-ready.js"')&&deliveryTimerSource.includes('path:"stats.render-ready.js"')&&deliveryTimerSource.includes('path:"coordi.render-ready.js"'),"La ventana principal carga las sondas visuales de Tabla, Stats y Coordi.");
+check(deliveryTimerSource.includes("generic-dom-stable"),"Las demás pantallas esperan estabilidad real del DOM.");
 check(deliveryTimerSource.includes("baselineActiveUpdates"),"El contador diferencia una entrega nueva de una anterior.");
 check(deliveryTimerSource.includes("MAX_WAIT_MS=30000"),"El contador tiene un límite visible de espera de 30 segundos.");
 
@@ -73,6 +80,22 @@ check(fichaReadySource.includes('el("ficha-requisitos")')&&fichaReadySource.incl
 check(fichaReadySource.includes('el("ficha-modalidad-select")'),"Ficha espera la modalidad antes de declararse lista.");
 check(fichaReadySource.includes("requestAnimationFrame"),"Ficha confirma el resultado después del pintado del navegador.");
 
+check(statsReadySource.includes('moduleId:"stat_main"'),"Stats publica la confirmación para el módulo correcto.");
+check(statsReadySource.includes('el("stats-notes")')&&statsReadySource.includes('el("stats-estudiantes")'),"Stats espera notas y estudiantes renderizados.");
+check(statsReadySource.includes("current.rendering===true")&&statsReadySource.includes("current.pendingRender"),"Stats no confirma mientras sigue renderizando.");
+check(statsReadySource.includes("requestAnimationFrame"),"Stats confirma después del pintado del navegador.");
+
+check(coordiReadySource.includes('moduleId:"coordi"'),"Coordi publica la confirmación para el módulo correcto.");
+check(coordiReadySource.includes('el("coordi-email-preview")')&&coordiReadySource.includes('el("coordi-mail-subject")'),"Coordi espera la vista previa completa del correo.");
+check(coordiReadySource.includes("current.loading===true")&&coordiReadySource.includes("current.pendingRender"),"Coordi no confirma mientras construye otro reporte.");
+check(coordiReadySource.includes("requestAnimationFrame"),"Coordi confirma después del pintado del navegador.");
+
+check(tablaReadySource.includes('moduleId:"tabla_principal"'),"Tabla publica la confirmación para el módulo correcto.");
+check(tablaReadySource.includes('"tabla:rendered"'),"Tabla parte de su evento interno de render final.");
+check(tablaReadySource.includes('getElementById("tabla-table-wrap")'),"Tabla verifica las filas realmente visibles.");
+check(tablaReadySource.includes("requestAnimationFrame"),"Tabla confirma después del pintado del navegador.");
+
+const localOnlySources=[metricsSource,deliveryTimerSource,fichaReadySource,statsReadySource,coordiReadySource,tablaReadySource];
 const metricsForbidden=[
   /\bfetch\s*\(/,
   /firebase\.initialize/i,
@@ -82,9 +105,9 @@ const metricsForbidden=[
   /\.sync\s*\(/
 ];
 for(const expression of metricsForbidden){
-  check(!expression.test(metricsSource),`Las métricas no usan ${expression}.`);
-  check(!expression.test(deliveryTimerSource),`El contador visible no usa ${expression}.`);
-  check(!expression.test(fichaReadySource),`La confirmación visual de Ficha no usa ${expression}.`);
+  for(const source of localOnlySources){
+    check(!expression.test(source),`Las métricas visuales no usan ${expression}.`);
+  }
 }
 
 const runtimeForbidden=[
@@ -164,6 +187,7 @@ function flush(maxDelay){
 
 const child=new FakeEventTarget();
 child.document={readyState:"complete"};
+child.location={href:"about:blank"};
 child.requestAnimationFrame=function(fn){fn();return 1;};
 child.CargaStartupMetrics={status(){return {periodsReadyAt:0};}};
 child.FichaRenderReady={status(){return {ready:false,emissions:0};}};
@@ -195,7 +219,7 @@ deliveryWindow.clearTimeout=cancel;
 deliveryWindow.MAQ_CORE={
   state:{moduloActivoId:"carga_excel"},
   bus:{on(name,handler){busHandlers[name]=handler;}},
-  router:{buscarModulo(id){return {id,nombre:id==="ficha_estudiante"?"Ficha":"Carga"};}}
+  router:{buscarModulo(id){return {id,nombre:id};}}
 };
 deliveryWindow.MAQ_SCREEN_FAST_SYNC={status(){return {activeUpdates:0,lastModuleId:""};}};
 
@@ -203,6 +227,7 @@ const deliveryContext=vm.createContext({
   window:deliveryWindow,
   document:deliveryDocument,
   CustomEvent:FakeCustomEvent,
+  URL,
   Date,Object,Array,Number,String,Boolean,JSON,Math,Error,Intl,console
 });
 new vm.Script(deliveryTimerSource,{filename:"maq-bdlocal-delivery-timer.js"}).runInContext(deliveryContext);
@@ -217,19 +242,26 @@ let deliveryStatus=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
 check(deliveryStatus.running===false&&deliveryStatus.completions===1,"Carga termina después de confirmar sus períodos visibles.");
 check(deliveryStatus.lastModuleId==="carga_excel"&&counter.dataset.state==="ok","El resultado de Carga queda visible como correcto.");
 
-frame.dataset.moduleId="ficha_estudiante";
-deliveryWindow.MAQ_CORE.state.moduloActivoId="ficha_estudiante";
-busHandlers["modulo:cambiado"]({moduloId:"ficha_estudiante",modulo:{nombre:"Ficha"}});
-check(deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status().running===true,"El contador empieza al abrir Ficha.");
-child.dispatchEvent(new FakeCustomEvent("bdlocal:screen-data-updated",{detail:{targetModuleId:"ficha_estudiante"}}));
-flush(1000);
-deliveryStatus=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
-check(deliveryStatus.running===true&&deliveryStatus.dataDurationMs>=0,"La señal de datos no detiene prematuramente el contador de Ficha.");
-child.dispatchEvent(new FakeCustomEvent("maqueta:screen-render-complete",{detail:{moduleId:"ficha_estudiante",source:"FichaRenderReady"}}));
-flush(1000);
-deliveryStatus=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
-check(deliveryStatus.running===false&&deliveryStatus.completions===2,"Ficha termina únicamente con la confirmación visual final.");
-check(deliveryStatus.lastModuleId==="ficha_estudiante"&&counter.dataset.state==="ok","El resultado final queda asociado a Ficha.");
+function verifyExplicitModule(moduleId,label,source,expectedCompletions){
+  frame.dataset.moduleId=moduleId;
+  deliveryWindow.MAQ_CORE.state.moduloActivoId=moduleId;
+  busHandlers["modulo:cambiado"]({moduloId,module:{nombre:label},modulo:{nombre:label}});
+  check(deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status().running===true,`El contador empieza al abrir ${label}.`);
+  child.dispatchEvent(new FakeCustomEvent("bdlocal:screen-data-updated",{detail:{targetModuleId:moduleId}}));
+  flush(1000);
+  let current=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
+  check(current.running===true,`La señal técnica no detiene prematuramente ${label}.`);
+  child.dispatchEvent(new FakeCustomEvent("maqueta:screen-render-complete",{detail:{moduleId,source}}));
+  flush(1000);
+  current=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
+  check(current.running===false&&current.completions===expectedCompletions,`${label} termina únicamente con su confirmación visual.`);
+  check(current.lastModuleId===moduleId&&counter.dataset.state==="ok",`El resultado final queda asociado a ${label}.`);
+}
+
+verifyExplicitModule("ficha_estudiante","Ficha","FichaRenderReady",2);
+verifyExplicitModule("tabla_principal","Tabla","TablaRenderReady",3);
+verifyExplicitModule("stat_main","Stats","StatsRenderReady",4);
+verifyExplicitModule("coordi","Coordi","CoordiRenderReady",5);
 
 if(errors.length){
   console.error(`\nVERIFICACIÓN BENCHMARK DE ARRANQUE: ERROR (${errors.length})`);
