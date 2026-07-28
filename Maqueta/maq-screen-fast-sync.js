@@ -5,25 +5,27 @@ Función o funciones:
 - Mantener una sola copia compartida de Base Local en la ventana principal.
 - Interceptar únicamente los mensajes internos de caché entre iframes conocidos.
 - Evitar enviar, clonar y renderizar la caché completa en pantallas ocultas.
-- Invalidar y actualizar de inmediato solamente la pantalla visible.
-- Entregar la última revisión al abrir una pantalla ya cargada o recién creada.
+- Inyectar la revisión vigente antes de renderizar una pantalla recién activada.
+- No conservar referencias fuertes a iframes eliminados.
 - No consultar IndexedDB, Firebase, Supabase ni Google Sheets.
 Con qué se conecta:
 - maq-baselocal-session.js.
 - maq-core.js.
-- BDLocalConUtils y las API públicas de cada pantalla dentro de su iframe.
+- BDLocalScreenDeps y BDLocalConUtils de cada pantalla.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-active-frame-only";
+  var VERSION="1.2.0-coherent-active-frame";
+  var CACHE_KEY="REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var MESSAGE={
     publish:"requisitos:bdlocal-cache:publish",
     request:"requisitos:bdlocal-cache:request",
-    response:"requisitos:bdlocal-cache:response"
+    response:"requisitos:bdlocal-cache:response",
+    updated:"requisitos:bdlocal-cache:updated"
   };
   var STORAGE_KEYS=[
-    "REQ_BDLOCAL_CONEXIONES_CACHE_V1",
+    CACHE_KEY,
     "REQ_BDLOCAL_CONEXIONES_SIGNAL_V1",
     "REQ_BL_SIGNAL_V1",
     "REQ_BDLOCAL_LEGACY_SNAPSHOT_V1",
@@ -38,7 +40,8 @@ Con qué se conecta:
     hiddenSkipped:0,
     hiddenStorageBlocked:0,
     childGuards:0,
-    fallbacks:0,
+    directDeliveries:0,
+    fallbackDeliveries:0,
     failures:0,
     lastModuleId:"",
     lastRevision:0,
@@ -46,15 +49,38 @@ Con qué se conecta:
     lastError:"",
     updatedAt:""
   };
-  var observedFrames=[];
+  var observedFrames=typeof window.WeakSet==="function"
+    ? new window.WeakSet()
+    : [];
 
   function text(value){return String(value==null?"":value).trim();}
   function now(){return new Date().toISOString();}
   function session(){return window.MAQ_BASELOCAL_SESSION||null;}
   function core(){return window.MAQ_CORE||null;}
   function frames(){return Array.prototype.slice.call(document.querySelectorAll("iframe")||[]);}
-  function moduleId(frame){return text(frame&&frame.dataset&&frame.dataset.moduleId||frame&&frame.getAttribute&&frame.getAttribute("data-module-id")||"");}
-  function revisionOf(snapshot){return Number(snapshot&&snapshot.meta&&(snapshot.meta.revision||snapshot.meta.cacheRevision)||0);}
+  function moduleId(frame){
+    return text(
+      frame&&frame.dataset&&frame.dataset.moduleId||
+      frame&&frame.getAttribute&&frame.getAttribute("data-module-id")||
+      ""
+    );
+  }
+  function revisionOf(snapshot){
+    return Number(snapshot&&snapshot.meta&&(snapshot.meta.revision||snapshot.meta.cacheRevision)||0);
+  }
+  function hasObserved(frame){
+    if(observedFrames&&typeof observedFrames.has==="function"){
+      return observedFrames.has(frame);
+    }
+    return observedFrames.indexOf(frame)>=0;
+  }
+  function markObserved(frame){
+    if(observedFrames&&typeof observedFrames.add==="function"){
+      observedFrames.add(frame);
+    }else{
+      observedFrames.push(frame);
+    }
+  }
 
   function isKnownSource(source){
     if(!source){return false;}
@@ -101,14 +127,18 @@ Con qué se conecta:
       var EventCtor=child.CustomEvent||window.CustomEvent;
       child.dispatchEvent(new EventCtor(name,{detail:payload||{}}));
       return true;
-    }catch(error){return false;}
+    }catch(error){
+      return false;
+    }
   }
 
   function installChildGuard(frame){
     if(!frame){return false;}
     var child=null;
     try{child=frame.contentWindow||null;}catch(error){child=null;}
-    if(!child||typeof child.addEventListener!=="function"||child.__maqFastStorageGuard){return false;}
+    if(!child||typeof child.addEventListener!=="function"||child.__maqFastStorageGuard){
+      return false;
+    }
     try{
       child.__maqFastStorageGuard=true;
       child.addEventListener("storage",function(event){
@@ -120,17 +150,13 @@ Con qué se conecta:
       },true);
       state.childGuards+=1;
       return true;
-    }catch(error2){return false;}
+    }catch(error2){
+      return false;
+    }
   }
 
-  function invalidateChild(child){
+  function invalidateScreenCaches(child){
     try{
-      if(child.BDLocalConUtils&&typeof child.BDLocalConUtils.invalidateCache==="function"){
-        child.BDLocalConUtils.invalidateCache({dropData:false});
-      }
-      if(child.BDLocalScreenDeps&&typeof child.BDLocalScreenDeps.invalidate==="function"){
-        child.BDLocalScreenDeps.invalidate({reason:"instant-screen-sync"});
-      }
       if(child.TablaDataSource&&typeof child.TablaDataSource.invalidate==="function"){
         child.TablaDataSource.invalidate({hard:true,force:true});
       }
@@ -200,14 +226,15 @@ Con qué se conecta:
     try{
       if(frame&&frame.contentWindow&&typeof frame.contentWindow.postMessage==="function"){
         frame.contentWindow.postMessage({
-          type:"requisitos:bdlocal-cache:updated",
+          type:MESSAGE.updated,
           reason:text(reason||"active-frame-fallback"),
           cache:snapshot,
+          cacheKey:CACHE_KEY,
           allowEmpty:false,
           revision:revisionOf(snapshot),
           at:now()
         },"*");
-        state.fallbacks+=1;
+        state.fallbackDeliveries+=1;
         return true;
       }
     }catch(error){
@@ -217,27 +244,90 @@ Con qué se conecta:
     return false;
   }
 
+  function deliverSnapshot(child,frame,snapshot,reason){
+    try{
+      if(
+        child.BDLocalScreenDeps&&
+        typeof child.BDLocalScreenDeps.acceptSharedCache==="function"
+      ){
+        child.BDLocalScreenDeps.acceptSharedCache(
+          snapshot,
+          "maq-screen-fast-sync:"+text(reason||"active"),
+          {emit:false,force:true}
+        );
+        state.directDeliveries+=1;
+        return true;
+      }
+
+      if(
+        child.BDLocalConUtils&&
+        typeof child.BDLocalConUtils.acceptSharedCache==="function"
+      ){
+        child.BDLocalConUtils.acceptSharedCache(
+          snapshot,
+          "maq-screen-fast-sync:"+text(reason||"active"),
+          {emit:false,force:true}
+        );
+        state.directDeliveries+=1;
+        return true;
+      }
+
+      if(
+        child.BDLocalConUtils&&
+        typeof child.BDLocalConUtils.writeCache==="function"
+      ){
+        child.BDLocalConUtils.writeCache(snapshot,{
+          source:"maq-screen-fast-sync",
+          respectIncomingRevision:true,
+          persist:false,
+          broadcast:false,
+          emit:false,
+          allowEmpty:false
+        });
+        state.directDeliveries+=1;
+        return true;
+      }
+    }catch(error){
+      state.failures+=1;
+      state.lastError=error&&error.message?error.message:String(error);
+    }
+
+    return postFallback(frame,snapshot,reason);
+  }
+
   function syncFrame(frame,reason){
     var started=Date.now();
-    if(!frame||!isVisible(frame)){state.hiddenSkipped+=1;return false;}
+    if(!frame||!isVisible(frame)){
+      state.hiddenSkipped+=1;
+      return false;
+    }
+
     installChildGuard(frame);
     var snapshot=sharedSnapshot();
     if(!snapshot){return false;}
+
     var child=null;
     try{child=frame.contentWindow||null;}catch(error){child=null;}
     if(!child){return false;}
+
     var payload=detail(snapshot,reason,frame);
+    var delivered=deliverSnapshot(child,frame,snapshot,reason);
+    if(!delivered){return false;}
 
     try{
-      if(child.BDLocalConUtils||child.TablaApp||child.FichaApp||child.StatsApp||child.CoordiApp||child.RepoApp||child.DefartApp){
-        invalidateChild(child);
-        dispatchChild(child,"bdlocal:screen-data-updated",payload);
-        dispatchChild(child,"bdlocal:pantallas:updated",payload);
-        var run=function(){refreshKnownScreen(child,payload);};
-        if(typeof child.requestAnimationFrame==="function"){child.requestAnimationFrame(run);}else if(typeof child.setTimeout==="function"){child.setTimeout(run,0);}else{run();}
+      invalidateScreenCaches(child);
+      dispatchChild(child,"bdlocal:screen-data-updated",payload);
+      dispatchChild(child,"bdlocal:pantallas:updated",payload);
+
+      var run=function(){refreshKnownScreen(child,payload);};
+      if(typeof child.requestAnimationFrame==="function"){
+        child.requestAnimationFrame(run);
+      }else if(typeof child.setTimeout==="function"){
+        child.setTimeout(run,0);
       }else{
-        postFallback(frame,snapshot,reason);
+        run();
       }
+
       state.activeUpdates+=1;
       state.lastModuleId=moduleId(frame);
       state.lastRevision=payload.revision;
@@ -248,7 +338,7 @@ Con qué se conecta:
     }catch(error2){
       state.failures+=1;
       state.lastError=error2&&error2.message?error2.message:String(error2);
-      return postFallback(frame,snapshot,reason);
+      return false;
     }
   }
 
@@ -259,7 +349,9 @@ Con qué se conecta:
       if(!isVisible(frame)){state.hiddenSkipped+=1;}
     });
     visible.forEach(function(frame){
-      if(!exceptSource||frame.contentWindow!==exceptSource){syncFrame(frame,reason);}
+      if(!exceptSource||frame.contentWindow!==exceptSource){
+        syncFrame(frame,reason);
+      }
     });
   }
 
@@ -269,20 +361,28 @@ Con qué se conecta:
     return current.setSnapshot(data.cache||data.snapshot||{}, {
       source:text(data.source||"iframe-fast-publish"),
       allowEmpty:data.allowEmpty===true,
-      alreadyStored:true,
+      alreadyStored:data.persisted===true,
       clone:false
     });
   }
 
   function sendResponse(source,data){
     var current=session();
-    if(!current||typeof current.ensureReady!=="function"||typeof current.getSnapshot!=="function"){return false;}
+    if(
+      !current||
+      typeof current.ensureReady!=="function"||
+      typeof current.getSnapshot!=="function"
+    ){
+      return false;
+    }
+
     current.ensureReady();
     try{
       source.postMessage({
         type:MESSAGE.response,
         requestId:text(data.requestId),
         cache:current.getSnapshot(),
+        cacheKey:CACHE_KEY,
         status:typeof current.getStatus==="function"?current.getStatus():{},
         allowEmpty:false,
         at:now()
@@ -331,12 +431,14 @@ Con qué se conecta:
   }
 
   function observeFrame(frame){
-    if(!frame||observedFrames.indexOf(frame)>=0){return;}
-    observedFrames.push(frame);
+    if(!frame||hasObserved(frame)){return;}
+    markObserved(frame);
     installChildGuard(frame);
     frame.addEventListener("load",function(){
       installChildGuard(frame);
-      if(isVisible(frame)){window.setTimeout(function(){syncFrame(frame,"frame-loaded");},0);}
+      if(isVisible(frame)){
+        window.setTimeout(function(){syncFrame(frame,"frame-loaded");},0);
+      }
     });
   }
 
@@ -354,16 +456,22 @@ Con qué se conecta:
     state.installed=true;
     window.addEventListener("message",intercept,true);
     observeFrames();
+
     var current=core();
     if(current&&current.bus&&typeof current.bus.on==="function"){
       current.bus.on("modulo:cambiado",onModuleChanged);
     }
+
     state.updatedAt=now();
     return status();
   }
 
   function status(){
-    return Object.assign({version:VERSION,activeFrames:activeFrames().length,totalFrames:frames().length},state);
+    return Object.assign({
+      version:VERSION,
+      activeFrames:activeFrames().length,
+      totalFrames:frames().length
+    },state);
   }
 
   window.MAQ_SCREEN_FAST_SYNC={
