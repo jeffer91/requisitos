@@ -2,29 +2,25 @@
 Nombre completo: maq-bdlocal-delivery-timer.js
 Ruta o ubicación: /Maqueta/maq-bdlocal-delivery-timer.js
 Función o funciones:
-- Medir cuánto tarda la entrega de datos desde BDLocal hasta la pantalla activa.
-- Iniciar el contador al abrir o refrescar una pantalla.
-- Detenerlo cuando la pantalla recibe el evento de actualización de BDLocal.
-- Confirmar también la llegada inicial de períodos en la pantalla Carga.
-- Mostrar la medición en la barra inferior de la aplicación.
-- No leer IndexedDB ni ejecutar sincronizaciones externas.
-Con qué se conecta:
-- maq-core.js.
-- maq-screen-fast-sync.js.
-- Carga/carga.startup-metrics.js.
-- maq-index.html.
+- Medir desde la apertura de una pantalla hasta que sus datos quedan visibles y utilizables.
+- Diferenciar la llegada técnica de datos del renderizado final de la interfaz.
+- Esperar la confirmación visual propia de Ficha antes de detener el contador.
+- Confirmar Carga después de pintar los períodos recibidos.
+- Mostrar la medición en la barra inferior sin consultar fuentes externas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-bdlocal-delivery";
+  var VERSION="2.0.0-visible-screen-ready";
   var MAX_WAIT_MS=30000;
-  var EVENT_NAMES=[
+  var READY_EVENT="maqueta:screen-render-complete";
+  var DATA_EVENTS=[
     "bdlocal:screen-data-updated",
     "bdlocal:pantallas:updated",
     "bdlocal:connections:updated",
     "carga:periods-refreshed"
   ];
+  var ALL_EVENTS=DATA_EVENTS.concat([READY_EVENT]);
 
   var state={
     installed:false,
@@ -34,6 +30,8 @@ Con qué se conecta:
     startedAt:0,
     startedEpochAt:0,
     elapsedMs:0,
+    dataArrivedAt:0,
+    dataDurationMs:0,
     lastDurationMs:0,
     lastModuleId:"",
     lastModuleName:"",
@@ -41,11 +39,13 @@ Con qué se conecta:
     lastCompletedAt:"",
     completions:0,
     timeouts:0,
-    baselineActiveUpdates:0
+    baselineActiveUpdates:0,
+    baselineReadyEmissions:0
   };
 
   var tickTimer=null;
   var timeoutTimer=null;
+  var settleTimer=null;
   var boundFrame=null;
   var boundChild=null;
   var frameLoadHandler=null;
@@ -61,11 +61,8 @@ Con qué se conecta:
   function formatDuration(ms){
     ms=Math.max(0,Number(ms||0));
     if(ms<1000){return Math.round(ms)+" ms";}
-    try{
-      return new Intl.NumberFormat("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2}).format(ms/1000)+" s";
-    }catch(error){
-      return (ms/1000).toFixed(2).replace(".",",")+" s";
-    }
+    try{return new Intl.NumberFormat("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2}).format(ms/1000)+" s";}
+    catch(error){return (ms/1000).toFixed(2).replace(".",",")+" s";}
   }
 
   function render(value,status,message){
@@ -73,12 +70,11 @@ Con qué se conecta:
     if(!el){return;}
     el.textContent=value;
     el.dataset.state=status||"idle";
-    el.title=message||"Tiempo desde que se abre la pantalla hasta que recibe los datos de BDLocal.";
+    el.title=message||"Tiempo hasta que la pantalla queda visible con los datos de BDLocal.";
   }
 
   function frameForModule(moduloId){
-    var frames=Array.prototype.slice.call(document.querySelectorAll("iframe")||[]);
-    return frames.filter(function(frame){
+    return Array.prototype.slice.call(document.querySelectorAll("iframe")||[]).filter(function(frame){
       return text(frame&&frame.dataset&&frame.dataset.moduleId)===text(moduloId);
     })[0]||null;
   }
@@ -86,16 +82,13 @@ Con qué se conecta:
   function clearTimers(){
     if(tickTimer){window.clearInterval(tickTimer);tickTimer=null;}
     if(timeoutTimer){window.clearTimeout(timeoutTimer);timeoutTimer=null;}
+    if(settleTimer){window.clearTimeout(settleTimer);settleTimer=null;}
   }
 
   function detach(){
-    if(boundFrame&&frameLoadHandler){
-      try{boundFrame.removeEventListener("load",frameLoadHandler);}catch(error){}
-    }
+    if(boundFrame&&frameLoadHandler){try{boundFrame.removeEventListener("load",frameLoadHandler);}catch(error){}}
     if(boundChild&&childHandler){
-      EVENT_NAMES.forEach(function(name){
-        try{boundChild.removeEventListener(name,childHandler);}catch(error){}
-      });
+      ALL_EVENTS.forEach(function(name){try{boundChild.removeEventListener(name,childHandler);}catch(error){}});
     }
     boundFrame=null;
     boundChild=null;
@@ -103,16 +96,23 @@ Con qué se conecta:
     childHandler=null;
   }
 
-  function finish(reason,durationOverrideMs){
+  function markData(reason){
     if(!state.running){return false;}
-    var override=Number(durationOverrideMs);
-    state.elapsedMs=Number.isFinite(override)
-      ? Math.max(0,override)
-      : Math.max(0,clock()-state.startedAt);
+    if(!state.dataArrivedAt){
+      state.dataArrivedAt=clock();
+      state.dataDurationMs=Math.max(0,state.dataArrivedAt-state.startedAt);
+    }
+    state.lastReason=text(reason||"data-arrived");
+    return true;
+  }
+
+  function finish(reason){
+    if(!state.running){return false;}
+    state.elapsedMs=Math.max(0,clock()-state.startedAt);
     state.lastDurationMs=Math.round(state.elapsedMs);
     state.lastModuleId=state.moduloId;
     state.lastModuleName=state.moduloNombre;
-    state.lastReason=text(reason||"data-arrived");
+    state.lastReason=text(reason||"screen-visible");
     state.lastCompletedAt=nowISO();
     state.completions+=1;
     state.running=false;
@@ -121,11 +121,25 @@ Con qué se conecta:
     render(
       formatDuration(state.lastDurationMs),
       "ok",
-      "Los datos de BDLocal llegaron a "+(state.lastModuleName||state.lastModuleId||"la pantalla")+" en "+formatDuration(state.lastDurationMs)+"."
+      (state.lastModuleName||state.lastModuleId||"La pantalla")+" quedó visible con datos en "+formatDuration(state.lastDurationMs)+
+      (state.dataDurationMs?". La señal de datos llegó en "+formatDuration(state.dataDurationMs)+".":".")
     );
-    try{
-      window.dispatchEvent(new CustomEvent("maqueta:bdlocal-delivery-measured",{detail:status()}));
-    }catch(error){}
+    try{window.dispatchEvent(new CustomEvent("maqueta:bdlocal-delivery-measured",{detail:status()}));}catch(error){}
+    return true;
+  }
+
+  function finishAfterPaint(reason){
+    if(!state.running){return false;}
+    var child=boundChild||window;
+    var raf=child&&typeof child.requestAnimationFrame==="function"
+      ? child.requestAnimationFrame.bind(child)
+      : function(fn){return window.setTimeout(fn,16);};
+    raf(function(){
+      raf(function(){
+        if(!state.running){return;}
+        settleTimer=window.setTimeout(function(){finish(reason||"paint-confirmed");},20);
+      });
+    });
     return true;
   }
 
@@ -141,11 +155,7 @@ Con qué se conecta:
     state.running=false;
     clearTimers();
     detach();
-    render(
-      "> "+formatDuration(MAX_WAIT_MS),
-      "timeout",
-      "No se confirmó la llegada de datos de BDLocal a "+(state.lastModuleName||state.lastModuleId||"la pantalla")+" dentro del tiempo máximo."
-    );
+    render("> "+formatDuration(MAX_WAIT_MS),"timeout","No se confirmó que "+(state.lastModuleName||state.lastModuleId||"la pantalla")+" quedara lista dentro del tiempo máximo.");
   }
 
   function checkFastSync(){
@@ -153,11 +163,27 @@ Con qué se conecta:
     if(!state.running||!api||typeof api.status!=="function"){return false;}
     var current={};
     try{current=api.status()||{};}catch(error){current={};}
-    if(
-      Number(current.activeUpdates||0)>Number(state.baselineActiveUpdates||0)&&
-      text(current.lastModuleId)===state.moduloId
-    ){
-      return finish("fast-sync-confirmed");
+    if(Number(current.activeUpdates||0)>Number(state.baselineActiveUpdates||0)&&text(current.lastModuleId)===state.moduloId){
+      return markData("fast-sync-data-arrived");
+    }
+    return false;
+  }
+
+  function fichaReadyStatus(){
+    if(!boundChild){return null;}
+    try{
+      return boundChild.FichaRenderReady&&typeof boundChild.FichaRenderReady.status==="function"
+        ? boundChild.FichaRenderReady.status()||null
+        : null;
+    }catch(error){return null;}
+  }
+
+  function checkFichaReady(){
+    if(!state.running||state.moduloId!=="ficha_estudiante"){return false;}
+    var current=fichaReadyStatus();
+    if(!current||current.ready!==true){return false;}
+    if(Number(current.emissions||0)>Number(state.baselineReadyEmissions||0)){
+      return finishAfterPaint("ficha-visible-ready");
     }
     return false;
   }
@@ -170,9 +196,17 @@ Con qué se conecta:
         ? boundChild.CargaStartupMetrics.status()
         : null;
     }catch(error){metrics=null;}
-    if(!metrics||!Number(metrics.periodsReadyAt||0)){return false;}
-    var duration=Math.max(0,Number(metrics.periodsReadyAt)-Number(state.startedEpochAt||0));
-    return finish("carga-periods-ready",duration);
+    if(!metrics||!Number(metrics.periodsReadyAt||0)||Number(metrics.periodsReadyAt)<Number(state.startedEpochAt||0)){return false;}
+    markData("carga-periods-arrived");
+    return finishAfterPaint("carga-periods-visible");
+  }
+
+  function genericPaintFallback(){
+    if(!state.running||!state.dataArrivedAt||state.moduloId==="ficha_estudiante"||state.moduloId==="carga_excel"){return false;}
+    if(clock()-state.dataArrivedAt<250){return false;}
+    var ready=false;
+    try{ready=!!boundChild&&!!boundChild.document&&boundChild.document.readyState==="complete";}catch(error){ready=false;}
+    return ready?finishAfterPaint("generic-screen-painted"):false;
   }
 
   function tick(){
@@ -181,10 +215,20 @@ Con qué se conecta:
     render(
       formatDuration(state.elapsedMs),
       "running",
-      "Midiendo la entrega de datos de BDLocal a "+(state.moduloNombre||state.moduloId||"la pantalla")+"."
+      state.dataArrivedAt
+        ? "Los datos ya llegaron; esperando que "+(state.moduloNombre||state.moduloId||"la pantalla")+" termine de mostrarlos."
+        : "Esperando datos de BDLocal para "+(state.moduloNombre||state.moduloId||"la pantalla")+"."
     );
-    if(checkCargaMetrics()){return;}
     checkFastSync();
+    if(checkFichaReady()){return;}
+    if(checkCargaMetrics()){return;}
+    genericPaintFallback();
+  }
+
+  function eventMatches(detail){
+    detail=detail&&typeof detail==="object"?detail:{};
+    var target=text(detail.targetModuleId||detail.moduleId||detail.moduloId||"");
+    return !target||target===state.moduloId;
   }
 
   function attachChild(frame){
@@ -194,28 +238,37 @@ Con qué se conecta:
     if(!child||typeof child.addEventListener!=="function"){return false;}
 
     if(boundChild&&boundChild!==child&&childHandler){
-      EVENT_NAMES.forEach(function(name){
-        try{boundChild.removeEventListener(name,childHandler);}catch(error){}
-      });
+      ALL_EVENTS.forEach(function(name){try{boundChild.removeEventListener(name,childHandler);}catch(error){}});
     }
 
     boundChild=child;
+    if(state.moduloId==="ficha_estudiante"){
+      var ready=fichaReadyStatus();
+      state.baselineReadyEmissions=Number(ready&&ready.emissions||0);
+    }
+
     childHandler=childHandler||function(event){
       if(!state.running){return;}
       var detail=event&&event.detail&&typeof event.detail==="object"?event.detail:{};
-      var target=text(detail.targetModuleId||detail.moduloId||"");
-      if(target&&target!==state.moduloId){return;}
-      if(event&&event.type==="carga:periods-refreshed"&&state.moduloId!=="carga_excel"){return;}
-      finish(event&&event.type||"screen-event");
+      if(!eventMatches(detail)){return;}
+      if(event&&event.type===READY_EVENT){
+        markData(detail.source||READY_EVENT);
+        finishAfterPaint(detail.source||"screen-render-complete");
+        return;
+      }
+      if(event&&event.type==="carga:periods-refreshed"){
+        if(state.moduloId!=="carga_excel"){return;}
+        markData(event.type);
+        finishAfterPaint("carga-periods-visible");
+        return;
+      }
+      markData(event&&event.type||"data-event");
     };
 
-    EVENT_NAMES.forEach(function(name){
-      try{
-        child.removeEventListener(name,childHandler);
-        child.addEventListener(name,childHandler);
-      }catch(error){}
+    ALL_EVENTS.forEach(function(name){
+      try{child.removeEventListener(name,childHandler);child.addEventListener(name,childHandler);}catch(error){}
     });
-    window.setTimeout(checkCargaMetrics,0);
+    window.setTimeout(function(){checkCargaMetrics();checkFichaReady();},0);
     return true;
   }
 
@@ -235,17 +288,11 @@ Con qué se conecta:
   function start(payload,reason){
     payload=payload||{};
     var currentCore=core();
-    var moduloId=text(
-      payload.moduloId||
-      payload.id||
-      currentCore&&currentCore.state&&currentCore.state.moduloActivoId||
-      ""
-    );
+    var moduloId=text(payload.moduloId||payload.id||currentCore&&currentCore.state&&currentCore.state.moduloActivoId||"");
     if(!moduloId){return false;}
 
     clearTimers();
     detach();
-
     var syncState={};
     var api=fastSync();
     try{syncState=api&&typeof api.status==="function"?api.status()||{}:{};}catch(error){syncState={};}
@@ -256,30 +303,27 @@ Con qué se conecta:
     state.startedAt=clock();
     state.startedEpochAt=Date.now();
     state.elapsedMs=0;
+    state.dataArrivedAt=0;
+    state.dataDurationMs=0;
     state.lastReason=text(reason||"module-activated");
     state.baselineActiveUpdates=Number(syncState.activeUpdates||0);
+    state.baselineReadyEmissions=0;
 
-    render("0 ms","running","Midiendo la entrega de datos de BDLocal a "+state.moduloNombre+".");
+    render("0 ms","running","Esperando datos y renderizado de "+state.moduloNombre+".");
     attachFrame(frameForModule(moduloId));
     tickTimer=window.setInterval(tick,40);
     timeoutTimer=window.setTimeout(timeout,MAX_WAIT_MS);
     return true;
   }
 
-  function onModuleChanged(payload){
-    start(payload||{},"module-activated");
-  }
+  function onModuleChanged(payload){start(payload||{},"module-activated");}
 
   function onRefresh(){
     var current=core();
     var id=text(current&&current.state&&current.state.moduloActivoId||"");
     if(!id){return;}
-    var modulo=current&&current.router&&typeof current.router.buscarModulo==="function"
-      ? current.router.buscarModulo(id)
-      : null;
-    window.setTimeout(function(){
-      start({moduloId:id,modulo:modulo},"manual-refresh");
-    },0);
+    var modulo=current&&current.router&&typeof current.router.buscarModulo==="function"?current.router.buscarModulo(id):null;
+    window.setTimeout(function(){start({moduloId:id,modulo:modulo},"manual-refresh");},0);
   }
 
   function status(){
@@ -290,6 +334,7 @@ Con qué se conecta:
       moduloId:state.moduloId,
       moduloNombre:state.moduloNombre,
       elapsedMs:Math.round(state.running?Math.max(0,clock()-state.startedAt):state.elapsedMs),
+      dataDurationMs:Math.round(state.dataDurationMs||0),
       lastDurationMs:state.lastDurationMs,
       lastModuleId:state.lastModuleId,
       lastModuleName:state.lastModuleName,
@@ -304,26 +349,13 @@ Con qué se conecta:
     if(state.installed){return status();}
     state.installed=true;
     var current=core();
-    if(current&&current.bus&&typeof current.bus.on==="function"){
-      current.bus.on("modulo:cambiado",onModuleChanged);
-    }
+    if(current&&current.bus&&typeof current.bus.on==="function"){current.bus.on("modulo:cambiado",onModuleChanged);}
     var refresh=document.getElementById("maq-btn-refresh");
     if(refresh){refresh.addEventListener("click",onRefresh);}
-    render("—","idle","Tiempo desde que se abre la pantalla hasta que recibe los datos de BDLocal.");
+    render("—","idle","Tiempo hasta que la pantalla queda visible con los datos de BDLocal.");
     return status();
   }
 
-  window.MAQ_BDLOCAL_DELIVERY_TIMER={
-    version:VERSION,
-    install:install,
-    start:start,
-    finish:finish,
-    status:status
-  };
-
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",install,{once:true});
-  }else{
-    install();
-  }
+  window.MAQ_BDLOCAL_DELIVERY_TIMER={version:VERSION,install:install,start:start,finish:finish,status:status};
+  if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",install,{once:true});}else{install();}
 })(window,document);
