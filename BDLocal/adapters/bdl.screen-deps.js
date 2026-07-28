@@ -6,11 +6,12 @@ Función:
 - Evitar abrir IndexedDB, reconstruir BDLocal y cargar todos los conectores al entrar a una pantalla.
 - Mantener las APIs síncronas usadas por Tabla, Ficha, Stats, Coordi, Global y Reportes.
 - Activar el núcleo pesado únicamente cuando una acción solicita lectura completa o escritura.
+- Respetar el orquestador completo cuando se ejecuta dentro del Centro de datos.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.0-shared-cache-first";
+  var VERSION="2.0.1-full-hub-safe";
   var CACHE_KEY="REQ_BDLOCAL_CONEXIONES_CACHE_V1";
   var OLD_SNAPSHOT_KEY="REQ_EXCEL_LOCAL_V1:snapshot";
   var MESSAGE={
@@ -177,7 +178,23 @@ Función:
     });
   }
 
+  var existingHub=window.BDLocalConexiones||null;
+  var fullHub=!!(
+    existingHub&&
+    typeof existingHub.ensureCoreReady==="function"&&
+    typeof existingHub.refreshCache==="function"&&
+    typeof existingHub.status==="function"&&
+    !/shared-cache-first|full-hub-safe/i.test(text(existingHub.version))
+  );
+  var nativeRegister=fullHub&&typeof existingHub.register==="function"?existingHub.register.bind(existingHub):null;
+  var nativeGet=fullHub&&typeof existingHub.get==="function"?existingHub.get.bind(existingHub):null;
+  var nativeReady=fullHub&&typeof existingHub.ready==="function"?existingHub.ready.bind(existingHub):null;
+  var nativeEnsureCore=fullHub?existingHub.ensureCoreReady.bind(existingHub):null;
+  var nativeRefresh=fullHub?existingHub.refreshCache.bind(existingHub):null;
+  var nativeStatus=fullHub?existingHub.status.bind(existingHub):null;
+
   function ensureHeavy(){
+    if(fullHub){return Promise.resolve(existingHub);}
     if(heavyPromise){return heavyPromise;}
     metrics.heavyActivations+=1;
     var fastEnsure=hub.ensureCoreReady;
@@ -189,10 +206,19 @@ Función:
     return heavyPromise;
   }
 
-  function register(name,api){name=text(name);if(!name||!api){return false;}connectors[name]=api;hub[name]=api;return true;}
-  function get(name){return connectors[text(name)]||hub[text(name)]||null;}
+  function register(name,api){
+    name=text(name);if(!name||!api){return false;}connectors[name]=api;
+    if(nativeRegister){return nativeRegister(name,api);}
+    hub[name]=api;return true;
+  }
+  function get(name){
+    name=text(name);
+    if(nativeGet){return nativeGet(name)||connectors[name]||hub[name]||null;}
+    return connectors[name]||hub[name]||null;
+  }
   function ready(options){
     options=options||{};
+    if(nativeReady){return nativeReady(options);}
     if(readyPromise&&!options.force){return readyPromise;}
     readyPromise=requestSharedCache({timeout:Number(options.sharedTimeout||options.timeout||650)}).then(function(cache){
       emit("bdlocal:screen-deps-ready",{ok:true,ready:true,source:memory.source,periods:cache.periods.length,students:cache.students.length,requirements:cache.requirements.length,version:VERSION});
@@ -200,14 +226,18 @@ Función:
     }).finally(function(){readyPromise=null;});
     return readyPromise;
   }
-  function ensureCoreReady(){return ensureHeavy().then(function(current){return current.ensureCoreReady();});}
+  function ensureCoreReady(){return nativeEnsureCore?nativeEnsureCore():ensureHeavy().then(function(current){return current.ensureCoreReady();});}
   function refreshCache(options){
     options=Object.assign({},options||{});
+    if(nativeRefresh){return nativeRefresh(options);}
     var full=options.full===true||options.force===true||options.mode==="full";
     if(!full){return requestSharedCache({timeout:Number(options.timeout||500)});}
     return ensureHeavy().then(function(current){return current.refreshCache(options);});
   }
-  function hubStatus(){var cache=readCache();return {ok:true,ready:true,version:VERSION,mode:"shared-cache-first",periods:cache.periods.length,students:cache.students.length,requirements:cache.requirements.length,connectors:Object.keys(connectors),heavyActive:!!heavyPromise,metrics:Object.assign({},metrics)};}
+  function hubStatus(){
+    if(nativeStatus){return nativeStatus();}
+    var cache=readCache();return {ok:true,ready:true,version:VERSION,mode:"shared-cache-first",periods:cache.periods.length,students:cache.students.length,requirements:cache.requirements.length,connectors:Object.keys(connectors),heavyActive:!!heavyPromise,metrics:Object.assign({},metrics)};
+  }
 
   var utils=Object.assign({},window.BDLocalConUtils||{}, {
     version:VERSION,text:text,nowISO:nowISO,array:array,object:object,clone:clone,safeParse:safeParse,
@@ -218,8 +248,12 @@ Función:
   });
   window.BDLocalConUtils=utils;
 
-  var hub=window.BDLocalConexiones||{};
-  Object.assign(hub,{version:VERSION,register:register,get:get,ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,status:hubStatus,metrics:function(){return Object.assign({},metrics);},utils:utils,activateHeavy:ensureHeavy});
+  var hub=existingHub||{};
+  if(!fullHub){
+    Object.assign(hub,{version:VERSION,register:register,get:get,ready:ready,ensureCoreReady:ensureCoreReady,refreshCache:refreshCache,status:hubStatus,metrics:function(){return Object.assign({},metrics);},utils:utils,activateHeavy:ensureHeavy});
+  }else if(typeof hub.activateHeavy!=="function"){
+    hub.activateHeavy=function(){return Promise.resolve(hub);};
+  }
   window.BDLocalConexiones=hub;
 
   function listPeriodsSync(){return readCache().periods.map(normalizePeriod).filter(Boolean);}
