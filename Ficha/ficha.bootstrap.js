@@ -9,10 +9,11 @@ Función:
 (function(window,document){
   "use strict";
 
-  /* El orden de estas rutas documenta la activación segura de escritura. */
+  /* El orden de estas rutas documenta la activación segura de escritura e interfaz. */
   var FULL_CONNECTOR="../BDLocal/conexiones/cone.ficha.js";
   var ENROLLMENT_LOCK="../BDLocal/conexiones/cone.ficha.enrollment-lock.js";
   var CONNECTION_BRIDGE="ficha.connection-bridge.js";
+  var APP_SCRIPT="ficha.app.js";
   var FAST_CONNECTOR="../BDLocal/conexiones/cone.ficha.fast.js";
   var loading=Object.create(null);
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
@@ -71,7 +72,7 @@ Función:
       .then(function(){return load(CONNECTION_BRIDGE,function(){return window.FichaConnectionBridge;});})
       .then(function(bridge){return bridge&&typeof bridge.ready==="function"?bridge.ready():bridge;})
       .then(function(){return load("ficha.periodo-normalizer.js",function(){return window.FichaPeriodoNormalizer;});})
-      .then(function(){return load("ficha.app.js",function(){return window.FichaApp;});})
+      .then(function(){return load(APP_SCRIPT,function(){return window.FichaApp;});})
       .then(function(){return load("ficha.render-ready.js",function(){return window.FichaRenderReady;});})
       .then(function(){
         emit("ficha:bootstrap-ready",{ok:true,source:"ConFichaFast",cacheFirst:true,lazyWrites:true,fullConnector:FULL_CONNECTOR,enrollmentLock:ENROLLMENT_LOCK,at:new Date().toISOString()});
@@ -83,6 +84,6 @@ Función:
       });
   }
 
-  window.FichaBootstrap={version:"2.0.0-cache-first",boot:boot,readyConnector:readyConnector,fullConnector:FULL_CONNECTOR,enrollmentLock:ENROLLMENT_LOCK};
+  window.FichaBootstrap={version:"2.0.1-cache-first",boot:boot,readyConnector:readyConnector,fullConnector:FULL_CONNECTOR,enrollmentLock:ENROLLMENT_LOCK};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
