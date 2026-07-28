@@ -4,12 +4,13 @@ Ruta: /Gestion/Tabla/core/tabla.render-ready.js
 Función:
 - Convertir el evento interno tabla:rendered en la confirmación estándar de pantalla lista.
 - Esperar dos ciclos de pintado antes de confirmar el resultado visible.
+- Verificar que la tabla y el resumen ya estén visibles.
 - No consultar IndexedDB ni servicios externos.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-visible-ready";
+  var VERSION="1.0.1-visible-ready";
   var READY_EVENT="maqueta:screen-render-complete";
   var state={installed:false,sequence:0,lastReadyAt:0,lastDurationMs:0,lastDetail:null,emissions:0};
 
@@ -17,9 +18,12 @@ Función:
   function statusText(){var node=document.getElementById("tabla-status");return text(node&&node.textContent);}
   function ready(detail){
     var current=window.TablaApp&&typeof window.TablaApp.getState==="function"?window.TablaApp.getState()||{}:{};
-    var table=document.getElementById("tabla-body");
+    var wrap=document.getElementById("tabla-table-wrap");
     var status=statusText();
-    return !!window.TablaApp&&current.rendering!==true&&!/cargando|actualizando/i.test(status)&&!!table&&Number(detail&&detail.visible||0)>=0;
+    var visible=Number(detail&&detail.visible||0);
+    var rows=wrap?wrap.querySelectorAll("tbody tr").length:0;
+    var empty=wrap&&/sin datos/i.test(text(wrap.textContent));
+    return !!window.TablaApp&&current.rendering!==true&&!/cargando|actualizando/i.test(status)&&!!wrap&&(empty||rows===visible);
   }
 
   function emit(detail,seq,started){
