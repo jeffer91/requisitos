@@ -5,7 +5,7 @@
 # - Instalar dependencias fijadas antes de cada suite.
 # - Ejecutar cada prueba de npm test e identificar la primera que falla.
 # - Ejecutar Electron, IndexedDB y navegación completa en un entorno aislado.
-# - Detectar errores visibles de dependencias en cada pantalla operativa.
+# - Publicar contextos de diagnóstico con la pantalla o fallo concreto.
 # - Conservar los registros y reportes como artefactos.
 # =========================================================
 name: BDLocal Integrity
@@ -158,13 +158,14 @@ jobs:
             const fs = require('fs');
             function readCode(file){ try{return Number(fs.readFileSync(file,'utf8').trim());}catch(error){return 1;} }
             function readJson(file){ try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch(error){return {};} }
+            function slug(value,max=58){ return String(value||'unknown').replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,max)||'unknown'; }
             const electronCode=readCode('artifacts/bdlocal-electron-smoke.exit');
             const navigationCode=readCode('artifacts/navigation-electron-smoke.exit');
             const electronReport=readJson('artifacts/bdlocal-electron-smoke.json');
             const navigationReport=readJson('artifacts/navigation-electron-smoke.json');
             const failedScreen=Array.isArray(navigationReport.screens)?navigationReport.screens.find((screen)=>screen&&!screen.ok):null;
-            const electronDetail=String(electronReport.message || electronReport.result?.testError || electronReport.result?.message || 'Electron o IndexedDB tienen fallos');
-            const navigationDetail=String(failedScreen&&`${failedScreen.label||failedScreen.id}: ${failedScreen.error||'no quedó funcional'}` || 'Alguna pantalla no quedó funcional');
+            const electronDetail=String(electronReport.message || electronReport.result?.testError || electronReport.result?.message || electronReport.result?.snapshot?.viewStatus || 'Electron o IndexedDB tienen fallos');
+            const navigationDetail=String(failedScreen&&`${failedScreen.label||failedScreen.id}: ${failedScreen.error||failedScreen.inspection?.connectorStatus?.error||'no quedó funcional'}` || navigationReport.message || 'Alguna pantalla no quedó funcional');
             await github.rest.repos.createCommitStatus({
               owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,
               state:electronCode===0?'success':'failure',context:'requisitos/electron-smoke',
@@ -175,6 +176,25 @@ jobs:
               state:navigationCode===0?'success':'failure',context:'requisitos/navigation-smoke',
               description:navigationCode===0?'Todas las pantallas operativas aprobaron':navigationDetail.slice(0,140)
             });
+            if(electronCode!==0){
+              await github.rest.repos.createCommitStatus({
+                owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'failure',
+                context:`requisitos/electron-detalle/${slug(electronDetail)}`,description:electronDetail.slice(0,140)
+              });
+            }
+            if(navigationCode!==0){
+              await github.rest.repos.createCommitStatus({
+                owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'failure',
+                context:`requisitos/navigation-fallo/${slug(failedScreen?.id||navigationDetail)}`,description:navigationDetail.slice(0,140)
+              });
+              const connectorError=String(failedScreen?.inspection?.connectorStatus?.error||failedScreen?.inspection?.bodySample||'');
+              if(connectorError){
+                await github.rest.repos.createCommitStatus({
+                  owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'failure',
+                  context:`requisitos/navigation-detalle/${slug(connectorError)}`,description:connectorError.slice(0,140)
+                });
+              }
+            }
 
       - name: Upload Electron smoke reports
         if: always()
