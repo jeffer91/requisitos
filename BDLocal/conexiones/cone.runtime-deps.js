@@ -5,12 +5,13 @@ Función:
 - Preparar en orden seguro las dependencias reales de las pantallas especializadas.
 - Crear primero configuración, IndexedDB, registro de repositorios y registro de servicios.
 - Evitar ciclos entre BDLocalConexiones.ready y los conectores que el propio orquestador prepara.
+- No bloquear los conectores por utilidades visuales como el período global.
 - Reutilizar promesas y scripts ya cargados para Defensas, Ncomplex, Cr-def e InPVC.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-no-ready-cycle";
+  var VERSION="1.2.0-core-only";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
   var profiles=Object.create(null);
@@ -22,15 +23,7 @@ Función:
   function url(relative){try{return new URL(relative,base).href;}catch(error){return relative;}}
   function scripts(){return Array.prototype.slice.call(document.scripts||[]);}
   function existing(src){return scripts().find(function(item){return item.src===src||item.getAttribute("data-bdl-runtime-src")===src;})||null;}
-  function waitFor(test,label,timeout){
-    timeout=Math.max(500,Number(timeout||12000));var started=Date.now();
-    return new Promise(function(resolve,reject){(function check(){
-      var value=null;try{value=test&&test();}catch(error){}
-      if(value){resolve(value);return;}
-      if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}
-      window.setTimeout(check,40);
-    })();});
-  }
+  function waitFor(test,label,timeout){timeout=Math.max(500,Number(timeout||12000));var started=Date.now();return new Promise(function(resolve,reject){(function check(){var value=null;try{value=test&&test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}window.setTimeout(check,40);})();});}
   function load(relative,test){
     var src=url(relative),current=null;try{current=test&&test();}catch(error){}
     if(current){state.reuses+=1;return Promise.resolve(current);}
@@ -49,7 +42,6 @@ Función:
 
   function baseFiles(){return [
     {path:"../adapters/bdl.screen-deps.js",test:function(){return window.BDLocalScreenDeps;}},
-    {path:"../shared/bdl.periodo-global.js",test:function(){return window.BDLPeriodoGlobal;}},
     {path:"../bl2.config.js",test:function(){return window.BL2Config;}},
     {path:"../bl2.config.v2.js"},
     {path:"../bl2.config.v3.js"},
@@ -111,7 +103,7 @@ Función:
     {path:"../services/bdl.service.periodos.js",test:function(){return window.BDLServicePeriodos;}},
     {path:"../services/bdl.service.estudiantes.js",test:function(){return window.BDLServiceEstudiantes;}},
     {path:"../services/bdl.service.ncomplex.js",test:function(){return window.BDLServiceNcomplex;}},
-    {path:"../migrations/bdl.migration.index.js",test:function(){return window.BDLMigrations||window.BDLMigrationRegistry;}},
+    {path:"../migrations/bdl.migration.index.js",test:function(){return window.BDLMigrations;}},
     {path:"../migrations/bdl.migration.v3.ncomplex.js",test:function(){return window.BDLMigrationV3Ncomplex;}}
   ];
 
@@ -120,10 +112,7 @@ Función:
     if(basePromise){return basePromise;}
     basePromise=sequence(baseFiles()).then(function(){
       if(!window.BL2DB||!window.BDLRepositories||!window.BDLServices){throw new Error("La base de repositorios y servicios no quedó disponible.");}
-      state.baseReady=true;
-      if(window.BDLPeriodoGlobal&&typeof window.BDLPeriodoGlobal.init==="function"){window.BDLPeriodoGlobal.init();}
-      state.lastError="";
-      return status();
+      state.baseReady=true;state.lastError="";return status();
     }).catch(function(error){state.lastError=error&&error.message?error.message:String(error);throw error;}).finally(function(){basePromise=null;});
     return basePromise;
   }
