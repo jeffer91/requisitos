@@ -12,7 +12,7 @@
     "dev": "electron .",
     "start:local": "electron .",
     "test": "node scripts/run-test-with-report.js static",
-    "test:core": "node scripts/verify-firebase-contract.js && node scripts/verify-firebase-identity.js && node scripts/verify-firebase-mapper.js && node scripts/verify-firebase-validator.js && node scripts/verify-firebase-reverse-mapper.js && node scripts/verify-firebase-repository.js && node scripts/verify-firebase-sync-engine.js && node scripts/verify-firebase-target-behavior.js && node scripts/verify-firebase-control-center.js && node scripts/verify-firestore-indexes.js && node scripts/verify-outbox-target-policy.js && node scripts/verify-external-operation-guard.js && node scripts/verify-firebase-read-budget.js && node scripts/verify-firebase-migration-v2.js && node scripts/verify-carga-save-v2.js && node scripts/verify-stats-official-refresh.js && node scripts/verify-periodo-global.js && node scripts/verify-periodo-global-behavior.js && node scripts/verify-ficha-entity-writes.js && node scripts/verify-active-cache-reportes.js && node scripts/verify-defart-v2.js && node scripts/verify-ncomplex-v2.js && node scripts/verify-readonly-screens.js && node scripts/verify-bdlocal.js && node scripts/verify-main-menu.js && node scripts/verify-screen-connections.js && node scripts/verify-screen-fast-sync.js && node scripts/verify-shared-cache-adapter.js && node scripts/verify-global-baselocal.js && node scripts/verify-startup-benchmark.js && node scripts/verify-base-local-pantallas.js && node scripts/verify-external-connections.js && node scripts/verify-centro-datos-ui.js && node scripts/verify-ficha-editors.js && node scripts/verify-inpvc.js && node scripts/verify-autosync.js && node scripts/audit-repository.js",
+    "test:core": "node scripts/verify-firebase-contract.js && node scripts/verify-firebase-identity.js && node scripts/verify-firebase-mapper.js && node scripts/verify-firebase-validator.js && node scripts/verify-firebase-reverse-mapper.js && node scripts/verify-firebase-repository.js && node scripts/verify-firebase-sync-engine.js && node scripts/verify-firebase-target-behavior.js && node scripts/verify-firebase-control-center.js && node scripts/verify-firestore-indexes.js && node scripts/verify-outbox-target-policy.js && node scripts/verify-external-operation-guard.js && node scripts/verify-firebase-read-budget.js && node scripts/verify-firebase-migration-v2.js && node scripts/verify-carga-save-v2.js && node scripts/verify-stats-official-refresh.js && node scripts/verify-periodo-global.js && node scripts/verify-periodo-global-behavior.js && node scripts/verify-ficha-entity-writes.js && node scripts/verify-active-cache-reportes.js && node scripts/verify-defart-v2.js && node scripts/verify-ncomplex-v2.js && node scripts/verify-readonly-screens.js && node scripts/verify-bdlocal.js && node scripts/verify-main-menu.js && node scripts/verify-screen-connections.js && node scripts/verify-screen-fast-sync.js && node scripts/verify-shared-cache-adapter.js && node scripts/verify-specialized-screen-runtime.js && node scripts/verify-global-baselocal.js && node scripts/verify-startup-benchmark.js && node scripts/verify-base-local-pantallas.js && node scripts/verify-external-connections.js && node scripts/verify-centro-datos-ui.js && node scripts/verify-ficha-editors.js && node scripts/verify-inpvc.js && node scripts/verify-autosync.js && node scripts/audit-repository.js",
     "test:firebase-contract": "node scripts/verify-firebase-contract.js",
     "test:firebase-identity": "node scripts/verify-firebase-identity.js",
     "test:firebase-mapper": "node scripts/verify-firebase-mapper.js",
@@ -40,6 +40,7 @@
     "test:connections": "node scripts/verify-screen-connections.js",
     "test:screen-speed": "node scripts/verify-screen-fast-sync.js",
     "test:shared-cache": "node scripts/verify-shared-cache-adapter.js",
+    "test:specialized-runtime": "node scripts/verify-specialized-screen-runtime.js",
     "test:global-local": "node scripts/verify-global-baselocal.js",
     "test:startup-benchmark": "node scripts/verify-startup-benchmark.js",
     "test:pantallas-local": "node scripts/verify-base-local-pantallas.js",
@@ -50,6 +51,7 @@
     "test:autosync": "node scripts/verify-autosync.js",
     "test:electron": "node scripts/run-test-with-report.js electron",
     "test:electron:core": "electron electron/smoke-main.js",
+    "test:electron:navigation": "electron electron/smoke-navigation-main.js",
     "diagnostico:bdlocal": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1",
     "diagnostico:bloqueo": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bloqueo.ps1",
     "diagnostico:tiempo-base": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/medir-carga-base.ps1",
@@ -57,7 +59,8 @@
     "verify": "npm test"
   },
   "testCommandSignatures": {
-    "test:electron": "electron electron/smoke-main.js"
+    "test:electron": "electron electron/smoke-main.js",
+    "test:electron:navigation": "electron electron/smoke-navigation-main.js"
   },
   "dependencies": {
     "html2pdf.js": "0.14.0",
