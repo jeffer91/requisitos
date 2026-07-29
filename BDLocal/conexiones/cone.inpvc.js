@@ -4,13 +4,14 @@ Ruta: /BDLocal/conexiones/cone.inpvc.js
 Función:
 - Ser la única conexión de InPVC con BDLocal.
 - Preparar repositorios y servicios en orden seguro.
+- Evitar ciclos entre el orquestador y el conector durante el arranque.
 - Leer períodos PVC, estudiantes, requisitos y notas de titulación.
 - Entregar un conjunto normalizado y de solo lectura para el informe.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-runtime-deps";
+  var VERSION="1.2.0-no-ready-cycle";
   var SCREEN="inpvc";
   var SOURCE="ConInPVC";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
@@ -60,25 +61,14 @@ Función:
   function career(row){row=row||{};return text(row.carrera||row.NombreCarrera||row.nombreCarrera||row.Carrera||"SIN CARRERA");}
   function number(value){if(value===null||value===undefined||text(value)===""){return null;}var result=Number(text(value).replace(",","."));return Number.isFinite(result)?Math.max(0,Math.min(10,Math.round(result*100)/100)):null;}
   function pick(row,names){row=row||{};for(var index=0;index<names.length;index+=1){if(row[names[index]]!==undefined&&row[names[index]]!==null&&text(row[names[index]])!==""){return row[names[index]];}}return null;}
-  function noteValues(row){
-    var article=number(pick(row,["Notart","Nart","notart","nart","notaArticulo","notaEscrito"]));
-    var defense=number(pick(row,["Notdef","Ndef","notdef","ndef","notaDefensa","notaDefensaTrabajo"]));
-    var finalValue=number(pick(row,["Notafinal","Nfinal","notafinal","nfinal","nfin","notaFinal","notaTrabajoTitulacion"]));
-    if(finalValue==null&&article!=null&&defense!=null){finalValue=Math.round(((article*.70)+(defense*.30))*100)/100;}
-    return {nart:article,ndef:defense,nfin:finalValue};
-  }
-  function statusOf(notes,requirements){
-    var list=Array.isArray(requirements)?requirements:[requirements||{}];
-    var fails=list.some(function(item){var req=norm(item.estado||item.valor||item.estadoRequisitos||item.aprobacion||item.AprobacionTitulacion||"");return !!req&&/(no cumple|incumple|bloqueado|rechaz|pendiente)/.test(req);});
-    if(fails){return "NO_CUMPLE_REQUISITOS";}if(notes.nart==null&&notes.ndef==null&&notes.nfin==null){return "NO_RINDIO";}if(notes.nfin==null){return "PENDIENTE";}return notes.nfin>=7?"APROBADO":"REPROBADO";
-  }
+  function noteValues(row){var article=number(pick(row,["Notart","Nart","notart","nart","notaArticulo","notaEscrito"]));var defense=number(pick(row,["Notdef","Ndef","notdef","ndef","notaDefensa","notaDefensaTrabajo"]));var finalValue=number(pick(row,["Notafinal","Nfinal","notafinal","nfinal","nfin","notaFinal","notaTrabajoTitulacion"]));if(finalValue==null&&article!=null&&defense!=null){finalValue=Math.round(((article*.70)+(defense*.30))*100)/100;}return {nart:article,ndef:defense,nfin:finalValue};}
+  function statusOf(notes,requirements){var list=Array.isArray(requirements)?requirements:[requirements||{}];var fails=list.some(function(item){var req=norm(item.estado||item.valor||item.estadoRequisitos||item.aprobacion||item.AprobacionTitulacion||"");return !!req&&/(no cumple|incumple|bloqueado|rechaz|pendiente)/.test(req);});if(fails){return "NO_CUMPLE_REQUISITOS";}if(notes.nart==null&&notes.ndef==null&&notes.nfin==null){return "NO_RINDIO";}if(notes.nfin==null){return "PENDIENTE";}return notes.nfin>=7?"APROBADO":"REPROBADO";}
   function normalizePeriod(row){var id=periodId(row);return Object.assign({},row||{},{id:id,periodoId:id,value:id,label:periodLabel(row)||id,periodoLabel:periodLabel(row)||id,tipoPeriodo:"PVC",isPVC:true});}
 
   function register(){var registry=window.BDLocalConeRegistry;if(registry&&typeof registry.register==="function"){registry.register(SCREEN,{label:"InPVC",global:"ConInPVC",file:"cone.inpvc.js",pathHints:["/inpvc/","inpvc.html"],aliases:["inpvc","infor","informe_pvc","titulacion_pvc"],canRead:true,canWrite:false,operations:["ready","read","refresh","status","diagnose"],tables:["periodos","personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","evaluaciones_titulacion"],description:"Conector exclusivo y de solo lectura para informes PVC."});}}
   function ensureDependencies(){
     if(state.dependenciesReady){return Promise.resolve(true);}
     return load("../adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;})
-      .then(function(adapter){return adapter&&typeof adapter.ready==="function"?adapter.ready():adapter;})
       .then(function(){return load("cone.runtime-deps.js",function(){return window.BDLocalRuntimeDeps;});})
       .then(function(runtime){return runtime.ensure("inpvc");})
       .then(function(){
@@ -97,10 +87,7 @@ Función:
       var notes=Object.create(null),requirements=Object.create(null);
       (values[1]||[]).forEach(function(row){notes[studentId(row)||cedula(row)]=row;notes[cedula(row)]=row;});
       (values[2]||[]).forEach(function(row){var key=studentId(row)||cedula(row);if(key){(requirements[key]=requirements[key]||[]).push(row);}var id=cedula(row);if(id&&id!==key){(requirements[id]=requirements[id]||[]).push(row);}});
-      return (values[0]||[]).filter(function(row){return !wanted||samePeriod(periodId(row),wanted);}).filter(function(row){var enrollment=norm(row.estadoMatricula||row._estadoMatricula||"activo");return enrollment!=="retirado";}).map(function(row){
-        var note=notes[studentId(row)]||notes[cedula(row)]||row;var req=requirements[studentId(row)]||requirements[cedula(row)]||[];var valuesNote=noteValues(Object.assign({},row,note));
-        return Object.assign({},row,{idEstudiantePeriodo:studentId(row),periodoId:periodId(row)||wanted,cedula:cedula(row),numeroIdentificacion:cedula(row),nombres:studentName(row),Nombres:studentName(row),carrera:career(row),NombreCarrera:career(row),modalidadTitulacion:"ARTICULO_ACADEMICO",nart:valuesNote.nart,ndef:valuesNote.ndef,nfin:valuesNote.nfin,Notart:valuesNote.nart,Notdef:valuesNote.ndef,Notafinal:valuesNote.nfin,estadoPVC:statusOf(valuesNote,req),requisitosPVC:req});
-      });
+      return (values[0]||[]).filter(function(row){return !wanted||samePeriod(periodId(row),wanted);}).filter(function(row){var enrollment=norm(row.estadoMatricula||row._estadoMatricula||"activo");return enrollment!=="retirado";}).map(function(row){var note=notes[studentId(row)]||notes[cedula(row)]||row;var req=requirements[studentId(row)]||requirements[cedula(row)]||[];var valuesNote=noteValues(Object.assign({},row,note));return Object.assign({},row,{idEstudiantePeriodo:studentId(row),periodoId:periodId(row)||wanted,cedula:cedula(row),numeroIdentificacion:cedula(row),nombres:studentName(row),Nombres:studentName(row),carrera:career(row),NombreCarrera:career(row),modalidadTitulacion:"ARTICULO_ACADEMICO",nart:valuesNote.nart,ndef:valuesNote.ndef,nfin:valuesNote.nfin,Notart:valuesNote.nart,Notdef:valuesNote.ndef,Notafinal:valuesNote.nfin,estadoPVC:statusOf(valuesNote,req),requisitosPVC:req});});
     });
   }
   function summarize(rows){var map=Object.create(null);(rows||[]).forEach(function(row){var key=career(row);if(!map[key]){map[key]={carrera:key,total:0,rindieron:0,aprobados:0,reprobados:0,pendientes:0,noCumple:0,promedio:null,_sum:0,_count:0};}var item=map[key];item.total+=1;if(row.estadoPVC!=="NO_RINDIO"){item.rindieron+=1;}if(row.estadoPVC==="APROBADO"){item.aprobados+=1;}else if(row.estadoPVC==="REPROBADO"){item.reprobados+=1;}else if(row.estadoPVC==="NO_CUMPLE_REQUISITOS"){item.noCumple+=1;}else{item.pendientes+=1;}if(row.nfin!=null){item._sum+=row.nfin;item._count+=1;}});return Object.keys(map).sort(function(a,b){return a.localeCompare(b,"es");}).map(function(key){var item=map[key];item.promedio=item._count?Math.round((item._sum/item._count)*100)/100:null;delete item._sum;delete item._count;return item;});}
