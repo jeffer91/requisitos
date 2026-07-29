@@ -4,13 +4,14 @@ Ruta: /BDLocal/conexiones/cone.crdef.js
 Función:
 - Ser la única conexión de Cr-def con BDLocal.
 - Preparar servicios y repositorios en orden seguro.
+- Evitar ciclos entre el orquestador y el conector durante el arranque.
 - Leer períodos, estudiantes, requisitos y notas mediante servicios.
 - Evitar rutas calculadas desde document.currentScript cuando ya es nulo.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.2.0-runtime-deps";
+  var VERSION="1.3.0-no-ready-cycle";
   var SCREEN="cr_def";
   var SOURCE="ConCrDef";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
@@ -38,17 +39,11 @@ Función:
     return loading[src];
   }
 
-  function register(){
-    var registry=window.BDLocalConeRegistry;
-    if(registry&&typeof registry.register==="function"){
-      registry.register(SCREEN,{label:"Cr-def",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"],aliases:["crdef","cr-def","sacar_n"],canRead:true,canWrite:false,operations:["ready","read","refresh","status","diagnose"],tables:["periodos","personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","divisiones_estudiante"],description:"Conector exclusivo de Cr-def."});
-    }
-  }
+  function register(){var registry=window.BDLocalConeRegistry;if(registry&&typeof registry.register==="function"){registry.register(SCREEN,{label:"Cr-def",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"],aliases:["crdef","cr-def","sacar_n"],canRead:true,canWrite:false,operations:["ready","read","refresh","status","diagnose"],tables:["periodos","personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","divisiones_estudiante"],description:"Conector exclusivo de Cr-def."});}}
 
   function ensureDependencies(){
     if(state.dependenciesReady){return Promise.resolve(true);}
     return load("../adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;})
-      .then(function(adapter){return adapter&&typeof adapter.ready==="function"?adapter.ready():adapter;})
       .then(function(){return load("cone.runtime-deps.js",function(){return window.BDLocalRuntimeDeps;});})
       .then(function(runtime){return runtime.ensure("defensas");})
       .then(function(){return load("cone.defensas.js",legacy);})
@@ -61,16 +56,7 @@ Función:
   }
 
   function status(){return {ok:state.ready&&!state.error,ready:state.ready,version:VERSION,screen:SCREEN,source:SOURCE,error:state.error,reads:state.reads,refreshes:state.refreshes,loadedAt:state.loadedAt,dependency:!!legacy(),service:!!service(),dependenciesReady:state.dependenciesReady};}
-  function ready(options){
-    options=options||{};
-    if(state.ready&&!options.force){return Promise.resolve(status());}
-    if(state.promise&&!options.force){return state.promise;}
-    state.error="";
-    state.promise=ensureDependencies().then(function(){
-      state.ready=true;state.loadedAt=now();register();var currentHub=hub();if(currentHub&&typeof currentHub.register==="function"){currentHub.register(SCREEN,api);}return status();
-    }).catch(function(error){state.ready=false;state.error=error&&error.message?error.message:String(error);return status();}).finally(function(){state.promise=null;});
-    return state.promise;
-  }
+  function ready(options){options=options||{};if(state.ready&&!options.force){return Promise.resolve(status());}if(state.promise&&!options.force){return state.promise;}state.error="";state.promise=ensureDependencies().then(function(){state.ready=true;state.loadedAt=now();register();var currentHub=hub();if(currentHub&&typeof currentHub.register==="function"){currentHub.register(SCREEN,api);}return status();}).catch(function(error){state.ready=false;state.error=error&&error.message?error.message:String(error);return status();}).finally(function(){state.promise=null;});return state.promise;}
   function requireReady(){return ready().then(function(result){if(!result.ok){throw new Error(result.error||"Cr-def no está listo.");}return result;});}
   function listPeriods(){return requireReady().then(function(){var current=legacy();if(current&&typeof current.listPeriods==="function"){return current.listPeriods()||[];}if(current&&typeof current.getPeriods==="function"){return current.getPeriods()||[];}return [];});}
   function listStudents(options){options=Object.assign({matricula:""},options||{});return requireReady().then(function(){var current=service();if(current&&typeof current.getFiltered==="function"){return current.getFiltered(options);}if(current&&typeof current.list==="function"){return current.list(options);}return [];});}
