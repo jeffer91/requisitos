@@ -97,7 +97,7 @@ Función:
   }
   function activatePeriodRuntime(child){
     try{
-      var api=child&&child.BDLPeriodoGlobal;
+      var api=child&&(child.BDLPeriodoGlobal||child.RequisitosPeriodoGlobal);
       if(!api){return false;}
       if(typeof api.init==="function"){api.init();}
       var globalScreen=typeof api.isGlobalScreen==="function"&&api.isGlobalScreen();
