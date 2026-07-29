@@ -5,12 +5,13 @@ Función:
 - Extender ConCarga con lecturas y escrituras usadas por /Carga/.
 - Encerrar BL2Core, divisiones, importaciones y cola dentro del conector.
 - Registrar cada carga de archivo para Firebase sin duplicar por archivo/período.
+- Recuperar estudiantes desde la caché compartida cuando el núcleo todavía no los expone.
 ========================================================= */
 (function(window){
   "use strict";
   var api=window.ConCarga||window.BDLocalCarga;
   if(!api){return;}
-  var VERSION="1.1.0-import-audit";
+  var VERSION="1.2.0-shared-students-fallback";
   function text(v){return String(v==null?"":v).trim();}
   function core(){return window.BL2Core||null;}
   function service(){return window.BLDivisionesService||null;}
@@ -37,12 +38,22 @@ Función:
       return api;
     });
   }
+  function sharedStudents(options){
+    var u=window.BDLocalConUtils;
+    if(!u||typeof u.readCache!=="function"){return [];}
+    var cache=u.readCache()||{};
+    var rows=Array.isArray(cache.students)?cache.students:[];
+    return typeof u.filterStudents==="function"?u.filterStudents(rows,options||{}):rows.slice();
+  }
   function students(options){
     options=Object.assign({matricula:""},options||{});
     options.periodoId=canon(options.periodoId||options.periodId||"");
     return ready().then(function(){
-      if(typeof core().getStudents!=="function"){throw new Error("No se pueden consultar estudiantes.");}
-      return core().getStudents(options);
+      if(typeof core().getStudents!=="function"){return sharedStudents(options);}
+      return Promise.resolve(core().getStudents(options)).then(function(rows){
+        rows=Array.isArray(rows)?rows:[];
+        return rows.length?rows:sharedStudents(options);
+      }).catch(function(){return sharedStudents(options);});
     }).then(function(rows){return Array.isArray(rows)?rows:[];});
   }
   function updateStudent(id,changes,options){
