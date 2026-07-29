@@ -8,6 +8,7 @@ Función o funciones:
 - Evitar el refresco duplicado provocado por eventos del mismo guardado.
 - Mantener snapshots de compatibilidad sin duplicar arreglos dentro del JSON.
 - Avisar a las pantallas una sola vez por revisión de caché.
+- Recuperar períodos desde la caché compartida cuando el núcleo local todavía está vacío.
 Con qué se conecta:
 - conexiones/cone.index.js.
 - conexiones/cone.utils.js.
@@ -17,7 +18,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION="1.3.0-single-write-refresh";
+  var VERSION="1.4.0-shared-period-fallback";
   var HUB=window.BDLocalConexiones;
   var U=window.BDLocalConUtils;
 
@@ -49,7 +50,8 @@ Con qué se conecta:
       suppressedEvents:0,
       legacyWrites:0,
       legacySkipped:0,
-      notifications:0
+      notifications:0,
+      sharedPeriodFallbacks:0
     }
   };
 
@@ -529,16 +531,35 @@ Con qué se conecta:
     scheduleCoreWriteRefresh
   );
 
+  function sharedPeriods(){
+    var cache=U.readCache&&U.readCache();
+    return cache&&Array.isArray(cache.periods)
+      ?cache.periods.slice()
+      :[];
+  }
+
   function getPeriods(){
     return ready().then(function(){
       if(
         core()&&
         typeof core().getPeriods==="function"
       ){
-        return core().getPeriods();
+        return Promise.resolve(core().getPeriods())
+          .then(function(rows){
+            rows=Array.isArray(rows)?rows:[];
+            if(rows.length){return rows;}
+            var fallback=sharedPeriods();
+            if(fallback.length){state.metrics.sharedPeriodFallbacks+=1;}
+            return fallback;
+          })
+          .catch(function(){
+            var fallback=sharedPeriods();
+            if(fallback.length){state.metrics.sharedPeriodFallbacks+=1;}
+            return fallback;
+          });
       }
 
-      return U.readCache().periods;
+      return sharedPeriods();
     });
   }
 
