@@ -6,6 +6,7 @@ Función:
 - Conservar únicamente la pantalla activa y las dos más recientes.
 - Evitar que doce aplicaciones completas permanezcan ejecutándose al mismo tiempo.
 - Inyectar y reaplicar el período global en todas las pantallas operativas.
+- Adoptar el período almacenado aunque una pantalla se haya iniciado antes de seleccionarlo.
 - Mantener navegación, refresco, eventos y compatibilidad con el menú principal.
 ========================================================= */
 (function(window,document){
@@ -83,11 +84,27 @@ Función:
       return period;
     }catch(error){return null;}
   }
+  function readGlobalPeriod(){
+    try{
+      var raw=window.localStorage.getItem(PERIOD_GLOBAL_STORAGE_KEY);
+      if(!raw){return seedGlobalPeriod();}
+      var parsed=JSON.parse(raw)||{};
+      var id=canonicalPeriodId(parsed.id||parsed.periodoId||parsed.periodId||parsed.value||"");
+      if(!id){return null;}
+      var label=clean(parsed.label||parsed.periodoLabel||parsed.nombre||id);
+      return Object.assign({},parsed,{id:id,periodoId:id,value:id,label:label,periodoLabel:label});
+    }catch(error){return null;}
+  }
   function activatePeriodRuntime(child){
     try{
       var api=child&&child.BDLPeriodoGlobal;
       if(!api){return false;}
       if(typeof api.init==="function"){api.init();}
+      var globalScreen=typeof api.isGlobalScreen==="function"&&api.isGlobalScreen();
+      var stored=readGlobalPeriod();
+      if(stored&&!globalScreen&&typeof api.set==="function"){
+        api.set(stored,stored.label,{source:"maq-core",persist:false,broadcast:false,emit:false,core:true,apply:true,dispatch:true,force:true});
+      }
       if(typeof api.scan==="function"){api.scan();}
       if(typeof api.apply==="function"){api.apply({dispatch:true});}
       return true;
@@ -194,7 +211,7 @@ Función:
     router:{navegarPorModuloId:navigate,pantallaAnterior:previous,canonicalModuleId:canonicalModuleId,buscarModulo:findModule},
     actions:{refrescarModuloActivo:refresh,ensureBaseLocalReady:ensureBaseLocalReady,schedulePreload:schedulePreload,evictFrame:removeFrame,enforceFrameLimit:enforceFrameLimit,syncPeriodGlobal:syncPeriodGlobal},
     performance:{preloadFlagKey:PRELOAD_FLAG_KEY,preloadAllowed:preloadAllowed,shouldPrepareBaseLocal:shouldPrepareBaseLocal,maxFrames:MAX_FRAMES,poolStatus:poolStatus},
-    period:{storageKey:PERIOD_GLOBAL_STORAGE_KEY,scriptUrl:PERIOD_GLOBAL_SCRIPT_URL,seed:seedGlobalPeriod,syncFrame:syncPeriodGlobal}
+    period:{storageKey:PERIOD_GLOBAL_STORAGE_KEY,scriptUrl:PERIOD_GLOBAL_SCRIPT_URL,seed:seedGlobalPeriod,read:readGlobalPeriod,syncFrame:syncPeriodGlobal}
   };
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
