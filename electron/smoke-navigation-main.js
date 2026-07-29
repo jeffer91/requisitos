@@ -190,7 +190,7 @@ function inspectScript(connectorName,moduleId,expectedStudents){
         if(!connectorData.ok){connectorData.error="El conector devolvió "+rows.length+" estudiantes; se esperaban "+expectedStudents+".";}
       }catch(error){connectorData.ok=false;connectorData.error=error&&error.message||String(error);}
     }
-    const periodApi=window.BDLPeriodoGlobal;
+    const periodApi=window.BDLPeriodoGlobal||window.RequisitosPeriodoGlobal;
     let periodStatus=null;
     try{periodStatus=periodApi&&typeof periodApi.status==="function"?periodApi.status():null;}catch(error){periodStatus={ok:false,error:error.message};}
     const selects=Array.from(document.querySelectorAll("select")).map((select)=>({id:select.id||select.name||"",value:select.value||"",options:select.options?select.options.length:0}));
