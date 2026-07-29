@@ -3,10 +3,12 @@ Nombre completo: smoke-navigation-main.js
 Ruta: /electron/smoke-navigation-main.js
 Función:
 - Abrir la maqueta principal en Electron con datos temporales.
-- Navegar por todas las pantallas operativas.
+- Sembrar datos controlados en la sesión compartida e IndexedDB.
+- Navegar por Carga, Centro de datos y todas las pantallas operativas.
 - Detectar errores de dependencias, APIs ausentes y cargas bloqueadas.
-- Verificar conectores especializados y el límite de tres iframes.
-- Generar un reporte JSON con tiempos y estados por pantalla.
+- Verificar que el período global se reaplique al abrir cada pantalla.
+- Confirmar que los conectores especializados leen estudiantes reales.
+- Verificar el límite de tres iframes y generar un reporte JSON completo.
 ========================================================= */
 "use strict";
 
@@ -20,20 +22,25 @@ const ENTRY=path.join(ROOT,"Maqueta","maq-index.html");
 const OUTPUT_DIR=path.join(ROOT,"artifacts");
 const OUTPUT_FILE=path.join(OUTPUT_DIR,"navigation-electron-smoke.json");
 const USER_DATA=path.join(os.tmpdir(),"requisitos-navigation-smoke-"+process.pid);
-const HARD_TIMEOUT_MS=210000;
-const SCREEN_TIMEOUT_MS=22000;
+const HARD_TIMEOUT_MS=240000;
+const SCREEN_TIMEOUT_MS=24000;
+const TEST_PERIOD_ID="2026-05__2026-11";
+const TEST_PERIOD_LABEL="Mayo 2026 a Noviembre 2026";
+const EXPECTED_STUDENTS=2;
 
 const MODULES=[
+  {id:"baselocal",label:"Centro de datos",url:"/BDLocal/bl2.html",seedDatabase:true},
+  {id:"carga_excel",label:"Carga",url:"/Carga/carga.html",periodSelector:"cargaPeriodoSelect"},
   {id:"tabla_principal",label:"Tabla",url:"/Gestion/Tabla/tabla.html"},
   {id:"ficha_estudiante",label:"Ficha",url:"/Ficha/ficha.html"},
   {id:"stat_main",label:"Estadísticas",url:"/Stats/stats.html"},
   {id:"coordi",label:"Coordi",url:"/Coordi/coordi.html"},
   {id:"global",label:"Global",url:"/Global/global.html"},
   {id:"modulo_reporte",label:"Reportes",url:"/Reportes/repo.html"},
-  {id:"defart",label:"Defensas",url:"/defart/defart.html",connector:"ConDefart"},
-  {id:"ncomplex",label:"Ncomplex",url:"/Ncomplex/ncomplex.html",connector:"ConNcomplex"},
-  {id:"cr_def",label:"Cr-def",url:"/Cr-def/cr-def.html",connector:"ConCrDef"},
-  {id:"titulacion",label:"InPVC",url:"/InPVC/inpvc.html",connector:"ConInPVC"}
+  {id:"defart",label:"Defensas",url:"/defart/defart.html",connector:"ConDefart",expectedStudents:EXPECTED_STUDENTS,periodSelector:"def-filter-periodo"},
+  {id:"ncomplex",label:"Ncomplex",url:"/Ncomplex/ncomplex.html",connector:"ConNcomplex",expectedStudents:EXPECTED_STUDENTS},
+  {id:"cr_def",label:"Cr-def",url:"/Cr-def/cr-def.html",connector:"ConCrDef",expectedStudents:EXPECTED_STUDENTS},
+  {id:"titulacion",label:"InPVC",url:"/InPVC/inpvc.html",connector:"ConInPVC",expectedStudents:EXPECTED_STUDENTS}
 ];
 
 let mainWindow=null;
@@ -44,6 +51,7 @@ const consoleMessages=[];
 function nowISO(){return new Date().toISOString();}
 function sleep(ms){return new Promise((resolve)=>setTimeout(resolve,ms));}
 function normalizeUrl(value){return String(value||"").replace(/\\/g,"/");}
+function canonicalPeriodId(value){value=String(value||"").trim();const match=value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);return match?`${match[1]}-${match[2]}__${match[3]}-${match[4]}`:value.replace(/_+/g,"__");}
 function writeReport(report){fs.mkdirSync(OUTPUT_DIR,{recursive:true});fs.writeFileSync(OUTPUT_FILE,JSON.stringify(report,null,2),"utf8");}
 function finish(report,code){
   if(finished){return;}
@@ -56,6 +64,27 @@ function finish(report,code){
   setImmediate(()=>app.exit(code));
 }
 function fail(message,error,extra){finish(Object.assign({ok:false,smoke:true,generatedAt:nowISO(),message,error:error&&(error.stack||error.message)||String(error||"")},extra||{}),1);}
+
+function buildFixture(){
+  const updatedAt=nowISO();
+  const period={id:TEST_PERIOD_ID,periodoId:TEST_PERIOD_ID,value:TEST_PERIOD_ID,label:TEST_PERIOD_LABEL,periodoLabel:TEST_PERIOD_LABEL,activo:true,updatedAt};
+  const students=[
+    {id:"0100000001__"+TEST_PERIOD_ID,idEstudiantePeriodo:"0100000001__"+TEST_PERIOD_ID,studentId:"0100000001__"+TEST_PERIOD_ID,cedula:"0100000001",numeroIdentificacion:"0100000001",periodoId:TEST_PERIOD_ID,periodId:TEST_PERIOD_ID,Nombres:"ESTUDIANTE PRUEBA UNO",nombres:"ESTUDIANTE PRUEBA UNO",nombreCompleto:"ESTUDIANTE PRUEBA UNO",NombreCarrera:"ADMINISTRACIÓN DE EMPRESAS",carrera:"ADMINISTRACIÓN DE EMPRESAS",division:"Prueba",Sede:"Matriz",estadoMatricula:"ACTIVO",Academico:"CUMPLE",Documentacion:"CUMPLE",Financiero:"CUMPLE",Titulacion:"CUMPLE",Vinculacion:"CUMPLE",Ingles:"CUMPLE",updatedAt},
+    {id:"0100000002__"+TEST_PERIOD_ID,idEstudiantePeriodo:"0100000002__"+TEST_PERIOD_ID,studentId:"0100000002__"+TEST_PERIOD_ID,cedula:"0100000002",numeroIdentificacion:"0100000002",periodoId:TEST_PERIOD_ID,periodId:TEST_PERIOD_ID,Nombres:"ESTUDIANTE PRUEBA DOS",nombres:"ESTUDIANTE PRUEBA DOS",nombreCompleto:"ESTUDIANTE PRUEBA DOS",NombreCarrera:"REDES Y TELECOMUNICACIONES",carrera:"REDES Y TELECOMUNICACIONES",division:"Prueba",Sede:"Matriz",estadoMatricula:"ACTIVO",Academico:"CUMPLE",Documentacion:"CUMPLE",Financiero:"CUMPLE",Titulacion:"CUMPLE",Vinculacion:"CUMPLE",Ingles:"CUMPLE",updatedAt}
+  ];
+  const personas=students.map((row)=>({cedula:row.cedula,numeroIdentificacion:row.cedula,nombreCompleto:row.Nombres,nombres:row.Nombres,Nombres:row.Nombres,updatedAt}));
+  const matriculas=students.map((row)=>({id:row.idEstudiantePeriodo,idEstudiantePeriodo:row.idEstudiantePeriodo,studentId:row.idEstudiantePeriodo,cedula:row.cedula,numeroIdentificacion:row.cedula,periodoId:TEST_PERIOD_ID,periodId:TEST_PERIOD_ID,carrera:row.NombreCarrera,NombreCarrera:row.NombreCarrera,division:row.division,Sede:row.Sede,estadoMatricula:"ACTIVO",updatedAt}));
+  const requirements=students.map((row,index)=>({id:`req_${index+1}_${row.cedula}_${TEST_PERIOD_ID}`,idEstudiantePeriodo:row.idEstudiantePeriodo,studentId:row.idEstudiantePeriodo,cedula:row.cedula,numeroIdentificacion:row.cedula,periodoId:TEST_PERIOD_ID,periodId:TEST_PERIOD_ID,requisitoKey:"academico",requisitoLabel:"Académico",estado:"CUMPLE",estadoKey:"cumple",valor:"CUMPLE",updatedAt}));
+  const notes=[
+    {id:"0100000001__"+TEST_PERIOD_ID,idEstudiantePeriodo:"0100000001__"+TEST_PERIOD_ID,studentId:"0100000001__"+TEST_PERIOD_ID,cedula:"0100000001",numeroIdentificacion:"0100000001",periodoId:TEST_PERIOD_ID,periodId:TEST_PERIOD_ID,Notart:8.5,Notdef:8,Notafinal:8.35,updatedAt},
+    {id:"0100000002__"+TEST_PERIOD_ID,idEstudiantePeriodo:"0100000002__"+TEST_PERIOD_ID,studentId:"0100000002__"+TEST_PERIOD_ID,cedula:"0100000002",numeroIdentificacion:"0100000002",periodoId:TEST_PERIOD_ID,periodId:TEST_PERIOD_ID,Notart:9,Notdef:8.5,Notafinal:8.85,updatedAt}
+  ];
+  const snapshot={
+    meta:{source:"navigation-smoke",revision:1,updatedAt,periodoId:TEST_PERIOD_ID,periodoLabel:TEST_PERIOD_LABEL,totalPeriods:1,totalStudents:students.length,totalRequirements:requirements.length},
+    periods:[period],students,requirements,summaries:{},diagnostics:[]
+  };
+  return {period,students,personas,matriculas,requirements,notes,snapshot};
+}
 
 function frameBySuffix(suffix){
   if(!mainWindow||mainWindow.isDestroyed()){return null;}
@@ -74,24 +103,10 @@ async function waitMainReady(){
   return false;
 }
 
-async function seedTemporaryData(){
-  const snapshot={
-    meta:{source:"navigation-smoke",revision:1,updatedAt:new Date().toISOString(),periodoId:"2026-05__2026-11",periodoLabel:"Mayo 2026 a Noviembre 2026",totalPeriods:1,totalStudents:2,totalRequirements:2},
-    periods:[{id:"2026-05__2026-11",periodoId:"2026-05__2026-11",value:"2026-05__2026-11",label:"Mayo 2026 a Noviembre 2026",periodoLabel:"Mayo 2026 a Noviembre 2026",activo:true}],
-    students:[
-      {idEstudiantePeriodo:"0100000001__2026-05__2026-11",cedula:"0100000001",numeroIdentificacion:"0100000001",periodoId:"2026-05__2026-11",Nombres:"ESTUDIANTE PRUEBA UNO",NombreCarrera:"ADMINISTRACIÓN DE EMPRESAS",division:"Prueba",estadoMatricula:"ACTIVO",Academico:"CUMPLE",Documentacion:"CUMPLE",Financiero:"CUMPLE",Vinculacion:"CUMPLE",Ingles:"CUMPLE"},
-      {idEstudiantePeriodo:"0100000002__2026-05__2026-11",cedula:"0100000002",numeroIdentificacion:"0100000002",periodoId:"2026-05__2026-11",Nombres:"ESTUDIANTE PRUEBA DOS",NombreCarrera:"REDES Y TELECOMUNICACIONES",division:"Prueba",estadoMatricula:"ACTIVO",Academico:"CUMPLE",Documentacion:"CUMPLE",Financiero:"CUMPLE",Vinculacion:"CUMPLE",Ingles:"CUMPLE"}
-    ],
-    requirements:[
-      {id:"req1",cedula:"0100000001",periodoId:"2026-05__2026-11",requisitoKey:"academico",valor:"CUMPLE"},
-      {id:"req2",cedula:"0100000002",periodoId:"2026-05__2026-11",requisitoKey:"academico",valor:"CUMPLE"}
-    ],
-    summaries:{},diagnostics:[]
-  };
-  const period={id:"2026-05__2026-11",periodoId:"2026-05__2026-11",value:"2026-05__2026-11",label:"Mayo 2026 a Noviembre 2026",periodoLabel:"Mayo 2026 a Noviembre 2026",source:"navigation-smoke",updatedAt:new Date().toISOString()};
+async function seedTemporaryData(fixture){
   const script=`(() => {
-    const snapshot=${JSON.stringify(snapshot)};
-    const period=${JSON.stringify(period)};
+    const snapshot=${JSON.stringify(fixture.snapshot)};
+    const period=${JSON.stringify(fixture.period)};
     localStorage.setItem("REQ_BDLOCAL_CONEXIONES_CACHE_V1",JSON.stringify(snapshot));
     localStorage.setItem("REQ_PERIODO_GLOBAL_V1",JSON.stringify(period));
     if(window.MAQ_BASELOCAL_SESSION&&typeof window.MAQ_BASELOCAL_SESSION.setSnapshot==="function"){
@@ -102,8 +117,45 @@ async function seedTemporaryData(){
   return mainWindow.webContents.executeJavaScript(script,true);
 }
 
-function inspectScript(connectorName){
-  return `(() => {
+async function seedIndexedDb(fixture){
+  const frame=frameBySuffix("/BDLocal/bl2.html");
+  if(!frame){return {ok:false,error:"No se encontró el iframe de Centro de datos para sembrar IndexedDB."};}
+  const script=`(async () => {
+    const fixture=${JSON.stringify(fixture)};
+    const db=window.BL2DB;
+    const config=window.BL2Config||{};
+    const stores=config.stores||{};
+    if(!db||typeof db.open!=="function"||typeof db.bulkPut!=="function"){
+      return {ok:false,error:"BL2DB no expone open y bulkPut."};
+    }
+    await db.open();
+    const entries=[
+      [stores.periodos||"periodos",[fixture.period]],
+      [stores.estudiantes||"estudiantes",fixture.students],
+      [stores.personas||"personas",fixture.personas],
+      [stores.matriculasPeriodo||"matriculas_periodo",fixture.matriculas],
+      [stores.requisitos||"requisitos",fixture.requirements],
+      [stores.requisitosEstudiante||"requisitos_estudiante",fixture.requirements],
+      [stores.notas||"notas",fixture.notes],
+      [stores.notasTitulacion||"notas_titulacion",fixture.notes]
+    ];
+    const saved=[];
+    for(const entry of entries){
+      await db.bulkPut(entry[0],entry[1]);
+      const count=typeof db.count==="function"?await db.count(entry[0]):entry[1].length;
+      saved.push({store:entry[0],expected:entry[1].length,count});
+    }
+    if(window.BL2Core&&typeof window.BL2Core.setActivePeriod==="function"){
+      await window.BL2Core.setActivePeriod(fixture.period.id,fixture.period.label).catch(()=>null);
+    }
+    const invalid=saved.filter((item)=>item.count<item.expected);
+    return {ok:invalid.length===0,saved,invalid};
+  })()`;
+  return frame.executeJavaScript(script,true).catch((error)=>({ok:false,error:error.stack||error.message||String(error)}));
+}
+
+function inspectScript(connectorName,moduleId,expectedStudents){
+  return `(async () => {
     const text=String(document.body&&document.body.innerText||"").replace(/\\s+/g," ").trim();
     const badPatterns=[
       /no expuso la api esperada/i,
@@ -115,20 +167,42 @@ function inspectScript(connectorName){
     ];
     const errors=badPatterns.filter((pattern)=>pattern.test(text)).map((pattern)=>pattern.source);
     const connectorName=${JSON.stringify(connectorName||"")};
+    const moduleId=${JSON.stringify(moduleId||"")};
+    const expectedStudents=${Number(expectedStudents||0)};
     const connector=connectorName?window[connectorName]:null;
     let connectorStatus=null;
     try{connectorStatus=connector&&typeof connector.status==="function"?connector.status():null;}catch(error){connectorStatus={ok:false,error:error.message};}
+    let connectorData={checked:false,ok:expectedStudents===0,count:null,error:""};
+    if(expectedStudents>0&&connector&&connectorStatus&&connectorStatus.ready===true&&connectorStatus.loading!==true){
+      connectorData.checked=true;
+      try{
+        let value=null;
+        const options={periodoId:${JSON.stringify(TEST_PERIOD_ID)},periodId:${JSON.stringify(TEST_PERIOD_ID)},matricula:""};
+        if(typeof connector.listStudents==="function"){value=await connector.listStudents(options);}
+        else if(typeof connector.getStudents==="function"){value=await connector.getStudents(options);}
+        else if(typeof connector.read==="function"){value=await connector.read(options);}
+        let rows=[];
+        if(Array.isArray(value)){rows=value;}
+        else if(value&&Array.isArray(value.rows)){rows=value.rows;}
+        else if(value&&value.data&&Array.isArray(value.data.students)){rows=value.data.students;}
+        connectorData.count=rows.length;
+        connectorData.ok=rows.length>=expectedStudents;
+        if(!connectorData.ok){connectorData.error="El conector devolvió "+rows.length+" estudiantes; se esperaban "+expectedStudents+".";}
+      }catch(error){connectorData.ok=false;connectorData.error=error&&error.message||String(error);}
+    }
     const periodApi=window.BDLPeriodoGlobal;
     let periodStatus=null;
     try{periodStatus=periodApi&&typeof periodApi.status==="function"?periodApi.status():null;}catch(error){periodStatus={ok:false,error:error.message};}
     const selects=Array.from(document.querySelectorAll("select")).map((select)=>({id:select.id||select.name||"",value:select.value||"",options:select.options?select.options.length:0}));
     return {
+      moduleId,
       readyState:document.readyState,
       title:document.title,
       textLength:text.length,
       errors,
       connectorPresent:connectorName?!!connector:true,
       connectorStatus,
+      connectorData,
       periodPresent:!!periodApi,
       periodStatus,
       selects,
@@ -140,11 +214,33 @@ function inspectScript(connectorName){
 function connectorReady(result,module){
   if(!module.connector){return true;}
   const status=result&&result.connectorStatus||{};
-  return !!result.connectorPresent&&status.loading!==true&&status.ready===true&&status.ok!==false&&!String(status.error||"").trim();
+  const ready=!!result.connectorPresent&&status.loading!==true&&status.ready===true&&status.ok!==false&&!String(status.error||"").trim();
+  if(!ready){return false;}
+  if(Number(module.expectedStudents||0)>0){
+    const data=result&&result.connectorData||{};
+    return data.checked===true&&data.ok===true&&Number(data.count||0)>=Number(module.expectedStudents);
+  }
+  return true;
+}
+function periodReady(result,module){
+  if(!result||!result.periodPresent){return false;}
+  const status=result.periodStatus||{};
+  if(status.ok===false||String(status.error||"").trim()){return false;}
+  if(module.id==="global"){return status.globalIndependent===true&&status.enabled===false;}
+  const period=status.period||{};
+  const id=canonicalPeriodId(period.id||period.periodoId||period.value||"");
+  return status.enabled!==false&&id===TEST_PERIOD_ID;
+}
+function selectedPeriodReady(result,module){
+  if(!module.periodSelector){return true;}
+  const select=(result&&result.selects||[]).find((item)=>item.id===module.periodSelector);
+  return !!select&&select.options>1&&canonicalPeriodId(select.value)===TEST_PERIOD_ID;
 }
 function resultReady(result,module){
   if(!result||result.readyState!=="complete"||result.textLength<20){return false;}
   if(result.errors&&result.errors.length){return false;}
+  if(!periodReady(result,module)){return false;}
+  if(!selectedPeriodReady(result,module)){return false;}
   if(!connectorReady(result,module)){return false;}
   return true;
 }
@@ -157,7 +253,7 @@ async function inspectModule(module){
   while(Date.now()-started<SCREEN_TIMEOUT_MS){
     const frame=frameBySuffix(module.url);
     if(frame){
-      try{last=await frame.executeJavaScript(inspectScript(module.connector),true);}catch(error){last={errors:[error.message],readyState:"error",textLength:0};}
+      try{last=await frame.executeJavaScript(inspectScript(module.connector,module.id,module.expectedStudents),true);}catch(error){last={errors:[error.message],readyState:"error",textLength:0};}
       if(resultReady(last,module)){
         const pool=await mainWindow.webContents.executeJavaScript("window.MAQ_CORE.performance.poolStatus()",true).catch(()=>[]);
         return {id:module.id,label:module.label,ok:true,durationMs:Date.now()-started,poolSize:Array.isArray(pool)?pool.length:null,inspection:last};
@@ -166,7 +262,10 @@ async function inspectModule(module){
     await sleep(120);
   }
   const pool=await mainWindow.webContents.executeJavaScript("window.MAQ_CORE.performance.poolStatus()",true).catch(()=>[]);
-  return {id:module.id,label:module.label,ok:false,durationMs:Date.now()-started,poolSize:Array.isArray(pool)?pool.length:null,error:"La pantalla no alcanzó un estado funcional dentro del límite.",inspection:last};
+  let error="La pantalla no alcanzó un estado funcional dentro del límite.";
+  if(last&&last.connectorData&&last.connectorData.error){error=last.connectorData.error;}
+  else if(last&&last.periodStatus&&last.periodStatus.error){error=last.periodStatus.error;}
+  return {id:module.id,label:module.label,ok:false,durationMs:Date.now()-started,poolSize:Array.isArray(pool)?pool.length:null,error,inspection:last};
 }
 
 async function run(){
@@ -189,18 +288,30 @@ async function run(){
 
   await mainWindow.loadFile(ENTRY);
   if(!await waitMainReady()){throw new Error("La maqueta principal no quedó lista.");}
-  await seedTemporaryData();
+  const fixture=buildFixture();
+  await seedTemporaryData(fixture);
 
   const screens=[];
-  for(const module of MODULES){screens.push(await inspectModule(module));}
+  let databaseSeed=null;
+  for(const module of MODULES){
+    const screen=await inspectModule(module);
+    if(module.seedDatabase&&screen.ok){
+      databaseSeed=await seedIndexedDb(fixture);
+      screen.databaseSeed=databaseSeed;
+      if(!databaseSeed||databaseSeed.ok!==true){screen.ok=false;screen.error=databaseSeed&&databaseSeed.error||"No se pudieron sembrar los datos de prueba en IndexedDB.";}
+    }
+    screens.push(screen);
+  }
   const badConsole=consoleMessages.filter((row)=>row.level>=2&&/(no expuso la api esperada|no se pudo cargar|uncaught|referenceerror|typeerror)/i.test(row.message));
   const failed=screens.filter((screen)=>!screen.ok||Number(screen.poolSize||0)>3);
   const output={
-    ok:failed.length===0&&badConsole.length===0,
+    ok:failed.length===0&&badConsole.length===0&&databaseSeed&&databaseSeed.ok===true,
     smoke:true,
     isolated:true,
     network:false,
     generatedAt:nowISO(),
+    fixture:{periodoId:TEST_PERIOD_ID,students:fixture.students.length,requirements:fixture.requirements.length,notes:fixture.notes.length},
+    databaseSeed,
     timeouts:{screenMs:SCREEN_TIMEOUT_MS,hardMs:HARD_TIMEOUT_MS},
     screens,
     failedScreens:failed.map((screen)=>screen.id),
