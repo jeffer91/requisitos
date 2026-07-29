@@ -4,13 +4,14 @@ Ruta: /BDLocal/conexiones/cone.defart.js
 Función:
 - Ser la única conexión de Defart con BDLocal.
 - Preparar repositorios y servicios en un orden seguro y verificable.
+- Evitar ciclos entre el orquestador y el conector durante el arranque.
 - Leer y guardar notas con clave local cédula__período.
 - Crear cambios Firebase e historial, sin pendientes para Sheets/Supabase.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.2.0-runtime-deps";
+  var VERSION="2.3.0-no-ready-cycle";
   var SCREEN="defart";
   var SOURCE="ConDefart";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
@@ -55,7 +56,6 @@ Función:
   function ensureDependencies(){
     if(state.dependenciesReady){return Promise.resolve(true);}
     return load("../adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;})
-      .then(function(adapter){return adapter&&typeof adapter.ready==="function"?adapter.ready():adapter;})
       .then(function(){return load("cone.runtime-deps.js",function(){return window.BDLocalRuntimeDeps;});})
       .then(function(runtime){return runtime.ensure("defensas");})
       .then(function(){return load("cone.defensas.js",legacy);})
@@ -90,31 +90,14 @@ Función:
   function read(options){state.reads+=1;options=options||{};return Promise.all([listPeriods(),listStudents(options),getSummary(options)]).then(function(values){return {ok:true,source:SOURCE,screen:SCREEN,data:{periods:values[0]||[],students:values[1]||[],summary:values[2]||{}},meta:{generatedAt:now(),version:VERSION}};});}
 
   function identity(note){note=note||{};var periodoId=text(note.periodoId||note.periodId);var cedula=text(note.cedula||note.numeroIdentificacion);return {periodoId:periodoId,cedula:cedula,localId:cedula&&periodoId?cedula+"__"+periodoId:text(note.idEstudiantePeriodo||note.studentId||note.id)};}
-  function baseChange(table,note,payload,recordId){
-    var id=identity(note);var stamp=now();
-    return {periodoId:id.periodoId,cedula:id.cedula,tabla:table,tipo:table,registroId:text(recordId||id.localId),accion:"UPSERT",payload:clone(payload),prioridad:1,estadoSheets:"SINCRONIZADO",statusGoogle:"SINCRONIZADO",estadoSupabase:"SINCRONIZADO",statusSupabase:"SINCRONIZADO",estadoFirebase:"PENDIENTE",statusFirebase:"PENDIENTE",source:"defart",origen:"defart",createdAt:stamp,updatedAt:stamp};
-  }
+  function baseChange(table,note,payload,recordId){var id=identity(note);var stamp=now();return {periodoId:id.periodoId,cedula:id.cedula,tabla:table,tipo:table,registroId:text(recordId||id.localId),accion:"UPSERT",payload:clone(payload),prioridad:1,estadoSheets:"SINCRONIZADO",statusGoogle:"SINCRONIZADO",estadoSupabase:"SINCRONIZADO",statusSupabase:"SINCRONIZADO",estadoFirebase:"PENDIENTE",statusFirebase:"PENDIENTE",source:"defart",origen:"defart",createdAt:stamp,updatedAt:stamp};}
   function changeFromNote(note){return baseChange("notas_titulacion",note,note,identity(note).localId);}
   function changedNoteFields(before,after){before=before||{};after=after||{};return ["Notart","Notdef","Notafinal"].filter(function(field){return JSON.stringify(before[field])!==JSON.stringify(after[field]);});}
-  function historyRows(before,after,context){
-    var id=identity(after);var stamp=now();
-    return changedNoteFields(before,after).map(function(field,index){
-      var row={id:"historial__defart__"+id.localId+"__"+norm(field)+"__"+stamp.replace(/[^0-9]/g,"")+"__"+index,entidad:"notas",entidadId:id.localId,periodoId:id.periodoId,cedula:id.cedula,campo:field,anterior:before&&before[field]!==undefined?clone(before[field]):null,nuevo:after[field],accion:"ACTUALIZAR_NOTA",usuario:text(context&&context.usuario||context&&context.user),pantalla:"Defart",createdAt:stamp,updatedAt:stamp};
-      return {row:row,change:baseChange("historial",after,row,row.id)};
-    });
-  }
+  function historyRows(before,after,context){var id=identity(after);var stamp=now();return changedNoteFields(before,after).map(function(field,index){var row={id:"historial__defart__"+id.localId+"__"+norm(field)+"__"+stamp.replace(/[^0-9]/g,"")+"__"+index,entidad:"notas",entidadId:id.localId,periodoId:id.periodoId,cedula:id.cedula,campo:field,anterior:before&&before[field]!==undefined?clone(before[field]):null,nuevo:after[field],accion:"ACTUALIZAR_NOTA",usuario:text(context&&context.usuario||context&&context.user),pantalla:"Defart",createdAt:stamp,updatedAt:stamp};return {row:row,change:baseChange("historial",after,row,row.id)};});}
   function previousNote(note){var id=identity(note);var current=notesRepo();return current&&typeof current.getByPeriodoCedula==="function"?current.getByPeriodoCedula(id.periodoId,id.cedula).catch(function(){return null;}):Promise.resolve(null);}
-  function enqueue(saved,before,context){
-    var current=changesRepo();if(!current||typeof current.saveMany!=="function"){return Promise.reject(new Error("BDLRepoCambios no está disponible."));}
-    var history=historyRows(before,saved,context);var changes=[changeFromNote(saved)].concat(history.map(function(item){return item.change;}));
-    var localLogs=logsRepo();var logTask=localLogs&&typeof localLogs.saveMany==="function"?localLogs.saveMany(history.map(function(item){return {id:item.row.id,scope:"Defart",level:"INFO",message:"Cambio de "+item.row.campo,data:item.row,createdAt:item.row.createdAt,updatedAt:item.row.updatedAt};})):Promise.resolve([]);
-    return Promise.resolve(logTask).then(function(){return current.saveMany(changes,{source:"defart",tabla:"notas_titulacion",accion:"UPSERT"});});
-  }
+  function enqueue(saved,before,context){var current=changesRepo();if(!current||typeof current.saveMany!=="function"){return Promise.reject(new Error("BDLRepoCambios no está disponible."));}var history=historyRows(before,saved,context);var changes=[changeFromNote(saved)].concat(history.map(function(item){return item.change;}));var localLogs=logsRepo();var logTask=localLogs&&typeof localLogs.saveMany==="function"?localLogs.saveMany(history.map(function(item){return {id:item.row.id,scope:"Defart",level:"INFO",message:"Cambio de "+item.row.campo,data:item.row,createdAt:item.row.createdAt,updatedAt:item.row.updatedAt};})):Promise.resolve([]);return Promise.resolve(logTask).then(function(){return current.saveMany(changes,{source:"defart",tabla:"notas_titulacion",accion:"UPSERT"});});}
   function refreshCache(periodoId){var currentHub=hub();if(!currentHub||typeof currentHub.refreshCache!=="function"){return Promise.resolve(null);}return currentHub.refreshCache({source:"cone.defart.save",sourceScreen:SCREEN,periodoId:periodoId||"",full:true,immediate:true,force:true,changed:true}).catch(function(){return null;});}
-  function save(payload,context){
-    payload=payload||{};context=context||{};state.writes+=1;var before=null;
-    return requireReady().then(function(){return previousNote(payload);}).then(function(existing){before=existing||{};var current=service();if(!current||typeof current.saveNota!=="function"){throw new Error("BDLServiceDefensas.saveNota no está disponible.");}return current.saveNota(payload);}).then(function(saved){saved=saved||payload;if(context.enqueue===false){return saved;}return enqueue(saved,before,context).then(function(){return saved;});}).then(function(saved){return refreshCache(text(saved&&(saved.periodoId||saved.periodId)||payload.periodoId)).then(function(){try{window.dispatchEvent(new CustomEvent("bdlocal:defart-saved",{detail:{ok:true,source:SOURCE,row:saved,history:true}}));}catch(error){}return saved;});});
-  }
+  function save(payload,context){payload=payload||{};context=context||{};state.writes+=1;var before=null;return requireReady().then(function(){return previousNote(payload);}).then(function(existing){before=existing||{};var current=service();if(!current||typeof current.saveNota!=="function"){throw new Error("BDLServiceDefensas.saveNota no está disponible.");}return current.saveNota(payload);}).then(function(saved){saved=saved||payload;if(context.enqueue===false){return saved;}return enqueue(saved,before,context).then(function(){return saved;});}).then(function(saved){return refreshCache(text(saved&&(saved.periodoId||saved.periodId)||payload.periodoId)).then(function(){try{window.dispatchEvent(new CustomEvent("bdlocal:defart-saved",{detail:{ok:true,source:SOURCE,row:saved,history:true}}));}catch(error){}return saved;});});}
   function update(payload,context){return save(payload,context);}
   function refresh(options){options=options||{};return requireReady().then(function(){var current=legacy();return current&&typeof current.refresh==="function"?current.refresh(options):null;}).then(function(){return ready({force:true});});}
 
