@@ -4,12 +4,13 @@ Ruta: /BDLocal/conexiones/cone.ncomplex.js
 Función:
 - Exponer inmediatamente un proxy oficial ConNcomplex.
 - Preparar configuración, repositorios, servicios y migraciones en orden seguro.
+- Evitar ciclos entre el orquestador y el conector durante el arranque.
 - Delegar las operaciones a cone.ncomplex.api.js cuando esté listo.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.2.0-runtime-deps";
+  var VERSION="2.3.0-no-ready-cycle";
   var SCREEN="ncomplex";
   var SOURCE="ConNcomplex";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
@@ -39,7 +40,6 @@ Función:
     if(readyPromise){return readyPromise;}
     lastError="";
     readyPromise=load("../adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;})
-      .then(function(adapter){return adapter&&typeof adapter.ready==="function"?adapter.ready():adapter;})
       .then(function(){return load("cone.runtime-deps.js",function(){return window.BDLocalRuntimeDeps;});})
       .then(function(runtime){return runtime.ensure("ncomplex");})
       .then(function(){return load("cone.ncomplex.api.js",actual);})
