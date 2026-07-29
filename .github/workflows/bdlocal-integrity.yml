@@ -4,10 +4,9 @@
 # Función:
 # - Instalar dependencias fijadas antes de cada suite.
 # - Ejecutar cada prueba de npm test e identificar la primera que falla.
-# - Publicar también el primer mensaje de error verificable.
-# - Ejecutar Electron e IndexedDB en un entorno aislado.
-# - Publicar el control concreto que falla en Electron.
-# - Conservar los registros de ambas pruebas como artefactos.
+# - Ejecutar Electron, IndexedDB y navegación completa en un entorno aislado.
+# - Detectar errores visibles de dependencias en cada pantalla operativa.
+# - Conservar los registros y reportes como artefactos.
 # =========================================================
 name: BDLocal Integrity
 
@@ -61,51 +60,22 @@ jobs:
             let code = 1;
             let failed = 'unknown';
             let detail = 'Fallo sin detalle';
-            try {
-              code = Number(fs.readFileSync('artifacts/npm-test.exit', 'utf8').trim());
-            } catch (error) {}
-            try {
-              failed = fs.readFileSync('artifacts/npm-test-failed.txt', 'utf8').trim() || 'none';
-            } catch (error) {}
-            try {
-              detail = fs.readFileSync('artifacts/npm-test-detail.txt', 'utf8').trim() || detail;
-            } catch (error) {}
+            try { code = Number(fs.readFileSync('artifacts/npm-test.exit', 'utf8').trim()); } catch (error) {}
+            try { failed = fs.readFileSync('artifacts/npm-test-failed.txt', 'utf8').trim() || 'none'; } catch (error) {}
+            try { detail = fs.readFileSync('artifacts/npm-test-detail.txt', 'utf8').trim() || detail; } catch (error) {}
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               sha: context.sha,
               state: code === 0 ? 'success' : 'failure',
               context: 'requisitos/npm-test',
-              description: code === 0
-                ? 'Suite completa aprobada'
-                : 'La suite completa tiene fallos'
+              description: code === 0 ? 'Suite completa aprobada' : 'La suite completa tiene fallos'
             });
             if (code !== 0) {
-              const scriptSlug = failed
-                .replace(/^node\s+/, '')
-                .replace(/^npm\s+run\s+/, '')
-                .replace(/[^A-Za-z0-9._-]+/g, '-')
-                .slice(0, 62) || 'unknown';
-              const detailSlug = detail
-                .replace(/^\d+\.\s*/, '')
-                .replace(/[^A-Za-z0-9._-]+/g, '-')
-                .slice(0, 55) || 'unknown';
-              await github.rest.repos.createCommitStatus({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                sha: context.sha,
-                state: 'failure',
-                context: `requisitos/fallo/${scriptSlug}`,
-                description: detail.slice(0, 140)
-              });
-              await github.rest.repos.createCommitStatus({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                sha: context.sha,
-                state: 'failure',
-                context: `requisitos/detalle/${detailSlug}`,
-                description: detail.slice(0, 140)
-              });
+              const scriptSlug = failed.replace(/^node\s+/, '').replace(/^npm\s+run\s+/, '').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 62) || 'unknown';
+              const detailSlug = detail.replace(/^\d+\.\s*/, '').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 55) || 'unknown';
+              await github.rest.repos.createCommitStatus({owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'failure',context:`requisitos/fallo/${scriptSlug}`,description:detail.slice(0,140)});
+              await github.rest.repos.createCommitStatus({owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,state:'failure',context:`requisitos/detalle/${detailSlug}`,description:detail.slice(0,140)});
             }
 
       - name: Upload npm test report
@@ -129,9 +99,9 @@ jobs:
           exit "$code"
 
   electron-smoke:
-    name: Electron and IndexedDB smoke test
+    name: Electron, IndexedDB and navigation smoke tests
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 25
     needs: static-audit
 
     steps:
@@ -159,7 +129,7 @@ jobs:
           sudo chmod 4755 "$helper"
           stat -c '%U %G %a %n' "$helper"
 
-      - name: Run isolated Electron test
+      - name: Run isolated Electron and IndexedDB test
         shell: bash
         run: |
           set +e
@@ -170,58 +140,43 @@ jobs:
           echo "$code" > artifacts/bdlocal-electron-smoke.exit
           exit 0
 
-      - name: Publish Electron status
+      - name: Run complete navigation test
+        shell: bash
+        run: |
+          set +e
+          xvfb-run --auto-servernum npm run test:electron:navigation > artifacts/navigation-electron-smoke.log 2>&1
+          code=$?
+          cat artifacts/navigation-electron-smoke.log
+          echo "$code" > artifacts/navigation-electron-smoke.exit
+          exit 0
+
+      - name: Publish Electron and navigation statuses
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            let code = 1;
-            let report = {};
-            let detail = 'Electron o IndexedDB tienen fallos';
-            try {
-              code = Number(fs.readFileSync('artifacts/bdlocal-electron-smoke.exit', 'utf8').trim());
-            } catch (error) {}
-            try {
-              report = JSON.parse(fs.readFileSync('artifacts/bdlocal-electron-smoke.json', 'utf8'));
-              const result = report && report.result || {};
-              const testReport = result && result.report || {};
-              const failed = Array.isArray(testReport.results)
-                ? testReport.results.find((item) => item && item.ok === false)
-                : null;
-              detail = String(
-                failed && `${failed.name || 'Control'}: ${failed.message || 'falló'}` ||
-                result.testError ||
-                result.message ||
-                report.message ||
-                detail
-              );
-            } catch (error) {}
+            function readCode(file){ try{return Number(fs.readFileSync(file,'utf8').trim());}catch(error){return 1;} }
+            function readJson(file){ try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch(error){return {};} }
+            const electronCode=readCode('artifacts/bdlocal-electron-smoke.exit');
+            const navigationCode=readCode('artifacts/navigation-electron-smoke.exit');
+            const electronReport=readJson('artifacts/bdlocal-electron-smoke.json');
+            const navigationReport=readJson('artifacts/navigation-electron-smoke.json');
+            const failedScreen=Array.isArray(navigationReport.screens)?navigationReport.screens.find((screen)=>screen&&!screen.ok):null;
+            const electronDetail=String(electronReport.message || electronReport.result?.testError || electronReport.result?.message || 'Electron o IndexedDB tienen fallos');
+            const navigationDetail=String(failedScreen&&`${failedScreen.label||failedScreen.id}: ${failedScreen.error||'no quedó funcional'}` || 'Alguna pantalla no quedó funcional');
             await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.sha,
-              state: code === 0 ? 'success' : 'failure',
-              context: 'requisitos/electron-smoke',
-              description: code === 0
-                ? 'Electron e IndexedDB aprobados'
-                : detail.slice(0, 140)
+              owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,
+              state:electronCode===0?'success':'failure',context:'requisitos/electron-smoke',
+              description:electronCode===0?'Electron e IndexedDB aprobados':electronDetail.slice(0,140)
             });
-            if (code !== 0) {
-              const slug = detail
-                .replace(/[^A-Za-z0-9._-]+/g, '-')
-                .slice(0, 58) || 'unknown';
-              await github.rest.repos.createCommitStatus({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                sha: context.sha,
-                state: 'failure',
-                context: `requisitos/electron-detalle/${slug}`,
-                description: detail.slice(0, 140)
-              });
-            }
+            await github.rest.repos.createCommitStatus({
+              owner:context.repo.owner,repo:context.repo.repo,sha:context.sha,
+              state:navigationCode===0?'success':'failure',context:'requisitos/navigation-smoke',
+              description:navigationCode===0?'Todas las pantallas operativas aprobaron':navigationDetail.slice(0,140)
+            });
 
-      - name: Upload Electron smoke report
+      - name: Upload Electron smoke reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -230,12 +185,17 @@ jobs:
             artifacts/bdlocal-electron-smoke.json
             artifacts/bdlocal-electron-smoke.log
             artifacts/bdlocal-electron-smoke.exit
+            artifacts/navigation-electron-smoke.json
+            artifacts/navigation-electron-smoke.log
+            artifacts/navigation-electron-smoke.exit
           if-no-files-found: error
           retention-days: 14
 
-      - name: Enforce Electron smoke result
+      - name: Enforce Electron smoke results
         shell: bash
         run: |
           set -euo pipefail
-          code="$(cat artifacts/bdlocal-electron-smoke.exit)"
-          exit "$code"
+          electron_code="$(cat artifacts/bdlocal-electron-smoke.exit)"
+          navigation_code="$(cat artifacts/navigation-electron-smoke.exit)"
+          test "$electron_code" -eq 0
+          test "$navigation_code" -eq 0
