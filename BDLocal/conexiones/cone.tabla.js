@@ -4,13 +4,15 @@ Ruta: /BDLocal/conexiones/cone.tabla.js
 Función:
 - Ser el conector oficial entre Tabla y Base Local.
 - Entregar períodos, estudiantes y requisitos en un solo envelope.
-- Forzar una actualización completa cuando la caché no sea confiable.
+- Mostrar primero la caché compartida válida sin reconstruir BDLocal.
+- Ejecutar una actualización completa solo cuando no hay datos utilizables
+  o cuando el usuario solicita una actualización manual.
 - Relacionar requisitos por cédula normalizada y período canónico.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-stable-envelope";
+  var VERSION = "2.2.0-shared-cache-first";
   var SOURCE = "ConTabla";
   var HUB = window.BDLocalConexiones;
   var U = window.BDLocalConUtils;
@@ -21,11 +23,13 @@ Función:
     readyPromise: null,
     refreshPromise: null,
     reads: 0,
+    fastReads: 0,
     refreshes: 0,
     failures: 0,
     lastError: "",
     lastRevision: 0,
-    lastReadAt: ""
+    lastReadAt: "",
+    lastReadMode: ""
   };
 
   function text(value){
@@ -111,6 +115,20 @@ Función:
     ).toLowerCase();
   }
 
+  function unsafeSource(value){
+    value = text(value).toLowerCase();
+    if(!value){ return false; }
+
+    return (
+      value.indexOf("error-estudiantes") >= 0 ||
+      value.indexOf("error-requisitos") >= 0 ||
+      value.indexOf("sin-lector-estudiantes") >= 0 ||
+      value.indexOf("sin-lector-requisitos") >= 0 ||
+      value.indexOf("stale") >= 0 ||
+      value.indexOf("invalid") >= 0
+    );
+  }
+
   function analyze(cache){
     cache = cache || currentCache();
 
@@ -126,22 +144,26 @@ Función:
     students.forEach(function(row){
       var id = identity(row);
       var names = text(row && (
-        row._nombres || row.nombreCompleto || row.Nombres || row.nombres || row.nombre
+        row._nombres || row.nombreCompleto || row.Nombres ||
+        row.nombres || row.nombre
       ));
 
       if(!id || !names){
         invalidStudents += 1;
         return;
       }
+
       studentIds[id] = true;
     });
 
     requirements.forEach(function(item){
       var id = identity(item);
+
       if(!id || !studentIds[id]){
         orphanRequirements += 1;
         return;
       }
+
       requirementsByStudent[id] = (requirementsByStudent[id] || 0) + 1;
     });
 
@@ -150,28 +172,16 @@ Función:
       return total + (id && requirementsByStudent[id] ? 0 : 1);
     }, 0);
 
-    var studentSource = text(meta.studentSource);
-      var requirementSource = text(meta.requirementSource);
-      var trustedStudents =
-        students.length > 0 &&
-        (
-          !studentSource ||
-          [
-            "BDLServiceEstudiantes",
-            "BL2Core.getStudents",
-            "BDLocalConexiones.cache.students"
-          ].indexOf(studentSource) >= 0
-        );
-      var trustedRequirements =
-        requirements.length > 0 &&
-        (
-          !requirementSource ||
-          [
-            "BDLRepoRequisitos",
-            "BL2Core.getRequirements",
-            "BDLocalConexiones.cache.requirements"
-          ].indexOf(requirementSource) >= 0
-        );
+    var studentSource = text(meta.studentSource || meta.source);
+    var requirementSource = text(meta.requirementSource || meta.source);
+    var trustedStudents = students.length > 0 && !unsafeSource(studentSource);
+    var trustedRequirements = requirements.length > 0 && !unsafeSource(requirementSource);
+    var usable =
+      revisionOf(cache) > 0 &&
+      periods.length > 0 &&
+      students.length > 0 &&
+      requirements.length > 0 &&
+      invalidStudents === 0;
 
     return {
       revision: revisionOf(cache),
@@ -186,26 +196,26 @@ Función:
       contactsHydrated: trustedStudents,
       requirementsLoaded: trustedRequirements,
       requirementsLinked: requirements.length > 0 && orphanRequirements === 0,
-      complete:
-        periods.length > 0 &&
-        students.length > 0 &&
-        requirements.length > 0 &&
-        invalidStudents === 0 &&
-        trustedStudents &&
-        trustedRequirements
+      usable: usable,
+      complete: usable && trustedStudents && trustedRequirements
     };
   }
 
   function fullRefresh(options){
     options = object(options);
-    if(state.refreshPromise){ return state.refreshPromise; }
+
+    if(state.refreshPromise){
+      return state.refreshPromise;
+    }
 
     state.refreshes += 1;
+
     state.refreshPromise = Promise.resolve()
       .then(function(){
         if(typeof HUB.refreshCache !== "function"){
           throw new Error("BDLocalConexiones.refreshCache no está disponible.");
         }
+
         return HUB.refreshCache({
           source: options.source || "cone.tabla.full-refresh",
           sourceScreen: "tabla",
@@ -220,35 +230,49 @@ Función:
         });
       })
       .then(currentCache)
-      .finally(function(){ state.refreshPromise = null; });
+      .finally(function(){
+        state.refreshPromise = null;
+      });
 
     return state.refreshPromise;
+  }
+
+  function prepareHub(){
+    return typeof HUB.ready === "function"
+      ? Promise.resolve(HUB.ready())
+      : Promise.resolve(HUB);
   }
 
   function ensureComplete(options){
     options = object(options);
 
-    return Promise.resolve()
-      .then(function(){
-        return typeof HUB.ready === "function" ? HUB.ready() : HUB;
-      })
+    return prepareHub()
       .then(function(){
         var cache = currentCache();
-        return options.force === true || !analyze(cache).complete
-          ? fullRefresh({source: options.source || "cone.tabla.ensure-complete"})
-          : cache;
+        var analysis = analyze(cache);
+
+        if(options.force !== true && analysis.complete){
+          return cache;
+        }
+
+        return fullRefresh({
+          source: options.source || "cone.tabla.ensure-complete"
+        });
       })
       .then(function(cache){
         var analysis = analyze(cache);
+
         if(!analysis.complete){
           throw new Error(
             "Base Local no entregó un paquete completo para Tabla. " +
             "Estudiantes: " + analysis.students +
             ", requisitos: " + analysis.requirements +
+            ", revisión: " + analysis.revision +
             ", origen estudiantes: " + (analysis.studentSource || "sin origen") +
             ", origen requisitos: " + (analysis.requirementSource || "sin origen") + "."
           );
         }
+
         state.lastRevision = analysis.revision;
         state.lastError = "";
         return cache;
@@ -257,6 +281,30 @@ Función:
         state.failures += 1;
         state.lastError = text(error && error.message || error);
         throw error;
+      });
+  }
+
+  function cacheForRead(options){
+    options = object(options);
+
+    return prepareHub()
+      .then(function(){
+        var cache = currentCache();
+        var analysis = analyze(cache);
+
+        if(options.force !== true && analysis.usable){
+          state.fastReads += 1;
+          state.lastReadMode = "shared-cache";
+          state.lastRevision = analysis.revision;
+          state.lastError = "";
+          return cache;
+        }
+
+        state.lastReadMode = "full-refresh";
+        return ensureComplete({
+          force: options.force === true,
+          source: options.source || "cone.tabla.read"
+        });
       });
   }
 
@@ -277,20 +325,41 @@ Función:
           var matricula = text(options.matricula).toUpperCase();
           var search = text(options.search || options.query).toLowerCase();
 
-          if(periodoId && !samePeriod(rowPeriod(row), periodoId)){ return false; }
-          if(matricula && text(
-            row.estadoMatricula || row._estadoMatricula || row.matricula
-          ).toUpperCase() !== matricula){ return false; }
+          if(periodoId && !samePeriod(rowPeriod(row), periodoId)){
+            return false;
+          }
+
+          if(
+            matricula &&
+            text(
+              row.estadoMatricula ||
+              row._estadoMatricula ||
+              row.matricula
+            ).toUpperCase() !== matricula
+          ){
+            return false;
+          }
 
           if(search){
             var haystack = [
-              rowCedula(row), row._nombres, row.Nombres, row.nombres,
-              row._carrera, row.NombreCarrera, row.correoPersonal,
-              row.correoInstitucional, row.celular, row.telegramUser,
+              rowCedula(row),
+              row._nombres,
+              row.Nombres,
+              row.nombres,
+              row._carrera,
+              row.NombreCarrera,
+              row.correoPersonal,
+              row.correoInstitucional,
+              row.celular,
+              row.telegramUser,
               row.telegramChatId
             ].map(text).join(" ").toLowerCase();
-            if(haystack.indexOf(search) < 0){ return false; }
+
+            if(haystack.indexOf(search) < 0){
+              return false;
+            }
           }
+
           return true;
         });
 
@@ -300,10 +369,12 @@ Función:
 
   function requirementsForRows(rows, requirements){
     var allowed = Object.create(null);
+
     array(rows).forEach(function(row){
       var id = identity(row);
       if(id){ allowed[id] = true; }
     });
+
     return array(requirements).filter(function(item){
       var id = identity(item);
       return !!(id && allowed[id]);
@@ -312,16 +383,20 @@ Función:
 
   function attachRequirements(rows, requirements){
     var grouped = Object.create(null);
+
     array(requirements).forEach(function(item){
       var id = identity(item);
+
       if(!id){ return; }
       if(!grouped[id]){ grouped[id] = []; }
+
       grouped[id].push(item);
     });
 
     return array(rows).map(function(row){
       var id = identity(row);
       var linked = id ? grouped[id] || [] : [];
+
       return Object.assign({}, row, {
         requisitos: linked.slice(),
         requirements: linked.slice(),
@@ -336,8 +411,14 @@ Función:
 
     var analysis = analyze(cache);
     var filteredStudents = filterStudents(cache.students, options);
-    var relevantRequirements = requirementsForRows(filteredStudents, cache.requirements);
-    var students = attachRequirements(filteredStudents, relevantRequirements);
+    var relevantRequirements = requirementsForRows(
+      filteredStudents,
+      cache.requirements
+    );
+    var students = attachRequirements(
+      filteredStudents,
+      relevantRequirements
+    );
     var periods = normalizePeriods(cache.periods);
 
     state.reads += 1;
@@ -365,15 +446,17 @@ Función:
         source: SOURCE,
         generatedAt: now(),
         revision: analysis.revision,
+        readMode: state.lastReadMode || "shared-cache",
+        sharedCacheFirst: true,
         studentSource: analysis.studentSource,
         requirementSource: analysis.requirementSource,
         contactsHydrated: analysis.contactsHydrated,
         requirementsLoaded: analysis.requirementsLoaded,
         requirementsLinked: analysis.requirementsLinked,
-      requirementsCoverageComplete:
-        analysis.studentsWithoutRequirements === 0 &&
-        analysis.orphanRequirements === 0,
-      studentsWithoutRequirements: analysis.studentsWithoutRequirements,
+        requirementsCoverageComplete:
+          analysis.studentsWithoutRequirements === 0 &&
+          analysis.orphanRequirements === 0,
+        studentsWithoutRequirements: analysis.studentsWithoutRequirements,
         orphanRequirements: analysis.orphanRequirements,
         invalidStudents: analysis.invalidStudents,
         fallbackUsed: false,
@@ -384,8 +467,11 @@ Función:
           requirements: relevantRequirements.length
         },
         tablesRead: [
-          "periodos", "personas", "matriculas_periodo",
-          "contactos_estudiante", "requisitos_estudiante"
+          "periodos",
+          "personas",
+          "matriculas_periodo",
+          "contactos_estudiante",
+          "requisitos_estudiante"
         ]
       }
     };
@@ -393,28 +479,51 @@ Función:
 
   function read(options){
     options = object(options);
-    return ensureComplete({
+
+    return cacheForRead({
       force: options.force === true,
       source: options.source || "cone.tabla.read"
-    }).then(function(cache){ return buildEnvelope(cache, options); });
+    }).then(function(cache){
+      return buildEnvelope(cache, options);
+    });
   }
 
   function refresh(options){
     options = object(options);
+    state.lastReadMode = "manual-refresh";
+
     return ensureComplete({
       force: true,
       source: options.source || "cone.tabla.refresh"
-    }).then(function(cache){ return buildEnvelope(cache, options); });
+    }).then(function(cache){
+      return buildEnvelope(cache, options);
+    });
   }
 
   function ready(){
-    if(state.readyPromise){ return state.readyPromise; }
-    state.readyPromise = ensureComplete({source: "cone.tabla.ready"})
-      .then(status)
+    if(state.readyPromise){
+      return state.readyPromise;
+    }
+
+    state.readyPromise = prepareHub()
+      .then(function(){
+        var analysis = analyze(currentCache());
+
+        if(analysis.usable){
+          state.lastRevision = analysis.revision;
+          state.lastError = "";
+          return status();
+        }
+
+        return ensureComplete({
+          source: "cone.tabla.ready"
+        }).then(status);
+      })
       .catch(function(error){
         state.readyPromise = null;
         throw error;
       });
+
     return state.readyPromise;
   }
 
@@ -428,6 +537,7 @@ Función:
 
   function listStudents(options){
     var envelope = snapshot(options || {});
+
     return {
       ok: true,
       rows: envelope.data.students,
@@ -449,15 +559,29 @@ Función:
 
   function listRequirements(options){
     options = object(options);
+
     var cache = currentCache();
     var periodoId = canonicalPeriod(options.periodoId || options.periodId || "");
-    var cedula = normalizeCedula(options.cedula || options.numeroIdentificacion || "");
+    var cedula = normalizeCedula(
+      options.cedula ||
+      options.numeroIdentificacion ||
+      ""
+    );
     var wantedKey = requirementKey(options);
 
     return cache.requirements.filter(function(item){
-      if(periodoId && !samePeriod(rowPeriod(item), periodoId)){ return false; }
-      if(cedula && rowCedula(item) !== cedula){ return false; }
-      if(wantedKey && requirementKey(item) !== wantedKey){ return false; }
+      if(periodoId && !samePeriod(rowPeriod(item), periodoId)){
+        return false;
+      }
+
+      if(cedula && rowCedula(item) !== cedula){
+        return false;
+      }
+
+      if(wantedKey && requirementKey(item) !== wantedKey){
+        return false;
+      }
+
       return true;
     });
   }
@@ -465,28 +589,41 @@ Función:
   function getStudentById(id, options){
     id = text(id);
     if(!id){ return null; }
-    return getStudents(Object.assign({matricula: ""}, options || {}))
-      .filter(function(row){
-        return text(row.id) === id || text(row._id) === id ||
-          text(row.idEstudiantePeriodo) === id ||
-          rowCedula(row) === normalizeCedula(id);
-      })[0] || null;
+
+    return getStudents(Object.assign(
+      {matricula: ""},
+      options || {}
+    )).filter(function(row){
+      return (
+        text(row.id) === id ||
+        text(row._id) === id ||
+        text(row.idEstudiantePeriodo) === id ||
+        rowCedula(row) === normalizeCedula(id)
+      );
+    })[0] || null;
   }
 
   function getStudentByCedula(cedula, periodoId){
     cedula = normalizeCedula(cedula);
     if(!cedula){ return null; }
-    return getStudents({periodoId: periodoId || "", matricula: ""})
-      .filter(function(row){ return rowCedula(row) === cedula; })[0] || null;
+
+    return getStudents({
+      periodoId: periodoId || "",
+      matricula: ""
+    }).filter(function(row){
+      return rowCedula(row) === cedula;
+    })[0] || null;
   }
 
   function status(){
     var analysis = analyze(currentCache());
+
     return {
-      ok: analysis.complete && !state.lastError,
+      ok: analysis.usable && !state.lastError,
       version: VERSION,
       source: SOURCE,
-      ready: analysis.complete,
+      ready: analysis.usable,
+      complete: analysis.complete,
       revision: analysis.revision,
       periods: analysis.periods,
       students: analysis.students,
@@ -494,12 +631,15 @@ Función:
       studentSource: analysis.studentSource,
       requirementSource: analysis.requirementSource,
       contactsHydrated: analysis.contactsHydrated,
+      requirementsLoaded: analysis.requirementsLoaded,
       requirementsLinked: analysis.requirementsLinked,
       orphanRequirements: analysis.orphanRequirements,
       studentsWithoutRequirements: analysis.studentsWithoutRequirements,
       reads: state.reads,
+      fastReads: state.fastReads,
       refreshes: state.refreshes,
       failures: state.failures,
+      lastReadMode: state.lastReadMode,
       lastError: state.lastError,
       lastReadAt: state.lastReadAt
     };
@@ -525,9 +665,14 @@ Función:
     getRows: getStudents,
     listarEstudiantes: getStudents,
     filterStudents: getStudents,
-    listAllStudents: function(){ return getStudents({matricula: ""}); },
+    listAllStudents: function(){
+      return getStudents({matricula: ""});
+    },
     listStudentsByStatus: function(statusValue, periodoId){
-      return getStudents({matricula: statusValue || "", periodoId: periodoId || ""});
+      return getStudents({
+        matricula: statusValue || "",
+        periodoId: periodoId || ""
+      });
     },
     listRequirements: listRequirements,
     getRequirements: listRequirements,
@@ -537,7 +682,11 @@ Función:
     getStudentByCedula: getStudentByCedula,
     buscarPorCedula: getStudentByCedula,
     search: function(query, options){
-      return listStudents(Object.assign({}, options || {}, {search: query || ""}));
+      return listStudents(Object.assign(
+        {},
+        options || {},
+        {search: query || ""}
+      ));
     }
   };
 
