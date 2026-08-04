@@ -6,13 +6,15 @@ Función:
 - Analizar primero las diferencias del período.
 - Subir exclusivamente estudiantes, matrículas, requisitos e importaciones.
 - No permitir que Carga suba calificaciones.
+- Cargar la arquitectura Firebase únicamente cuando el usuario inicia una operación.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-carga-domain";
+  var VERSION="1.1.0-lazy-operation-center";
   var currentAnalysis=null;
   var running=false;
+  var centerTask=null;
 
   function byId(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
@@ -91,10 +93,23 @@ Función:
     message(periodId()?"Analice las diferencias antes de subir.":"Seleccione un período en Cargar estudiantes.","");
     setRunning(false);
   }
+  function loadCenter(){
+    if(center()){return Promise.resolve(center());}
+    if(centerTask){return centerTask;}
+    centerTask=new Promise(function(resolve,reject){
+      var src=new URL("../BDLocal/firebase/bdl.firebase.operation-center.js",window.location.href).href;
+      var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){return script.src===src;});
+      function ready(){var api=center();api?resolve(api):reject(new Error("El Centro de Operaciones Firebase no expuso su API."));}
+      if(existing){existing.addEventListener("load",ready,{once:true});window.setTimeout(function(){if(center()){resolve(center());}},0);return;}
+      var script=document.createElement("script");
+      script.src=src;script.async=false;script.setAttribute("data-carga-firebase-center",src);
+      script.onload=ready;script.onerror=function(){reject(new Error("No se pudo cargar el Centro de Operaciones Firebase."));};
+      document.head.appendChild(script);
+    }).finally(function(){centerTask=null;});
+    return centerTask;
+  }
   function ensureCenter(){
-    var api=center();
-    if(!api){return Promise.reject(new Error("El Centro de Operaciones Firebase no está disponible."));}
-    return Promise.resolve(typeof api.ensure==="function"?api.ensure():api).then(function(){return api;});
+    return loadCenter().then(function(api){return Promise.resolve(typeof api.ensure==="function"?api.ensure():api).then(function(){return api;});});
   }
   function analyze(){
     if(running||!periodId()){return;}
@@ -132,6 +147,6 @@ Función:
     syncPeriod();
   }
 
-  window.CargaFirebaseSync={version:VERSION,analyze:analyze,upload:upload,renderAnalysis:renderAnalysis};
+  window.CargaFirebaseSync={version:VERSION,analyze:analyze,upload:upload,renderAnalysis:renderAnalysis,ensureCenter:ensureCenter};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind,{once:true});}else{bind();}
 })(window,document);
