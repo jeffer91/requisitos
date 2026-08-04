@@ -4,13 +4,13 @@ Ruta: /Stats/stats.telegram.firebase-sync.js
 Función:
 - Actualizar la cobertura de Telegram mediante ConStats.
 - No leer Firebase, IndexedDB ni repositorios desde la pantalla.
-- Solicitar una descarga incremental manual al conector central.
+- Solicitar una descarga incremental manual solo de Telegram al conector central.
 - Recalcular y renderizar Stats después de actualizar la caché.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.0-connector-only";
+  var VERSION="3.0.0-telegram-only";
   var running=false;
 
   function text(value){return String(value==null?"":value).trim();}
@@ -58,13 +58,13 @@ Función:
 
     var con=connector();
     if(!con||typeof con.refreshTelegramFromOfficial!=="function"){
-      return Promise.reject(new Error("ConStats no permite actualizar desde la base oficial."));
+      return Promise.reject(new Error("ConStats no permite actualizar Telegram desde la base oficial."));
     }
 
     running=true;
     var refreshButton=button();
     if(refreshButton){refreshButton.disabled=true;}
-    status("Descargando cambios de estudiantes desde la base oficial...","");
+    status("Descargando únicamente los cambios de Telegram desde Firebase...","");
 
     return Promise.resolve(con.refreshTelegramFromOfficial({
       periodoId:periodId,
@@ -75,13 +75,13 @@ Función:
       source:"StatsTelegramConnector.manual"
     })).then(function(summary){
       summary=summary||{};
-      summary.message=Number(summary.downloaded||0)>0
-        ? "Telegram actualizado desde la caché oficial: "+Number(summary.written||0)+" registros locales procesados."
-        : "Telegram ya estaba actualizado; no se encontraron cambios nuevos.";
-      if(Number(summary.conflicts||0)>0){
-        summary.message+=" Se detectaron "+Number(summary.conflicts)+" conflicto(s) protegidos.";
+      summary.message=Number(summary.written||0)>0
+        ? "Telegram actualizado: "+Number(summary.written||0)+" estudiante(s) cambiaron usuario o Chat ID."
+        : "Telegram ya estaba actualizado; no se encontraron diferencias nuevas.";
+      if(Number(summary.skipped||0)>0){
+        summary.message+=" Se omitieron "+Number(summary.skipped)+" documento(s) sin persona local o sin campos Telegram.";
       }
-      status(summary.message,Number(summary.conflicts||0)>0?"warn":"ok");
+      status(summary.message,"ok");
       renderUpdated(summary);
       return summary;
     }).catch(function(error){
@@ -116,6 +116,7 @@ Función:
     version:VERSION,
     directFirebase:false,
     connectorOnly:true,
+    telegramOnly:true,
     run:run,
     bind:bind,
     shouldIntercept:shouldIntercept,
