@@ -3,6 +3,7 @@
 const fs=require("node:fs");
 const path=require("node:path");
 const vm=require("node:vm");
+const childProcess=require("node:child_process");
 const ROOT=path.resolve(__dirname,"..");
 const errors=[];
 function read(file){return fs.readFileSync(path.join(ROOT,file),"utf8");}
@@ -46,4 +47,6 @@ if(errors.length){
   errors.forEach((error,index)=>console.error(`${index+1}. ${error}`));
   process.exit(1);
 }
+
+childProcess.execFileSync(process.execPath,[path.join(__dirname,"verify-firebase-operation-center.js")],{stdio:"inherit"});
 console.log("VERIFICACIÓN STATS / TELEGRAM: OK");
