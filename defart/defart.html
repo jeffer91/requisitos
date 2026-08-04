@@ -5,8 +5,8 @@ Ruta o ubicación: /defart/defart.html
 Función o funciones:
 - Pantalla Defensas para cargar N-ART y N-DEF.
 - Conectarse mediante ConDefart.
+- Guardar localmente y sincronizar con Firebase solo calificaciones.
 - Delegar la preparación interna al bootstrap controlado.
-- Mantener una cabecera compacta y estados de carga claros.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -17,6 +17,7 @@ Función o funciones:
   <link rel="stylesheet" href="defart.table.visual.css" />
   <link rel="stylesheet" href="defart.pagination.css" />
   <link rel="stylesheet" href="defart.compact.css" />
+  <link rel="stylesheet" href="defart.firebase-sync.css" />
   <script src="../node_modules/xlsx/dist/xlsx.full.min.js" data-requisitos-dependency="sheetjs@0.20.3"></script>
 </head>
 <body>
@@ -38,6 +39,27 @@ Función o funciones:
       </div>
     </section>
 
+    <section class="def-firebase-sync" aria-label="Sincronización de calificaciones con Firebase">
+      <div class="def-firebase-copy">
+        <strong>Calificaciones en Firebase</strong>
+        <span>Analiza y sube únicamente N-ART, N-DEF, N-FIN y el estado de evaluación del período seleccionado.</span>
+      </div>
+      <div class="def-firebase-controls">
+        <div class="def-firebase-stats">
+          <div><span>Pendientes</span><strong id="defFirebasePending">0</strong></div>
+          <div><span>Nuevas</span><strong id="defFirebaseNew">0</strong></div>
+          <div><span>Modificadas</span><strong id="defFirebaseModified">0</strong></div>
+          <div><span>Iguales</span><strong id="defFirebaseUnchanged">0</strong></div>
+          <div><span>Conflictos</span><strong id="defFirebaseConflicts">0</strong></div>
+        </div>
+        <div class="def-firebase-actions">
+          <button id="def-btn-firebase-analyze" type="button" disabled>Analizar diferencias</button>
+          <button id="def-btn-firebase-push" type="button" disabled>Subir calificaciones</button>
+          <span id="def-firebase-status" class="def-firebase-status">Seleccione un período.</span>
+        </div>
+      </div>
+    </section>
+
     <section class="def-progress-wrap" aria-label="Progreso de guardado">
       <div class="def-progress-info"><span id="def-progress-text">Sin cambios pendientes.</span><span>N-FIN = N-ART 70% + N-DEF 30%</span></div>
       <div class="def-progress-track"><div id="def-progress-bar" class="def-progress-bar"></div></div>
@@ -53,5 +75,7 @@ Función o funciones:
 
   <button id="def-btn-save" class="def-floating-save" type="button" disabled>Guardar cambios</button>
   <script src="defart.bootstrap.js"></script>
+  <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+  <script src="defart.firebase-sync.js"></script>
 </body>
 </html>
