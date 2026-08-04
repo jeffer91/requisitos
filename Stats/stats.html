@@ -6,6 +6,7 @@ Función o funciones:
 - Mostrar estadísticas del módulo Requisitos usando BDLocal.
 - Resumir estudiantes por matrícula, período, división, carrera, requisito, notas y Telegram.
 - Mostrar una sola sección activa desde la navegación lateral.
+- Actualizar desde Firebase exclusivamente los campos de Telegram.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -85,7 +86,7 @@ Función o funciones:
       </section>
 
       <section id="stats-telegram-section" class="stats-section stats-card">
-        <div class="stats-card-head"><h2>Telegram</h2><span>Se considera registrado con usuario o Chat ID</span></div>
+        <div class="stats-card-head"><h2>Telegram</h2><span>Actualizar descarga únicamente usuario y Chat ID desde Firebase</span></div>
         <div id="stats-telegram"><div class="empty">Selecciona un período para revisar Telegram.</div></div>
       </section>
 
@@ -100,6 +101,7 @@ Función o funciones:
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
   <script src="stats.bootstrap.js"></script>
 </body>
 </html>
