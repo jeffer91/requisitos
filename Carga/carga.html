@@ -6,7 +6,8 @@ Función o funciones:
 - Crear períodos y cargar estudiantes.
 - Analizar archivos antes del guardado.
 - Administrar divisiones y borrar información del período.
-- Conectarse exclusivamente mediante ConCarga.
+- Analizar y subir a Firebase solo las diferencias propias de Carga.
+- Conectarse exclusivamente mediante ConCarga y el Centro de Operaciones Firebase.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -14,7 +15,10 @@ Función o funciones:
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carga de estudiantes</title>
   <link rel="stylesheet" href="./carga.css" />
+  <link rel="stylesheet" href="./carga.firebase-sync.css" />
 
+  <script defer src="../BDLocal/adapters/bdl.screen-deps.js"></script>
+  <script defer src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
   <script defer src="./carga.startup-metrics.js"></script>
   <script defer src="./carga.config.js"></script>
   <script defer src="./carga.state.js"></script>
@@ -42,6 +46,7 @@ Función o funciones:
   <script defer src="./carga.app.connector.js"></script>
   <script defer src="./carga.ui.connector.js"></script>
   <script defer src="./carga.index.js"></script>
+  <script defer src="./carga.firebase-sync.js"></script>
 </head>
 <body>
   <main class="carga-shell">
@@ -106,6 +111,33 @@ Función o funciones:
       <div class="carga-alert-grid">
         <section><h3>Alertas</h3><div id="cargaWarnings" class="carga-list"><div class="carga-empty">Sin alertas.</div></div></section><section><h3>Errores</h3><div id="cargaErrors" class="carga-list"><div class="carga-empty">Sin errores.</div></div></section>
       </div>
+    </section>
+
+    <section class="carga-card carga-firebase-card" aria-labelledby="tituloCargaFirebase">
+      <div class="carga-card-title"><h2 id="tituloCargaFirebase">Sincronización con Firebase</h2><span class="carga-chip" id="cargaFirebaseStatus">Sin período</span></div>
+      <p class="carga-firebase-intro">Compara BDLocal con las tablas oficiales y procesa únicamente estudiantes, matrículas, requisitos e importaciones. Las calificaciones se administran desde Defensas.</p>
+      <div class="carga-firebase-layout">
+        <div class="carga-firebase-panel">
+          <div class="carga-firebase-period"><span>Período seleccionado</span><strong id="cargaFirebasePeriod">Sin seleccionar</strong></div>
+          <div class="carga-firebase-actions">
+            <button type="button" class="carga-btn carga-btn-primary" id="cargaBtnFirebaseAnalizar" disabled>Analizar diferencias</button>
+            <button type="button" class="carga-btn carga-btn-success" id="cargaBtnFirebaseSubir" disabled>Subir diferencias</button>
+          </div>
+          <p class="carga-firebase-help">El análisis es obligatorio. Cada envío procesa como máximo 25 cambios y nunca incluye la tabla de notas.</p>
+        </div>
+        <div>
+          <div class="carga-firebase-summary">
+            <div><span>Cambios pendientes</span><strong id="cargaFirebasePending">0</strong></div>
+            <div><span>Nuevos</span><strong id="cargaFirebaseNew">0</strong></div>
+            <div><span>Modificados</span><strong id="cargaFirebaseModified">0</strong></div>
+            <div><span>Ya iguales</span><strong id="cargaFirebaseUnchanged">0</strong></div>
+            <div><span>Conflictos</span><strong id="cargaFirebaseConflicts">0</strong></div>
+            <div><span>Fuera del lote</span><strong id="cargaFirebaseRemaining">0</strong></div>
+          </div>
+          <div class="carga-firebase-collections" id="cargaFirebaseCollections"></div>
+        </div>
+      </div>
+      <div class="carga-firebase-message" id="cargaFirebaseMessage">Seleccione un período en Cargar estudiantes.</div>
     </section>
 
     <section class="carga-card" aria-labelledby="tituloDivisiones">
