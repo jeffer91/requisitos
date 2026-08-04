@@ -4,11 +4,12 @@ Ruta: /Ncomplex/ncomplex.bootstrap.js
 Función:
 - Cargar y esperar exclusivamente ConNcomplex.
 - Cargar después los módulos visuales de Ncomplex.
+- Preparar la interfaz simple antes de iniciar la aplicación.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.0-conncomplex-only";
+  var VERSION="2.1.0-simple-ui";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
 
@@ -43,11 +44,15 @@ Función:
     {path:"ncomplex.table.js",test:function(){return window.NcomplexTable;}},
     {path:"ncomplex.modal.js",test:function(){return window.NcomplexModal;}},
     {path:"ncomplex.save.js",test:function(){return window.NcomplexSave;}},
+    {path:"ncomplex.simple-ui.js",test:function(){return window.NcomplexSimpleUI;}},
     {path:"ncomplex.app.js",test:function(){return window.NcomplexApp;}}
   ]);}
   function boot(){
-    status("Conectando Ncomplex con BDLocal...","info");
-    connectorReady().then(screenModules).then(function(){try{window.dispatchEvent(new CustomEvent("ncomplex:bootstrap-ready",{detail:{ok:true,source:"ConNcomplex",version:VERSION}}));}catch(error){}}).catch(function(error){status(error&&error.message?error.message:String(error),"error");});
+    status("Conectando con BDLocal...","info");
+    connectorReady().then(screenModules).then(function(){
+      if(window.NcomplexSimpleUI&&typeof window.NcomplexSimpleUI.init==="function"){window.NcomplexSimpleUI.init();}
+      try{window.dispatchEvent(new CustomEvent("ncomplex:bootstrap-ready",{detail:{ok:true,source:"ConNcomplex",simpleUI:true,version:VERSION}}));}catch(error){}
+    }).catch(function(error){status(error&&error.message?error.message:String(error),"error");});
   }
 
   window.NcomplexBootstrap={version:VERSION,boot:boot,connectorReady:connectorReady};
