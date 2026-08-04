@@ -3,13 +3,9 @@ Nombre completo: ncomplex.summary.js
 Ruta o ubicación: /Ncomplex/ncomplex.summary.js
 Función o funciones:
 - Calcular indicadores generales de estudiantes y notas.
-- Agrupar resultados por carrera y modalidad.
-- Mostrar resultados del cruce de texto: encontrados, no encontrados, duplicados y conflictos.
-Con qué se conecta:
-- ncomplex.config.js
-- ncomplex.filters.js
-- ncomplex.matcher.js
-- ncomplex.app.js
+- Mostrar cuatro indicadores principales con detalles secundarios.
+- Mantener el agrupamiento interno por carrera y modalidad.
+- Mostrar resultados del cruce de texto importado.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -75,10 +71,17 @@ Con qué se conecta:
     return result;
   }
 
-  function card(label, value, className){
+  function chip(label, value, className){
+    return "<span class=\"ncomplex-mini-chip " + (className || "") + "\">" +
+      escapeHtml(label) + ": " + Number(value || 0) +
+      "</span>";
+  }
+
+  function card(label, value, className, detailHtml){
     return "<article class=\"ncomplex-kpi " + (className || "") + "\">" +
-      "<span>" + label + "</span>" +
-      "<strong>" + value + "</strong>" +
+      "<span>" + escapeHtml(label) + "</span>" +
+      "<strong>" + Number(value || 0) + "</strong>" +
+      (detailHtml ? "<small>" + detailHtml + "</small>" : "") +
       "</article>";
   }
 
@@ -86,16 +89,34 @@ Con qué se conecta:
     var summary = summarize(rows);
     var id = Config.selectors && Config.selectors.resumen || "ncomplex-summary";
     var container = document.getElementById(id);
+    var pendientes = summary.incompletos + summary.sinNotas;
+
     if(container){
       container.innerHTML = [
-        card("Estudiantes", summary.total, ""),
-        card("Complexivo", summary.complexivo, ""),
-        card("Trabajo de titulación", summary.trabajo, ""),
-        card("Notas completas", summary.completos, "is-success"),
-        card("Incompletos", summary.incompletos, "is-warning"),
-        card("Sin notas", summary.sinNotas, "is-muted"),
-        card("Aprobados", summary.aprobados, "is-success"),
-        card("No aprobados", summary.noAprobados, "is-danger")
+        card(
+          "Estudiantes",
+          summary.total,
+          "",
+          chip("Complexivo", summary.complexivo) + chip("Trabajo", summary.trabajo)
+        ),
+        card(
+          "Pendientes",
+          pendientes,
+          pendientes ? "is-warning" : "is-success",
+          chip("Sin notas", summary.sinNotas) + chip("Incompletos", summary.incompletos)
+        ),
+        card(
+          "Notas completas",
+          summary.completos,
+          "is-success",
+          "<span>Listas para revisión</span>"
+        ),
+        card(
+          "Aprobados",
+          summary.aprobados,
+          summary.noAprobados ? "is-warning" : "is-success",
+          chip("No aprobados", summary.noAprobados, summary.noAprobados ? "is-danger" : "")
+        )
       ].join("");
     }
 
@@ -113,7 +134,7 @@ Con qué se conecta:
       .sort(function(a,b){ return a.carrera.localeCompare(b.carrera); });
 
     if(!rows.length){
-      container.innerHTML = "<div class=\"ncomplex-empty-inline\">Seleccione un período para ver carreras y modalidades.</div>";
+      container.innerHTML = "";
       return;
     }
 
@@ -135,16 +156,18 @@ Con qué se conecta:
     if(!container){ return; }
 
     if(!result){
-      container.innerHTML = "<div class=\"ncomplex-empty-inline\">Todavía no se han analizado datos pegados.</div>";
+      container.innerHTML = "<div class=\"ncomplex-empty-inline\">Todavía no se han analizado datos.</div>";
+      var emptyDetails = document.getElementById("ncomplex-import-details");
+      if(emptyDetails){ emptyDetails.innerHTML = ""; }
       return;
     }
 
     container.innerHTML = [
-      card("Filas detectadas", Number(result.totalImported || 0), ""),
-      card("Encontrados", Number(result.totalMatched || 0), "is-success"),
-      card("No encontrados", Number(result.totalUnmatched || 0), "is-danger"),
-      card("Duplicados", Number(result.totalDuplicates || 0), "is-warning"),
-      card("Conflictos", Number(result.totalConflicts || 0), "is-warning")
+      card("Filas detectadas", Number(result.totalImported || 0), "", ""),
+      card("Encontrados", Number(result.totalMatched || 0), "is-success", ""),
+      card("No encontrados", Number(result.totalUnmatched || 0), "is-danger", ""),
+      card("Duplicados", Number(result.totalDuplicates || 0), "is-warning", ""),
+      card("Conflictos", Number(result.totalConflicts || 0), "is-warning", "")
     ].join("");
 
     var details = document.getElementById("ncomplex-import-details");
@@ -180,7 +203,7 @@ Con qué se conecta:
   }
 
   window.NcomplexSummary = {
-    version: "1.0.0-bloque-2",
+    version: "2.0.0-simple-summary",
     summarize: summarize,
     render: render,
     renderImport: renderImport,
