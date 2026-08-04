@@ -5,18 +5,43 @@ Función:
 - Analizar las diferencias de notas del período seleccionado.
 - Subir exclusivamente la colección notas.
 - Exigir un análisis vigente antes de enviar.
+- Mantener el período global seleccionado después del arranque asíncrono de Defensas.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-notes-domain";
+  var VERSION="1.1.0-global-period-alignment";
   var analysis=null;
   var running=false;
+  var periodAligned=false;
 
   function byId(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
   function center(){return window.RequisitosFirebaseOperationCenter||null;}
   function periodId(){return text(byId("def-filter-periodo")&&byId("def-filter-periodo").value);}
+  function globalPeriod(){
+    var api=window.BDLPeriodoGlobal||window.RequisitosPeriodoGlobal||null;
+    try{
+      var value=api&&typeof api.get==="function"?api.get():api&&typeof api.status==="function"?(api.status()||{}).period:null;
+      return text(value&&(value.id||value.periodoId||value.value));
+    }catch(error){return "";}
+  }
+  function alignPeriod(attempt){
+    attempt=Number(attempt||0);
+    if(periodAligned){return true;}
+    var select=byId("def-filter-periodo");
+    var wanted=globalPeriod();
+    if(select&&wanted&&select.options&&select.options.length>1){
+      var exists=Array.prototype.some.call(select.options,function(option){return text(option.value)===wanted;});
+      if(exists){
+        if(!text(select.value)){select.value=wanted;select.dispatchEvent(new Event("change",{bubbles:true}));}
+        periodAligned=text(select.value)===wanted;
+        if(periodAligned){clear();return true;}
+      }
+    }
+    if(attempt<160){window.setTimeout(function(){alignPeriod(attempt+1);},60);}
+    return false;
+  }
   function setNumber(id,value){var node=byId(id);if(node){node.textContent=String(Number(value||0));}}
   function status(message,type){var node=byId("def-firebase-status");if(node){node.textContent=text(message);node.className="def-firebase-status "+(type||"");}}
   function setButtons(){
@@ -76,13 +101,15 @@ Función:
     var period=byId("def-filter-periodo");
     var analyzeButton=byId("def-btn-firebase-analyze");
     var pushButton=byId("def-btn-firebase-push");
-    if(period&&!period.__firebaseNotesBound){period.__firebaseNotesBound=true;period.addEventListener("change",clear);}
+    if(period&&!period.__firebaseNotesBound){period.__firebaseNotesBound=true;period.addEventListener("change",function(){periodAligned=true;clear();});}
     if(analyzeButton&&!analyzeButton.__firebaseNotesBound){analyzeButton.__firebaseNotesBound=true;analyzeButton.addEventListener("click",analyze);}
     if(pushButton&&!pushButton.__firebaseNotesBound){pushButton.__firebaseNotesBound=true;pushButton.addEventListener("click",push);}
     ["bdlocal:defart-notas-saved","bdlocal:defensas-notas-mirrored"].forEach(function(name){window.addEventListener(name,function(){analysis=null;status("Las notas locales cambiaron. Analice nuevamente.","is-warn");setButtons();});});
+    window.addEventListener("defart:bootstrap-ready",function(){periodAligned=false;alignPeriod(0);});
     clear();
+    alignPeriod(0);
   }
 
-  window.DefartFirebaseSync={version:VERSION,analyze:analyze,push:push,render:render};
+  window.DefartFirebaseSync={version:VERSION,analyze:analyze,push:push,render:render,alignPeriod:alignPeriod};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind,{once:true});}else{bind();}
 })(window,document);
