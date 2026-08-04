@@ -6,6 +6,7 @@ Función o funciones:
 - Mostrar filtros, secciones, tablas, gráficos y exportaciones de Global.
 - Esperar el conector exclusivo ConGlobal antes de iniciar.
 - Evitar rutas paralelas de datos y divisiones.
+- Mantener sus filtros de rango independientes del período operativo global.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -16,7 +17,7 @@ Función o funciones:
   <link rel="stylesheet" href="global.css">
   <link rel="stylesheet" href="global.compact.css">
 </head>
-<body>
+<body data-bdl-screen="global">
   <main class="global-shell" data-global-shell>
     <section class="global-filters" aria-label="Filtros superiores de Global">
       <div class="global-filter-item">
