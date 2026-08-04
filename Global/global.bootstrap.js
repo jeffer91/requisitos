@@ -6,11 +6,12 @@ Función o funciones:
 - Dejar la inicialización completa de Base Local en segundo plano.
 - Validar que GlobalCore use exclusivamente ConGlobal.
 - Cargar los módulos de Global en orden secuencial.
+- Preparar PDF y Word antes de habilitar sus botones.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.2.0-instant-conglobal";
+  var VERSION="1.3.0-direct-report-runtime";
   var loading={};
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var adapterWarmup=null;
@@ -98,6 +99,14 @@ Función o funciones:
   }
 
   function connectorReady(){return ensureConnectorModules();}
+  function pdfReady(){
+    var api=window.GlobalPDF;
+    return api&&typeof api.generate==="function"&&typeof api.tableForSection==="function"&&typeof api.summaryText==="function"?api:null;
+  }
+  function wordReady(){
+    var api=window.GlobalWord;
+    return api&&typeof api.generate==="function"&&api.version!=="loading"?api:null;
+  }
 
   function boot(){
     var state=document.getElementById("globalSectionState");
@@ -112,9 +121,11 @@ Función o funciones:
       .then(function(guard){return guard&&typeof guard.ready==="function"?guard.ready():Promise.reject(new Error("La protección de ConGlobal no está disponible."));})
       .then(function(){return load("global.table.js");})
       .then(function(){return load("global.chart.js");})
-      .then(function(){return load("global.pdf.js");})
-      .then(function(){return load("global.word.js");})
-      .then(function(){return load("global.app.js",function(){return window.GlobalApp;});})
+      .then(function(){return load("global.pdf.runtime.js",pdfReady);})
+      .then(function(){return window.__globalPdfReady&&typeof window.__globalPdfReady.then==="function"?window.__globalPdfReady:pdfReady();})
+      .then(function(api){if(!api){throw new Error("GlobalPDF no quedó disponible.");}return load("global.word.js",function(){return window.GlobalWord;});})
+      .then(function(){return window.__globalWordReady&&typeof window.__globalWordReady.then==="function"?window.__globalWordReady:waitFor(wordReady,"GlobalWord",15000);})
+      .then(function(api){if(!api||typeof api.generate!=="function"){throw new Error("GlobalWord no quedó disponible.");}return load("global.app.js",function(){return window.GlobalApp;});})
       .then(function(){
         var fast=window.GlobalBaseLocalFast;
         if(fast&&typeof fast.installRuntime==="function"){fast.installRuntime();}
@@ -123,7 +134,7 @@ Función o funciones:
       .then(function(){return load("global.index.js");})
       .then(function(){
         if(state){state.textContent="Datos listos";state.setAttribute("data-state","ready");}
-        try{window.dispatchEvent(new CustomEvent("global:bootstrap-ready",{detail:{ok:true,source:"ConGlobal",strictSource:true,instantCache:true,version:VERSION}}));}catch(error){}
+        try{window.dispatchEvent(new CustomEvent("global:bootstrap-ready",{detail:{ok:true,source:"ConGlobal",strictSource:true,instantCache:true,reportsReady:true,version:VERSION}}));}catch(error){}
       })
       .catch(function(error){
         if(state){state.textContent=error.message||String(error);state.setAttribute("data-state","error");}
