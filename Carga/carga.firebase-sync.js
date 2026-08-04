@@ -7,14 +7,16 @@ Función:
 - Subir exclusivamente estudiantes, matrículas, requisitos e importaciones.
 - No permitir que Carga suba calificaciones.
 - Cargar la arquitectura Firebase únicamente cuando el usuario inicia una operación.
+- Recuperar la lista de períodos y alinear el período global sin bloquear el arranque.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-lazy-operation-center";
+  var VERSION="1.2.0-period-recovery";
   var currentAnalysis=null;
   var running=false;
   var centerTask=null;
+  var periodRecoveryTask=null;
 
   function byId(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
@@ -24,6 +26,49 @@ Función:
     var select=byId("cargaPeriodoSelect");
     if(!select||select.selectedIndex<0){return "Sin seleccionar";}
     return text(select.options[select.selectedIndex]&&select.options[select.selectedIndex].text)||periodId()||"Sin seleccionar";
+  }
+  function canonicalPeriodId(value){
+    value=text(value);
+    var match=value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
+    return match?match[1]+"-"+match[2]+"__"+match[3]+"-"+match[4]:value.replace(/_+/g,"__");
+  }
+  function globalPeriodId(){
+    var api=window.BDLPeriodoGlobal||window.RequisitosPeriodoGlobal||null;
+    try{
+      var value=api&&typeof api.get==="function"?api.get():api&&typeof api.status==="function"?(api.status()||{}).period:null;
+      return canonicalPeriodId(value&&(value.id||value.periodoId||value.value));
+    }catch(error){return "";}
+  }
+  function alignGlobalPeriod(){
+    var select=byId("cargaPeriodoSelect");
+    var wanted=globalPeriodId();
+    if(!select||!wanted||!select.options||select.options.length<=1){return false;}
+    var exists=Array.prototype.some.call(select.options,function(option){return canonicalPeriodId(option.value)===wanted;});
+    if(!exists){return false;}
+    if(canonicalPeriodId(select.value)!==wanted){
+      select.value=wanted;
+      select.dispatchEvent(new Event("change",{bubbles:true}));
+    }
+    return canonicalPeriodId(select.value)===wanted;
+  }
+  function recoverPeriods(attempt){
+    attempt=Math.max(0,Number(attempt||0));
+    var select=byId("cargaPeriodoSelect");
+    if(select&&select.options&&select.options.length>1){alignGlobalPeriod();return Promise.resolve(true);}
+    if(periodRecoveryTask){return periodRecoveryTask;}
+    var index=window.CargaConnectionIndex;
+    if(index&&typeof index.refreshPeriods==="function"){
+      periodRecoveryTask=Promise.resolve(index.refreshPeriods()).then(function(){
+        alignGlobalPeriod();
+        return !!(select&&select.options&&select.options.length>1);
+      }).catch(function(){return false;}).finally(function(){periodRecoveryTask=null;});
+      return periodRecoveryTask.then(function(ok){
+        if(!ok&&attempt<80){window.setTimeout(function(){recoverPeriods(attempt+1);},250);}
+        return ok;
+      });
+    }
+    if(attempt<80){window.setTimeout(function(){recoverPeriods(attempt+1);},250);}
+    return Promise.resolve(false);
   }
   function number(id,value){var node=byId(id);if(node){node.textContent=String(Number(value||0));}}
   function message(value,type){var node=byId("cargaFirebaseMessage");if(node){node.textContent=text(value);node.className="carga-firebase-message "+(type||"");}}
@@ -144,9 +189,12 @@ Función:
     if(analyzeButton&&!analyzeButton.__firebaseSyncBound){analyzeButton.__firebaseSyncBound=true;analyzeButton.addEventListener("click",analyze);}
     if(uploadButton&&!uploadButton.__firebaseSyncBound){uploadButton.__firebaseSyncBound=true;uploadButton.addEventListener("click",upload);}
     window.addEventListener("bdlocal:changes-created",function(){currentAnalysis=null;status("Cambios pendientes","is-warn");message("La información local cambió. Analice nuevamente antes de subir.","is-warn");setRunning(false);});
+    window.addEventListener("carga:connection-ready",function(){recoverPeriods(0);});
+    window.addEventListener("carga:periods-refreshed",function(){alignGlobalPeriod();syncPeriod();});
     syncPeriod();
+    recoverPeriods(0);
   }
 
-  window.CargaFirebaseSync={version:VERSION,analyze:analyze,upload:upload,renderAnalysis:renderAnalysis,ensureCenter:ensureCenter};
+  window.CargaFirebaseSync={version:VERSION,analyze:analyze,upload:upload,renderAnalysis:renderAnalysis,ensureCenter:ensureCenter,recoverPeriods:recoverPeriods,alignGlobalPeriod:alignGlobalPeriod};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind,{once:true});}else{bind();}
 })(window,document);
