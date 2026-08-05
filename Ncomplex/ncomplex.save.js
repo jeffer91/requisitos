@@ -4,6 +4,7 @@ Ruta o ubicación: /Ncomplex/ncomplex.save.js
 Función o funciones:
 - Preparar y guardar las evaluaciones modificadas mediante ConNcomplex.
 - Registrar cada importación de texto en la tabla importaciones.
+- Usar una identidad estable por período y contenido para evitar importaciones duplicadas.
 - Limpiar cambios pendientes de pantalla únicamente después de confirmación de BDLocal.
 - Mantener el botón de guardado y los mensajes de progreso.
 Con qué se conecta:
@@ -82,17 +83,19 @@ Con qué se conecta:
     var parsed = current.parsedImport || {};
     var matched = current.matchedImport || {};
     var raw = text(parsed.rawText || "");
+    var rawTextHash = raw ? "text__" + hash(raw) : "";
     var createdAt = now();
+    var stableImportKey = [
+      text(current.selectedPeriodId),
+      "NCOMPLEX_TEXTO_PEGADO",
+      rawTextHash || "sin_contenido"
+    ].join("|");
 
     return {
-      id: "ncomplex_import__" + hash([
-        current.selectedPeriodId,
-        raw,
-        createdAt
-      ].join("|")),
+      id: "ncomplex_import__" + hash(stableImportKey),
       periodoId: text(current.selectedPeriodId),
       source: "NCOMPLEX_TEXTO_PEGADO",
-      rawTextHash: raw ? "text__" + hash(raw) : "",
+      rawTextHash: rawTextHash,
       totalDetectados: Number(parsed.total || matched.totalImported || 0),
       totalEncontrados: Number(matched.totalMatched || 0),
       totalNoEncontrados: Number(matched.totalUnmatched || 0),
@@ -169,11 +172,12 @@ Con qué se conecta:
   }
 
   window.NcomplexSave = {
-    version: "1.0.0-bloque-2",
+    version: "1.1.0-idempotent-import",
     save: save,
     updateButton: updateButton,
     setStatus: setStatus,
     buildImportRecord: buildImportRecord,
-    validRows: validRows
+    validRows: validRows,
+    hash: hash
   };
 })(window,document);
