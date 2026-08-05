@@ -15,27 +15,42 @@ function CustomEvent(type,options){this.type=type;this.detail=options&&options.d
 const period="2026-04__2026-09";
 const people=[
   {cedula:"1711111111",nombres:"PERSONA UNO",codigoCarreraActual:"MEC",nombreCarreraActual:"MECÁNICA",telegramUser:"",telegramChatId:""},
-  {cedula:"1722222222",nombres:"PERSONA DOS",codigoCarreraActual:"ENF",nombreCarreraActual:"ENFERMERÍA",telegramUser:"existente",telegramChatId:"200"}
+  {cedula:"PA1234567",nombres:"PERSONA EXTRANJERA",codigoCarreraActual:"ENF",nombreCarreraActual:"ENFERMERÍA",telegramUser:"existente",telegramChatId:"200"}
 ];
 const enrollments=[
   {idEstudiantePeriodo:"1711111111__"+period,periodoId:period,cedula:"1711111111",CodigoCarrera:"MEC",NombreCarrera:"MECÁNICA"},
-  {idEstudiantePeriodo:"1722222222__"+period,periodoId:period,cedula:"1722222222",CodigoCarrera:"ENF",NombreCarrera:"ENFERMERÍA"}
+  {idEstudiantePeriodo:"PA1234567__"+period,periodoId:period,cedula:"PA1234567",CodigoCarrera:"ENF",NombreCarrera:"ENFERMERÍA"}
 ];
 const requirements=[
   {idEstudiantePeriodo:"1711111111__"+period,periodoId:period,cedula:"1711111111",Academico:"SI"},
-  {idEstudiantePeriodo:"1722222222__"+period,periodoId:period,cedula:"1722222222",Academico:"SI"}
+  {idEstudiantePeriodo:"PA1234567__"+period,periodoId:period,cedula:"PA1234567",Academico:"SI"}
 ];
 const notes=[
   {idEstudiantePeriodo:"1711111111__"+period,periodoId:period,cedula:"1711111111",notaArticulo:8,notaDefensa:9,notaFinal:8.3},
-  {idEstudiantePeriodo:"1722222222__"+period,periodoId:period,cedula:"1722222222",notaTeorica:8,notaPractica:9,notaComplexivo:8.6}
+  {idEstudiantePeriodo:"PA1234567__"+period,periodoId:period,cedula:"PA1234567",notaTeorica:8,notaPractica:9,notaComplexivo:8.6}
 ];
 const evaluations=[
-  {idEstudiantePeriodo:"1722222222__"+period,periodoId:period,cedula:"1722222222",notaTeorica:8,notaPractica:9,notaComplexivo:8.6,origen:"ncomplex"}
+  {idEstudiantePeriodo:"PA1234567__"+period,periodoId:period,cedula:"PA1234567",notaTeorica:8,notaPractica:9,notaComplexivo:8.6,origen:"ncomplex"}
 ];
 const periods=[{id:period,periodoId:period,label:"Abril - Septiembre 2026",activo:true}];
 const imports=[
   {id:"carga_import",periodoId:period,source:"CARGA_ARCHIVO",archivoNombre:"estudiantes.xlsx"},
   {id:"ncomplex_import",periodoId:period,source:"NCOMPLEX_TEXTO_PEGADO",origen:"ncomplex"}
+];
+const logs=[
+  {
+    id:"hist_carga",scope:"Carga",createdAt:"2026-08-05T10:00:00.000Z",
+    data:{id:"hist_carga",entidad:"matriculas",entidadId:"1711111111__"+period,periodoId:period,cedula:"1711111111",accion:"ACTUALIZAR",pantalla:"Carga",createdAt:"2026-08-05T10:00:00.000Z"}
+  },
+  {
+    id:"hist_defensa",scope:"Defensas",createdAt:"2026-08-05T10:01:00.000Z",
+    data:{id:"hist_defensa",entidad:"notas",entidadId:"1711111111__"+period,periodoId:period,cedula:"1711111111",accion:"ACTUALIZAR_NOTAS",pantalla:"Defensas",createdAt:"2026-08-05T10:01:00.000Z"}
+  },
+  {
+    id:"hist_ncomplex",scope:"Ncomplex",createdAt:"2026-08-05T10:02:00.000Z",
+    data:{id:"hist_ncomplex",entidad:"notas",entidadId:"PA1234567__"+period,periodoId:period,cedula:"PA1234567",accion:"ACTUALIZAR_EVALUACION",pantalla:"Ncomplex",createdAt:"2026-08-05T10:02:00.000Z"}
+  },
+  {id:"log_tecnico",scope:"BDLocal",message:"Inicio correcto",data:{detalle:"sin auditoría"},createdAt:"2026-08-05T10:03:00.000Z"}
 ];
 
 function repository(rows){
@@ -66,6 +81,7 @@ const repos={
   evaluaciones_titulacion:repository(evaluations),
   periodos:repository(periods),
   importaciones:repository(imports),
+  logs:repository(logs),
   cambios_pendientes:changesRepo,
   cambios:changesRepo
 };
@@ -101,10 +117,11 @@ const sandbox={
   BDLRepoEvaluacionesTitulacion:repos.evaluaciones_titulacion,
   BDLRepoPeriodos:repos.periodos,
   BDLRepoImportaciones:repos.importaciones,
+  BDLRepoLogs:repos.logs,
   BDLRepoCambios:changesRepo,
   RequisitosFirebaseRepository:firebaseRepo,
   RequisitosFirebaseOperationCenter:center,
-  BDLRulesPersona:{normalizeCedula(value){return String(value||"").replace(/\D/g,"");}}
+  BDLRulesPersona:{normalizeCedula(value){return String(value||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase();}}
 };
 sandbox.window=sandbox;
 const context=vm.createContext(sandbox);
@@ -128,24 +145,30 @@ try{
   check(cargaBatch.rows.every((row)=>row.estadoFirebase==="PENDIENTE"),"Todos los cambios reconstruidos deben quedar pendientes para Firebase");
   check(cargaBatch.rows.every((row)=>row.estadoSheets==="SINCRONIZADO"&&row.estadoSupabase==="SINCRONIZADO"),"No debe reabrir Google ni Supabase");
   check(cargaBatch.rows.some((row)=>row.tabla==="personas"),"Carga debe incluir personas");
+  check(cargaBatch.rows.some((row)=>row.cedula==="PA1234567"),"Carga debe conservar identificaciones extranjeras normalizadas");
   check(cargaBatch.rows.some((row)=>row.tabla==="matriculas_periodo"),"Carga debe incluir matrículas");
   check(cargaBatch.rows.some((row)=>row.tabla==="requisitos_estudiante"),"Carga debe incluir requisitos");
   check(cargaBatch.rows.some((row)=>row.tabla==="periodos"),"Carga debe incluir el período");
   check(cargaBatch.rows.some((row)=>row.tabla==="carreras"),"Carga debe reconstruir carreras desde la información local");
+  check(cargaBatch.rows.some((row)=>row.tabla==="historial"&&row.registroId==="hist_carga"),"Carga debe reconstruir su historial válido");
+  check(!cargaBatch.rows.some((row)=>row.registroId==="log_tecnico"),"Los logs técnicos no deben convertirse en historial");
   check(!cargaBatch.rows.some((row)=>/nota|evaluacion/.test(row.tabla)),"Carga no debe incluir notas");
   check(!cargaBatch.rows.some((row)=>row.registroId==="ncomplex_import"),"Carga no debe incluir importaciones de Ncomplex");
 
   const defensas=await api.prepare("defensas",{periodoId:period});
   check(defensas.ok===true,"Defensas debe prepararse correctamente");
   const defenseBatch=savedBatches[1];
-  check(defenseBatch.rows.length===1,"Defensas debe incluir solo registros con notas de artículo o defensa");
-  check(defenseBatch.rows[0].source==="defart"&&defenseBatch.rows[0].tabla==="notas_titulacion","Defensas debe conservar su propietario funcional");
+  check(defenseBatch.rows.filter((row)=>row.tabla==="notas_titulacion").length===1,"Defensas debe incluir solo registros con notas de artículo o defensa");
+  check(defenseBatch.rows.some((row)=>row.source==="defart"&&row.tabla==="notas_titulacion"),"Defensas debe conservar su propietario funcional");
+  check(defenseBatch.rows.some((row)=>row.tabla==="historial"&&row.registroId==="hist_defensa"),"Defensas debe reconstruir su historial");
+  check(!defenseBatch.rows.some((row)=>row.registroId==="hist_ncomplex"),"Defensas no debe tomar historial de Ncomplex");
 
   const ncomplex=await api.prepare("ncomplex",{periodoId:period});
   check(ncomplex.ok===true,"Ncomplex debe prepararse correctamente");
   const complexBatch=savedBatches[2];
   check(complexBatch.rows.some((row)=>row.tabla==="evaluaciones_titulacion"),"Ncomplex debe incluir evaluaciones");
   check(complexBatch.rows.some((row)=>row.registroId==="ncomplex_import"),"Ncomplex debe incluir su importación");
+  check(complexBatch.rows.some((row)=>row.tabla==="historial"&&row.registroId==="hist_ncomplex"),"Ncomplex debe reconstruir su historial");
   check(!complexBatch.rows.some((row)=>row.source==="defart"),"Ncomplex no debe incluir Defensas");
 
   const patched=await center.requeue("defensas",{periodoId:period});
