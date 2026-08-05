@@ -1,0 +1,84 @@
+.ncomplex-firebase-sync{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) minmax(420px,2fr);
+  gap:18px;
+  align-items:center;
+  padding:18px;
+}
+.ncomplex-firebase-copy{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.ncomplex-firebase-copy strong{font-size:1rem;}
+.ncomplex-firebase-copy span{
+  color:var(--ncomplex-muted,#64748b);
+  font-size:.88rem;
+  line-height:1.45;
+}
+.ncomplex-firebase-controls{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.ncomplex-firebase-stats{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(72px,1fr));
+  gap:8px;
+}
+.ncomplex-firebase-stats div{
+  border:1px solid rgba(148,163,184,.28);
+  border-radius:10px;
+  padding:9px 10px;
+  background:rgba(248,250,252,.75);
+  text-align:center;
+}
+.ncomplex-firebase-stats span{
+  display:block;
+  color:#64748b;
+  font-size:.72rem;
+}
+.ncomplex-firebase-stats strong{
+  display:block;
+  margin-top:3px;
+  font-size:1.1rem;
+}
+.ncomplex-firebase-actions{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:9px;
+}
+.ncomplex-firebase-actions button{
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  padding:9px 13px;
+  background:#fff;
+  cursor:pointer;
+  font-weight:650;
+}
+.ncomplex-firebase-actions button:last-of-type{
+  border-color:#2563eb;
+  background:#2563eb;
+  color:#fff;
+}
+.ncomplex-firebase-actions button:disabled{
+  cursor:not-allowed;
+  opacity:.5;
+}
+.ncomplex-firebase-status{
+  flex:1 1 240px;
+  color:#64748b;
+  font-size:.84rem;
+}
+.ncomplex-firebase-status.is-ok{color:#166534;}
+.ncomplex-firebase-status.is-warn{color:#9a3412;}
+.ncomplex-firebase-status.is-danger{color:#b91c1c;}
+@media (max-width:900px){
+  .ncomplex-firebase-sync{grid-template-columns:1fr;}
+}
+@media (max-width:620px){
+  .ncomplex-firebase-stats{grid-template-columns:repeat(2,1fr);}
+  .ncomplex-firebase-actions{align-items:stretch;}
+  .ncomplex-firebase-actions button{flex:1 1 100%;}
+}
