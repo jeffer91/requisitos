@@ -6,12 +6,13 @@ Función o funciones:
 - Leer y fusionar notas legacy sin permitir que un registro vacío oculte uno válido.
 - Aceptar IDs locales canónicos y IDs antiguos invertidos.
 - Forzar idEstudiantePeriodo = cedula__periodoId al guardar.
+- Preservar los campos de Defensas cuando guarda Ncomplex y viceversa.
 - Consultar por clave e índices antes de recorrer tablas completas.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION = "1.3.0-legacy-merge-safe";
+  var VERSION = "1.4.0-domain-preserving-save";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
@@ -167,6 +168,16 @@ Función o funciones:
     return output;
   }
 
+  function mergePatch(base,incoming){
+    var output = Object.assign({},base || {});
+    Object.keys(incoming || {}).forEach(function(name){
+      if(incoming[name] !== undefined){
+        output[name] = clone(incoming[name]);
+      }
+    });
+    return output;
+  }
+
   function mergeNoteRows(base,incoming){
     if(!base){ return normalize(incoming); }
     if(!incoming){ return normalize(base); }
@@ -191,6 +202,14 @@ Función o funciones:
     output.estadoNota = estadoNota(article,defense,finalValue);
     output.updatedAt = text(newer.updatedAt || older.updatedAt) || new Date().toISOString();
     return normalize(output);
+  }
+
+  function mergeForSave(existing,incoming){
+    incoming = Object.assign({},incoming || {});
+    if(!text(incoming.updatedAt)){
+      incoming.updatedAt = new Date().toISOString();
+    }
+    return normalize(mergePatch(existing || {},incoming));
   }
 
   function mergeRows(rows){
@@ -284,22 +303,40 @@ Función o funciones:
   }
 
   function save(row){
-    var item = normalize(row);
-    if(!item.idEstudiantePeriodo){ return Promise.reject(new Error("Nota sin identificación y período.")); }
-    return Repos.safePut(store(),item);
+    var identity = normalize(row);
+    if(!identity.idEstudiantePeriodo){ return Promise.reject(new Error("Nota sin identificación y período.")); }
+    return getByPeriodoCedula(identity.periodoId,identity.cedula).then(function(existing){
+      return Repos.safePut(store(),mergeForSave(existing,row));
+    });
   }
 
   function saveMany(rows){
     var grouped = Object.create(null);
     (Array.isArray(rows) ? rows : []).forEach(function(source){
-      var row = normalize(source);
-      if(!row.idEstudiantePeriodo){ return; }
-      grouped[row.idEstudiantePeriodo] = grouped[row.idEstudiantePeriodo]
-        ? mergeNoteRows(grouped[row.idEstudiantePeriodo],row)
-        : row;
+      var identity = normalize(source);
+      if(!identity.idEstudiantePeriodo){ return; }
+      grouped[identity.idEstudiantePeriodo] = mergePatch(
+        grouped[identity.idEstudiantePeriodo] || {
+          periodoId:identity.periodoId,
+          cedula:identity.cedula,
+          idEstudiantePeriodo:identity.idEstudiantePeriodo
+        },
+        source || {}
+      );
     });
-    var items = Object.keys(grouped).map(function(id){ return grouped[id]; });
-    return items.length ? Repos.bulkPut(store(),items) : Promise.resolve([]);
+
+    var ids = Object.keys(grouped);
+    if(!ids.length){ return Promise.resolve([]); }
+
+    return Promise.all(ids.map(function(id){
+      var patch = grouped[id];
+      var identity = normalize(patch);
+      return getByPeriodoCedula(identity.periodoId,identity.cedula).then(function(existing){
+        return mergeForSave(existing,patch);
+      });
+    })).then(function(items){
+      return Repos.bulkPut(store(),items);
+    });
   }
 
   var api = {
@@ -312,6 +349,7 @@ Función o funciones:
     makeId:makeId,
     parseIdentity:parseIdentity,
     mergeNoteRows:mergeNoteRows,
+    mergeForSave:mergeForSave,
     mergeRows:mergeRows,
     noteValues:noteValues
   };
