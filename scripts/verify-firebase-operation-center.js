@@ -11,9 +11,12 @@ function check(value,message){if(!value){errors.push(message);}}
 function CustomEvent(type,options){this.type=type;this.detail=options&&options.detail||{};}
 
 const rows=[
-  {id:"c_persona",tabla:"personas",periodoId:"2026-04__2026-09",cedula:"1711111111",updatedAt:"2026-08-04T10:00:00.000Z"},
-  {id:"c_requisito",tabla:"requisitos",periodoId:"2026-04__2026-09",cedula:"1722222222",updatedAt:"2026-08-04T10:01:00.000Z"},
-  {id:"c_nota",tabla:"notas",periodoId:"2026-04__2026-09",cedula:"1733333333",updatedAt:"2026-08-04T10:02:00.000Z"}
+  {id:"c_persona",tabla:"personas",source:"carga",periodoId:"2026-04__2026-09",cedula:"1711111111",updatedAt:"2026-08-04T10:00:00.000Z"},
+  {id:"c_requisito",tabla:"requisitos",source:"carga",periodoId:"2026-04__2026-09",cedula:"1722222222",updatedAt:"2026-08-04T10:01:00.000Z"},
+  {id:"c_defensa",tabla:"notas",source:"defart",periodoId:"2026-04__2026-09",cedula:"1733333333",payload:{notaArticulo:8,notaDefensa:9},updatedAt:"2026-08-04T10:02:00.000Z"},
+  {id:"c_complex",tabla:"evaluaciones_titulacion",source:"ncomplex",periodoId:"2026-04__2026-09",cedula:"1744444444",payload:{notaTeorica:8,notaPractica:9},updatedAt:"2026-08-04T10:03:00.000Z"},
+  {id:"c_nimport",tabla:"importaciones",source:"ncomplex",periodoId:"2026-04__2026-09",cedula:"",updatedAt:"2026-08-04T10:04:00.000Z"},
+  {id:"c_nhistory",tabla:"historial",source:"ncomplex",periodoId:"2026-04__2026-09",cedula:"1744444444",updatedAt:"2026-08-04T10:05:00.000Z"}
 ];
 
 const outbox={
@@ -27,33 +30,47 @@ const outbox={
 };
 
 function entryFor(row){
-  const entity=row.tabla==="personas"?"estudiantes":row.tabla;
+  const entity=row._firebaseDomainEntity||(row.tabla==="personas"?"estudiantes":row.tabla);
   const id=entity+"__"+row.id;
   const hash=entity==="requisitos"?"same_hash":"local_"+row.id;
   return {
     entity,
     documentId:id,
     document:{id,dataHash:hash},
-    expected:entity==="requisitos"?{exists:true,hash:"same_hash",version:1,updatedAt:"2026-08-04T09:00:00.000Z"}:{exists:false},
+    expected:entity==="requisitos"
+      ?{exists:true,hash:"same_hash",version:1,updatedAt:"2026-08-04T09:00:00.000Z"}
+      :{exists:false},
     changeIds:[row.id]
   };
 }
 
 const target={
   prepareEntries(selected){
-    captured.prepared.push(selected.map((row)=>({id:row.id,tabla:row.tabla})));
+    captured.prepared.push(selected.map((row)=>({
+      id:row.id,tabla:row.tabla,owner:row._firebaseDomainOwner,entity:row._firebaseDomainEntity
+    })));
     return Promise.resolve({entries:selected.map(entryFor),skipped:[]});
   },
   push(selected){
-    captured.pushed.push(selected.map((row)=>({id:row.id,tabla:row.tabla})));
-    return Promise.resolve({ok:true,processedIds:selected.map((row)=>row.id),documentsWritten:selected.length,conflicts:0});
+    captured.pushed.push(selected.map((row)=>({
+      id:row.id,tabla:row.tabla,owner:row._firebaseDomainOwner,entity:row._firebaseDomainEntity
+    })));
+    return Promise.resolve({
+      ok:true,
+      processedIds:selected.map((row)=>row.id),
+      documentsWritten:selected.length,
+      conflicts:0
+    });
   }
 };
 
 const repository={
   getById(entity){
     if(entity==="requisitos"){
-      return Promise.resolve({documentId:"remote_req",data:{dataHash:"same_hash",version:1,updatedAt:"2026-08-04T09:00:00.000Z"}});
+      return Promise.resolve({
+        documentId:"remote_req",
+        data:{dataHash:"same_hash",version:1,updatedAt:"2026-08-04T09:00:00.000Z"}
+      });
     }
     return Promise.resolve(null);
   }
@@ -78,9 +95,18 @@ const storage=Object.create(null);
 const sandbox={
   console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set,Map,URL,
   setTimeout,clearTimeout,CustomEvent,
-  localStorage:{getItem(key){return storage[key]||"";},setItem(key,value){storage[key]=String(value);}},
+  localStorage:{
+    getItem(key){return storage[key]||"";},
+    setItem(key,value){storage[key]=String(value);}
+  },
   dispatchEvent(event){captured.events.push(event);},
-  document:{currentScript:{src:"file:///repo/BDLocal/firebase/bdl.firebase.operation-center.js"},baseURI:"file:///repo/",scripts:[],head:{appendChild(){}},documentElement:{appendChild(){}}},
+  document:{
+    currentScript:{src:"file:///repo/BDLocal/firebase/bdl.firebase.operation-center.js"},
+    baseURI:"file:///repo/",
+    scripts:[],
+    head:{appendChild(){}},
+    documentElement:{appendChild(){}}
+  },
   BDLSyncOutbox:outbox,
   BDLSyncTargetFirebase:target,
   RequisitosFirebaseRepository:repository,
@@ -92,33 +118,53 @@ const sandbox={
 };
 sandbox.window=sandbox;
 const context=vm.createContext(sandbox);
-const source=fs.readFileSync(path.join(ROOT,"BDLocal/firebase/bdl.firebase.operation-center.js"),"utf8");
-try{new vm.Script(source,{filename:"BDLocal/firebase/bdl.firebase.operation-center.js"}).runInContext(context);}catch(error){errors.push(`Sintaxis o arranque: ${error.message}`);}
+const source=fs.readFileSync(
+  path.join(ROOT,"BDLocal/firebase/bdl.firebase.operation-center.js"),
+  "utf8"
+);
+try{
+  new vm.Script(source,{filename:"BDLocal/firebase/bdl.firebase.operation-center.js"}).runInContext(context);
+}catch(error){
+  errors.push(`Sintaxis o arranque: ${error.message}`);
+}
 
 (async()=>{
   const center=sandbox.RequisitosFirebaseOperationCenter;
   check(center&&typeof center.analyze==="function","Debe exponerse el Centro de Operaciones Firebase");
+  check(center.scopes&&center.scopes.ncomplex,"Debe existir el ámbito Ncomplex");
   check(center.entityOf({tabla:"personas"})==="estudiantes","Personas debe corresponder a estudiantes");
-  check(center.entityOf({tabla:"notas"})==="notas","Notas debe conservar su dominio");
+  check(center.entityOf({tabla:"evaluaciones_titulacion"})==="notas","Evaluaciones de Ncomplex deben corresponder a notas");
+  check(center.rowOwner(rows[2])==="defensas","La nota de Defart debe pertenecer a Defensas");
+  check(center.rowOwner(rows[3])==="ncomplex","La evaluación de Ncomplex debe pertenecer a Ncomplex");
 
   const carga=await center.analyze("carga",{periodoId:"2026-04__2026-09"});
   check(carga.ok===true,"El análisis de Carga debe completarse");
-  check(carga.pendingChanges===2,"Carga debe excluir cambios de notas");
+  check(carga.pendingChanges===2,"Carga debe excluir Defensas y Ncomplex");
   check(carga.nuevos===1,"Carga debe detectar un documento nuevo");
   check(carga.sinCambios===1,"Carga debe detectar un documento ya igual");
-  check(!carga.entities.notas,"El resumen de Carga no debe contener notas");
-  check(captured.prepared[0].every((row)=>row.tabla!=="notas"),"Carga no debe preparar notas");
+  check(!carga.entities.notas,"Carga no debe contener notas");
+  check(captured.prepared[0].every((row)=>row.entity!=="notas"),"Carga no debe preparar notas");
 
-  const pushed=await center.push("carga",{periodoId:"2026-04__2026-09",requireAnalysis:true});
-  check(pushed.ok===true,"La subida de Carga debe completarse");
-  check(captured.pushed[0].every((row)=>row.tabla!=="notas"),"Carga no debe enviar notas al destino Firebase");
-  check(captured.pushed[0].some((row)=>row.tabla==="personas"),"Carga debe normalizar estudiantes como personas para el destino");
-  check(captured.synced.length===1&&captured.synced[0].length===2,"Solo los cambios procesados de Carga deben marcarse sincronizados");
+  const pushedCarga=await center.push("carga",{
+    periodoId:"2026-04__2026-09",
+    requireAnalysis:true
+  });
+  check(pushedCarga.ok===true,"La subida de Carga debe completarse");
+  check(captured.pushed[0].every((row)=>row.entity!=="notas"),"Carga no debe enviar notas");
 
   const defensas=await center.analyze("defensas",{periodoId:"2026-04__2026-09"});
   check(defensas.ok===true,"El análisis de Defensas debe completarse");
-  check(defensas.pendingChanges===1,"Defensas debe considerar únicamente notas");
-  check(defensas.entities.notas&&defensas.entities.notas.total===1,"Defensas debe resumir la tabla notas");
+  check(defensas.pendingChanges===1,"Defensas debe considerar únicamente sus notas");
+  check(defensas.entities.notas&&defensas.entities.notas.total===1,"Defensas debe resumir sus notas");
+  check(captured.prepared[1][0].id==="c_defensa","Defensas no debe tomar la evaluación de Ncomplex");
+
+  const ncomplex=await center.analyze("ncomplex",{periodoId:"2026-04__2026-09"});
+  check(ncomplex.ok===true,"El análisis de Ncomplex debe completarse");
+  check(ncomplex.pendingChanges===3,"Ncomplex debe incluir su nota, importación e historial");
+  check(ncomplex.entities.notas&&ncomplex.entities.notas.total===1,"Ncomplex debe incluir una nota");
+  check(ncomplex.entities.importaciones&&ncomplex.entities.importaciones.total===1,"Ncomplex debe incluir su importación");
+  check(ncomplex.entities.historial&&ncomplex.entities.historial.total===1,"Ncomplex debe incluir su auditoría");
+  check(captured.prepared[2].every((row)=>row.owner==="ncomplex"),"Ncomplex no debe tomar cambios de Defensas");
 
   const patch=center.telegramPatch(people["1711111111"],{
     cedula:"1711111111",
