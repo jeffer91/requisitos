@@ -1,0 +1,95 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function validCedula(value) {
+      return value is string && value.matches('^[0-9]{10}$');
+    }
+
+    function validPeriod(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}__[0-9]{4}-[0-9]{2}$');
+    }
+
+    function validMetadata(data) {
+      return (!('version' in data) || (data.version is int && data.version >= 1))
+        && (!('dataHash' in data) || data.dataHash is string)
+        && (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp)
+        && (!('createdAt' in data) || data.createdAt is string || data.createdAt is timestamp)
+        && (!('eliminado' in data) || data.eliminado is bool);
+    }
+
+    function validStudentPeriodDocument(documentId, data) {
+      return validPeriod(data.periodoId)
+        && validCedula(data.cedula)
+        && documentId == data.periodoId + '__' + data.cedula
+        && validMetadata(data);
+    }
+
+    function validOptionalPeriod(data) {
+      return !('periodoId' in data) || validPeriod(data.periodoId);
+    }
+
+    match /estudiantes/{cedula} {
+      allow read: if true;
+      allow create, update: if validCedula(cedula)
+        && request.resource.data.cedula == cedula
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /matriculas/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data);
+      allow delete: if false;
+    }
+
+    match /requisitos/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data);
+      allow delete: if false;
+    }
+
+    match /notas/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data);
+      allow delete: if false;
+    }
+
+    match /periodos/{periodoId} {
+      allow read: if true;
+      allow create, update: if validPeriod(periodoId)
+        && request.resource.data.periodoId == periodoId
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /carreras/{codigoCarrera} {
+      allow read: if true;
+      allow create, update: if codigoCarrera is string
+        && codigoCarrera.size() > 0
+        && request.resource.data.codigoCarrera == codigoCarrera
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /importaciones/{documentId} {
+      allow read: if true;
+      allow create, update: if documentId.size() > 0
+        && validOptionalPeriod(request.resource.data)
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /historial/{documentId} {
+      allow read: if true;
+      allow create, update: if documentId.size() > 0
+        && validOptionalPeriod(request.resource.data)
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
