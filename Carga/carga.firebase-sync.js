@@ -4,7 +4,8 @@ Ruta: /Carga/carga.firebase-sync.js
 Función:
 - Controlar el apartado Firebase de Carga.
 - Analizar primero las diferencias del período.
-- Subir exclusivamente estudiantes, matrículas, requisitos e importaciones.
+- Subir exclusivamente estudiantes, matrículas, requisitos, catálogos e importaciones.
+- Preparar una reconstrucción desde los cambios locales conservados.
 - No permitir que Carga suba calificaciones.
 - Cargar la arquitectura Firebase únicamente cuando el usuario inicia una operación.
 - Recuperar la lista de períodos y alinear el período global sin bloquear el arranque.
@@ -12,7 +13,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.2.0-period-recovery";
+  var VERSION="1.3.0-firebase-rebuild";
   var currentAnalysis=null;
   var running=false;
   var centerTask=null;
@@ -78,9 +79,26 @@ Función:
     node.textContent=label;
     node.className="carga-chip "+(type||"");
   }
+  function ensureRebuildButton(){
+    var current=byId("cargaBtnFirebaseReconstruir");
+    if(current){return current;}
+    var analyzeButton=byId("cargaBtnFirebaseAnalizar");
+    var parent=analyzeButton&&analyzeButton.parentNode;
+    if(!parent){return null;}
+    var button=document.createElement("button");
+    button.type="button";
+    button.id="cargaBtnFirebaseReconstruir";
+    button.className="carga-btn";
+    button.textContent="Preparar carga completa";
+    button.title="Vuelve a dejar pendientes los cambios locales conservados para reconstruir Firebase";
+    parent.insertBefore(button,analyzeButton);
+    return button;
+  }
   function setRunning(value){
     running=!!value;
-    ["cargaBtnFirebaseAnalizar","cargaBtnFirebaseSubir"].forEach(function(id){var node=byId(id);if(node){node.disabled=running||!periodId();}});
+    ["cargaBtnFirebaseReconstruir","cargaBtnFirebaseAnalizar","cargaBtnFirebaseSubir"].forEach(function(id){
+      var node=byId(id);if(node){node.disabled=running||!periodId();}
+    });
     var upload=byId("cargaBtnFirebaseSubir");
     if(upload){upload.disabled=running||!periodId()||!currentAnalysis||Number(currentAnalysis.batchChanges||0)===0||Number(currentAnalysis.conflictos||0)>0;}
   }
@@ -89,13 +107,16 @@ Función:
     var rows=byId("cargaFirebaseCollections");if(rows){rows.innerHTML="";}
   }
   function entityLabel(entity){
-    var labels={estudiantes:"Estudiantes",matriculas:"Matrículas",requisitos:"Requisitos",importaciones:"Importaciones"};
+    var labels={
+      estudiantes:"Estudiantes",matriculas:"Matrículas",requisitos:"Requisitos",
+      periodos:"Períodos",carreras:"Carreras",importaciones:"Importaciones",historial:"Historial"
+    };
     return labels[entity]||entity;
   }
   function renderCollections(entities){
     var root=byId("cargaFirebaseCollections");
     if(!root){return;}
-    var order=["estudiantes","matriculas","requisitos","importaciones"];
+    var order=["estudiantes","matriculas","requisitos","periodos","carreras","importaciones","historial"];
     root.innerHTML=order.map(function(entity){
       var item=entities&&entities[entity]||{nuevos:0,modificados:0,sinCambios:0,conflictos:0};
       return "<div class=\"carga-firebase-row\"><strong>"+entityLabel(entity)+"</strong>"+
@@ -162,6 +183,26 @@ Función:
     ensureCenter().then(function(api){return api.analyze("carga",{periodoId:periodId(),source:"Carga.firebase.analyze"});})
       .then(renderAnalysis).catch(function(error){renderAnalysis({ok:false,message:error&&error.message?error.message:String(error)});});
   }
+  function rebuild(){
+    if(running||!periodId()){return;}
+    if(!window.confirm("Se volverán a dejar pendientes para Firebase todos los cambios de Carga conservados en este período.\n\nUse esta opción cuando las colecciones fueron eliminadas o deben reconstruirse. No modifica Defensas ni Ncomplex. ¿Continuar?")){return;}
+    currentAnalysis=null;
+    setRunning(true);status("Preparando","is-warn");message("Preparando la carga completa desde la información local conservada...","");
+    ensureCenter().then(function(api){
+      if(typeof api.requeue!=="function"){throw new Error("La reconstrucción Firebase no está disponible.");}
+      return api.requeue("carga",{periodoId:periodId(),source:"Carga.firebase.rebuild"});
+    }).then(function(result){
+      if(!result||result.ok===false){throw new Error(result&&result.message||"No se pudo preparar la reconstrucción.");}
+      if(Number(result.requeued||0)===0){
+        status("Sin historial local","is-warn");
+        message("No se encontraron cambios conservados. Vuelva a cargar o guardar la información antes de reconstruir Firebase.","is-warn");
+        setRunning(false);return null;
+      }
+      status("Carga preparada","is-ok");
+      message("Se prepararon "+Number(result.requeued||0)+" cambio(s). Analizando el primer lote...","is-ok");
+      return center().analyze("carga",{periodoId:periodId(),source:"Carga.firebase.rebuildAnalyze"}).then(renderAnalysis);
+    }).catch(function(error){status("Error","is-danger");message(error&&error.message?error.message:String(error),"is-danger");setRunning(false);});
+  }
   function upload(){
     if(running||!periodId()||!currentAnalysis){return;}
     var total=Number(currentAnalysis.differences||0);
@@ -183,9 +224,11 @@ Función:
   }
   function bind(){
     var select=byId("cargaPeriodoSelect");
+    var rebuildButton=ensureRebuildButton();
     var analyzeButton=byId("cargaBtnFirebaseAnalizar");
     var uploadButton=byId("cargaBtnFirebaseSubir");
     if(select&&!select.__firebaseSyncBound){select.__firebaseSyncBound=true;select.addEventListener("change",syncPeriod);}
+    if(rebuildButton&&!rebuildButton.__firebaseSyncBound){rebuildButton.__firebaseSyncBound=true;rebuildButton.addEventListener("click",rebuild);}
     if(analyzeButton&&!analyzeButton.__firebaseSyncBound){analyzeButton.__firebaseSyncBound=true;analyzeButton.addEventListener("click",analyze);}
     if(uploadButton&&!uploadButton.__firebaseSyncBound){uploadButton.__firebaseSyncBound=true;uploadButton.addEventListener("click",upload);}
     window.addEventListener("bdlocal:changes-created",function(){currentAnalysis=null;status("Cambios pendientes","is-warn");message("La información local cambió. Analice nuevamente antes de subir.","is-warn");setRunning(false);});
@@ -195,6 +238,6 @@ Función:
     recoverPeriods(0);
   }
 
-  window.CargaFirebaseSync={version:VERSION,analyze:analyze,upload:upload,renderAnalysis:renderAnalysis,ensureCenter:ensureCenter,recoverPeriods:recoverPeriods,alignGlobalPeriod:alignGlobalPeriod};
+  window.CargaFirebaseSync={version:VERSION,analyze:analyze,rebuild:rebuild,upload:upload,renderAnalysis:renderAnalysis,ensureCenter:ensureCenter,recoverPeriods:recoverPeriods,alignGlobalPeriod:alignGlobalPeriod};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind,{once:true});}else{bind();}
 })(window,document);
