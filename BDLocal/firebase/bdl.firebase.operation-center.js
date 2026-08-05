@@ -4,13 +4,15 @@ Ruta: /BDLocal/firebase/bdl.firebase.operation-center.js
 Función:
 - Coordinar las operaciones Firebase de Carga, Defensas, Ncomplex y Stats.
 - Mantener ocho colecciones oficiales y separar la propiedad de cada pantalla.
+- Capturar la referencia remota durante el análisis y reutilizarla al subir.
+- Permitir preparar una reconstrucción manual desde la cola local conservada.
 - Exigir análisis vigente antes de subir, con lotes máximos de 25 cambios.
 - Descargar desde Stats únicamente Telegram desde estudiantes.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-ncomplex-domain-routing";
+  var VERSION="1.2.0-analyzed-baseline";
   var MAX_BATCH_SIZE=25;
   var currentScript=document.currentScript;
   var base=currentScript&&currentScript.src?currentScript.src:document.baseURI;
@@ -264,14 +266,24 @@ Función:
     });
   }
 
-  function eligibleRows(scope,options){
+  function allRows(scope,options){
     options=Object.assign({},options||{});
     var periodoId=canonicalPeriodId(options.periodoId||options.periodId||"");
     if(!periodoId){return Promise.reject(new Error("Seleccione un período antes de sincronizar."));}
     var api=outbox();
-    if(!api||typeof api.list!=="function"){return Promise.reject(new Error("La cola de sincronización no está disponible."));}
+    if(!api||typeof api.list!=="function"){
+      return Promise.reject(new Error("La cola de sincronización no está disponible."));
+    }
     return api.list({periodoId:periodoId,includeLegacy:false,force:true}).then(function(rows){
-      return allowedRows(rows,scope).filter(function(row){
+      return allowedRows(rows,scope);
+    });
+  }
+
+  function eligibleRows(scope,options){
+    options=Object.assign({},options||{});
+    var api=outbox();
+    return allRows(scope,options).then(function(rows){
+      return rows.filter(function(row){
         return !api.isDone(row,"firebase")&&
           !api.isBlocked(row,"firebase",options)&&
           api.retryDue(row,"firebase",options);
@@ -295,80 +307,87 @@ Función:
     var api=outbox();
     return api&&typeof api.rowId==="function"?api.rowId(row):text(row&&(row.id||row.cambioId));
   }
+
   function signature(rows){
     return (rows||[]).map(function(row){
       return [rowId(row),text(row.updatedAt||row.createdAt),entityOf(row),rowOwner(row)].join("|");
     }).sort().join("::");
   }
-  function analysisKey(scope,periodoId){return scope.id+"__"+canonicalPeriodId(periodoId);}
 
-  function expectedKnown(expected){
-    expected=expected||{};
-    return expected.exists!==undefined||text(expected.hash)||Number(expected.version)>0||text(expected.updatedAt);
+  function analysisKey(scope,periodoId){
+    return scope.id+"__"+canonicalPeriodId(periodoId);
   }
-  function remoteMatchesExpected(remote,expected){
-    expected=expected||{};
-    if(expected.exists===false){return !remote;}
-    if(!remote){return expected.exists!==true&&!text(expected.hash)&&!Number(expected.version)&&!text(expected.updatedAt);}
-    if(text(expected.hash)&&text(remote.dataHash)!==text(expected.hash)){return false;}
-    if(Number(expected.version)>0&&Number(remote.version||0)!==Number(expected.version)){return false;}
-    if(text(expected.updatedAt)&&text(remote.updatedAt)!==text(expected.updatedAt)){return false;}
-    return true;
+
+  function expectedKey(entity,documentId){
+    return text(entity)+"__"+text(documentId);
   }
+
+  function expectedFromRemote(remoteItem){
+    var remote=remoteItem&&remoteItem.data||null;
+    if(!remote){return {exists:false};}
+    return {
+      exists:true,
+      hash:text(remote.dataHash),
+      version:Number(remote.version||0),
+      updatedAt:text(remote.updatedAt)
+    };
+  }
+
   function classify(entry,remoteItem){
     var remote=remoteItem&&remoteItem.data||null;
     var local=entry.document||{};
     if(remote&&text(remote.dataHash)&&text(local.dataHash)&&text(remote.dataHash)===text(local.dataHash)){
       return "sinCambios";
     }
-    if(!remote){
-      return entry.expected&&entry.expected.exists===true?"conflictos":"nuevos";
-    }
-    if(!expectedKnown(entry.expected)){
-      return "conflictos";
-    }
-    return remoteMatchesExpected(remote,entry.expected)?"modificados":"conflictos";
+    return remote?"modificados":"nuevos";
   }
 
-  function emptyEntitySummary(){return {nuevos:0,modificados:0,sinCambios:0,conflictos:0,total:0};}
+  function emptyEntitySummary(){
+    return {nuevos:0,modificados:0,sinCambios:0,conflictos:0,total:0};
+  }
 
   function analyze(scopeName,options){
     options=Object.assign({},options||{});
     var scope=scopeOf(scopeName);
     var periodoId=canonicalPeriodId(options.periodoId||options.periodId||"");
+
     return ensure().then(function(){
       return eligibleRows(scope,options);
-    }).then(function(allRows){
-      var batchRows=allRows.slice(0,MAX_BATCH_SIZE);
+    }).then(function(rows){
+      var batchRows=rows.slice(0,MAX_BATCH_SIZE);
       var normalized=normalizeRows(batchRows);
+
       if(!batchRows.length){
         var empty={
           ok:true,scope:scope.id,scopeLabel:scope.label,periodoId:periodoId,
           pendingChanges:0,batchChanges:0,remainingChanges:0,documents:0,
           nuevos:0,modificados:0,sinCambios:0,conflictos:0,differences:0,
-          skipped:[],entities:{},signature:"",analyzedAt:now()
+          skipped:[],entities:{},signature:"",expectedByDocument:{},analyzedAt:now()
         };
         state.analyses[analysisKey(scope,periodoId)]=empty;
         state.lastResult=empty;
         return empty;
       }
+
       return target().prepareEntries(normalized,{
         manual:true,periodoId:periodoId,limit:MAX_BATCH_SIZE,batchSize:MAX_BATCH_SIZE
       }).then(function(prepared){
         var summary={
           ok:true,scope:scope.id,scopeLabel:scope.label,periodoId:periodoId,
-          pendingChanges:allRows.length,batchChanges:batchRows.length,
-          remainingChanges:Math.max(0,allRows.length-batchRows.length),
+          pendingChanges:rows.length,batchChanges:batchRows.length,
+          remainingChanges:Math.max(0,rows.length-batchRows.length),
           documents:prepared.entries.length,
           nuevos:0,modificados:0,sinCambios:0,conflictos:0,differences:0,
           skipped:prepared.skipped||[],entities:{},signature:signature(batchRows),
-          analyzedAt:now(),rows:batchRows.map(rowId).filter(Boolean)
+          expectedByDocument:{},analyzedAt:now(),rows:batchRows.map(rowId).filter(Boolean)
         };
         var chain=Promise.resolve();
+
         prepared.entries.forEach(function(entry){
           chain=chain.then(function(){
             return repository().getById(entry.entity,entry.documentId).then(function(remote){
               var status=classify(entry,remote);
+              summary.expectedByDocument[expectedKey(entry.entity,entry.documentId)]=expectedFromRemote(remote);
               summary[status]+=1;
               summary.entities[entry.entity]=summary.entities[entry.entity]||emptyEntitySummary();
               summary.entities[entry.entity][status]+=1;
@@ -376,6 +395,7 @@ Función:
             });
           });
         });
+
         return chain.then(function(){
           summary.differences=summary.nuevos+summary.modificados;
           state.analyses[analysisKey(scope,periodoId)]=clone(summary);
@@ -385,7 +405,10 @@ Función:
         });
       });
     }).catch(function(error){
-      var result={ok:false,scope:scope.id,periodoId:periodoId,message:error&&error.message?error.message:String(error),at:now()};
+      var result={
+        ok:false,scope:scope.id,periodoId:periodoId,
+        message:error&&error.message?error.message:String(error),at:now()
+      };
       state.lastError=result.message;
       state.lastResult=result;
       return result;
@@ -400,7 +423,12 @@ Función:
     state.lastError="";
     emit("requisitos:firebase-domain-started",{operation:operation});
   }
-  function unlock(){state.running=false;state.operation="";state.startedAt="";}
+
+  function unlock(){
+    state.running=false;
+    state.operation="";
+    state.startedAt="";
+  }
 
   function push(scopeName,options){
     options=Object.assign({},options||{});
@@ -408,13 +436,19 @@ Función:
     var periodoId=canonicalPeriodId(options.periodoId||options.periodId||"");
     var operation="push:"+scope.id;
     var selectedRows=[];
-    try{lock(operation);}catch(error){return Promise.resolve({ok:false,blocked:true,message:error.message,scope:scope.id});}
+    var previous=null;
+
+    try{lock(operation);}
+    catch(error){
+      return Promise.resolve({ok:false,blocked:true,message:error.message,scope:scope.id});
+    }
 
     return ensure().then(function(){
       return eligibleRows(scope,options);
-    }).then(function(allRows){
-      selectedRows=allRows.slice(0,MAX_BATCH_SIZE);
-      var previous=state.analyses[analysisKey(scope,periodoId)]||null;
+    }).then(function(rows){
+      selectedRows=rows.slice(0,MAX_BATCH_SIZE);
+      previous=state.analyses[analysisKey(scope,periodoId)]||null;
+
       if(options.requireAnalysis!==false){
         if(!previous){throw new Error("Primero analice las diferencias antes de subir.");}
         if(previous.signature!==signature(selectedRows)){
@@ -422,11 +456,21 @@ Función:
           throw new Error("Los cambios variaron después del análisis. Analice nuevamente.");
         }
       }
+
       if(!selectedRows.length){
-        return {ok:true,target:"firebase",scope:scope.id,periodoId:periodoId,processedIds:[],documentsWritten:0,conflicts:0,message:"No existen diferencias pendientes para este ámbito."};
+        return {
+          ok:true,target:"firebase",scope:scope.id,periodoId:periodoId,
+          processedIds:[],documentsWritten:0,conflicts:0,
+          message:"No existen diferencias pendientes para este ámbito."
+        };
       }
+
       return target().push(normalizeRows(selectedRows),{
-        manual:true,periodoId:periodoId,limit:MAX_BATCH_SIZE,batchSize:MAX_BATCH_SIZE,
+        manual:true,
+        periodoId:periodoId,
+        limit:MAX_BATCH_SIZE,
+        batchSize:MAX_BATCH_SIZE,
+        expectedByDocument:clone(previous&&previous.expectedByDocument||{}),
         source:text(options.source||"FirebaseOperationCenter."+scope.id)
       });
     }).then(function(result){
@@ -434,13 +478,19 @@ Función:
       var processed=Array.isArray(result.processedIds)?result.processedIds:[];
       var processedMap=Object.create(null);
       processed.forEach(function(id){processedMap[text(id)]=true;});
-      var confirmed=selectedRows.filter(function(row){return processedMap[rowId(row)]===true;});
+      var confirmed=selectedRows.filter(function(row){
+        return processedMap[rowId(row)]===true;
+      });
+
       var markTask=confirmed.length
         ?outbox().markSynced(confirmed,"firebase",{syncedAt:now(),response:result})
         :Promise.resolve({ok:true,updated:0});
 
-      if(result.ok===false&&!result.blocked&&!result.deferWithoutAttempt&&!confirmed.length&&selectedRows.length){
-        markTask=outbox().markError(selectedRows,"firebase",{error:result.message||result.error||"Error de subida Firebase."});
+      if(result.ok===false&&!result.blocked&&!result.deferWithoutAttempt&&
+         !confirmed.length&&selectedRows.length){
+        markTask=outbox().markError(selectedRows,"firebase",{
+          error:result.message||result.error||"Error de subida Firebase."
+        });
       }
 
       return markTask.then(function(marked){
@@ -455,7 +505,10 @@ Función:
         return finalResult;
       });
     }).catch(function(error){
-      var result={ok:false,scope:scope.id,periodoId:periodoId,message:error&&error.message?error.message:String(error),at:now()};
+      var result={
+        ok:false,scope:scope.id,periodoId:periodoId,
+        message:error&&error.message?error.message:String(error),at:now()
+      };
       state.lastError=result.message;
       state.lastResult=result;
       emit("requisitos:firebase-domain-error",result);
@@ -463,27 +516,102 @@ Función:
     }).finally(unlock);
   }
 
+  function requeue(scopeName,options){
+    options=Object.assign({},options||{});
+    var scope=scopeOf(scopeName);
+    var periodoId=canonicalPeriodId(options.periodoId||options.periodId||"");
+
+    if(scope.id==="telegram"){
+      return Promise.resolve({
+        ok:false,scope:scope.id,periodoId:periodoId,
+        message:"Stats / Telegram es de solo lectura."
+      });
+    }
+
+    return ensure().then(function(){
+      return allRows(scope,options);
+    }).then(function(rows){
+      if(!outbox()||typeof outbox().mark!=="function"){
+        throw new Error("La cola no permite preparar una reconstrucción.");
+      }
+      if(!rows.length){
+        return {
+          ok:true,scope:scope.id,scopeLabel:scope.label,periodoId:periodoId,
+          requeued:0,message:"No existen cambios locales conservados para reconstruir este ámbito."
+        };
+      }
+      return outbox().mark(rows,"firebase","PENDIENTE",{
+        reason:"firebase_rebuild",
+        requestedAt:now()
+      }).then(function(marked){
+        delete state.analyses[analysisKey(scope,periodoId)];
+        var result={
+          ok:true,scope:scope.id,scopeLabel:scope.label,periodoId:periodoId,
+          requeued:Number(marked&&marked.updated||rows.length),
+          message:"Los cambios locales conservados quedaron pendientes para reconstruir Firebase.",
+          finishedAt:now()
+        };
+        state.lastResult=clone(result);
+        emit("requisitos:firebase-domain-requeued",result);
+        return result;
+      });
+    }).catch(function(error){
+      var result={
+        ok:false,scope:scope.id,periodoId:periodoId,
+        message:error&&error.message?error.message:String(error),at:now()
+      };
+      state.lastError=result.message;
+      state.lastResult=result;
+      emit("requisitos:firebase-domain-error",result);
+      return result;
+    });
+  }
+
   function readTelegramCursor(){
-    try{return JSON.parse(window.localStorage.getItem("REQ_FIREBASE_TELEGRAM_CURSOR_V2")||"{}")||{};}catch(error){return {};}
+    try{
+      return JSON.parse(window.localStorage.getItem("REQ_FIREBASE_TELEGRAM_CURSOR_V2")||"{}")||{};
+    }catch(error){return {};}
   }
+
   function writeTelegramCursor(cursor){
-    try{window.localStorage.setItem("REQ_FIREBASE_TELEGRAM_CURSOR_V2",JSON.stringify(cursor||{}));return true;}catch(error){return false;}
+    try{
+      window.localStorage.setItem("REQ_FIREBASE_TELEGRAM_CURSOR_V2",JSON.stringify(cursor||{}));
+      return true;
+    }catch(error){return false;}
   }
+
   function telegramFields(data){
     data=data||{};
-    var userKeys=["telegramUser","_telegramUser","telegramUsername","usuarioTelegram","TelegramUser","TelegramUsuario","telegram","Telegram"];
-    var chatKeys=["telegramChatId","_telegramChatId","chatIdTelegram","telegramChatID","TelegramChatId","chatId"];
-    var hasUser=userKeys.some(function(key){return Object.prototype.hasOwnProperty.call(data,key);});
-    var hasChat=chatKeys.some(function(key){return Object.prototype.hasOwnProperty.call(data,key);});
+    var userKeys=[
+      "telegramUser","_telegramUser","telegramUsername","usuarioTelegram",
+      "TelegramUser","TelegramUsuario","telegram","Telegram"
+    ];
+    var chatKeys=[
+      "telegramChatId","_telegramChatId","chatIdTelegram",
+      "telegramChatID","TelegramChatId","chatId"
+    ];
+    var hasUser=userKeys.some(function(key){
+      return Object.prototype.hasOwnProperty.call(data,key);
+    });
+    var hasChat=chatKeys.some(function(key){
+      return Object.prototype.hasOwnProperty.call(data,key);
+    });
+
     function first(keys){
       for(var i=0;i<keys.length;i+=1){
         if(data[keys[i]]!==undefined&&data[keys[i]]!==null){return data[keys[i]];}
       }
       return "";
     }
+
     var rules=window.BDLRulesPersona||{};
-    var user=typeof rules.normalizeTelegramUser==="function"?rules.normalizeTelegramUser(first(userKeys)):text(first(userKeys)).replace(/^@+/,"");
-    var chatId=typeof rules.normalizeTelegramChatId==="function"?rules.normalizeTelegramChatId(first(chatKeys)):text(first(chatKeys));
+    var user=typeof rules.normalizeTelegramUser==="function"
+      ?rules.normalizeTelegramUser(first(userKeys))
+      :text(first(userKeys)).replace(/^@+/,"");
+    var chatId=typeof rules.normalizeTelegramChatId==="function"
+      ?rules.normalizeTelegramChatId(first(chatKeys))
+      :text(first(chatKeys));
+
     return {
       present:hasUser||hasChat,
       user:user,
@@ -492,14 +620,23 @@ Función:
       source:text(data.telegramSource||data.syncSource||"firebase")
     };
   }
+
   function telegramPatch(existing,remote){
     var info=telegramFields(remote);
     if(!info.present){return {changed:false,row:existing};}
     var row=Object.assign({},existing||{});
     var oldInfo=telegramFields(row);
     var changed=oldInfo.user!==info.user||oldInfo.chatId!==info.chatId;
-    ["telegramUser","_telegramUser","telegramUsername","usuarioTelegram","TelegramUser","TelegramUsuario","telegram","Telegram"].forEach(function(key){row[key]=info.user;});
-    ["telegramChatId","_telegramChatId","chatIdTelegram","telegramChatID","TelegramChatId","chatId"].forEach(function(key){row[key]=info.chatId;});
+
+    [
+      "telegramUser","_telegramUser","telegramUsername","usuarioTelegram",
+      "TelegramUser","TelegramUsuario","telegram","Telegram"
+    ].forEach(function(key){row[key]=info.user;});
+    [
+      "telegramChatId","_telegramChatId","chatIdTelegram",
+      "telegramChatID","TelegramChatId","chatId"
+    ].forEach(function(key){row[key]=info.chatId;});
+
     row.telegramUpdatedAt=info.updatedAt||now();
     row.telegramSource=info.source||"firebase:estudiantes";
     row.telegramAvailable=!!(info.user||info.chatId);
@@ -516,7 +653,13 @@ Función:
     var cursor=full?{updatedAt:"",documentId:""}:readTelegramCursor();
     var totals={downloaded:0,written:0,unchanged:0,skipped:0,pages:0};
     var operation="pull:telegram";
-    try{lock(operation);}catch(error){return Promise.resolve({ok:false,blocked:true,message:error.message,periodoId:periodoId});}
+
+    try{lock(operation);}
+    catch(error){
+      return Promise.resolve({
+        ok:false,blocked:true,message:error.message,periodoId:periodoId
+      });
+    }
 
     return ensure().then(function(){
       function next(page){
@@ -526,26 +669,36 @@ Función:
           totals.pages+=1;
           totals.downloaded+=Number(result.total||0);
           var chain=Promise.resolve();
+
           (result.documents||[]).forEach(function(item){
             chain=chain.then(function(){
               var data=item.data||{};
               if(data.eliminado===true){totals.skipped+=1;return null;}
               var cedula=text(data.cedula||data.numeroIdentificacion||item.documentId);
               if(!cedula){totals.skipped+=1;return null;}
+
               return personasRepo().getByCedula(cedula).then(function(existing){
                 if(!existing){totals.skipped+=1;return null;}
                 var patch=telegramPatch(existing,data);
                 if(!patch.changed){totals.unchanged+=1;return null;}
-                return personasRepo().save(patch.row).then(function(){totals.written+=1;});
+                return personasRepo().save(patch.row).then(function(){
+                  totals.written+=1;
+                });
               });
             });
           });
+
           return chain.then(function(){
             var before=cursor;
             cursor=result.cursorAfter||cursor;
-            var advanced=text(before.updatedAt)!==text(cursor.updatedAt)||text(before.documentId)!==text(cursor.documentId);
+            var advanced=
+              text(before.updatedAt)!==text(cursor.updatedAt)||
+              text(before.documentId)!==text(cursor.documentId);
+
             if(result.hasMore&&page<maxPages&&advanced){return next(page+1);}
-            if(result.hasMore&&!advanced){throw new Error("La actualización de Telegram no pudo avanzar en la paginación.");}
+            if(result.hasMore&&!advanced){
+              throw new Error("La actualización de Telegram no pudo avanzar en la paginación.");
+            }
             return result;
           });
         });
@@ -554,15 +707,20 @@ Función:
     }).then(function(){
       writeTelegramCursor(cursor);
       var result={
-        ok:true,periodoId:periodoId,downloaded:totals.downloaded,written:totals.written,
+        ok:true,periodoId:periodoId,
+        downloaded:totals.downloaded,written:totals.written,
         unchanged:totals.unchanged,skipped:totals.skipped,pages:totals.pages,
-        cursor:clone(cursor),scope:"telegram",telegramOnly:true,collection:"estudiantes",finishedAt:now()
+        cursor:clone(cursor),scope:"telegram",telegramOnly:true,
+        collection:"estudiantes",finishedAt:now()
       };
       state.lastResult=clone(result);
       emit("requisitos:firebase-telegram-refreshed",result);
       return result;
     }).catch(function(error){
-      var result={ok:false,periodoId:periodoId,scope:"telegram",telegramOnly:true,message:error&&error.message?error.message:String(error),at:now()};
+      var result={
+        ok:false,periodoId:periodoId,scope:"telegram",telegramOnly:true,
+        message:error&&error.message?error.message:String(error),at:now()
+      };
       state.lastError=result.message;
       state.lastResult=result;
       emit("requisitos:firebase-domain-error",result);
@@ -572,10 +730,16 @@ Función:
 
   function status(){
     return {
-      ok:!state.lastError,version:VERSION,maxBatchSize:MAX_BATCH_SIZE,
-      running:state.running,operation:state.operation,startedAt:state.startedAt,
-      lastError:state.lastError,lastResult:clone(state.lastResult),
-      scopes:clone(SCOPES),analyses:Object.keys(state.analyses)
+      ok:!state.lastError,
+      version:VERSION,
+      maxBatchSize:MAX_BATCH_SIZE,
+      running:state.running,
+      operation:state.operation,
+      startedAt:state.startedAt,
+      lastError:state.lastError,
+      lastResult:clone(state.lastResult),
+      scopes:clone(SCOPES),
+      analyses:Object.keys(state.analyses)
     };
   }
 
@@ -586,10 +750,13 @@ Función:
     ensure:ensure,
     analyze:analyze,
     push:push,
+    requeue:requeue,
     refreshTelegram:refreshTelegram,
     entityOf:entityOf,
     rowOwner:rowOwner,
-    allowedRows:function(rows,scopeName){return allowedRows(rows,scopeOf(scopeName));},
+    allowedRows:function(rows,scopeName){
+      return allowedRows(rows,scopeOf(scopeName));
+    },
     telegramPatch:telegramPatch,
     status:status,
     isRunning:function(){return state.running;}
