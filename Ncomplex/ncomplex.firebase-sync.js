@@ -4,13 +4,14 @@ Ruta: /Ncomplex/ncomplex.firebase-sync.js
 Función:
 - Analizar las diferencias de Ncomplex para el período seleccionado.
 - Subir solamente notas y sus registros auxiliares de auditoría/importación.
+- Preparar una reconstrucción desde los cambios locales conservados.
 - Exigir un análisis vigente antes de enviar.
-- Mantener estudiantes, matrículas, requisitos y Telegram fuera de esta operación.
+- Mantener estudiantes, matrículas, requisitos, Defensas y Telegram fuera de esta operación.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-ncomplex-firebase";
+  var VERSION="1.1.0-firebase-rebuild";
   var analysis=null;
   var running=false;
   var periodAligned=false;
@@ -60,9 +61,26 @@ Función:
       node.className="ncomplex-firebase-status "+(type||"");
     }
   }
+  function ensureRebuildButton(){
+    var current=byId("ncomplex-btn-firebase-rebuild");
+    if(current){return current;}
+    var analyzeButton=byId("ncomplex-btn-firebase-analyze");
+    var parent=analyzeButton&&analyzeButton.parentNode;
+    if(!parent){return null;}
+    var button=document.createElement("button");
+    button.type="button";
+    button.id="ncomplex-btn-firebase-rebuild";
+    button.className="ncomplex-btn";
+    button.textContent="Preparar carga completa";
+    button.title="Vuelve a dejar pendientes las notas, importaciones e historial conservados de Ncomplex";
+    parent.insertBefore(button,analyzeButton);
+    return button;
+  }
   function setButtons(){
+    var rebuildButton=byId("ncomplex-btn-firebase-rebuild");
     var analyzeButton=byId("ncomplex-btn-firebase-analyze");
     var pushButton=byId("ncomplex-btn-firebase-push");
+    if(rebuildButton){rebuildButton.disabled=running||!periodId();}
     if(analyzeButton){analyzeButton.disabled=running||!periodId();}
     if(pushButton){
       pushButton.disabled=running||!periodId()||!analysis||
@@ -123,11 +141,51 @@ Función:
         render({ok:false,message:error&&error.message?error.message:String(error)});
       });
   }
+  function rebuild(){
+    if(running||!periodId()){return;}
+    if(!window.confirm(
+      "Se volverán a dejar pendientes para Firebase las notas, importaciones e historial conservados por Ncomplex en este período.\n\n"+
+      "No se modificarán Carga, Defensas ni Telegram. ¿Continuar?"
+    )){return;}
+
+    analysis=null;
+    running=true;
+    setButtons();
+    status("Preparando la carga completa de Ncomplex...","is-warn");
+    ensure()
+      .then(function(api){
+        if(typeof api.requeue!=="function"){throw new Error("La reconstrucción Firebase no está disponible.");}
+        return api.requeue("ncomplex",{
+          periodoId:periodId(),
+          source:"Ncomplex.firebase.rebuild"
+        });
+      })
+      .then(function(result){
+        if(!result||result.ok===false){throw new Error(result&&result.message||"No se pudo preparar la reconstrucción.");}
+        if(Number(result.requeued||0)===0){
+          running=false;
+          status("No existen cambios conservados. Guarde nuevamente las notas o la importación antes de reconstruir Firebase.","is-warn");
+          setButtons();
+          return null;
+        }
+        status("Se prepararon "+Number(result.requeued||0)+" cambio(s). Analizando el primer lote...","is-ok");
+        return center().analyze("ncomplex",{
+          periodoId:periodId(),
+          source:"Ncomplex.firebase.rebuildAnalyze"
+        }).then(render);
+      })
+      .catch(function(error){
+        analysis=null;
+        running=false;
+        status(error&&error.message?error.message:String(error),"is-danger");
+        setButtons();
+      });
+  }
   function push(){
     if(running||!analysis||!periodId()){return;}
     if(!window.confirm(
       "Se subirán las calificaciones de Ncomplex del lote analizado y sus registros de auditoría/importación.\n\n"+
-      "No se modificarán estudiantes, matrículas, requisitos ni Telegram. ¿Continuar?"
+      "No se modificarán estudiantes, matrículas, requisitos, Defensas ni Telegram. ¿Continuar?"
     )){return;}
 
     running=true;
@@ -165,6 +223,7 @@ Función:
   }
   function bind(){
     var period=byId("ncomplex-filter-periodo");
+    var rebuildButton=ensureRebuildButton();
     var analyzeButton=byId("ncomplex-btn-firebase-analyze");
     var pushButton=byId("ncomplex-btn-firebase-push");
 
@@ -174,6 +233,10 @@ Función:
         periodAligned=true;
         clear();
       });
+    }
+    if(rebuildButton&&!rebuildButton.__ncomplexFirebaseBound){
+      rebuildButton.__ncomplexFirebaseBound=true;
+      rebuildButton.addEventListener("click",rebuild);
     }
     if(analyzeButton&&!analyzeButton.__ncomplexFirebaseBound){
       analyzeButton.__ncomplexFirebaseBound=true;
@@ -204,6 +267,7 @@ Función:
   window.NcomplexFirebaseSync={
     version:VERSION,
     analyze:analyze,
+    rebuild:rebuild,
     push:push,
     render:render,
     alignPeriod:alignPeriod,
