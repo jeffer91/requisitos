@@ -4,9 +4,8 @@ Nombre completo: ncomplex.html
 Ruta o ubicación: /Ncomplex/ncomplex.html
 Función o funciones:
 - Mostrar una interfaz simple para consultar y registrar calificaciones.
-- Mantener visibles únicamente los filtros y acciones de uso frecuente.
+- Permitir analizar y subir Ncomplex a las ocho colecciones oficiales de Firebase.
 - Permitir pegar directamente el libro de calificaciones de Moodle.
-- Mover filtros secundarios e importación a paneles bajo demanda.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -14,6 +13,7 @@ Función o funciones:
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ncomplex</title>
   <link rel="stylesheet" href="ncomplex.css" />
+  <link rel="stylesheet" href="ncomplex.firebase-sync.css" />
 </head>
 <body>
   <main class="ncomplex-app">
@@ -98,6 +98,27 @@ Función o funciones:
     </section>
 
     <section id="ncomplex-summary" class="ncomplex-summary" aria-label="Resumen de calificaciones"></section>
+
+    <section class="ncomplex-card ncomplex-firebase-sync" aria-label="Sincronización de Ncomplex con Firebase">
+      <div class="ncomplex-firebase-copy">
+        <strong>Ncomplex en Firebase</strong>
+        <span>Analiza y sube las calificaciones, importaciones y auditoría de Ncomplex. No modifica estudiantes, matrículas, requisitos ni Telegram.</span>
+      </div>
+      <div class="ncomplex-firebase-controls">
+        <div class="ncomplex-firebase-stats">
+          <div><span>Pendientes</span><strong id="ncomplexFirebasePending">0</strong></div>
+          <div><span>Nuevas</span><strong id="ncomplexFirebaseNew">0</strong></div>
+          <div><span>Modificadas</span><strong id="ncomplexFirebaseModified">0</strong></div>
+          <div><span>Iguales</span><strong id="ncomplexFirebaseUnchanged">0</strong></div>
+          <div><span>Conflictos</span><strong id="ncomplexFirebaseConflicts">0</strong></div>
+        </div>
+        <div class="ncomplex-firebase-actions">
+          <button id="ncomplex-btn-firebase-analyze" type="button" disabled>Analizar diferencias</button>
+          <button id="ncomplex-btn-firebase-push" type="button" disabled>Subir Ncomplex</button>
+          <span id="ncomplex-firebase-status" class="ncomplex-firebase-status">Seleccione un período.</span>
+        </div>
+      </div>
+    </section>
 
     <section class="ncomplex-card ncomplex-table-card" aria-label="Notas de estudiantes">
       <div class="ncomplex-table-head">
@@ -196,5 +217,7 @@ Función o funciones:
   </section>
 
   <script src="ncomplex.bootstrap.js"></script>
+  <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+  <script src="ncomplex.firebase-sync.js"></script>
 </body>
 </html>
