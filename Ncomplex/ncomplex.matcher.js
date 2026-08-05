@@ -233,8 +233,11 @@ Función o funciones:
       byFingerprint: Object.create(null)
     };
 
+    /* Nombre conservado para compatibilidad con diagnósticos existentes. */
+    var studentsByCedula = indexes.byCedula;
+
     students.forEach(function(student){
-      addToMap(indexes.byCedula, studentCedula(student), student);
+      addToMap(studentsByCedula, studentCedula(student), student);
       addToMap(indexes.byEmail, studentEmail(student), student);
       addToMap(indexes.byName, normalized(studentName(student)), student);
       addToMap(indexes.byFingerprint, nameFingerprint(studentName(student)), student);
@@ -268,7 +271,7 @@ Función o funciones:
           label: importedLabel(imported),
           reason: resolved.ambiguous
             ? "La coincidencia por " + resolved.method + " es ambigua"
-            : "No existe una coincidencia única en el período seleccionado"
+            : "No existe en el período seleccionado o no hay una coincidencia única"
         });
         return;
       }
@@ -372,7 +375,7 @@ Función o funciones:
   }
 
   window.NcomplexMatcher = {
-    version: "2.0.0-email-name-matching",
+    version: "2.0.1-email-name-matching",
     match: match,
     apply: apply,
     normalizeCedula: normalizeCedula,
