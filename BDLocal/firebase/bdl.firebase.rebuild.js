@@ -5,13 +5,14 @@ Función:
 - Reconstruir la cola Firebase desde las tablas oficiales de IndexedDB.
 - No depender del historial previo de cambios_pendientes.
 - Separar Carga, Defensas y Ncomplex por propiedad funcional.
+- Reconstruir historial únicamente desde auditorías locales válidas.
 - Forzar únicamente el estado Firebase a PENDIENTE conservando Google y Supabase.
 - Actualizar Telegram leyendo como máximo 25 estudiantes que realmente lo necesitan.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-local-source-rebuild";
+  var VERSION="1.1.0-history-rebuild";
   var MAX_BATCH_SIZE=25;
   var running=false;
 
@@ -61,6 +62,7 @@ Función:
       evaluaciones:repo(["evaluaciones_titulacion","ncomplex"],["BDLRepoEvaluacionesTitulacion"]),
       periodos:repo(["periodos"],["BDLRepoPeriodos"]),
       importaciones:repo(["importaciones"],["BDLRepoImportaciones"]),
+      logs:repo(["logs"],["BDLRepoLogs"]),
       cambios:repo(["cambios_pendientes","cambios"],["BDLRepoCambios"])
     };
   }
@@ -173,6 +175,45 @@ Función:
       activo:true,updatedAt:now()
     }:null;
   }
+  function historyPayload(log){
+    log=log||{};
+    var data=log.data&&typeof log.data==="object"&&!Array.isArray(log.data)
+      ?clone(log.data)
+      :null;
+    if(!data){return null;}
+    data.id=text(data.id||log.id||log.logId);
+    data.entidad=text(data.entidad);
+    data.entidadId=text(data.entidadId);
+    data.accion=text(data.accion);
+    data.periodoId=canonicalPeriodId(data.periodoId||log.periodoId||"");
+    data.cedula=normalizeCedula(data.cedula||log.cedula||"");
+    data.pantalla=text(data.pantalla||log.pantalla||log.scope);
+    data.source=text(data.source||data.origen||log.source||log.scope);
+    data.createdAt=text(data.createdAt||log.createdAt)||now();
+    data.updatedAt=text(data.updatedAt||log.updatedAt)||data.createdAt;
+    return data.id&&data.entidad&&data.entidadId&&data.accion&&data.periodoId?data:null;
+  }
+  function historyOwner(history,log){
+    var source=sourceOf(Object.assign({},log||{},history||{}));
+    if(/ncomplex|complexivo/.test(source)){return "ncomplex";}
+    if(/defart|defensas|defensa/.test(source)){return "defensas";}
+    return "carga";
+  }
+  function buildHistory(scope,periodoId,current){
+    return list(current.logs,{}).then(function(logs){
+      return unique((logs||[]).map(function(log){
+        var history=historyPayload(log);
+        if(!history||history.periodoId!==periodoId||historyOwner(history,log)!==scope){return null;}
+        return pendingChange("historial",history,{
+          periodoId:periodoId,
+          cedula:history.cedula,
+          registroId:history.id,
+          source:scope,
+          pantalla:history.pantalla||scope
+        });
+      }).filter(Boolean));
+    });
+  }
   function buildCarga(periodoId,current){
     return Promise.all([
       list(current.personas,{}),
@@ -254,10 +295,14 @@ Función:
     });
   }
   function build(scope,periodoId,current){
-    if(scope==="carga"){return buildCarga(periodoId,current);}
-    if(scope==="defensas"){return buildDefensas(periodoId,current);}
-    if(scope==="ncomplex"){return buildNcomplex(periodoId,current);}
-    return Promise.reject(new Error("Ámbito no soportado para reconstrucción: "+scope+"."));
+    var primary=null;
+    if(scope==="carga"){primary=buildCarga(periodoId,current);}
+    else if(scope==="defensas"){primary=buildDefensas(periodoId,current);}
+    else if(scope==="ncomplex"){primary=buildNcomplex(periodoId,current);}
+    else{return Promise.reject(new Error("Ámbito no soportado para reconstrucción: "+scope+"."));}
+    return Promise.all([primary,buildHistory(scope,periodoId,current)]).then(function(values){
+      return unique((values[0]||[]).concat(values[1]||[]));
+    });
   }
   function prepare(scopeName,options){
     options=Object.assign({},options||{});
@@ -375,7 +420,7 @@ Función:
   window.RequisitosFirebaseRebuild={
     version:VERSION,maxBatchSize:MAX_BATCH_SIZE,
     prepare:prepare,refreshTelegram:refreshTelegram,install:install,status:status,
-    _build:build,_repos:repos,_pendingChange:pendingChange
+    _build:build,_repos:repos,_pendingChange:pendingChange,_historyPayload:historyPayload
   };
   install();
 })(window);
