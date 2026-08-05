@@ -9,6 +9,7 @@ function check(value,message){if(!value){errors.push(message);}}
 function makeSandbox(mode){
   const conflicts=[];
   const registered={};
+  const writes=[];
   const sandbox={
     console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set,
     CustomEvent:function(name,options){this.type=name;this.detail=options&&options.detail;},
@@ -32,6 +33,7 @@ function makeSandbox(mode){
     RequisitosFirebaseRepository:{
       documentId(entity,document){return document.id;},
       writeManyChecked(entity,entries){
+        writes.push({entity,entries:JSON.parse(JSON.stringify(entries))});
         if(mode==="all"){
           return Promise.resolve({ok:false,written:0,results:[],conflicts:entries.map((entry)=>({documentId:entry.documentId,remote:{dataHash:"hremota0"}}))});
         }
@@ -71,19 +73,20 @@ function makeSandbox(mode){
   sandbox.window=sandbox;
   sandbox.__conflicts=conflicts;
   sandbox.__registered=registered;
+  sandbox.__writes=writes;
   return sandbox;
 }
 function change(cedula){
   return {id:`cambio_${cedula}`,tabla:"requisitos_estudiante",periodoId:"2026-04__2026-09",cedula,payload:{periodoId:"2026-04__2026-09",cedula,valor:"CUMPLE"}};
 }
-async function run(mode,rows){
+async function run(mode,rows,options){
   const sandbox=makeSandbox(mode);
   const context=vm.createContext(sandbox);
   const source=fs.readFileSync(path.join(ROOT,"BDLocal/sync/targets/bdl.sync.target.firebase.js"),"utf8");
   new vm.Script(source,{filename:"bdl.sync.target.firebase.js"}).runInContext(context);
   const target=sandbox.__registered.firebase||sandbox.BDLSyncTargetFirebase;
   check(target&&typeof target.push==="function",`No se registró el destino Firebase en modo ${mode}`);
-  const result=await target.push(rows,{manual:true,periodoId:"2026-04__2026-09"});
+  const result=await target.push(rows,Object.assign({manual:true,periodoId:"2026-04__2026-09"},options||{}));
   return {result,sandbox};
 }
 (async()=>{
@@ -98,6 +101,15 @@ async function run(mode,rows){
   check(total.result.deferWithoutAttempt===true,"Un lote totalmente conflictuado debe conservarse sin sumar intentos");
   check(total.result.processedIds.length===0,"Un lote totalmente conflictuado no debe confirmar cambios");
   check(total.sandbox.__conflicts.length===1,"El conflicto total debe registrarse");
+
+  const cedula="1000000004";
+  const remoteId=`2026-04__2026-09__${cedula}`;
+  const baseline={exists:false};
+  const analyzed=await run("partial",[change(cedula)],{
+    expectedByDocument:{[`requisitos__${remoteId}`]:baseline}
+  });
+  const written=analyzed.sandbox.__writes[0]&&analyzed.sandbox.__writes[0].entries[0];
+  check(written&&written.expected.exists===false,"El destino debe usar la referencia entregada por el análisis en vez de la metadata local anterior");
 
   if(errors.length){
     console.error("\nVERIFICACIÓN DEL DESTINO FIREBASE: ERROR\n");
