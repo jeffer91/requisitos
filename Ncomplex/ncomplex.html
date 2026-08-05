@@ -5,8 +5,8 @@ Ruta o ubicación: /Ncomplex/ncomplex.html
 Función o funciones:
 - Mostrar una interfaz simple para consultar y registrar calificaciones.
 - Mantener visibles únicamente los filtros y acciones de uso frecuente.
+- Permitir pegar directamente el libro de calificaciones de Moodle.
 - Mover filtros secundarios e importación a paneles bajo demanda.
-- Conectarse mediante ConNcomplex y conservar los identificadores existentes.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -116,7 +116,6 @@ Función o funciones:
       <div id="ncomplex-pagination" class="ncomplex-pagination"></div>
     </section>
 
-    <!-- Se conserva para compatibilidad con el resumen y los filtros existentes. -->
     <div id="ncomplex-career-summary" hidden aria-hidden="true"></div>
   </main>
 
@@ -128,8 +127,8 @@ Función o funciones:
     <div class="ncomplex-modal-dialog ncomplex-import-dialog">
       <header class="ncomplex-modal-head">
         <div>
-          <h2 id="ncomplex-import-title">Importar notas</h2>
-          <p>El cruce se realiza por cédula dentro del período seleccionado.</p>
+          <h2 id="ncomplex-import-title">Importar notas desde Moodle</h2>
+          <p>Pegue la tabla completa. El sistema cruza primero por correo, después por nombre y por cédula cuando exista.</p>
         </div>
         <button class="ncomplex-modal-close" type="button" data-ncomplex-import-close aria-label="Cerrar">×</button>
       </header>
@@ -137,12 +136,12 @@ Función o funciones:
       <div class="ncomplex-modal-body ncomplex-import-body">
         <article class="ncomplex-import-panel">
           <label class="ncomplex-field">
-            <span>Datos copiados de la tabla</span>
-            <textarea id="ncomplex-paste-data" placeholder="Pegue aquí el encabezado y las filas de estudiantes..."></textarea>
+            <span>Contenido copiado del libro de calificaciones</span>
+            <textarea id="ncomplex-paste-data" placeholder="Pegue aquí todo el contenido copiado desde Moodle. No elimine encabezados, correos, la palabra Ocultar ni los guiones..."></textarea>
           </label>
 
           <div class="ncomplex-import-actions">
-            <button id="ncomplex-btn-analyze" class="ncomplex-btn ncomplex-btn-primary" type="button">Analizar</button>
+            <button id="ncomplex-btn-analyze" class="ncomplex-btn ncomplex-btn-primary" type="button">Analizar y cruzar</button>
             <button id="ncomplex-btn-clear-import" class="ncomplex-btn" type="button">Limpiar</button>
           </div>
         </article>
