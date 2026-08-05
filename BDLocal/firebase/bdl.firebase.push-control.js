@@ -6,20 +6,20 @@ Función:
 - Procesar únicamente cambios_pendientes del período activo.
 - Mantener conflictos y cambios no procesados dentro de la cola.
 - Usar exclusivamente las colecciones oficiales V2.
-- Instalar la reconstrucción real desde las tablas locales oficiales.
+- Instalar de forma diferida la reconstrucción real desde las tablas locales oficiales.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-local-rebuild-loader";
+  var VERSION="1.2.0-safe-lazy-rebuild-loader";
   var FLAG="__firebaseV2PushControlBound";
   var running=false;
   var rebuildPromise=null;
-  var currentScript=document.currentScript;
-  var scriptBase=currentScript&&currentScript.src?currentScript.src:document.baseURI;
+  var currentScript=document&&document.currentScript;
+  var scriptBase=currentScript&&currentScript.src?currentScript.src:(document&&document.baseURI||"");
 
   function text(value){return String(value==null?"":value).trim();}
-  function byId(id){return document.getElementById(id);}
+  function byId(id){return document&&typeof document.getElementById==="function"?document.getElementById(id):null;}
   function engine(){return window.RequisitosFirebaseSyncEngine||null;}
   function outbox(){return window.BDLSyncOutbox||null;}
 
@@ -41,7 +41,7 @@ Función:
 
   function log(message,level){
     var box=byId("bl2-log");
-    if(box){
+    if(box&&document&&typeof document.createElement==="function"){
       var item=document.createElement("div");
       item.className="bl2-log-item "+(level?"is-"+level:"");
       item.innerHTML="<strong>Firebase V2</strong><span>"+text(message).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</span>";
@@ -135,6 +135,10 @@ Función:
     }
     if(rebuildPromise){return rebuildPromise;}
     rebuildPromise=new Promise(function(resolve,reject){
+      if(!document||typeof document.createElement!=="function"){
+        reject(new Error("No existe un documento disponible para cargar la reconstrucción Firebase."));
+        return;
+      }
       var src=rebuildUrl();
       var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){
         return script.src===src||script.getAttribute("data-firebase-rebuild-src")===src;
@@ -151,12 +155,17 @@ Función:
         existing.addEventListener("error",function(){reject(new Error("No se pudo cargar la reconstrucción Firebase."));},{once:true});
         return;
       }
+      var parent=document.head||document.documentElement||document.body;
+      if(!parent||typeof parent.appendChild!=="function"){
+        reject(new Error("No existe un contenedor DOM para cargar la reconstrucción Firebase."));
+        return;
+      }
       var script=document.createElement("script");
       script.src=src;script.async=false;script.defer=false;
       script.setAttribute("data-firebase-rebuild-src",src);
       script.onload=ready;
       script.onerror=function(){reject(new Error("No se pudo cargar bdl.firebase.rebuild.js."));};
-      (document.head||document.documentElement).appendChild(script);
+      parent.appendChild(script);
     }).finally(function(){rebuildPromise=null;});
     return rebuildPromise;
   }
@@ -221,8 +230,5 @@ Función:
   };
 
   installRebuildGate();
-  loadRebuild().catch(function(error){
-    try{console.warn("[FirebasePushControl] Reconstrucción local pendiente",error);}catch(innerError){}
-  });
   bind();
 })(window,document);
