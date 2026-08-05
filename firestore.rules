@@ -2,8 +2,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function validCedula(value) {
-      return value is string && value.matches('^[0-9]{10}$');
+    function validIdentification(value) {
+      return value is string && value.matches('^[0-9A-Za-z]{6,20}$');
     }
 
     function validPeriod(value) {
@@ -20,7 +20,7 @@ service cloud.firestore {
 
     function validStudentPeriodDocument(documentId, data) {
       return validPeriod(data.periodoId)
-        && validCedula(data.cedula)
+        && validIdentification(data.cedula)
         && documentId == data.periodoId + '__' + data.cedula
         && validMetadata(data);
     }
@@ -29,10 +29,10 @@ service cloud.firestore {
       return !('periodoId' in data) || validPeriod(data.periodoId);
     }
 
-    match /estudiantes/{cedula} {
+    match /estudiantes/{identificacion} {
       allow read: if true;
-      allow create, update: if validCedula(cedula)
-        && request.resource.data.cedula == cedula
+      allow create, update: if validIdentification(identificacion)
+        && request.resource.data.cedula == identificacion
         && validMetadata(request.resource.data);
       allow delete: if false;
     }
