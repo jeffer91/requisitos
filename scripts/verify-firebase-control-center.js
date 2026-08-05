@@ -5,6 +5,7 @@ const path=require("node:path");
 const vm=require("node:vm");
 const ROOT=path.resolve(__dirname,"..");
 const errors=[];
+const warnings=[];
 const calls={pull:[],push:[],alerts:[],events:[]};
 
 function check(value,message){if(!value){errors.push(message);}}
@@ -80,6 +81,8 @@ element("bl2-firebase-status")._card=card;
 });
 
 const document={
+  scripts:[],
+  baseURI:"file:///repo/BDLocal/firebase/",
   getElementById(id){return elements[id]||null;},
   createElement(){return new FakeElement("");},
   querySelector(selector){
@@ -90,7 +93,9 @@ const document={
 };
 
 function CustomEvent(type,options){this.type=type;this.detail=options&&options.detail||{};}
-function clickEvent(){return {type:"click",preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}};}
+const testConsole=Object.assign({},console,{
+  warn(...args){warnings.push(args.map(String).join(" "));}
+});
 
 const engine={
   pullAll(options){calls.pull.push({...options});return Promise.resolve({ok:true,operation:"pull:all",periodoId:options.periodoId||"",downloaded:3,written:3,removed:0,conflicts:0,rejected:0,results:[]});},
@@ -99,7 +104,7 @@ const engine={
 };
 
 const sandbox={
-  console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set,
+  console:testConsole,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set,URL,
   setTimeout,clearTimeout,CustomEvent,document,
   confirm(){return true;},
   alert(message){calls.alerts.push(String(message));},
@@ -128,11 +133,13 @@ const context=vm.createContext(sandbox);
 (async()=>{
   load("BDLocal/firebase/bdl.firebase.control-center.js");
   load("BDLocal/firebase/bdl.firebase.push-control.js");
+  await Promise.resolve();
 
   check(sandbox.RequisitosFirebaseControlCenter,"No se expuso RequisitosFirebaseControlCenter");
   check(sandbox.RequisitosFirebasePushControl,"No se expuso RequisitosFirebasePushControl");
   check(elements["bl2-btn-pull-firebase"].__firebaseV2ControlBound===true,"Traer período no fue sustituido por el controlador V2");
   check(elements["bl2-btn-push-firebase"].__firebaseV2PushBound===true,"Subir Firebase no fue sustituido por el controlador V2");
+  check(warnings.length===0,"El controlador no debe intentar cargar la reconstrucción antes de una operación: "+warnings.join(" | "));
 
   await sandbox.RequisitosFirebaseControlCenter.pullPeriod({full:false});
   check(calls.pull.length===1,"Traer período debe ejecutar una descarga");
