@@ -5,7 +5,10 @@ const path=require("node:path");
 const vm=require("node:vm");
 const ROOT=path.resolve(__dirname,"..");
 const errors=[];
-const captured={prepared:[],pushed:[],synced:[],savedPersonas:[],events:[]};
+const captured={
+  prepared:[],pushed:[],pushOptions:[],synced:[],requeued:[],
+  savedPersonas:[],events:[]
+};
 
 function check(value,message){if(!value){errors.push(message);}}
 function CustomEvent(type,options){this.type=type;this.detail=options&&options.detail||{};}
@@ -25,8 +28,17 @@ const outbox={
   isBlocked(){return false;},
   retryDue(){return true;},
   rowId(row){return row&&row.id||"";},
-  markSynced(selected){captured.synced.push(selected.map((row)=>row.id));return Promise.resolve({ok:true,updated:selected.length});},
-  markError(){return Promise.resolve({ok:true,updated:0});}
+  markSynced(selected){
+    captured.synced.push(selected.map((row)=>row.id));
+    return Promise.resolve({ok:true,updated:selected.length});
+  },
+  markError(){return Promise.resolve({ok:true,updated:0});},
+  mark(selected,target,status){
+    captured.requeued.push({
+      ids:selected.map((row)=>row.id),target,status
+    });
+    return Promise.resolve({ok:true,updated:selected.length});
+  }
 };
 
 function entryFor(row){
@@ -51,10 +63,11 @@ const target={
     })));
     return Promise.resolve({entries:selected.map(entryFor),skipped:[]});
   },
-  push(selected){
+  push(selected,options){
     captured.pushed.push(selected.map((row)=>({
       id:row.id,tabla:row.tabla,owner:row._firebaseDomainOwner,entity:row._firebaseDomainEntity
     })));
+    captured.pushOptions.push(options||{});
     return Promise.resolve({
       ok:true,
       processedIds:selected.map((row)=>row.id),
@@ -131,6 +144,7 @@ try{
 (async()=>{
   const center=sandbox.RequisitosFirebaseOperationCenter;
   check(center&&typeof center.analyze==="function","Debe exponerse el Centro de Operaciones Firebase");
+  check(center&&typeof center.requeue==="function","Debe exponer la preparación de reconstrucción");
   check(center.scopes&&center.scopes.ncomplex,"Debe existir el ámbito Ncomplex");
   check(center.entityOf({tabla:"personas"})==="estudiantes","Personas debe corresponder a estudiantes");
   check(center.entityOf({tabla:"evaluaciones_titulacion"})==="notas","Evaluaciones de Ncomplex deben corresponder a notas");
@@ -144,6 +158,8 @@ try{
   check(carga.sinCambios===1,"Carga debe detectar un documento ya igual");
   check(!carga.entities.notas,"Carga no debe contener notas");
   check(captured.prepared[0].every((row)=>row.entity!=="notas"),"Carga no debe preparar notas");
+  check(carga.expectedByDocument["estudiantes__estudiantes__c_persona"].exists===false,"El análisis debe registrar que el estudiante remoto no existe");
+  check(carga.expectedByDocument["requisitos__requisitos__c_requisito"].hash==="same_hash","El análisis debe conservar la referencia remota existente");
 
   const pushedCarga=await center.push("carga",{
     periodoId:"2026-04__2026-09",
@@ -151,6 +167,7 @@ try{
   });
   check(pushedCarga.ok===true,"La subida de Carga debe completarse");
   check(captured.pushed[0].every((row)=>row.entity!=="notas"),"Carga no debe enviar notas");
+  check(captured.pushOptions[0].expectedByDocument["requisitos__requisitos__c_requisito"].version===1,"La subida debe reutilizar la referencia capturada durante el análisis");
 
   const defensas=await center.analyze("defensas",{periodoId:"2026-04__2026-09"});
   check(defensas.ok===true,"El análisis de Defensas debe completarse");
@@ -165,6 +182,11 @@ try{
   check(ncomplex.entities.importaciones&&ncomplex.entities.importaciones.total===1,"Ncomplex debe incluir su importación");
   check(ncomplex.entities.historial&&ncomplex.entities.historial.total===1,"Ncomplex debe incluir su auditoría");
   check(captured.prepared[2].every((row)=>row.owner==="ncomplex"),"Ncomplex no debe tomar cambios de Defensas");
+
+  const rebuild=await center.requeue("ncomplex",{periodoId:"2026-04__2026-09"});
+  check(rebuild.ok===true&&rebuild.requeued===3,"Ncomplex debe poder volver a dejar pendiente su información para reconstrucción");
+  check(captured.requeued[0].target==="firebase"&&captured.requeued[0].status==="PENDIENTE","La reconstrucción debe afectar únicamente el estado Firebase");
+  check(captured.requeued[0].ids.every((id)=>["c_complex","c_nimport","c_nhistory"].includes(id)),"La reconstrucción de Ncomplex no debe incluir Defensas ni Carga");
 
   const patch=center.telegramPatch(people["1711111111"],{
     cedula:"1711111111",
