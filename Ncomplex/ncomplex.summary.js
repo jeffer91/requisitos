@@ -5,7 +5,7 @@ Función o funciones:
 - Calcular indicadores generales de estudiantes y notas.
 - Mostrar cuatro indicadores principales con detalles secundarios.
 - Mantener el agrupamiento interno por carrera y modalidad.
-- Mostrar resultados del cruce de texto importado.
+- Mostrar resultados del cruce por cédula, correo o nombre.
 ========================================================= */
 (function(window,document){
   "use strict";
@@ -150,6 +150,18 @@ Función o funciones:
     }).join("");
   }
 
+  function importedLabel(imported){
+    imported = imported || {};
+    return text(
+      imported.correo ||
+      imported.email ||
+      imported.nombreCompleto ||
+      imported.nombre ||
+      imported.cedula ||
+      "Registro sin identificación"
+    );
+  }
+
   function renderImport(result){
     var id = Config.selectors && Config.selectors.resultadosImportacion || "ncomplex-import-results";
     var container = document.getElementById(id);
@@ -173,19 +185,26 @@ Función o funciones:
     var details = document.getElementById("ncomplex-import-details");
     if(details){
       var unmatched = (result.unmatched || []).map(function(item){
-        return escapeHtml((item.imported && item.imported.cedula || "Sin cédula") + " — " + item.reason);
+        return escapeHtml((item.label || importedLabel(item.imported)) + " — " + item.reason);
       });
       var duplicates = (result.duplicates || []).map(function(item){
-        return escapeHtml(item.imported && item.imported.cedula || "Sin cédula");
+        return escapeHtml(item.label || importedLabel(item.imported));
       });
       var conflicts = (result.conflicts || []).map(function(item){
-        return escapeHtml(item.cedula + " — " + item.conflicts.length + " campo(s)");
+        return escapeHtml((item.nombre || item.correo || item.cedula) + " — " + item.conflicts.length + " campo(s)");
       });
+      var matchedBy = [];
+
+      if(result.matchedByCedula){ matchedBy.push("cédula: " + result.matchedByCedula); }
+      if(result.matchedByEmail){ matchedBy.push("correo: " + result.matchedByEmail); }
+      if(result.matchedByName){ matchedBy.push("nombre: " + result.matchedByName); }
 
       details.innerHTML = "";
+      if(matchedBy.length){ details.innerHTML += "<p><strong>Cruce realizado por:</strong> " + escapeHtml(matchedBy.join("; ")) + "</p>"; }
       if(unmatched.length){ details.innerHTML += "<p><strong>No encontrados:</strong> " + unmatched.join("; ") + "</p>"; }
       if(duplicates.length){ details.innerHTML += "<p><strong>Duplicados:</strong> " + duplicates.join("; ") + "</p>"; }
       if(conflicts.length){ details.innerHTML += "<p><strong>Conflictos:</strong> " + conflicts.join("; ") + "</p>"; }
+      if(!details.innerHTML){ details.innerHTML = "<p>Todos los registros están listos para aplicar.</p>"; }
     }
   }
 
@@ -203,7 +222,7 @@ Función o funciones:
   }
 
   window.NcomplexSummary = {
-    version: "2.0.0-simple-summary",
+    version: "2.1.0-import-match-details",
     summarize: summarize,
     render: render,
     renderImport: renderImport,
