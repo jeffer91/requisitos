@@ -2,18 +2,15 @@
 Nombre completo: bdl.firebase.operation-center.js
 Ruta: /BDLocal/firebase/bdl.firebase.operation-center.js
 Función:
-- Ser el coordinador central de las operaciones Firebase visibles desde Carga, Defensas y Stats.
-- Separar la propiedad de datos por dominio para impedir sobrescrituras cruzadas.
-- Analizar diferencias antes de subir y exigir que el lote no cambie entre análisis y envío.
-- Subir desde Carga solo estudiantes, matrículas, requisitos e importaciones.
-- Subir desde Defensas solo notas.
-- Descargar desde Stats únicamente los campos de Telegram y conservar el resto de la persona local.
-- Reutilizar los repositorios, mapeadores, validadores, control de conflictos y cuotas de Firebase V2.
+- Coordinar las operaciones Firebase de Carga, Defensas, Ncomplex y Stats.
+- Mantener ocho colecciones oficiales y separar la propiedad de cada pantalla.
+- Exigir análisis vigente antes de subir, con lotes máximos de 25 cambios.
+- Descargar desde Stats únicamente Telegram desde estudiantes.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-domain-routing";
+  var VERSION="1.1.0-ncomplex-domain-routing";
   var MAX_BATCH_SIZE=25;
   var currentScript=document.currentScript;
   var base=currentScript&&currentScript.src?currentScript.src:document.baseURI;
@@ -32,12 +29,17 @@ Función:
     carga:{
       id:"carga",
       label:"Carga",
-      entities:["estudiantes","matriculas","requisitos","importaciones"]
+      entities:["estudiantes","matriculas","requisitos","periodos","carreras","importaciones","historial"]
     },
     defensas:{
       id:"defensas",
       label:"Defensas",
-      entities:["notas"]
+      entities:["notas","historial"]
+    },
+    ncomplex:{
+      id:"ncomplex",
+      label:"Ncomplex",
+      entities:["notas","importaciones","historial"]
     },
     telegram:{
       id:"telegram",
@@ -114,8 +116,8 @@ Función:
   function activateHeavy(){
     var current=window.BDLocalScreenDeps;
     var task=current&&typeof current.activateHeavy==="function"
-      ? Promise.resolve(current.activateHeavy())
-      : load("../adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;})
+      ?Promise.resolve(current.activateHeavy())
+      :load("../adapters/bdl.screen-deps.js",function(){return window.BDLocalScreenDeps;})
         .then(function(api){return api&&typeof api.activateHeavy==="function"?api.activateHeavy():api;});
 
     return task.then(function(){
@@ -167,6 +169,74 @@ Función:
     return "desconocido";
   }
 
+  function payloadOf(row){
+    row=row||{};
+    return row.payload||row.data||row.registro||{};
+  }
+
+  function originOf(row){
+    row=row||{};
+    var payload=payloadOf(row);
+    return normalizeKey([
+      row.source,row.origen,row.pantalla,row.screen,row.modulo,
+      payload.source,payload.origen,payload.pantalla,payload.screen,payload.modulo
+    ].filter(Boolean).join(" "));
+  }
+
+  function hasAnyField(data,fields){
+    data=data||{};
+    return fields.some(function(field){
+      return Object.prototype.hasOwnProperty.call(data,field);
+    });
+  }
+
+  function noteOwner(row){
+    var origin=originOf(row);
+    var table=normalizeKey(row&&(row.tabla||row.table||row.tipo||row.type)||"");
+    var payload=payloadOf(row);
+
+    if(/ncomplex|complexivo/.test(origin)||/evaluaciones_titulacion|ncomplex|complexivo/.test(table)){
+      return "ncomplex";
+    }
+    if(/defart|defensas|defensa/.test(origin)||/defart|defensas/.test(table)){
+      return "defensas";
+    }
+
+    var complexFields=[
+      "notaTeorica","notaPractica","notaComplexivo",
+      "notaTeoricaSupletorio","notaPracticaSupletorio","notaSupletorio",
+      "oportunidadAplicada","horarioOrigen"
+    ];
+    var defenseFields=[
+      "notaArticulo","notaDefensa","notaFinal",
+      "notart","notdef","notafinal","Notart","Notdef","Notafinal",
+      "notaEscrito","notaDefensaTrabajo","notaTrabajoTitulacion"
+    ];
+    var complex=hasAnyField(payload,complexFields);
+    var defense=hasAnyField(payload,defenseFields);
+
+    if(complex&&!defense){return "ncomplex";}
+    return "defensas";
+  }
+
+  function auxiliaryOwner(row){
+    var origin=originOf(row);
+    if(/ncomplex|complexivo/.test(origin)){return "ncomplex";}
+    if(/defart|defensas|defensa/.test(origin)){return "defensas";}
+    return "carga";
+  }
+
+  function rowOwner(row){
+    var entity=entityOf(row);
+    if(entity==="notas"){return noteOwner(row);}
+    if(entity==="historial"||entity==="importaciones"){return auxiliaryOwner(row);}
+    if(entity==="estudiantes"||entity==="matriculas"||entity==="requisitos"||
+       entity==="periodos"||entity==="carreras"){
+      return "carga";
+    }
+    return "desconocido";
+  }
+
   function canonicalTable(entity){
     var map={
       estudiantes:"personas",
@@ -181,10 +251,17 @@ Función:
     return map[entity]||entity;
   }
 
+  function rowBelongsToScope(row,scope){
+    var entity=entityOf(row);
+    if(scope.entities.indexOf(entity)<0){return false;}
+    if(scope.id==="telegram"){return entity==="estudiantes";}
+    return rowOwner(row)===scope.id;
+  }
+
   function allowedRows(rows,scope){
-    var allowed=Object.create(null);
-    scope.entities.forEach(function(entity){allowed[entity]=true;});
-    return (Array.isArray(rows)?rows:[]).filter(function(row){return allowed[entityOf(row)]===true;});
+    return (Array.isArray(rows)?rows:[]).filter(function(row){
+      return rowBelongsToScope(row,scope);
+    });
   }
 
   function eligibleRows(scope,options){
@@ -194,12 +271,11 @@ Función:
     var api=outbox();
     if(!api||typeof api.list!=="function"){return Promise.reject(new Error("La cola de sincronización no está disponible."));}
     return api.list({periodoId:periodoId,includeLegacy:false,force:true}).then(function(rows){
-      rows=allowedRows(rows,scope).filter(function(row){
+      return allowedRows(rows,scope).filter(function(row){
         return !api.isDone(row,"firebase")&&
           !api.isBlocked(row,"firebase",options)&&
           api.retryDue(row,"firebase",options);
       });
-      return rows;
     });
   }
 
@@ -210,6 +286,7 @@ Función:
       copy.tabla=canonicalTable(entity);
       copy.table=copy.tabla;
       copy._firebaseDomainEntity=entity;
+      copy._firebaseDomainOwner=rowOwner(row);
       return copy;
     });
   }
@@ -220,7 +297,7 @@ Función:
   }
   function signature(rows){
     return (rows||[]).map(function(row){
-      return [rowId(row),text(row.updatedAt||row.createdAt),entityOf(row)].join("|");
+      return [rowId(row),text(row.updatedAt||row.createdAt),entityOf(row),rowOwner(row)].join("|");
     }).sort().join("::");
   }
   function analysisKey(scope,periodoId){return scope.id+"__"+canonicalPeriodId(periodoId);}
@@ -359,8 +436,8 @@ Función:
       processed.forEach(function(id){processedMap[text(id)]=true;});
       var confirmed=selectedRows.filter(function(row){return processedMap[rowId(row)]===true;});
       var markTask=confirmed.length
-        ? outbox().markSynced(confirmed,"firebase",{syncedAt:now(),response:result})
-        : Promise.resolve({ok:true,updated:0});
+        ?outbox().markSynced(confirmed,"firebase",{syncedAt:now(),response:result})
+        :Promise.resolve({ok:true,updated:0});
 
       if(result.ok===false&&!result.blocked&&!result.deferWithoutAttempt&&!confirmed.length&&selectedRows.length){
         markTask=outbox().markError(selectedRows,"firebase",{error:result.message||result.error||"Error de subida Firebase."});
@@ -387,10 +464,10 @@ Función:
   }
 
   function readTelegramCursor(){
-    try{return JSON.parse(window.localStorage.getItem("REQ_FIREBASE_TELEGRAM_CURSOR_V1")||"{}")||{};}catch(error){return {};}
+    try{return JSON.parse(window.localStorage.getItem("REQ_FIREBASE_TELEGRAM_CURSOR_V2")||"{}")||{};}catch(error){return {};}
   }
   function writeTelegramCursor(cursor){
-    try{window.localStorage.setItem("REQ_FIREBASE_TELEGRAM_CURSOR_V1",JSON.stringify(cursor||{}));return true;}catch(error){return false;}
+    try{window.localStorage.setItem("REQ_FIREBASE_TELEGRAM_CURSOR_V2",JSON.stringify(cursor||{}));return true;}catch(error){return false;}
   }
   function telegramFields(data){
     data=data||{};
@@ -424,7 +501,7 @@ Función:
     ["telegramUser","_telegramUser","telegramUsername","usuarioTelegram","TelegramUser","TelegramUsuario","telegram","Telegram"].forEach(function(key){row[key]=info.user;});
     ["telegramChatId","_telegramChatId","chatIdTelegram","telegramChatID","TelegramChatId","chatId"].forEach(function(key){row[key]=info.chatId;});
     row.telegramUpdatedAt=info.updatedAt||now();
-    row.telegramSource=info.source||"firebase";
+    row.telegramSource=info.source||"firebase:estudiantes";
     row.telegramAvailable=!!(info.user||info.chatId);
     row.updatedAt=changed?now():text(row.updatedAt)||now();
     return {changed:changed,row:row};
@@ -479,7 +556,7 @@ Función:
       var result={
         ok:true,periodoId:periodoId,downloaded:totals.downloaded,written:totals.written,
         unchanged:totals.unchanged,skipped:totals.skipped,pages:totals.pages,
-        cursor:clone(cursor),scope:"telegram",telegramOnly:true,finishedAt:now()
+        cursor:clone(cursor),scope:"telegram",telegramOnly:true,collection:"estudiantes",finishedAt:now()
       };
       state.lastResult=clone(result);
       emit("requisitos:firebase-telegram-refreshed",result);
@@ -511,6 +588,7 @@ Función:
     push:push,
     refreshTelegram:refreshTelegram,
     entityOf:entityOf,
+    rowOwner:rowOwner,
     allowedRows:function(rows,scopeName){return allowedRows(rows,scopeOf(scopeName));},
     telegramPatch:telegramPatch,
     status:status,
