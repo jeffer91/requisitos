@@ -6,13 +6,17 @@ Función:
 - Procesar únicamente cambios_pendientes del período activo.
 - Mantener conflictos y cambios no procesados dentro de la cola.
 - Usar exclusivamente las colecciones oficiales V2.
+- Instalar la reconstrucción real desde las tablas locales oficiales.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.1-push-v2";
+  var VERSION="1.1.0-local-rebuild-loader";
   var FLAG="__firebaseV2PushControlBound";
   var running=false;
+  var rebuildPromise=null;
+  var currentScript=document.currentScript;
+  var scriptBase=currentScript&&currentScript.src?currentScript.src:document.baseURI;
 
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
@@ -119,7 +123,62 @@ Función:
     });
   }
 
+  function rebuildUrl(){
+    try{return new URL("bdl.firebase.rebuild.js",scriptBase).href;}
+    catch(error){return "bdl.firebase.rebuild.js";}
+  }
+
+  function loadRebuild(){
+    if(window.RequisitosFirebaseRebuild){
+      if(typeof window.RequisitosFirebaseRebuild.install==="function"){window.RequisitosFirebaseRebuild.install();}
+      return Promise.resolve(window.RequisitosFirebaseRebuild);
+    }
+    if(rebuildPromise){return rebuildPromise;}
+    rebuildPromise=new Promise(function(resolve,reject){
+      var src=rebuildUrl();
+      var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){
+        return script.src===src||script.getAttribute("data-firebase-rebuild-src")===src;
+      });
+      function ready(){
+        var api=window.RequisitosFirebaseRebuild;
+        if(!api){reject(new Error("La reconstrucción Firebase no expuso su API."));return;}
+        if(typeof api.install==="function"){api.install();}
+        resolve(api);
+      }
+      if(existing){
+        if(window.RequisitosFirebaseRebuild){ready();return;}
+        existing.addEventListener("load",ready,{once:true});
+        existing.addEventListener("error",function(){reject(new Error("No se pudo cargar la reconstrucción Firebase."));},{once:true});
+        return;
+      }
+      var script=document.createElement("script");
+      script.src=src;script.async=false;script.defer=false;
+      script.setAttribute("data-firebase-rebuild-src",src);
+      script.onload=ready;
+      script.onerror=function(){reject(new Error("No se pudo cargar bdl.firebase.rebuild.js."));};
+      (document.head||document.documentElement).appendChild(script);
+    }).finally(function(){rebuildPromise=null;});
+    return rebuildPromise;
+  }
+
+  function installRebuildGate(){
+    var center=window.RequisitosFirebaseOperationCenter;
+    if(!center){return false;}
+    if(center.__localSourceRebuildInstalled||center.__localSourceRebuildGate){return true;}
+    center.__legacyRequeue=center.requeue;
+    center.__legacyRefreshTelegram=center.refreshTelegram;
+    center.requeue=function(scope,options){
+      return loadRebuild().then(function(api){return api.prepare(scope,options||{});});
+    };
+    center.refreshTelegram=function(options){
+      return loadRebuild().then(function(api){return api.refreshTelegram(options||{});});
+    };
+    center.__localSourceRebuildGate=true;
+    return true;
+  }
+
   function bind(){
+    installRebuildGate();
     if(window[FLAG]){return window.RequisitosFirebasePushControl;}
     var current=byId("bl2-btn-push-firebase");
     if(!current){return null;}
@@ -147,8 +206,23 @@ Función:
     automatic:false,
     bind:bind,
     run:run,
-    status:function(){return {version:VERSION,bound:!!window[FLAG],running:running,period:period()};}
+    loadRebuild:loadRebuild,
+    installRebuildGate:installRebuildGate,
+    status:function(){
+      return {
+        version:VERSION,bound:!!window[FLAG],running:running,period:period(),
+        rebuildLoaded:!!window.RequisitosFirebaseRebuild,
+        rebuildGate:!!(window.RequisitosFirebaseOperationCenter&&(
+          window.RequisitosFirebaseOperationCenter.__localSourceRebuildGate||
+          window.RequisitosFirebaseOperationCenter.__localSourceRebuildInstalled
+        ))
+      };
+    }
   };
 
+  installRebuildGate();
+  loadRebuild().catch(function(error){
+    try{console.warn("[FirebasePushControl] Reconstrucción local pendiente",error);}catch(innerError){}
+  });
   bind();
 })(window,document);
