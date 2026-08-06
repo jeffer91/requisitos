@@ -57,9 +57,11 @@ new vm.Script(source,{filename:"bdl.changes.firebase-policy.js"}).runInContext(c
 
 (async()=>{
   await sandbox.BDLFirebaseOutboxPolicy.install();
+  const policyStatus=sandbox.BDLFirebaseOutboxPolicy.status();
   check(fakeRepo.firebaseTargetPolicy.defaultTarget==="none","La cola no debe declarar un destino externo predeterminado");
   check(fakeRepo.firebaseTargetPolicy.firebaseRole==="manual_backup","Firebase debe declararse como respaldo manual");
   check(fakeRepo.firebaseTargetPolicy.manualOnly===true&&fakeRepo.firebaseTargetPolicy.automatic===false,"La política debe bloquear el uso automático de Firebase");
+  check(policyStatus.defaultTarget==="none"&&policyStatus.firebaseRole==="manual_backup","La API pública debe informar que Firebase es un respaldo manual");
 
   const first=await fakeRepo.save({
     tabla:"requisitos_estudiante",periodoId:"2026-04__2026-09",cedula:"1723456789",
