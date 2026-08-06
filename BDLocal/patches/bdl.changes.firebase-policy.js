@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="2.0.0-manual-backup-only";
+  var VERSION="2.0.1-manual-backup-only";
   var FLAG="__bdlFirebaseOutboxPolicyInstalled";
   var installing=null;
 
@@ -87,6 +87,15 @@ Función:
     }
     return row;
   }
+  function preserveTargetState(row,existing){
+    row=Object.assign({},row||{});existing=existing||{};
+    ["google","firebase","supabase"].forEach(function(target){
+      fields(target).forEach(function(field){
+        if(Object.prototype.hasOwnProperty.call(existing,field)){row[field]=clone(existing[field]);}
+      });
+    });
+    return row;
+  }
   function applyPolicy(row,source,options,contentChanged){
     row=Object.assign({},row||{});source=source||{};options=options||{};
     if(contentChanged!==false){
@@ -121,6 +130,7 @@ Función:
               var existing=rows&&rows[0]||null;
               var changed=!existing||text(existing.contentHash)!==text(normalized.contentHash);
               var next=options.replace===true?normalized:originalMerge(existing,normalized);
+              if(!changed&&existing){next=preserveTargetState(next,existing);}
               next=applyPolicy(next,source,options,changed);
               return originalSave(next,Object.assign({},options,{replace:true,__firebasePolicyBypass:true}));
             });
@@ -161,6 +171,7 @@ Función:
     desired:desired,
     requested:requested,
     targetListPresent:targetListPresent,
+    preserveTargetState:preserveTargetState,
     status:function(){
       return {
         version:VERSION,
