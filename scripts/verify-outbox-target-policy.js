@@ -57,25 +57,44 @@ new vm.Script(source,{filename:"bdl.changes.firebase-policy.js"}).runInContext(c
 
 (async()=>{
   await sandbox.BDLFirebaseOutboxPolicy.install();
-  check(fakeRepo.firebaseTargetPolicy.defaultTarget==="firebase","La cola debe declarar Firebase como destino predeterminado");
+  check(fakeRepo.firebaseTargetPolicy.defaultTarget==="none","La cola no debe declarar un destino externo predeterminado");
+  check(fakeRepo.firebaseTargetPolicy.firebaseRole==="manual_backup","Firebase debe declararse como respaldo manual");
+  check(fakeRepo.firebaseTargetPolicy.manualOnly===true&&fakeRepo.firebaseTargetPolicy.automatic===false,"La política debe bloquear el uso automático de Firebase");
 
   const first=await fakeRepo.save({
     tabla:"requisitos_estudiante",periodoId:"2026-04__2026-09",cedula:"1723456789",
     registroId:"1723456789__2026-04__2026-09",payload:{Financiero:"CUMPLE"}
   });
-  check(first.estadoFirebase==="PENDIENTE","Un cambio normal debe quedar pendiente para Firebase");
-  check(first.estadoSheets==="SINCRONIZADO","Un cambio normal no debe quedar pendiente para Sheets");
-  check(first.estadoSupabase==="SINCRONIZADO","Un cambio normal no debe quedar pendiente para Supabase");
+  check(first.estadoFirebase==="SINCRONIZADO","Guardar un cambio local no debe crear un pendiente Firebase");
+  check(first.estadoSheets==="SINCRONIZADO","Guardar un cambio local no debe crear un pendiente Sheets");
+  check(first.estadoSupabase==="SINCRONIZADO","Guardar un cambio local no debe crear un pendiente Supabase");
+  check(first.firebaseManualOnly===true,"El cambio debe conservar la marca de respaldo manual");
 
-  first.estadoFirebase=first.statusFirebase="SINCRONIZADO";
-  stored[first.id]=clone(first);
   const changed=await fakeRepo.save({
     tabla:"requisitos_estudiante",periodoId:"2026-04__2026-09",cedula:"1723456789",
     registroId:"1723456789__2026-04__2026-09",payload:{Financiero:"PENDIENTE"}
   });
-  check(changed.estadoFirebase==="PENDIENTE","Cambiar el contenido debe reactivar Firebase");
-  check(changed.estadoSheets==="SINCRONIZADO","Cambiar el contenido no debe reactivar Sheets");
-  check(changed.estadoSupabase==="SINCRONIZADO","Cambiar el contenido no debe reactivar Supabase");
+  check(changed.estadoFirebase==="SINCRONIZADO","Editar Base Local no debe reactivar Firebase");
+  check(changed.estadoSheets==="SINCRONIZADO","Editar Base Local no debe reactivar Sheets");
+  check(changed.estadoSupabase==="SINCRONIZADO","Editar Base Local no debe reactivar Supabase");
+
+  const firebaseBackup=await fakeRepo.save({
+    tabla:"requisitos_estudiante",periodoId:"2026-04__2026-09",cedula:"1723456789",
+    registroId:"respaldo_firebase_1",target:"firebase",payload:{Financiero:"CUMPLE"}
+  });
+  check(firebaseBackup.estadoFirebase==="PENDIENTE","Una solicitud explícita de respaldo sí debe quedar pendiente para Firebase");
+  check(firebaseBackup.estadoSheets==="SINCRONIZADO","El respaldo Firebase no debe activar Sheets");
+  check(firebaseBackup.estadoSupabase==="SINCRONIZADO","El respaldo Firebase no debe activar Supabase");
+
+  const prepared=await fakeRepo.save({
+    tabla:"notas",periodoId:"2026-04__2026-09",cedula:"1723456789",
+    registroId:"notas_preparadas_1",payload:{notaFinal:9.5},
+    estadoFirebase:"PENDIENTE",statusFirebase:"PENDIENTE",
+    manualOnly:true,firebaseRebuild:true
+  });
+  check(prepared.estadoFirebase==="PENDIENTE","Preparar carga completa debe conservar Firebase como pendiente manual");
+  check(prepared.estadoSheets==="SINCRONIZADO","Preparar Firebase no debe activar Sheets");
+  check(prepared.estadoSupabase==="SINCRONIZADO","Preparar Firebase no debe activar Supabase");
 
   const exportRow=await fakeRepo.save({
     tabla:"reporte_exportado",periodoId:"2026-04__2026-09",registroId:"reporte_1",
@@ -90,6 +109,7 @@ new vm.Script(source,{filename:"bdl.changes.firebase-policy.js"}).runInContext(c
     target:"google",payload:{archivo:"reporte.xlsx"}
   });
   check(unchanged.contentHash===exportRow.contentHash,"El contenido idéntico debe conservar el mismo hash");
+  check(unchanged.estadoFirebase==="SINCRONIZADO","Un guardado idéntico no debe activar Firebase");
 
   if(errors.length){
     console.error("\nVERIFICACIÓN DE DESTINOS DE LA COLA: ERROR\n");
