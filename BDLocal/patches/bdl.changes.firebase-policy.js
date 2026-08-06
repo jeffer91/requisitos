@@ -2,15 +2,16 @@
 Nombre completo: bdl.changes.firebase-policy.js
 Ruta: /BDLocal/patches/bdl.changes.firebase-policy.js
 Función:
-- Aplicar Firebase como destino operativo por defecto en cambios_pendientes.
-- Evitar que una nueva revisión reactive Sheets o Supabase por compatibilidad legacy.
+- Mantener Base Local como fuente principal de trabajo.
+- No crear pendientes Firebase por guardar, editar, abrir o cerrar pantallas.
+- Activar Firebase únicamente mediante una solicitud explícita de respaldo manual.
 - Respetar acciones que soliciten explícitamente Google, Supabase o Firebase.
 - Preservar estados sincronizados cuando el contenido no cambia.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-firebase-official-policy";
+  var VERSION="2.0.0-manual-backup-only";
   var FLAG="__bdlFirebaseOutboxPolicyInstalled";
   var installing=null;
 
@@ -43,9 +44,9 @@ Función:
     row=row||{};options=options||{};
     if(target==="firebase"){
       if(hasOwn(row,["estadoFirebase","statusFirebase"])){
-        return upper(row.estadoFirebase||row.statusFirebase||"PENDIENTE");
+        return upper(row.estadoFirebase||row.statusFirebase||"SINCRONIZADO");
       }
-      return requested(row,options,"firebase")||!targetListPresent(row,options)?"PENDIENTE":"SINCRONIZADO";
+      return requested(row,options,"firebase")?"PENDIENTE":"SINCRONIZADO";
     }
     if(target==="google"){
       if(hasOwn(row,["estadoSheets","statusGoogle"])){
@@ -95,6 +96,7 @@ Función:
     }
     row.firebaseOfficialPolicy=true;
     row.firebaseOfficialPolicyVersion=VERSION;
+    row.firebaseManualOnly=true;
     return row;
   }
   function install(){
@@ -128,20 +130,47 @@ Función:
             rows.forEach(function(row){chain=chain.then(function(){return current.save(row,options||{}).then(function(item){if(item){saved.push(item);}});});});
             return chain.then(function(){return saved;});
           };
-          current.firebaseTargetPolicy={version:VERSION,defaultTarget:"firebase",googleRole:"explicit_export",supabaseRole:"explicit_only"};
+          current.firebaseTargetPolicy={
+            version:VERSION,
+            defaultTarget:"none",
+            firebaseRole:"manual_backup",
+            googleRole:"explicit_export",
+            supabaseRole:"explicit_only",
+            manualOnly:true,
+            automatic:false
+          };
           window.BDLRepoCambios=current;
           window[FLAG]=true;
           try{window.dispatchEvent(new CustomEvent("bdlocal:firebase-outbox-policy-ready",{detail:clone(current.firebaseTargetPolicy)}));}catch(error){}
           resolve(window.BDLFirebaseOutboxPolicy);
           return;
         }
-        if(Date.now()-started>10000){reject(new Error("No se pudo instalar la política Firebase de cambios_pendientes."));return;}
+        if(Date.now()-started>10000){reject(new Error("No se pudo instalar la política manual de cambios_pendientes."));return;}
         window.setTimeout(check,50);
       })();
     }).finally(function(){installing=null;});
     return installing;
   }
 
-  window.BDLFirebaseOutboxPolicy={version:VERSION,install:install,applyPolicy:applyPolicy,desired:desired,requested:requested,status:function(){return {version:VERSION,installed:!!window[FLAG],defaultTarget:"firebase"};}};
+  window.BDLFirebaseOutboxPolicy={
+    version:VERSION,
+    manualOnly:true,
+    automatic:false,
+    install:install,
+    applyPolicy:applyPolicy,
+    desired:desired,
+    requested:requested,
+    targetListPresent:targetListPresent,
+    status:function(){
+      return {
+        version:VERSION,
+        installed:!!window[FLAG],
+        defaultTarget:"none",
+        firebaseRole:"manual_backup",
+        manualOnly:true,
+        automatic:false
+      };
+    }
+  };
   install().catch(function(error){try{console.warn("[BDLFirebaseOutboxPolicy]",error);}catch(innerError){}});
 })(window);
