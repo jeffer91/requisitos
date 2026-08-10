@@ -25,12 +25,13 @@ check(/allow\s+delete\s*:\s*if\s+false/.test(rules),"Las colecciones oficiales d
 check(/match\s+\/\{document=\*\*\}\s*\{[\s\S]*allow\s+read\s*,\s*write\s*:\s*if\s+false/.test(rules),"Las colecciones no declaradas deben quedar bloqueadas");
 
 [
-  "estudiantes","matriculas","requisitos","notas",
+  "Estudiante","matriculas","requisitos","notas",
   "periodos","carreras","importaciones","historial"
 ].forEach((collection)=>{
   check(new RegExp("match\\s+\\/"+collection+"\\/").test(rules),"Falta la regla para "+collection);
 });
 
+check(!/match\s+\/estudiantes\//.test(rules),"Las reglas no deben crear una colección paralela estudiantes");
 check(!/match\s+\/Estudiantes\//.test(rules),"Las reglas no deben reactivar Estudiantes legacy");
 check(!/match\s+\/EstudiantesPeriodo\//.test(rules),"Las reglas no deben reactivar EstudiantesPeriodo legacy");
 
