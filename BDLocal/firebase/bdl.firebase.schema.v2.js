@@ -3,6 +3,7 @@ Nombre completo: bdl.firebase.schema.v2.js
 Ruta o ubicación: /BDLocal/firebase/bdl.firebase.schema.v2.js
 Función o funciones:
 - Definir las colecciones oficiales de la app Requisitos.
+- Mantener el nombre físico histórico `Estudiante` para la entidad lógica estudiantes.
 - Mantener Firebase como fuente oficial y BDLocal como caché.
 - Separar explícitamente las claves locales de los IDs remotos.
 - Definir la responsabilidad de cada colección y sus campos principales.
@@ -11,7 +12,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.0-firebase-contract";
+  var VERSION = "2.2.0-estudiante-collection";
 
   var schema = {
     version:VERSION,
@@ -20,7 +21,8 @@ Función o funciones:
     googleRole:"export",
 
     collections:{
-      estudiantes:"estudiantes",
+      /* La entidad lógica sigue llamándose `estudiantes`; solo cambia la ruta física de Firestore. */
+      estudiantes:"Estudiante",
       matriculas:"matriculas",
       requisitos:"requisitos",
       notas:"notas",
@@ -30,10 +32,6 @@ Función o funciones:
       importaciones:"importaciones"
     },
 
-    /*
-     * Firestore conserva período primero para facilitar consultas,
-     * migración desde EstudiantesPeriodo y lectura por período.
-     */
     documentIds:{
       estudiantes:"cedula",
       matriculas:"periodoId__cedula",
@@ -45,10 +43,6 @@ Función o funciones:
       importaciones:"auto"
     },
 
-    /*
-     * IndexedDB conserva la identidad que ya utiliza la app.
-     * La diferencia de orden es intencional y la resuelve el adaptador.
-     */
     localIds:{
       estudiantes:"cedula",
       matriculas:"cedula__periodoId",
@@ -204,12 +198,6 @@ Función o funciones:
     firebase.localIds = Object.assign({},schema.localIds);
     firebase.incrementalField = schema.identity.updatedAtField;
     firebase.softDelete = schema.synchronization.softDelete;
-
-    /*
-     * academicCollection y personCollection antiguos permanecen activos
-     * hasta que el nuevo sincronizador y la migración hayan sido validados.
-     */
-
     return firebase;
   }
 
