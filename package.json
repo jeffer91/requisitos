@@ -60,6 +60,7 @@
     "test:electron:core": "electron electron/smoke-main.js",
     "test:electron:navigation": "electron electron/smoke-navigation-main.js",
     "diagnostico:bdlocal": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1",
+    "diagnostico:firebase": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-firebase.ps1",
     "diagnostico:bloqueo": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bloqueo.ps1",
     "diagnostico:tiempo-base": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/medir-carga-base.ps1",
     "audit:repo": "node scripts/audit-repository.js",
