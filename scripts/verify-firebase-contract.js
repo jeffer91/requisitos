@@ -5,7 +5,7 @@ Archivo: verify-firebase-contract.js
 Ruta: /scripts/verify-firebase-contract.js
 Función:
 - Ejecutar el contrato Firebase V2 en un entorno aislado.
-- Validar colecciones, responsabilidades e identificadores.
+- Validar entidades lógicas, nombres físicos e identificadores.
 - Impedir que se mezclen las claves locales y remotas.
 - Confirmar que la migración siga siendo no destructiva.
 ========================================================= */
@@ -69,11 +69,19 @@ if(!fs.existsSync(SCHEMA_FILE)){
     equal(schema.localRole,"cache","BDLocal debe ser la caché operativa");
     equal(schema.googleRole,"export","Google Sheets debe quedar para exportación");
 
-    [
-      "estudiantes","matriculas","requisitos","notas",
-      "periodos","carreras","historial","importaciones"
-    ].forEach((name) => {
-      equal(collections[name],name,`Nombre oficial de la colección ${name}`);
+    const expectedCollections={
+      estudiantes:"Estudiante",
+      matriculas:"matriculas",
+      requisitos:"requisitos",
+      notas:"notas",
+      periodos:"periodos",
+      carreras:"carreras",
+      historial:"historial",
+      importaciones:"importaciones"
+    };
+
+    Object.keys(expectedCollections).forEach((name) => {
+      equal(collections[name],expectedCollections[name],`Nombre físico oficial de la colección ${name}`);
       check(Boolean(ownership[name]),`Debe existir la responsabilidad de ${name}`);
       check(Array.isArray(ownership[name] && ownership[name].fields),`Debe existir la lista de campos de ${name}`);
     });
