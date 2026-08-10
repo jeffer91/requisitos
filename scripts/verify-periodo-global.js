@@ -60,17 +60,18 @@ contains(periodFile,"data-periodo-global","Los selectores deben poder incluirse 
 contains(periodFile,"BL2Core","El período general debe sincronizarse con el núcleo local");
 contains(periodFile,"requisitos:periodo-global-cambiado","Debe emitirse un evento común al cambiar de período");
 
-[
-  "estudiantes",
-  "matriculas",
-  "requisitos",
-  "notas",
-  "periodos",
-  "carreras",
-  "historial",
-  "importaciones"
-].forEach((collection) => {
-  contains(schemaFile,`${collection}:\"${collection}\"`,`Falta la colección oficial ${collection}`);
+const physicalCollections={
+  estudiantes:"Estudiante",
+  matriculas:"matriculas",
+  requisitos:"requisitos",
+  notas:"notas",
+  periodos:"periodos",
+  carreras:"carreras",
+  historial:"historial",
+  importaciones:"importaciones"
+};
+Object.keys(physicalCollections).forEach((entity) => {
+  contains(schemaFile,`${entity}:\"${physicalCollections[entity]}\"`,`Falta la colección oficial ${physicalCollections[entity]}`);
 });
 
 contains(schemaFile,"sourceOfTruth:\"firebase\"","Firebase debe quedar definido como fuente oficial");
