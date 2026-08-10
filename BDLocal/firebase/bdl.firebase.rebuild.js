@@ -3,16 +3,16 @@ Nombre completo: bdl.firebase.rebuild.js
 Ruta: /BDLocal/firebase/bdl.firebase.rebuild.js
 Función:
 - Reconstruir la cola Firebase desde las tablas oficiales de IndexedDB.
+- Enriquecer Estudiante con contactos y matrícula antes de subir.
+- Priorizar catálogo y luego intercalar Estudiante/matrícula/requisitos.
 - No depender del historial previo de cambios_pendientes.
 - Separar Carga, Defensas y Ncomplex por propiedad funcional.
-- Reconstruir historial únicamente desde auditorías locales válidas.
-- Forzar únicamente el estado Firebase a PENDIENTE conservando Google y Supabase.
-- Actualizar Telegram leyendo como máximo 25 estudiantes que realmente lo necesitan.
+- Forzar únicamente Firebase a PENDIENTE conservando Google y Supabase.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.1.0-history-rebuild";
+  var VERSION="1.2.0-contactos-ordered";
   var MAX_BATCH_SIZE=25;
   var running=false;
 
@@ -56,6 +56,7 @@ Función:
   function repos(){
     return {
       personas:repo(["personas","estudiantes"],["BDLRepoPersonas","BDLRepoEstudiantesV2"]),
+      contactos:repo(["contactos","contactos_estudiante"],["BDLRepoContactos"]),
       matriculas:repo(["matriculas","matriculas_periodo"],["BDLRepoMatriculas"]),
       requisitos:repo(["requisitos","requisitos_estudiante"],["BDLRepoRequisitos"]),
       notas:repo(["notas","notas_titulacion"],["BDLRepoNotas"]),
@@ -107,6 +108,7 @@ Función:
       return Object.prototype.hasOwnProperty.call(row,name)&&row[name]!==null&&text(row[name])!=="";
     });
   }
+  function active(row){return !!row&&row.eliminado!==true&&text(row.estadoRegistro).toUpperCase()!=="ELIMINADO";}
   function hasDefenseData(row){
     return hasField(row,[
       "notaArticulo","Notart","Nart","notart","nart",
@@ -118,9 +120,22 @@ Función:
     return hasField(row,["telegramUser","_telegramUser","telegramUsername","usuarioTelegram","telegram","Telegram"])&&
       hasField(row,["telegramChatId","_telegramChatId","chatIdTelegram","telegramChatID","TelegramChatId","chatId"]);
   }
-  function active(row){return !!row&&row.eliminado!==true&&text(row.estadoRegistro).toUpperCase()!=="ELIMINADO";}
   function recordId(row,fallback){
     return text(row&&(row.id||row.importacionId||row.evaluacionId||row.notaId||row.idEstudiantePeriodo||row.studentId||row.codigoCarrera||row.CodigoCarrera||row.periodoId)||fallback);
+  }
+  function useful(value){
+    return value!==undefined&&value!==null&&
+      (typeof value==="boolean"||typeof value==="number"||text(value)!=="");
+  }
+  function mergeFilled(){
+    var output={};
+    Array.prototype.slice.call(arguments).forEach(function(source){
+      Object.keys(source||{}).forEach(function(key){
+        var value=source[key];
+        if(useful(value)||output[key]===undefined){output[key]=clone(value);}
+      });
+    });
+    return output;
   }
   function pendingChange(table,row,options){
     options=options||{};
@@ -128,32 +143,17 @@ Función:
     var cedula=normalizeCedula(options.cedula||rowCedula(row));
     var stamp=now();
     return {
-      tabla:table,
-      tipo:table,
-      periodoId:periodoId,
-      cedula:cedula,
+      tabla:table,tipo:table,periodoId:periodoId,cedula:cedula,
       registroId:text(options.registroId||recordId(row,cedula||periodoId)),
-      accion:"UPSERT",
-      payload:clone(row||{}),
-      prioridad:1,
-      estadoSheets:"SINCRONIZADO",
-      statusGoogle:"SINCRONIZADO",
-      estadoSupabase:"SINCRONIZADO",
-      statusSupabase:"SINCRONIZADO",
-      estadoFirebase:"PENDIENTE",
-      statusFirebase:"PENDIENTE",
-      sincronizadoEnFirebase:"",
-      ultimoErrorFirebase:"",
-      nextRetryAtFirebase:"",
-      bloqueadoFirebase:false,
-      intentosFirebase:0,
-      source:text(options.source),
-      origen:text(options.source),
+      accion:"UPSERT",payload:clone(row||{}),prioridad:Number(options.prioridad||1),
+      estadoSheets:"SINCRONIZADO",statusGoogle:"SINCRONIZADO",
+      estadoSupabase:"SINCRONIZADO",statusSupabase:"SINCRONIZADO",
+      estadoFirebase:"PENDIENTE",statusFirebase:"PENDIENTE",
+      sincronizadoEnFirebase:"",ultimoErrorFirebase:"",nextRetryAtFirebase:"",
+      bloqueadoFirebase:false,intentosFirebase:0,
+      source:text(options.source),origen:text(options.source),
       pantalla:text(options.pantalla||options.source),
-      manualOnly:true,
-      firebaseRebuild:true,
-      createdAt:stamp,
-      updatedAt:stamp
+      manualOnly:true,firebaseRebuild:true,createdAt:stamp,updatedAt:stamp
     };
   }
   function unique(rows){
@@ -164,10 +164,12 @@ Función:
     });
     return Object.keys(map).map(function(key){return map[key];});
   }
-  function periodRows(rows,periodoId){return (rows||[]).filter(function(row){return active(row)&&samePeriod(row,periodoId);});}
+  function periodRows(rows,periodoId){
+    return (rows||[]).filter(function(row){return active(row)&&samePeriod(row,periodoId);});
+  }
   function careerDocument(row){
-    var code=text(row&&(row.codigoCarrera||row.CodigoCarrera||row.codigo||row.id));
-    var name=text(row&&(row.nombreCarrera||row.NombreCarrera||row.Carrera||row.carrera||row.nombre));
+    var code=text(row&&(row.codigoCarrera||row.CodigoCarrera||row.codigoCarreraActual||row.codigo||row.id));
+    var name=text(row&&(row.nombreCarrera||row.NombreCarrera||row.nombreCarreraActual||row.Carrera||row.carrera||row.nombre));
     if(!code&&name){code=normalizeKey(name).toUpperCase();}
     return code?{
       id:code,codigoCarrera:code,nombreCarrera:name||code,
@@ -177,9 +179,7 @@ Función:
   }
   function historyPayload(log){
     log=log||{};
-    var data=log.data&&typeof log.data==="object"&&!Array.isArray(log.data)
-      ?clone(log.data)
-      :null;
+    var data=log.data&&typeof log.data==="object"&&!Array.isArray(log.data)?clone(log.data):null;
     if(!data){return null;}
     data.id=text(data.id||log.id||log.logId);
     data.entidad=text(data.entidad);
@@ -205,71 +205,121 @@ Función:
         var history=historyPayload(log);
         if(!history||history.periodoId!==periodoId||historyOwner(history,log)!==scope){return null;}
         return pendingChange("historial",history,{
-          periodoId:periodoId,
-          cedula:history.cedula,
-          registroId:history.id,
-          source:scope,
-          pantalla:history.pantalla||scope
+          periodoId:periodoId,cedula:history.cedula,registroId:history.id,
+          source:scope,pantalla:history.pantalla||scope,prioridad:90
         });
       }).filter(Boolean));
     });
   }
+
   function buildCarga(periodoId,current){
     return Promise.all([
       list(current.personas,{}),
+      list(current.contactos,{periodoId:periodoId,periodId:periodoId}),
       list(current.matriculas,{periodoId:periodoId,periodId:periodoId}),
       list(current.requisitos,{periodoId:periodoId,periodId:periodoId}),
       list(current.periodos,{}),
       list(current.importaciones,{periodoId:periodoId,periodId:periodoId})
     ]).then(function(values){
       var people=values[0].filter(active);
-      var enrollments=periodRows(values[1],periodoId);
-      var requirements=periodRows(values[2],periodoId);
-      var periods=values[3].filter(function(row){return active(row)&&samePeriod(row,periodoId);});
-      var imports=periodRows(values[4],periodoId).filter(function(row){return !/ncomplex|complexivo/.test(sourceOf(row));});
-      var cedulas=Object.create(null);
-      enrollments.concat(requirements).forEach(function(row){var id=rowCedula(row);if(id){cedulas[id]=true;}});
-      people.forEach(function(row){var id=rowCedula(row);if(id&&samePeriod(row,periodoId)){cedulas[id]=true;}});
+      var contacts=periodRows(values[1],periodoId);
+      var enrollments=periodRows(values[2],periodoId);
+      var requirements=periodRows(values[3],periodoId);
+      var periods=values[4].filter(function(row){return active(row)&&samePeriod(row,periodoId);});
+      var imports=periodRows(values[5],periodoId).filter(function(row){return !/ncomplex|complexivo/.test(sourceOf(row));});
 
-      var changes=[];
+      var peopleByCedula=Object.create(null);
+      var contactsByCedula=Object.create(null);
+      var enrollmentsByCedula=Object.create(null);
+      var requirementsByCedula=Object.create(null);
+      var cedulas=Object.create(null);
+
       people.forEach(function(row){
-        var cedula=rowCedula(row);
-        if(cedula&&cedulas[cedula]){
-          changes.push(pendingChange("personas",row,{periodoId:periodoId,cedula:cedula,registroId:cedula,source:"carga",pantalla:"Carga"}));
-        }
+        var id=rowCedula(row);
+        if(id){peopleByCedula[id]=mergeFilled(peopleByCedula[id],row);}
+      });
+      contacts.forEach(function(row){
+        var id=rowCedula(row);
+        if(id){contactsByCedula[id]=mergeFilled(contactsByCedula[id],row);cedulas[id]=true;}
       });
       enrollments.forEach(function(row){
-        var cedula=rowCedula(row),id=studentPeriodId(periodoId,cedula);
-        if(id){changes.push(pendingChange("matriculas_periodo",row,{periodoId:periodoId,cedula:cedula,registroId:id,source:"carga",pantalla:"Carga"}));}
+        var id=rowCedula(row);
+        if(id){enrollmentsByCedula[id]=mergeFilled(enrollmentsByCedula[id],row);cedulas[id]=true;}
       });
-      var requirementsByStudent=Object.create(null);
       requirements.forEach(function(row){
-        var cedula=rowCedula(row),id=studentPeriodId(periodoId,cedula);
-        if(id&&!requirementsByStudent[id]){requirementsByStudent[id]=row;}
+        var id=rowCedula(row);
+        if(id){requirementsByCedula[id]=mergeFilled(requirementsByCedula[id],row);cedulas[id]=true;}
       });
-      Object.keys(requirementsByStudent).forEach(function(id){
-        var row=requirementsByStudent[id],cedula=rowCedula(row);
-        changes.push(pendingChange("requisitos_estudiante",row,{periodoId:periodoId,cedula:cedula,registroId:id,source:"carga",pantalla:"Carga"}));
+      people.forEach(function(row){
+        var id=rowCedula(row);
+        if(id&&samePeriod(row,periodoId)){cedulas[id]=true;}
       });
-      if(!periods.length){periods=[{id:periodoId,periodoId:periodoId,label:periodoId,activo:true,updatedAt:now()}];}
+
+      if(!periods.length){
+        periods=[{id:periodoId,periodoId:periodoId,label:periodoId,activo:true,updatedAt:now()}];
+      }
+
+      var changes=[];
       periods.forEach(function(row){
         var id=canonicalPeriodId(rowPeriod(row)||periodoId);
-        changes.push(pendingChange("periodos",Object.assign({},row,{id:id,periodoId:id}),{periodoId:periodoId,registroId:id,source:"carga",pantalla:"Carga"}));
+        changes.push(pendingChange("periodos",Object.assign({},row,{id:id,periodoId:id}),{
+          periodoId:periodoId,registroId:id,source:"carga",pantalla:"Carga",prioridad:1
+        }));
       });
+
       var careers=Object.create(null);
-      enrollments.concat(people.filter(function(row){return !!cedulas[rowCedula(row)];})).forEach(function(row){
-        var item=careerDocument(row);if(item){careers[item.codigoCarrera]=item;}
+      Object.keys(cedulas).forEach(function(cedula){
+        [enrollmentsByCedula[cedula],peopleByCedula[cedula]].forEach(function(row){
+          var item=careerDocument(row);
+          if(item){careers[item.codigoCarrera]=item;}
+        });
       });
-      Object.keys(careers).forEach(function(code){
-        changes.push(pendingChange("carreras",careers[code],{periodoId:periodoId,registroId:code,source:"carga",pantalla:"Carga"}));
+      Object.keys(careers).sort().forEach(function(code){
+        changes.push(pendingChange("carreras",careers[code],{
+          periodoId:periodoId,registroId:code,source:"carga",pantalla:"Carga",prioridad:2
+        }));
       });
+
+      Object.keys(cedulas).sort().forEach(function(cedula){
+        var enrollment=enrollmentsByCedula[cedula]||null;
+        var contact=contactsByCedula[cedula]||null;
+        var person=peopleByCedula[cedula]||{};
+        var enriched=mergeFilled(person,enrollment,contact,{
+          cedula:cedula,numeroIdentificacion:cedula,periodoId:periodoId,periodId:periodoId
+        });
+
+        changes.push(pendingChange("personas",enriched,{
+          periodoId:periodoId,cedula:cedula,registroId:cedula,
+          source:"carga",pantalla:"Carga",prioridad:10
+        }));
+
+        if(enrollment){
+          var enrollmentId=studentPeriodId(periodoId,cedula);
+          changes.push(pendingChange("matriculas_periodo",enrollment,{
+            periodoId:periodoId,cedula:cedula,registroId:enrollmentId,
+            source:"carga",pantalla:"Carga",prioridad:11
+          }));
+        }
+
+        if(requirementsByCedula[cedula]){
+          var requirementId=studentPeriodId(periodoId,cedula);
+          changes.push(pendingChange("requisitos_estudiante",requirementsByCedula[cedula],{
+            periodoId:periodoId,cedula:cedula,registroId:requirementId,
+            source:"carga",pantalla:"Carga",prioridad:12
+          }));
+        }
+      });
+
       imports.forEach(function(row){
         var id=recordId(row,"importacion__"+periodoId);
-        changes.push(pendingChange("importaciones",row,{periodoId:periodoId,registroId:id,source:"carga",pantalla:"Carga"}));
+        changes.push(pendingChange("importaciones",row,{
+          periodoId:periodoId,registroId:id,source:"carga",pantalla:"Carga",prioridad:80
+        }));
       });
       return unique(changes);
     });
   }
+
   function buildDefensas(periodoId,current){
     return list(current.notas,{periodoId:periodoId,periodId:periodoId}).then(function(rows){
       return unique(periodRows(rows,periodoId).filter(hasDefenseData).map(function(row){
@@ -304,6 +354,7 @@ Función:
       return unique((values[0]||[]).concat(values[1]||[]));
     });
   }
+
   function prepare(scopeName,options){
     options=Object.assign({},options||{});
     var scope=normalizeKey(scopeName);
@@ -340,19 +391,20 @@ Función:
       return {ok:false,scope:scope,periodoId:periodoId,message:error&&error.message?error.message:String(error),at:now()};
     }).finally(function(){running=false;});
   }
+
   function telegramPatch(existing,remote){
     var center=window.RequisitosFirebaseOperationCenter;
-    if(center&&typeof center.telegramPatch==="function"){
-      return center.telegramPatch(existing,remote);
-    }
+    if(center&&typeof center.telegramPatch==="function"){return center.telegramPatch(existing,remote);}
     var row=Object.assign({},existing||{});
     var user=text(remote&&(remote.telegramUser||remote._telegramUser||remote.telegramUsername||remote.usuarioTelegram||remote.telegram)).replace(/^@+/,"");
     var chatId=text(remote&&(remote.telegramChatId||remote._telegramChatId||remote.chatIdTelegram||remote.chatId));
     var changed=text(row.telegramUser)!==user||text(row.telegramChatId)!==chatId;
     row.telegramUser=user;row._telegramUser=user;row.telegramChatId=chatId;row._telegramChatId=chatId;
-    row.telegramUpdatedAt=text(remote&&remote.updatedAt)||now();row.telegramSource="firebase:estudiantes";
+    row.telegramUpdatedAt=text(remote&&remote.updatedAt)||now();
+    row.telegramSource="firebase:Estudiante";
     return {changed:changed,row:row};
   }
+
   function refreshTelegram(options){
     options=Object.assign({},options||{});
     var periodoId=canonicalPeriodId(options.periodoId||options.periodId||"");
@@ -391,11 +443,15 @@ Función:
         });
       });
       return chain.then(function(){
+        var collection="Estudiante";
+        try{
+          if(remote&&typeof remote.collectionName==="function"){collection=remote.collectionName("estudiantes");}
+        }catch(error){}
         return {
           ok:true,scope:"telegram",periodoId:periodoId,telegramOnly:true,
           requested:totals.requested,downloaded:totals.downloaded,written:totals.written,
           unchanged:totals.unchanged,skipped:totals.skipped,
-          limit:limit,maxBatchSize:MAX_BATCH_SIZE,collection:"estudiantes",
+          limit:limit,maxBatchSize:MAX_BATCH_SIZE,collection:collection,
           missingOnly:true,finishedAt:now()
         };
       });
@@ -403,6 +459,7 @@ Función:
       return {ok:false,scope:"telegram",periodoId:periodoId,message:error&&error.message?error.message:String(error)};
     }).finally(function(){running=false;});
   }
+
   function install(){
     var center=window.RequisitosFirebaseOperationCenter;
     if(!center){return false;}
@@ -415,12 +472,18 @@ Función:
     center.rebuildVersion=VERSION;
     return true;
   }
-  function status(){return {version:VERSION,running:running,maxBatchSize:MAX_BATCH_SIZE,installed:!!(window.RequisitosFirebaseOperationCenter&&window.RequisitosFirebaseOperationCenter.__localSourceRebuildInstalled)};}
+  function status(){
+    return {
+      version:VERSION,running:running,maxBatchSize:MAX_BATCH_SIZE,
+      installed:!!(window.RequisitosFirebaseOperationCenter&&window.RequisitosFirebaseOperationCenter.__localSourceRebuildInstalled)
+    };
+  }
 
   window.RequisitosFirebaseRebuild={
     version:VERSION,maxBatchSize:MAX_BATCH_SIZE,
     prepare:prepare,refreshTelegram:refreshTelegram,install:install,status:status,
-    _build:build,_repos:repos,_pendingChange:pendingChange,_historyPayload:historyPayload
+    _build:build,_repos:repos,_pendingChange:pendingChange,_historyPayload:historyPayload,
+    _mergeFilled:mergeFilled
   };
   install();
 })(window);
