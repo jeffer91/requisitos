@@ -29,7 +29,8 @@ service cloud.firestore {
       return !('periodoId' in data) || validPeriod(data.periodoId);
     }
 
-    match /estudiantes/{identificacion} {
+    /* Colección física oficial de estudiantes. */
+    match /Estudiante/{identificacion} {
       allow read: if true;
       allow create, update: if validIdentification(identificacion)
         && request.resource.data.cedula == identificacion
