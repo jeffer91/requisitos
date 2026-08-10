@@ -10,7 +10,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="4.1.0-firebase-v2-runtime-certification";
+  var VERSION="4.1.1-estudiante-physical-collection";
   var state={running:false,lastResult:null};
 
   function text(value){return String(value==null?"":value).trim();}
@@ -198,9 +198,22 @@ Función:
     var repository=window.RequisitosFirebaseRepository||{};
     var target=window.BDLSyncTargetFirebase||{};
     var problems=[];
-    var expectedCollections=["estudiantes","matriculas","requisitos","notas","periodos","carreras","historial","importaciones"];
+    var expectedCollections={
+      estudiantes:"Estudiante",
+      matriculas:"matriculas",
+      requisitos:"requisitos",
+      notas:"notas",
+      periodos:"periodos",
+      carreras:"carreras",
+      historial:"historial",
+      importaciones:"importaciones"
+    };
     var collections=schema.collections||{};
-    expectedCollections.forEach(function(name){if(text(collections[name])!==name){problems.push("Falta la colección V2 "+name+".");}});
+    Object.keys(expectedCollections).forEach(function(name){
+      if(text(collections[name])!==expectedCollections[name]){
+        problems.push("Falta la colección V2 "+expectedCollections[name]+".");
+      }
+    });
 
     var period="2026-01__2026-06";
     var cedula="0123456789";
@@ -240,7 +253,7 @@ Función:
     if(typeof target.push!=="function"||typeof target.entitiesFor!=="function"||typeof target.prepareEntries!=="function"){problems.push("El destino Firebase V2 no expone la puerta segura.");}
     return Promise.resolve(problems.length
       ?bad("Firebase V2",problems.join(" "),{collections:collections})
-      :ok("Firebase V2","Ocho colecciones, IDs canónicos y documentos separados confirmados.",{collections:expectedCollections,localId:localId,remoteId:remoteId}));
+      :ok("Firebase V2","Ocho colecciones, IDs canónicos y documentos separados confirmados.",{collections:collections,localId:localId,remoteId:remoteId}));
   }
 
   function checkTelegramPull(){
