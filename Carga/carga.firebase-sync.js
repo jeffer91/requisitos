@@ -3,126 +3,54 @@ Nombre completo: carga.firebase-sync.js
 Ruta: /Carga/carga.firebase-sync.js
 Función:
 - Mantener la ruta histórica usada por carga.html.
-- Cargar primero la corrección de raíz Carga -> BDLocal -> Firebase.
-- Cargar la reconstrucción completa desde el roster ACTIVO del período.
-- Hacer autoritativa la carga actual y acelerar el bootstrap cuando Firebase está vacía.
-- Cargar después el controlador inteligente Firebase una sola vez.
-- Supervisar la acción final y verificar Estudiante, matrículas y requisitos 1:1.
-- No crear conexiones ni sincronizadores paralelos.
+- Cargar una sola implementación Firebase directa desde el archivo analizado.
+- Mantener Firebase y BDLocal como procesos independientes.
+- No cargar reconstrucciones, colas ni supervisores basados en BDLocal.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.4.0-completeness-supervisor-loader";
+  var VERSION="3.0.0-direct-file-loader";
   var currentScript=document.currentScript;
   var base=currentScript&&currentScript.src?currentScript.src:window.location.href;
-  var loading=Object.create(null);
+  var loading=null;
 
   function smart(){return window.CargaFirebaseSmart||null;}
-  function rootFix(){return window.CargaFirebaseRootFix||null;}
-  function completeRebuild(){return window.CargaFirebaseCompleteRebuild||null;}
-  function finalize(){return window.CargaFirebaseFinalize||null;}
-  function supervisor(){return window.CargaFirebaseSupervisor||null;}
-  function source(relative){
-    try{return new URL(relative,base).href;}
-    catch(error){return relative;}
-  }
+  function source(relative){try{return new URL(relative,base).href;}catch(error){return relative;}}
   function showError(message){
     try{
       var node=document.getElementById("cargaFirebaseMessage");
-      if(node){
-        node.textContent=message;
-        node.className="carga-firebase-message is-danger";
-      }
+      if(node){node.textContent=message;node.className="carga-firebase-message is-danger";}
     }catch(error){}
   }
-  function loadScript(relative,test,label){
-    var current=null;
-    try{current=test&&test();}catch(error){}
-    if(current){return Promise.resolve(current);}
-    var src=source(relative);
-    if(loading[src]){return loading[src];}
-    var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){
-      return script.src===src||script.getAttribute("data-carga-firebase-loader")===src;
-    });
-    loading[src]=new Promise(function(resolve,reject){
+  function load(){
+    if(smart()){window.CargaFirebaseSync=smart();return Promise.resolve(smart());}
+    if(loading){return loading;}
+    var src=source("./carga.firebase-smart.js");
+    loading=new Promise(function(resolve,reject){
+      var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){return script.src===src;});
       function finish(){
-        var api=null;
-        try{api=test?test():src;}catch(error){api=null;}
-        api?resolve(api):reject(new Error((label||relative)+" no expuso la API esperada."));
+        var api=smart();
+        if(!api){reject(new Error("El controlador Firebase directo no expuso la API esperada."));return;}
+        window.CargaFirebaseSync=api;resolve(api);
       }
       if(existing){
-        if(test&&test()){finish();return;}
+        if(smart()){finish();return;}
         existing.addEventListener("load",finish,{once:true});
-        existing.addEventListener("error",function(){reject(new Error("No se pudo cargar "+(label||relative)+"."));},{once:true});
+        existing.addEventListener("error",function(){reject(new Error("No se pudo cargar el controlador Firebase directo."));},{once:true});
         return;
       }
-      var script=document.createElement("script");
-      script.src=src;
-      script.async=false;
-      script.defer=false;
-      script.setAttribute("data-carga-firebase-loader",src);
-      script.onload=finish;
-      script.onerror=function(){reject(new Error("No se pudo cargar "+(label||relative)+"."));};
+      var script=document.createElement("script");script.src=src;script.async=false;script.defer=false;
+      script.onload=finish;script.onerror=function(){reject(new Error("No se pudo cargar el controlador Firebase directo."));};
       (document.head||document.documentElement).appendChild(script);
-    }).finally(function(){delete loading[src];});
-    return loading[src];
-  }
-  function expose(){
-    var api=smart();
-    if(api){window.CargaFirebaseSync=api;}
-    return api;
-  }
-  function load(){
-    return loadScript("./carga.firebase-rootfix.js",rootFix,"la corrección de raíz Firebase")
-      .then(function(){
-        return loadScript("./carga.firebase-complete-rebuild.js",completeRebuild,"la reconstrucción completa de Firebase");
-      })
-      .then(function(){
-        var rebuild=completeRebuild();
-        if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
-        return loadScript("./carga.firebase-finalize.js",finalize,"la validación final de Firebase");
-      })
-      .then(function(){
-        var finalizer=finalize();
-        if(finalizer&&typeof finalizer.install==="function"){finalizer.install();}
-        return loadScript("./carga.firebase-smart.js",smart,"el controlador inteligente de Firebase");
-      })
-      .then(function(){
-        var fix=rootFix();
-        var rebuild=completeRebuild();
-        var finalizer=finalize();
-        if(fix&&typeof fix.installSaveFix==="function"){fix.installSaveFix();}
-        if(fix&&typeof fix.installTargetFix==="function"){fix.installTargetFix();}
-        if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
-        if(finalizer&&typeof finalizer.install==="function"){finalizer.install();}
-        return loadScript("./carga.firebase-supervisor.js",supervisor,"el supervisor de integridad Firebase");
-      })
-      .then(function(){
-        var guard=supervisor();
-        if(guard&&typeof guard.bind==="function"){guard.bind();}
-        return expose();
-      });
+    }).catch(function(error){showError(error&&error.message?error.message:String(error));throw error;}).finally(function(){loading=null;});
+    return loading;
   }
 
   window.CargaFirebaseSyncLoader={
-    version:VERSION,
-    load:load,
-    status:function(){
-      return {
-        version:VERSION,
-        rootFixLoaded:!!rootFix(),
-        completeRebuildLoaded:!!completeRebuild(),
-        finalizeLoaded:!!finalize(),
-        smartLoaded:!!smart(),
-        supervisorLoaded:!!supervisor(),
-        source:source("./carga.firebase-smart.js")
-      };
-    }
+    version:VERSION,load:load,
+    status:function(){return {version:VERSION,directFromFile:true,bdLocalIndependent:true,smartLoaded:!!smart(),source:source("./carga.firebase-smart.js")};}
   };
 
-  load().catch(function(error){
-    showError(error&&error.message?error.message:String(error));
-    try{console.error("[CargaFirebaseSync]",error);}catch(inner){}
-  });
+  load().catch(function(error){try{console.error("[CargaFirebaseSync]",error);}catch(inner){}});
 })(window,document);
