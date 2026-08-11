@@ -1,589 +1,641 @@
 /* =========================================================
-Nombre completo: carga.firebase-sync.js
-Ruta: /Carga/carga.firebase-sync.js
+Nombre completo: carga.firebase-smart.js
+Ruta: /Carga/carga.firebase-smart.js
 Función:
-- Exponer una sola acción visible: Actualizar Firebase.
-- Reconstruir la cola Firebase desde las tablas oficiales de BDLocal al iniciar la acción manual.
-- Detectar una Firebase completamente vacía con lecturas mínimas y usar modo de carga inicial.
-- Usar modo diferencial cuando Firebase ya contiene información.
-- Procesar un solo lote de hasta 25 cambios a la vez, con una pausa breve entre lotes.
-- Subir exclusivamente estudiantes, matrículas, requisitos, períodos, carreras, importaciones e historial.
-- No permitir que Carga suba calificaciones.
-- Cargar una sola arquitectura compartida y reutilizar el Centro de Operaciones Firebase.
+- Actualizar Firebase directamente desde el archivo analizado en Carga.
+- Mantener Firebase y BDLocal como procesos independientes.
+- Comparar el roster del archivo con Firebase antes de escribir.
+- Alertar y pedir confirmación si los estudiantes nuevos superan el 10% del roster remoto del período.
+- Marcar como retirados/eliminados lógicamente los estudiantes que ya no aparecen en el archivo.
+- Escribir Estudiante, matriculas, requisitos, periodos, carreras, importaciones e historial.
+- No usar la cola cambios_pendientes ni el límite histórico de 25 cambios.
+- Verificar al final que matriculas y requisitos coincidan 1:1 con el archivo actual.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.0.0-smart-single-button";
-  var MAX_BATCH_SIZE=25;
-  var MAX_AUTO_BATCHES=400;
-  var BATCH_DELAY_MS=140;
-  var EMPTY_CHECK_ENTITIES=["estudiantes","matriculas","requisitos","periodos","carreras","importaciones","historial"];
+  var VERSION="3.0.0-direct-file-authority";
+  var NEW_STUDENT_ALERT_PERCENT=10;
+  var REPOSITORY_CHUNK_LIMIT=400;
+  var READ_CONCURRENCY=16;
   var running=false;
-  var centerTask=null;
   var architectureTask=null;
-  var periodRecoveryTask=null;
   var currentScript=document.currentScript;
   var scriptBase=currentScript&&currentScript.src?currentScript.src:window.location.href;
 
   function byId(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
-  function number(value){value=Number(value||0);return Number.isFinite(value)?value:0;}
-  function delay(ms){return new Promise(function(resolve){window.setTimeout(resolve,Math.max(0,Number(ms||0)));});}
-  function center(){return window.RequisitosFirebaseOperationCenter||null;}
-  function repository(){return window.RequisitosFirebaseRepository||null;}
-  function periodId(){return text(byId("cargaPeriodoSelect")&&byId("cargaPeriodoSelect").value);}
-  function periodLabel(){
-    var select=byId("cargaPeriodoSelect");
-    if(!select||select.selectedIndex<0){return "Sin seleccionar";}
-    return text(select.options[select.selectedIndex]&&select.options[select.selectedIndex].text)||periodId()||"Sin seleccionar";
-  }
-  function canonicalPeriodId(value){
+  function clone(value){try{return JSON.parse(JSON.stringify(value));}catch(error){return value;}}
+  function now(){return new Date().toISOString();}
+  function canon(value){
     value=text(value);
     var match=value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
     return match?match[1]+"-"+match[2]+"__"+match[3]+"-"+match[4]:value.replace(/_+/g,"__");
   }
-  function globalPeriodId(){
-    var api=window.BDLPeriodoGlobal||window.RequisitosPeriodoGlobal||null;
-    try{
-      var value=api&&typeof api.get==="function"?api.get():api&&typeof api.status==="function"?(api.status()||{}).period:null;
-      return canonicalPeriodId(value&&(value.id||value.periodoId||value.value));
-    }catch(error){return "";}
+  function normalizeKey(value){
+    return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase().replace(/[^a-z0-9]+/g,"");
   }
-  function alignGlobalPeriod(){
-    var select=byId("cargaPeriodoSelect");
-    var wanted=globalPeriodId();
-    if(!select||!wanted||!select.options||select.options.length<=1){return false;}
-    var exists=Array.prototype.some.call(select.options,function(option){return canonicalPeriodId(option.value)===wanted;});
-    if(!exists){return false;}
-    if(canonicalPeriodId(select.value)!==wanted){
-      select.value=wanted;
-      select.dispatchEvent(new Event("change",{bubbles:true}));
+  function normalizeCedula(value){
+    var helper=window.RequisitosFirebaseIdentity;
+    if(helper&&typeof helper.normalizeCedula==="function"){
+      try{return text(helper.normalizeCedula(value));}catch(error){}
     }
-    return canonicalPeriodId(select.value)===wanted;
+    var raw=text(value).replace(/[^0-9A-Za-z]/g,"").toUpperCase();
+    return /^\d{9}$/.test(raw)?"0"+raw:raw;
   }
-  function recoverPeriods(attempt){
-    attempt=Math.max(0,Number(attempt||0));
-    var select=byId("cargaPeriodoSelect");
-    if(select&&select.options&&select.options.length>1){alignGlobalPeriod();return Promise.resolve(true);}
-    if(periodRecoveryTask){return periodRecoveryTask;}
-    var index=window.CargaConnectionIndex;
-    if(index&&typeof index.refreshPeriods==="function"){
-      periodRecoveryTask=Promise.resolve(index.refreshPeriods()).then(function(){
-        alignGlobalPeriod();
-        return !!(select&&select.options&&select.options.length>1);
-      }).catch(function(){return false;}).finally(function(){periodRecoveryTask=null;});
-      return periodRecoveryTask.then(function(ok){
-        if(!ok&&attempt<80){window.setTimeout(function(){recoverPeriods(attempt+1);},250);}
-        return ok;
-      });
+  function first(row,names){
+    row=row||{};
+    for(var i=0;i<(names||[]).length;i+=1){
+      if(row[names[i]]!==undefined&&row[names[i]]!==null&&text(row[names[i]])!==""){
+        return row[names[i]];
+      }
     }
-    if(attempt<80){window.setTimeout(function(){recoverPeriods(attempt+1);},250);}
-    return Promise.resolve(false);
+    return "";
   }
-
+  function cedulaOf(row){
+    return normalizeCedula(first(row,[
+      "cedula","numeroIdentificacion","NumeroIdentificacion","identificacion",
+      "Identificacion","Cedula","Cédula","_cedula"
+    ]));
+  }
+  function periodId(){return canon(byId("cargaPeriodoSelect")&&byId("cargaPeriodoSelect").value||"");}
+  function periodLabel(){
+    var select=byId("cargaPeriodoSelect");
+    if(!select||select.selectedIndex<0){return periodId();}
+    return text(select.options[select.selectedIndex]&&select.options[select.selectedIndex].text)||periodId();
+  }
+  function currentState(){
+    try{return window.CargaState&&typeof window.CargaState.get==="function"?window.CargaState.get():null;}
+    catch(error){return null;}
+  }
+  function normalizedRows(){
+    var state=currentState()||{};
+    var normalized=state.normalized||{};
+    var rows=Array.isArray(normalized.rowsMapeadas)?normalized.rowsMapeadas:
+      Array.isArray(normalized.rows)?normalized.rows:
+      Array.isArray(normalized.students)?normalized.students:[];
+    return rows.filter(function(row){return !!cedulaOf(row);});
+  }
+  function analyzedPeriod(){
+    var state=currentState()||{};
+    var normalized=state.normalized||{};
+    var detected=normalized.periodoDetectado||{};
+    return canon(detected.periodoId||detected.periodoCanonicoId||"");
+  }
+  function currentFileName(){
+    var state=currentState()||{};
+    return text(state.fileName||state.normalized&&state.normalized.fileName||"archivo_carga");
+  }
+  function currentErrors(){
+    var state=currentState()||{};
+    return Array.isArray(state.errors)?state.errors:[];
+  }
   function status(label,type){
     var node=byId("cargaFirebaseStatus");
-    if(!node){return;}
-    node.textContent=text(label);
-    node.setAttribute("data-status",text(type||""));
+    if(node){node.textContent=text(label);node.setAttribute("data-status",text(type||""));}
   }
   function message(value,type){
     var node=byId("cargaFirebaseMessage");
-    if(!node){return;}
-    node.textContent=text(value);
-    node.className="carga-firebase-message "+(type||"");
+    if(node){node.textContent=text(value);node.className="carga-firebase-message "+text(type||"");}
   }
   function setRunning(value){
     running=!!value;
     var button=byId("cargaBtnFirebaseActualizar");
     if(button){
-      button.disabled=running||!periodId();
+      button.disabled=running||!periodId()||!normalizedRows().length||currentErrors().length>0;
       button.textContent=running?"Actualizando Firebase...":"Actualizar Firebase";
     }
   }
-  function syncPeriod(){
-    setRunning(false);
+  function syncUi(){
+    if(running){return;}
+    var rows=normalizedRows();
     if(!periodId()){
       status("Sin período","");
       message("Seleccione un período antes de actualizar Firebase.","");
-      return;
+    }else if(!rows.length){
+      status("Sin archivo","");
+      message("Analice un archivo para poder actualizar Firebase directamente desde esa carga.","");
+    }else if(currentErrors().length){
+      status("Archivo con errores","is-danger");
+      message("Corrija los errores del archivo antes de actualizar Firebase.","is-danger");
+    }else{
+      status("Listo","is-ok");
+      message("Firebase se actualizará directamente desde el archivo analizado. BDLocal no participa en este proceso.","");
     }
-    status("Listo","is-ok");
-    message("Firebase se actualizará desde BDLocal y solo procesará las diferencias de este período.","");
+    setRunning(false);
   }
 
-  function absolute(relative){
-    try{return new URL(relative,scriptBase).href;}catch(error){return relative;}
+  function absolute(relative){try{return new URL(relative,scriptBase).href;}catch(error){return relative;}}
+  function scriptExists(src){
+    return Array.prototype.slice.call(document.scripts||[]).some(function(script){return script.src===src;});
   }
   function waitFor(test,label,timeoutMs){
-    timeoutMs=Math.max(500,Number(timeoutMs||15000));
-    var started=Date.now();
+    var started=Date.now();timeoutMs=Math.max(500,Number(timeoutMs||15000));
     return new Promise(function(resolve,reject){
       (function check(){
-        var value=null;
-        try{value=test();}catch(error){}
+        var value=null;try{value=test();}catch(error){}
         if(value){resolve(value);return;}
         if(Date.now()-started>=timeoutMs){reject(new Error("No se pudo preparar "+label+"."));return;}
-        window.setTimeout(check,60);
+        window.setTimeout(check,50);
       })();
     });
   }
-  function loadScript(relative,test,label){
-    var current=null;
-    try{current=test&&test();}catch(error){}
+  function loadScript(src,test,label){
+    var current=null;try{current=test&&test();}catch(error){}
     if(current){return Promise.resolve(current);}
-    var src=absolute(relative);
-    var existing=Array.prototype.slice.call(document.scripts||[]).find(function(script){
-      return script.src===src||script.getAttribute("data-carga-firebase-src")===src;
-    });
-    if(existing){
-      return test?waitFor(test,label||relative,15000):Promise.resolve(src);
+    var absoluteSrc=/^https?:\/\//i.test(src)?src:absolute(src);
+    if(scriptExists(absoluteSrc)){
+      return test?waitFor(test,label||src,15000):Promise.resolve(absoluteSrc);
     }
     return new Promise(function(resolve,reject){
       var script=document.createElement("script");
-      script.src=src;
-      script.async=false;
-      script.defer=false;
-      script.setAttribute("data-carga-firebase-src",src);
+      script.src=absoluteSrc;script.async=false;script.defer=false;
       script.onload=function(){
-        if(test){waitFor(test,label||relative,15000).then(resolve).catch(reject);}
-        else{resolve(src);}
+        if(test){waitFor(test,label||src,15000).then(resolve).catch(reject);}
+        else{resolve(absoluteSrc);}
       };
-      script.onerror=function(){reject(new Error("No se pudo cargar "+(label||relative)+"."));};
+      script.onerror=function(){reject(new Error("No se pudo cargar "+(label||src)+"."));};
       (document.head||document.documentElement).appendChild(script);
     });
   }
-
-  function loadCenter(){
-    if(center()){return Promise.resolve(center());}
-    if(centerTask){return centerTask;}
-    centerTask=loadScript(
-      "../BDLocal/firebase/bdl.firebase.operation-center.js",
-      function(){return center();},
-      "el Centro de Operaciones Firebase"
-    ).finally(function(){centerTask=null;});
-    return centerTask;
-  }
-
-  function ensureSharedArchitecture(){
-    var bridge=window.BDLOutboxBridge||null;
-    if(!bridge||typeof bridge.loadSharedArchitecture!=="function"){
-      return Promise.reject(new Error("El puente compartido de BDLocal no está disponible."));
-    }
-    var existing=window.BDLSharedArchitectureReady;
-    if(existing){
-      return Promise.resolve(existing).catch(function(){return bridge.loadSharedArchitecture();});
-    }
-    return bridge.loadSharedArchitecture();
-  }
-
   function ensureArchitecture(){
     if(architectureTask){return architectureTask;}
-    architectureTask=loadScript(
-      "../BDLocal/adapters/bdl.screen-deps.js",
-      function(){return window.BDLocalScreenDeps||null;},
-      "las dependencias compartidas de BDLocal"
-    ).then(function(screenDeps){
-      if(!screenDeps||typeof screenDeps.activateHeavy!=="function"){
-        throw new Error("BDLocalScreenDeps.activateHeavy no está disponible.");
-      }
-      return screenDeps.activateHeavy();
-    }).then(function(){
-      var hub=window.BDLocalConexiones||null;
-      if(!hub||typeof hub.ensureCoreReady!=="function"){
-        throw new Error("El núcleo completo de BDLocal no está disponible.");
-      }
-      return hub.ensureCoreReady();
-    }).then(function(){
-      return ensureSharedArchitecture();
-    }).then(function(){
-      return loadScript(
-        "../BDLocal/sync/targets/bdl.sync.targets.index.js",
-        function(){return window.BDLSyncTargets||null;},
-        "el registro de destinos de sincronización"
-      );
-    }).then(function(){
-      return loadScript(
-        "../BDLocal/sync/bdl.sync.outbox.js",
-        function(){return window.BDLSyncOutbox||null;},
-        "la cola de sincronización"
-      );
-    }).then(function(){
-      return loadScript(
-        "../BDLocal/sync/bdl.sync.orchestrator.js",
-        function(){return window.BDLSyncOrchestrator||null;},
-        "el orquestador de sincronización"
-      );
-    }).then(function(){
-      return loadScript(
-        "../BDLocal/sync/bdl.sync.index.js",
-        function(){return window.BDLSyncV2||null;},
-        "el motor de sincronización V2"
-      );
-    }).then(function(){
-      return loadScript(
-        "../BDLocal/sync/targets/bdl.sync.target.firebase.js",
-        function(){return window.BDLSyncTargetFirebase||null;},
-        "el destino Firebase V2"
-      );
-    }).then(function(){
-      var pushControl=window.RequisitosFirebasePushControl||null;
-      if(pushControl&&typeof pushControl.installRebuildGate==="function"){
-        pushControl.installRebuildGate();
-      }
-      var required={
-        BDLSyncOutbox:window.BDLSyncOutbox,
-        BDLSyncTargetFirebase:window.BDLSyncTargetFirebase,
-        RequisitosFirebaseRepository:window.RequisitosFirebaseRepository,
-        BDLRepoPersonas:window.BDLRepoPersonas
-      };
-      var missing=Object.keys(required).filter(function(name){return !required[name];});
-      if(missing.length){throw new Error("Arquitectura Firebase incompleta: falta "+missing.join(", ")+".");}
-      return true;
-    }).finally(function(){architectureTask=null;});
+    architectureTask=Promise.resolve()
+      .then(function(){
+        return loadScript("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",function(){return window.firebase&&window.firebase.initializeApp?window.firebase:null;},"Firebase App SDK");
+      })
+      .then(function(){
+        return loadScript("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js",function(){return window.firebase&&window.firebase.firestore?window.firebase.firestore:null;},"Firebase Firestore SDK");
+      })
+      .then(function(){
+        return loadScript("../firebase-config.js",function(){return window.firebaseConfig||window.FIREBASE_CONFIG;},"la configuración Firebase");
+      })
+      .then(function(){
+        if(window.firebase&&window.firebase.initializeApp&&(!window.firebase.apps||!window.firebase.apps.length)){
+          window.firebase.initializeApp(window.firebaseConfig||window.FIREBASE_CONFIG||{});
+        }
+        return loadScript("../BDLocal/firebase/bdl.firebase.schema.v2.js",function(){return window.RequisitosFirebaseSchema;},"el esquema Firebase");
+      })
+      .then(function(){return loadScript("../BDLocal/firebase/bdl.firebase.identity.js",function(){return window.RequisitosFirebaseIdentity;},"la identidad Firebase");})
+      .then(function(){return loadScript("../BDLocal/firebase/bdl.firebase.validator.v2.js",function(){return window.RequisitosFirebaseValidator;},"el validador Firebase");})
+      .then(function(){return loadScript("../BDLocal/firebase/bdl.firebase.mapper.v2.js",function(){return window.RequisitosFirebaseMapper;},"el mapeador Firebase");})
+      .then(function(){return loadScript("../BDLocal/firebase/bdl.firebase.repository.v2.js",function(){return window.RequisitosFirebaseRepository;},"el repositorio Firebase");})
+      .then(function(){
+        var repo=window.RequisitosFirebaseRepository;
+        if(!repo||typeof repo.ensureFirestore!=="function"){throw new Error("El repositorio Firebase no quedó disponible.");}
+        return repo.ensureFirestore();
+      })
+      .finally(function(){architectureTask=null;});
     return architectureTask;
   }
 
-  function ensureCenter(){
-    return loadCenter().then(function(api){
-      return ensureArchitecture().then(function(){
-        var pushControl=window.RequisitosFirebasePushControl||null;
-        if(pushControl&&typeof pushControl.installRebuildGate==="function"){
-          pushControl.installRebuildGate();
-        }
-        return Promise.resolve(typeof api.ensure==="function"?api.ensure():api).then(function(){return api;});
-      });
-    });
-  }
-
-  function detectRemoteState(){
-    var current=repository();
-    if(!current||typeof current.list!=="function"){
-      return Promise.reject(new Error("El repositorio Firebase V2 no está disponible."));
-    }
-    var detail={empty:true,checked:0,documentsFound:0,collections:{}};
-    var chain=Promise.resolve();
-    EMPTY_CHECK_ENTITIES.forEach(function(entity){
-      chain=chain.then(function(){
-        return current.list(entity,{limit:1,includeDeleted:true}).then(function(result){
-          var total=number(result&&result.total);
-          detail.collections[entity]=total;
-          detail.checked+=1;
-          detail.documentsFound+=total;
-          if(total>0){detail.empty=false;}
-        });
-      });
-    });
-    return chain.then(function(){return detail;});
-  }
-
-  function prepareLocalQueue(api){
-    if(!api||typeof api.requeue!=="function"){
-      return Promise.reject(new Error("La reconstrucción inteligente desde BDLocal no está disponible."));
-    }
-    return api.requeue("carga",{
-      periodoId:periodId(),
-      source:"Carga.firebase.smartUpdate"
-    }).then(function(result){
-      if(!result||result.ok===false){
-        throw new Error(result&&result.message||"No se pudo preparar la información local para Firebase.");
-      }
-      return result;
-    });
-  }
-
-  function emptyTotals(mode,prepared){
+  function canonicalRequirementAliases(){
     return {
-      ok:true,
-      mode:mode,
-      prepared:number(prepared&&prepared.requeued||prepared&&prepared.prepared),
-      batches:0,
-      selectedChanges:0,
-      confirmedChanges:0,
-      documentsWritten:0,
-      conflicts:0,
-      alreadyEqual:0,
-      newDocuments:0,
-      modifiedDocuments:0,
-      stopped:false,
-      stopReason:""
+      academico:"Academico",
+      documentacion:"Documentacion",
+      financiero:"Financiero",
+      titulacion:"Titulacion",
+      practicasvinculacion:"PracticasVinculacion",
+      practicayvinculacion:"PracticasVinculacion",
+      practicasyvinculacion:"PracticasVinculacion",
+      vinculacion:"Vinculacion",
+      seguimientograduados:"SeguimientoGraduados",
+      ingles:"Ingles",
+      actualizaciondatos:"ActualizacionDatos",
+      aprobaciontitulacion:"AprobacionTitulacion",
+      aprobacioncomplexivoproyecto:"AprobacionComplexivoProyecto",
+      aprobacioncomplexivo:"AprobacionComplexivoProyecto"
     };
   }
-  function addAnalysis(totals,analysis){
-    totals.alreadyEqual+=number(analysis&&analysis.sinCambios);
-    totals.newDocuments+=number(analysis&&analysis.nuevos);
-    totals.modifiedDocuments+=number(analysis&&analysis.modificados);
+  function enrichRequirements(row){
+    var out=Object.assign({},row||{}),aliases=canonicalRequirementAliases();
+    Object.keys(row||{}).forEach(function(key){
+      var canonical=aliases[normalizeKey(key)];
+      if(canonical&&text(row[key])!==""){out[canonical]=row[key];}
+    });
+    return out;
   }
-  function addPush(totals,result){
-    totals.batches+=1;
-    totals.selectedChanges+=number(result&&result.selectedChanges);
-    totals.confirmedChanges+=number(result&&result.confirmedChanges);
-    totals.documentsWritten+=number(result&&result.documentsWritten);
-    totals.conflicts+=number(result&&result.conflicts);
-  }
-  function progressMessage(totals){
-    var target=totals.prepared>0?" de "+totals.prepared:"";
-    return "Procesados "+totals.confirmedChanges+target+" cambio(s) · "+totals.documentsWritten+" documento(s) escritos · "+totals.conflicts+" conflicto(s).";
+  function authoritativeRows(periodoId){
+    var map=Object.create(null);
+    normalizedRows().forEach(function(raw){
+      var cedula=cedulaOf(raw);if(!cedula){return;}
+      var row=enrichRequirements(raw);
+      row=Object.assign({},row,{
+        cedula:cedula,
+        numeroIdentificacion:cedula,
+        periodoId:periodoId,
+        periodId:periodoId,
+        periodoCanonicoId:periodoId,
+        estadoMatricula:"ACTIVO",
+        retirado:false,
+        retiradoEn:"",
+        eliminado:false,
+        eliminadoEn:""
+      });
+      map[cedula]=row;
+    });
+    return Object.keys(map).sort().map(function(id){return map[id];});
   }
 
-  function runBootstrapBatches(api,totals,iteration){
-    iteration=Number(iteration||0);
-    if(iteration>=MAX_AUTO_BATCHES){
-      totals.stopped=true;
-      totals.stopReason="Se alcanzó el límite de seguridad de lotes por ejecución.";
-      return Promise.resolve(totals);
+  function mapper(){return window.RequisitosFirebaseMapper;}
+  function repository(){return window.RequisitosFirebaseRepository;}
+  function identity(){return window.RequisitosFirebaseIdentity;}
+  function hashDocument(entity,document){
+    var current=mapper();
+    var copy=Object.assign({},document||{});
+    copy.updatedAt=text(copy.updatedAt)||now();
+    copy.createdAt=text(copy.createdAt)||copy.updatedAt;
+    copy.version=Math.max(1,Number(copy.version||1));
+    copy.eliminado=copy.eliminado===true;
+    copy.eliminadoEn=copy.eliminado?(text(copy.eliminadoEn)||copy.updatedAt):"";
+    if(current&&typeof current.dataHash==="function"){
+      var functional=typeof current.functionalContent==="function"?current.functionalContent(copy):copy;
+      copy.dataHash=current.dataHash({entity:entity,data:functional});
     }
-    status("Carga inicial","is-warn");
-    message("Validando de forma segura el siguiente lote de hasta "+MAX_BATCH_SIZE+" cambios...","");
-    return api.analyze("carga",{
-      periodoId:periodId(),
-      source:"Carga.firebase.bootstrapAnalyze"
-    }).then(function(analysis){
-      if(!analysis||analysis.ok===false){throw new Error(analysis&&analysis.message||"No se pudo validar la carga inicial de Firebase.");}
-      addAnalysis(totals,analysis);
-      if(number(analysis.batchChanges)===0){return totals;}
-      if(number(analysis.conflictos)>0){
-        totals.stopped=true;
-        totals.conflicts+=number(analysis.conflictos);
-        totals.stopReason="Se detectaron conflictos durante la validación de la carga inicial.";
-        return totals;
+    return copy;
+  }
+  function buildDocuments(rows,periodoId){
+    var current=mapper();
+    if(!current){throw new Error("El mapeador Firebase no está disponible.");}
+    var students=[],enrollments=[],requirements=[];
+    var careers=Object.create(null);
+    rows.forEach(function(row){
+      var student=current.studentDocument(row);
+      var enrollment=current.enrollmentDocument(row);
+      var requirement=current.requirementsDocument(row,[]);
+      if(!student||!enrollment||!requirement){
+        throw new Error("No se pudieron formar todos los documentos Firebase para la cédula "+cedulaOf(row)+".");
       }
-      message("Lote validado: "+number(analysis.nuevos)+" nuevo(s), "+number(analysis.modificados)+" modificado(s) y "+number(analysis.sinCambios)+" ya igual(es).","");
-      return api.push("carga",{
-        periodoId:periodId(),
-        requireAnalysis:true,
-        source:"Carga.firebase.bootstrapPush"
-      }).then(function(result){
-        if(!result){throw new Error("Firebase no devolvió resultado.");}
-        addPush(totals,result);
-        if(number(result.conflicts)>0){
-          totals.stopped=true;
-          totals.stopReason="Se detectaron conflictos y la carga se detuvo para no sobrescribir información.";
-          return totals;
-        }
-        if(result.ok===false){throw new Error(result.message||"No se pudo completar el lote Firebase.");}
-        if(number(result.selectedChanges)===0){return totals;}
-        if(number(result.confirmedChanges)===0){
-          totals.stopped=true;
-          totals.stopReason="El lote no confirmó cambios; se detuvo para evitar un ciclo de reintentos.";
-          return totals;
-        }
-        message(progressMessage(totals),"");
-        return delay(BATCH_DELAY_MS).then(function(){return runBootstrapBatches(api,totals,iteration+1);});
+      students.push(student);enrollments.push(enrollment);requirements.push(requirement);
+      var code=text(first(row,["codigoCarrera","CodigoCarrera","codigoCarreraActual","CódigoCarrera"]));
+      var name=text(first(row,["nombreCarrera","NombreCarrera","nombreCarreraActual","Carrera","carrera"]));
+      if(!code&&name){code=normalizeKey(name).toUpperCase();}
+      if(code){
+        careers[code]=hashDocument("carreras",{
+          id:code,codigoCarrera:code,nombreCarrera:name||code,nombreCorto:name||code,activo:true
+        });
+      }
+    });
+    var period=hashDocument("periodos",{
+      id:periodoId,periodoId:periodoId,label:periodLabel(),activo:true
+    });
+    return {
+      estudiantes:students,
+      matriculas:enrollments,
+      requisitos:requirements,
+      periodos:[period],
+      carreras:Object.keys(careers).sort().map(function(code){return careers[code];})
+    };
+  }
+
+  function fetchAll(entity,options){
+    options=Object.assign({},options||{});
+    var repo=repository();
+    if(!repo||typeof repo.list!=="function"){return Promise.reject(new Error("El repositorio Firebase no permite consultar "+entity+"."));}
+    var all=[],cursor={updatedAt:"",documentId:""},pages=0;
+    function next(){
+      pages+=1;
+      if(pages>1000){throw new Error("La paginación de "+entity+" no pudo finalizar.");}
+      return repo.list(entity,Object.assign({},options,{limit:1000,cursor:cursor,includeDeleted:true})).then(function(result){
+        var docs=result&&result.documents||[];
+        all=all.concat(docs);
+        var nextCursor=result&&result.cursorAfter||cursor;
+        var advanced=text(nextCursor.updatedAt)!==text(cursor.updatedAt)||text(nextCursor.documentId)!==text(cursor.documentId);
+        cursor=nextCursor;
+        if(result&&result.hasMore&&docs.length&&advanced){return next();}
+        return all;
       });
+    }
+    return next();
+  }
+  function mapByDocumentId(items){
+    var map=Object.create(null);
+    (items||[]).forEach(function(item){if(item&&item.documentId){map[text(item.documentId)]=item;}});
+    return map;
+  }
+  function activeEnrollment(item){
+    var data=item&&item.data||{};
+    var state=text(data.estadoMatricula).toUpperCase();
+    return data.eliminado!==true&&data.retirado!==true&&state!=="RETIRADO"&&state!=="NO_APARECE_EN_ULTIMA_CARGA";
+  }
+  function activeRequirement(item){return !(item&&item.data&&item.data.eliminado===true);}
+  function idSet(values){
+    var map=Object.create(null);
+    (values||[]).forEach(function(value){value=normalizeCedula(value);if(value){map[value]=true;}});
+    return map;
+  }
+  function difference(a,b){return Object.keys(a).filter(function(key){return b[key]!==true;});}
+  function remoteRoster(periodoId){
+    return fetchAll("matriculas",{periodoId:periodoId}).then(function(items){
+      var active=items.filter(activeEnrollment);
+      return {
+        all:items,
+        active:active,
+        activeIds:idSet(active.map(function(item){return item.data&&item.data.cedula;})),
+        byId:mapByDocumentId(items)
+      };
     });
   }
-
-  function runDifferentialBatches(api,totals,iteration){
-    iteration=Number(iteration||0);
-    if(iteration>=MAX_AUTO_BATCHES){
-      totals.stopped=true;
-      totals.stopReason="Se alcanzó el límite de seguridad de lotes por ejecución.";
-      return Promise.resolve(totals);
-    }
-    status("Comparando","is-warn");
-    message("Revisando el siguiente lote de hasta "+MAX_BATCH_SIZE+" cambios sin recorrer toda Firebase...","");
-    return api.analyze("carga",{
-      periodoId:periodId(),
-      source:"Carga.firebase.smartAnalyze"
-    }).then(function(analysis){
-      if(!analysis||analysis.ok===false){throw new Error(analysis&&analysis.message||"No se pudo comparar BDLocal con Firebase.");}
-      addAnalysis(totals,analysis);
-      if(number(analysis.batchChanges)===0){return totals;}
-      if(number(analysis.conflictos)>0){
-        totals.stopped=true;
-        totals.conflicts+=number(analysis.conflictos);
-        totals.stopReason="Se detectaron conflictos durante el análisis.";
-        return totals;
-      }
-      status("Actualizando","is-warn");
-      message("Lote analizado: "+number(analysis.differences)+" diferencia(s) y "+number(analysis.sinCambios)+" documento(s) ya iguales.","");
-      return api.push("carga",{
-        periodoId:periodId(),
-        requireAnalysis:true,
-        source:"Carga.firebase.smartPush"
-      }).then(function(result){
-        if(!result){throw new Error("Firebase no devolvió resultado.");}
-        addPush(totals,result);
-        if(number(result.conflicts)>0){
-          totals.stopped=true;
-          totals.stopReason="Se detectaron conflictos y la actualización se detuvo para no sobrescribir información.";
-          return totals;
-        }
-        if(result.ok===false){throw new Error(result.message||"No se pudo completar el lote Firebase.");}
-        if(number(result.selectedChanges)===0){return totals;}
-        if(number(result.confirmedChanges)===0){
-          totals.stopped=true;
-          totals.stopReason="El lote no confirmó cambios; se detuvo para evitar un ciclo de reintentos.";
-          return totals;
-        }
-        message(progressMessage(totals),"");
-        return delay(BATCH_DELAY_MS).then(function(){return runDifferentialBatches(api,totals,iteration+1);});
-      });
-    });
+  function safetyCheck(rows,remote){
+    var fileIds=idSet(rows.map(cedulaOf));
+    var existing=remote&&remote.activeIds||Object.create(null);
+    var existingCount=Object.keys(existing).length;
+    var newIds=difference(fileIds,existing);
+    var missingIds=difference(existing,fileIds);
+    var percent=existingCount?newIds.length/existingCount*100:0;
+    return {
+      fileIds:fileIds,existingIds:existing,existingCount:existingCount,newIds:newIds,missingIds:missingIds,
+      newPercent:Math.round(percent*100)/100,requiresConfirmation:existingCount>0&&percent>NEW_STUDENT_ALERT_PERCENT
+    };
+  }
+  function confirmSafety(check,periodoId){
+    if(!check.requiresConfirmation){return true;}
+    var prompt="ALERTA DE SEGURIDAD\n\n"+
+      "Período: "+periodLabel()+"\n"+
+      "Actualmente en Firebase: "+check.existingCount+" estudiantes activos\n"+
+      "Archivo nuevo: "+Object.keys(check.fileIds).length+" estudiantes\n"+
+      "Estudiantes nuevos: "+check.newIds.length+" ("+check.newPercent+"%)\n\n"+
+      "Los nuevos superan el "+NEW_STUDENT_ALERT_PERCENT+"% del roster existente. Esto puede indicar que seleccionó un período incorrecto.\n\n"+
+      "¿Confirma que desea continuar con este período?";
+    return window.confirm(prompt);
   }
 
-  function finishSummary(totals){
-    if(totals.stopped){
-      status(totals.conflicts>0?"Revisión necesaria":"Pausado",totals.conflicts>0?"is-danger":"is-warn");
-      message(
-        progressMessage(totals)+" "+totals.stopReason,
-        totals.conflicts>0?"is-danger":"is-warn"
-      );
-      return totals;
+  function mapLimit(values,limit,worker){
+    values=Array.isArray(values)?values:[];limit=Math.max(1,Number(limit||1));
+    var nextIndex=0,results=new Array(values.length);
+    function runner(){
+      function step(){
+        var index=nextIndex++;if(index>=values.length){return Promise.resolve();}
+        return Promise.resolve(worker(values[index],index)).then(function(result){results[index]=result;return step();});
+      }
+      return step();
     }
-    status("Actualizado","is-ok");
-    var modeText=totals.mode==="bootstrap"?"Carga inicial completada.":"Actualización diferencial completada.";
-    message(
-      modeText+" "+totals.confirmedChanges+" cambio(s) procesados, "+totals.documentsWritten+" documento(s) escritos y "+totals.alreadyEqual+" ya estaban iguales.",
-      "is-ok"
-    );
-    return totals;
+    var runners=[];for(var i=0;i<Math.min(limit,values.length);i+=1){runners.push(runner());}
+    return Promise.all(runners).then(function(){return results;});
+  }
+  function getStudents(ids){
+    var repo=repository(),map=Object.create(null);
+    return mapLimit(ids,READ_CONCURRENCY,function(id){
+      return repo.getById("estudiantes",id).then(function(item){if(item){map[id]=item;}return item;});
+    }).then(function(){return map;});
+  }
+  function expectedFromRemote(item){
+    var data=item&&item.data||null;
+    if(!data){return {exists:false};}
+    return {exists:true,hash:text(data.dataHash),version:Number(data.version||0),updatedAt:text(data.updatedAt)};
+  }
+  function sameHash(local,remoteItem){
+    var remote=remoteItem&&remoteItem.data||null;
+    return !!(remote&&text(remote.dataHash)&&text(local&&local.dataHash)&&text(remote.dataHash)===text(local.dataHash));
+  }
+  function writeEntity(entity,documents,remoteMap){
+    documents=Array.isArray(documents)?documents:[];remoteMap=remoteMap||Object.create(null);
+    var repo=repository();
+    var entries=[];
+    documents.forEach(function(document){
+      var id=repo.documentId(entity,document);
+      var remote=remoteMap[id]||null;
+      if(sameHash(document,remote)){return;}
+      entries.push({documentId:id,document:document,expected:expectedFromRemote(remote)});
+    });
+    if(!entries.length){return Promise.resolve({entity:entity,written:0,unchanged:documents.length,conflicts:0});}
+    var written=0,unchanged=documents.length-entries.length,conflicts=0,index=0;
+    function next(){
+      var slice=entries.slice(index,index+REPOSITORY_CHUNK_LIMIT);index+=slice.length;
+      if(!slice.length){return Promise.resolve({entity:entity,written:written,unchanged:unchanged,conflicts:conflicts});}
+      return repo.writeManyChecked(entity,slice,{merge:false,allowUnbasedOverwrite:false}).then(function(result){
+        written+=Number(result&&result.written||0);unchanged+=Number(result&&result.unchanged||0);conflicts+=Number(result&&result.conflicts&&result.conflicts.length||0);
+        if(result&&result.conflicts&&result.conflicts.length){throw new Error("Se detectaron "+result.conflicts.length+" conflicto(s) en "+repo.collectionName(entity)+".");}
+        return next();
+      }).catch(function(error){
+        throw new Error("Falló la colección "+repo.collectionName(entity)+": "+(error&&error.message?error.message:String(error)));
+      });
+    }
+    return next();
+  }
+
+  function softDeleteMissing(periodoId,check,remoteEnrollment,remoteRequirements,allEnrollments,studentMap){
+    var helper=identity(),stamp=now(),matriculas=[],requisitos=[],students=[];
+    var otherActive=Object.create(null);
+    (allEnrollments||[]).forEach(function(item){
+      var data=item&&item.data||{};
+      if(!activeEnrollment(item)){return;}
+      var cedula=normalizeCedula(data.cedula);var period=canon(data.periodoId);
+      if(cedula&&period&&period!==periodoId){otherActive[cedula]=true;}
+    });
+    check.missingIds.forEach(function(cedula){
+      var remoteId=helper.makeRemoteStudentPeriodId(periodoId,cedula);
+      var enrollmentItem=remoteEnrollment[remoteId];
+      if(enrollmentItem&&enrollmentItem.data){
+        matriculas.push(hashDocument("matriculas",Object.assign({},enrollmentItem.data,{
+          estadoMatricula:"RETIRADO",retirado:true,retiradoEn:stamp,eliminado:true,eliminadoEn:stamp,updatedAt:stamp
+        })));
+      }
+      var requirementItem=remoteRequirements[remoteId];
+      if(requirementItem&&requirementItem.data){
+        requisitos.push(hashDocument("requisitos",Object.assign({},requirementItem.data,{
+          eliminado:true,eliminadoEn:stamp,updatedAt:stamp
+        })));
+      }
+      if(!otherActive[cedula]&&studentMap[cedula]&&studentMap[cedula].data){
+        students.push(hashDocument("estudiantes",Object.assign({},studentMap[cedula].data,{
+          eliminado:true,eliminadoEn:stamp,updatedAt:stamp
+        })));
+      }
+    });
+    return {estudiantes:students,matriculas:matriculas,requisitos:requisitos};
+  }
+
+  function makeAuxiliaryDocuments(periodoId,rows,check){
+    var stamp=now();var token=String(Date.now());
+    var importId="carga__"+periodoId+"__"+token;
+    var historyId="carga_firebase__"+periodoId+"__"+token;
+    var importDoc=hashDocument("importaciones",{
+      id:importId,periodoId:periodoId,archivoNombre:currentFileName(),archivoTipo:"carga_estudiantes",
+      totalFilas:rows.length,nuevos:check.newIds.length,actualizados:Math.max(0,rows.length-check.newIds.length),
+      sinCambios:0,retirados:check.missingIds.length,errores:0,estado:"COMPLETADO",source:"Carga.firebase.direct",
+      createdAt:stamp,updatedAt:stamp
+    });
+    var historyDoc=hashDocument("historial",{
+      id:historyId,entidad:"carga",entidadId:periodoId,periodoId:periodoId,accion:"ACTUALIZAR_FIREBASE_DESDE_ARCHIVO",
+      pantalla:"Carga",source:"Carga.firebase.direct",
+      metadata:{archivo:currentFileName(),estudiantes:rows.length,nuevos:check.newIds.length,retirados:check.missingIds.length},
+      createdAt:stamp,updatedAt:stamp
+    });
+    return {importaciones:[importDoc],historial:[historyDoc]};
+  }
+
+  function verifyRemote(periodoId,rows,careerCodes,importId,historyId){
+    var expected=idSet(rows.map(cedulaOf));
+    return Promise.all([
+      fetchAll("matriculas",{periodoId:periodoId}),
+      fetchAll("requisitos",{periodoId:periodoId}),
+      getStudents(Object.keys(expected)),
+      repository().getById("periodos",periodoId),
+      mapLimit(careerCodes,READ_CONCURRENCY,function(code){return repository().getById("carreras",code);}),
+      importId?repository().getById("importaciones",importId):Promise.resolve(null),
+      historyId?repository().getById("historial",historyId):Promise.resolve(null)
+    ]).then(function(values){
+      var activeM=idSet((values[0]||[]).filter(activeEnrollment).map(function(item){return item.data&&item.data.cedula;}));
+      var activeR=idSet((values[1]||[]).filter(activeRequirement).map(function(item){return item.data&&item.data.cedula;}));
+      var students=Object.create(null);Object.keys(values[2]||{}).forEach(function(id){var item=values[2][id];if(item&&item.data&&item.data.eliminado!==true){students[id]=true;}});
+      var missingStudents=difference(expected,students);
+      var missingMatriculas=difference(expected,activeM);
+      var missingRequisitos=difference(expected,activeR);
+      var extraMatriculas=difference(activeM,expected);
+      var extraRequisitos=difference(activeR,expected);
+      var missingCareers=[];(values[4]||[]).forEach(function(item,index){if(!item||!item.data||item.data.eliminado===true){missingCareers.push(careerCodes[index]);}});
+      var ok=!missingStudents.length&&!missingMatriculas.length&&!missingRequisitos.length&&!extraMatriculas.length&&!extraRequisitos.length&&
+        !!(values[3]&&values[3].data)&&!missingCareers.length&&(!importId||!!(values[5]&&values[5].data))&&(!historyId||!!(values[6]&&values[6].data));
+      return {
+        ok:ok,expected:Object.keys(expected).length,
+        estudiantes:Object.keys(students).length,matriculas:Object.keys(activeM).length,requisitos:Object.keys(activeR).length,
+        missingStudents:missingStudents,missingMatriculas:missingMatriculas,missingRequisitos:missingRequisitos,
+        extraMatriculas:extraMatriculas,extraRequisitos:extraRequisitos,missingCareers:missingCareers,
+        periodo:!!(values[3]&&values[3].data),importacion:!importId||!!(values[5]&&values[5].data),historial:!historyId||!!(values[6]&&values[6].data)
+      };
+    });
   }
 
   function updateFirebase(){
-    if(running||!periodId()){return Promise.resolve(null);}
-    setRunning(true);
-    status("Preparando","is-warn");
-    message("Preparando una sola arquitectura compartida de BDLocal y Firebase...","");
+    if(running){return Promise.resolve({ok:false,blocked:true,message:"Ya existe una actualización Firebase en curso."});}
+    var periodoId=periodId();var rows=authoritativeRows(periodoId);var detected=analyzedPeriod();
+    if(!periodoId){return Promise.resolve({ok:false,blocked:true,message:"Seleccione un período antes de actualizar Firebase."});}
+    if(!rows.length){return Promise.resolve({ok:false,blocked:true,message:"Analice un archivo antes de actualizar Firebase."});}
+    if(currentErrors().length){return Promise.resolve({ok:false,blocked:true,message:"El archivo contiene errores. Corríjalos antes de actualizar Firebase."});}
+    if(detected&&detected!==periodoId){
+      return Promise.resolve({ok:false,blocked:true,message:"El archivo fue analizado para "+detected+" y ahora está seleccionado "+periodoId+". Vuelva a analizar el archivo con el período correcto."});
+    }
 
-    var api=null;
-    var remoteState=null;
-    var prepared=null;
+    setRunning(true);status("Preparando","is-warn");message("Preparando Firebase directamente desde el archivo analizado...","");
+    var remoteCurrent=null,allEnrollments=null,requirementsCurrent=null,studentMap=null,documents=null,check=null,aux=null;
+    var remoteMaps={};var totals={written:0,unchanged:0,conflicts:0};
 
-    return ensureCenter().then(function(current){
-      api=current;
-      status("Verificando","is-warn");
-      message("Comprobando con lecturas mínimas si Firebase está vacía...","");
-      return detectRemoteState();
-    }).then(function(result){
-      remoteState=result;
-      status(result.empty?"Firebase vacía":"Firebase existente","is-warn");
-      message(result.empty
-        ?"Firebase está vacía. Se usará una carga inicial segura y controlada por lotes."
-        :"Firebase contiene datos. Se usará comparación diferencial por lotes.","");
-      return prepareLocalQueue(api);
-    }).then(function(result){
-      prepared=result;
-      var preparedCount=number(result&&result.requeued||result&&result.prepared);
-      if(preparedCount===0){
-        status("Sin datos locales","is-warn");
-        message("No existen registros locales de Carga para este período. Guarde primero la información en BDLocal.","is-warn");
-        return {done:true,result:{ok:true,emptyLocal:true,prepared:0,mode:remoteState&&remoteState.empty?"bootstrap":"differential"}};
-      }
-      var mode=remoteState&&remoteState.empty?"bootstrap":"differential";
-      var totals=emptyTotals(mode,prepared);
-      status(mode==="bootstrap"?"Carga inicial":"Comparando","is-warn");
-      message("Se prepararon "+preparedCount+" cambio(s) desde BDLocal. Iniciando lotes de hasta "+MAX_BATCH_SIZE+"...","");
-      var task=mode==="bootstrap"
-        ?runBootstrapBatches(api,totals,0)
-        :runDifferentialBatches(api,totals,0);
-      return task.then(function(finalTotals){return {done:false,result:finishSummary(finalTotals)};});
-    }).then(function(wrapper){
-      return wrapper&&wrapper.result||wrapper;
-    }).catch(function(error){
-      status("Error","is-danger");
-      message(error&&error.message?error.message:String(error),"is-danger");
-      return {ok:false,message:error&&error.message?error.message:String(error)};
-    }).finally(function(){setRunning(false);});
+    return ensureArchitecture()
+      .then(function(){
+        status("Comparando","is-warn");message("Comparando el archivo con Firebase para el período seleccionado...","");
+        return Promise.all([
+          remoteRoster(periodoId),
+          fetchAll("requisitos",{periodoId:periodoId}),
+          fetchAll("matriculas",{})
+        ]);
+      })
+      .then(function(values){
+        remoteCurrent=values[0];requirementsCurrent=values[1]||[];allEnrollments=values[2]||[];
+        check=safetyCheck(rows,remoteCurrent);
+        if(!confirmSafety(check,periodoId)){
+          return {cancelled:true,result:{ok:false,blocked:true,cancelled:true,message:"Actualización cancelada por la alerta de seguridad del 10%."}};
+        }
+        status("Preparando datos","is-warn");
+        message("Preparando "+rows.length+" estudiantes, matrículas y requisitos directamente desde el archivo...","");
+        documents=buildDocuments(rows,periodoId);
+        var studentIds=Object.keys(check.fileIds).concat(check.missingIds).filter(function(id,index,array){return array.indexOf(id)===index;});
+        return getStudents(studentIds).then(function(map){studentMap=map;return {cancelled:false};});
+      })
+      .then(function(stage){
+        if(stage&&stage.cancelled){return stage;}
+        var reqMap=mapByDocumentId(requirementsCurrent);
+        remoteMaps.estudiantes=studentMap||Object.create(null);
+        remoteMaps.matriculas=remoteCurrent&&remoteCurrent.byId||Object.create(null);
+        remoteMaps.requisitos=reqMap;
+        var retired=softDeleteMissing(periodoId,check,remoteMaps.matriculas,remoteMaps.requisitos,allEnrollments,remoteMaps.estudiantes);
+        documents.estudiantes=documents.estudiantes.concat(retired.estudiantes);
+        documents.matriculas=documents.matriculas.concat(retired.matriculas);
+        documents.requisitos=documents.requisitos.concat(retired.requisitos);
+        aux=makeAuxiliaryDocuments(periodoId,rows,check);
+        documents.importaciones=aux.importaciones;
+        documents.historial=aux.historial;
+        return Promise.all([
+          fetchAll("periodos",{}),
+          fetchAll("carreras",{}),
+          fetchAll("importaciones",{periodoId:periodoId}),
+          fetchAll("historial",{periodoId:periodoId})
+        ]).then(function(values){
+          remoteMaps.periodos=mapByDocumentId(values[0]);remoteMaps.carreras=mapByDocumentId(values[1]);
+          remoteMaps.importaciones=mapByDocumentId(values[2]);remoteMaps.historial=mapByDocumentId(values[3]);
+          return {cancelled:false};
+        });
+      })
+      .then(function(stage){
+        if(stage&&stage.cancelled){return stage;}
+        var order=["periodos","carreras","estudiantes","matriculas","requisitos","importaciones","historial"];
+        var chain=Promise.resolve();
+        order.forEach(function(entity){
+          chain=chain.then(function(){
+            status("Actualizando","is-warn");
+            message("Actualizando colección "+repository().collectionName(entity)+"...","");
+            return writeEntity(entity,documents[entity]||[],remoteMaps[entity]||Object.create(null)).then(function(result){
+              totals.written+=Number(result.written||0);totals.unchanged+=Number(result.unchanged||0);totals.conflicts+=Number(result.conflicts||0);
+            });
+          });
+        });
+        return chain.then(function(){return {cancelled:false};});
+      })
+      .then(function(stage){
+        if(stage&&stage.cancelled){return stage;}
+        status("Verificando","is-warn");message("La escritura terminó. Verificando que Firebase esté completo...","");
+        var careerCodes=(documents.carreras||[]).map(function(doc){return text(doc.codigoCarrera);}).filter(Boolean);
+        var importId=documents.importaciones&&documents.importaciones[0]&&documents.importaciones[0].id;
+        var historyId=documents.historial&&documents.historial[0]&&documents.historial[0].id;
+        return verifyRemote(periodoId,rows,careerCodes,importId,historyId).then(function(verification){
+          if(!verification.ok){
+            var error=new Error("Firebase quedó incompleto. Esperados "+verification.expected+" estudiantes: Estudiante "+verification.estudiantes+", matrículas "+verification.matriculas+", requisitos "+verification.requisitos+".");
+            error.verification=verification;throw error;
+          }
+          status("Completo","is-ok");
+          message("Firebase verificado: "+verification.expected+" Estudiante, "+verification.expected+" matrículas y "+verification.expected+" requisitos. Escritos "+totals.written+" documento(s); "+totals.unchanged+" ya estaban iguales.","is-ok");
+          return {ok:true,periodoId:periodoId,source:"archivo",students:rows.length,safety:check,verification:verification,totals:totals};
+        });
+      })
+      .then(function(stage){return stage&&stage.result||stage;})
+      .catch(function(error){
+        status("Error","is-danger");message(error&&error.message?error.message:String(error),"is-danger");
+        return {ok:false,message:error&&error.message?error.message:String(error),verification:error&&error.verification||null};
+      })
+      .finally(function(){setRunning(false);});
   }
-
-  /* Compatibilidad: las acciones antiguas apuntan a la nueva operación única. */
-  function analyze(){return updateFirebase();}
-  function rebuild(){return updateFirebase();}
-  function upload(){return updateFirebase();}
 
   function ensureInlineUI(){
     var legacyTitle=byId("tituloCargaFirebase");
     var legacyCard=legacyTitle&&legacyTitle.closest?legacyTitle.closest("section"):null;
     if(legacyCard&&legacyCard.parentNode){legacyCard.parentNode.removeChild(legacyCard);}
-
-    var actions=byId("cargaBtnGuardar");
-    actions=actions&&actions.parentNode;
+    var actions=byId("cargaBtnGuardar");actions=actions&&actions.parentNode;
     if(!actions){return false;}
-
     var button=byId("cargaBtnFirebaseActualizar");
     if(!button){
-      button=document.createElement("button");
-      button.type="button";
-      button.id="cargaBtnFirebaseActualizar";
-      button.className="carga-btn carga-btn-primary";
-      button.textContent="Actualizar Firebase";
-      var clean=byId("cargaBtnLimpiar");
-      actions.insertBefore(button,clean&&clean.parentNode===actions?clean:null);
+      button=document.createElement("button");button.type="button";button.id="cargaBtnFirebaseActualizar";
+      button.className="carga-btn carga-btn-primary";button.textContent="Actualizar Firebase";
+      var clean=byId("cargaBtnLimpiar");actions.insertBefore(button,clean&&clean.parentNode===actions?clean:null);
     }
-
     var panel=actions.closest?actions.closest(".carga-file-panel"):actions.parentNode;
     if(panel&&!byId("cargaFirebaseInlineState")){
-      var row=document.createElement("div");
-      row.id="cargaFirebaseInlineState";
-      row.innerHTML='<span>Firebase</span><strong id="cargaFirebaseStatus">Listo</strong>';
-      panel.appendChild(row);
-      var info=document.createElement("div");
-      info.id="cargaFirebaseMessage";
-      info.className="carga-firebase-message";
-      info.textContent="Firebase se actualizará desde BDLocal y solo procesará diferencias.";
-      panel.appendChild(info);
+      var row=document.createElement("div");row.id="cargaFirebaseInlineState";
+      row.innerHTML='<span>Firebase</span><strong id="cargaFirebaseStatus">Listo</strong>';panel.appendChild(row);
+      var info=document.createElement("div");info.id="cargaFirebaseMessage";info.className="carga-firebase-message";
+      info.textContent="Firebase se actualizará directamente desde el archivo analizado.";panel.appendChild(info);
     }
     return true;
   }
-
   function bind(){
     ensureInlineUI();
-    var select=byId("cargaPeriodoSelect");
-    var button=byId("cargaBtnFirebaseActualizar");
-    if(select&&!select.__firebaseSmartBound){
-      select.__firebaseSmartBound=true;
-      select.addEventListener("change",syncPeriod);
+    var button=byId("cargaBtnFirebaseActualizar");var select=byId("cargaPeriodoSelect");
+    if(button&&!button.__firebaseDirectBound){
+      button.__firebaseDirectBound=true;button.addEventListener("click",function(event){event.preventDefault();updateFirebase();});
     }
-    if(button&&!button.__firebaseSmartBound){
-      button.__firebaseSmartBound=true;
-      button.addEventListener("click",function(event){
-        event.preventDefault();
-        updateFirebase();
-      });
-    }
-    window.addEventListener("bdlocal:changes-created",function(){
-      if(running){return;}
-      status("Cambios locales","is-warn");
-      message("BDLocal cambió. Pulse Actualizar Firebase cuando quiera respaldar las diferencias.","is-warn");
-      setRunning(false);
-    });
-    window.addEventListener("carga:saved",function(){
-      if(running){return;}
-      status("Cambios locales","is-warn");
-      message("La carga quedó guardada en BDLocal. Puede actualizar Firebase con un solo botón.","is-warn");
-      setRunning(false);
-    });
-    window.addEventListener("carga:connection-ready",function(){recoverPeriods(0);});
-    window.addEventListener("carga:periods-refreshed",function(){alignGlobalPeriod();syncPeriod();});
-    syncPeriod();
-    recoverPeriods(0);
+    if(select&&!select.__firebaseDirectBound){select.__firebaseDirectBound=true;select.addEventListener("change",syncUi);}
+    ["carga:processed","carga:saved"].forEach(function(name){window.addEventListener(name,syncUi);});
+    syncUi();
   }
 
   var publicApi={
-    version:VERSION,
-    maxBatchSize:MAX_BATCH_SIZE,
-    automatic:false,
-    manualOnly:true,
-    update:updateFirebase,
-    analyze:analyze,
-    rebuild:rebuild,
-    upload:upload,
-    ensureCenter:ensureCenter,
-    ensureArchitecture:ensureArchitecture,
-    detectRemoteState:detectRemoteState,
-    recoverPeriods:recoverPeriods,
-    alignGlobalPeriod:alignGlobalPeriod,
-    status:function(){return {version:VERSION,running:running,periodoId:periodId(),maxBatchSize:MAX_BATCH_SIZE};}
+    version:VERSION,directFromFile:true,bdLocalIndependent:true,newStudentAlertPercent:NEW_STUDENT_ALERT_PERCENT,
+    update:updateFirebase,analyze:updateFirebase,rebuild:updateFirebase,upload:updateFirebase,
+    ensureArchitecture:ensureArchitecture,currentRows:function(){return authoritativeRows(periodId());},
+    status:function(){return {version:VERSION,running:running,periodoId:periodId(),rows:normalizedRows().length,directFromFile:true,bdLocalIndependent:true};}
   };
   window.CargaFirebaseSmart=publicApi;
   window.CargaFirebaseSync=publicApi;
 
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",bind,{once:true});
-  }else{
-    bind();
-  }
+  if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind,{once:true});}else{bind();}
 })(window,document);
