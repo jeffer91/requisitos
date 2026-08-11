@@ -424,7 +424,7 @@ Función:
       var cedula=normalizeCedula(data.cedula);var period=canon(data.periodoId);
       if(cedula&&period&&period!==periodoId){otherActive[cedula]=true;}
     });
-    check.missingIds.forEach(function(cedula){
+    (check.retireIds||check.missingIds||[]).forEach(function(cedula){
       var remoteId=helper.makeRemoteStudentPeriodId(periodoId,cedula);
       var enrollmentItem=remoteEnrollment[remoteId];
       if(enrollmentItem&&enrollmentItem.data){
@@ -517,13 +517,15 @@ Función:
         status("Comparando","is-warn");message("Comparando el archivo con Firebase para el período seleccionado...","");
         return Promise.all([
           remoteRoster(periodoId),
-          fetchAll("requisitos",{periodoId:periodoId}),
-          fetchAll("matriculas",{})
+          fetchAll("requisitos",{periodoId:periodoId})
         ]);
       })
       .then(function(values){
-        remoteCurrent=values[0];requirementsCurrent=values[1]||[];allEnrollments=values[2]||[];
+        remoteCurrent=values[0];requirementsCurrent=values[1]||[];allEnrollments=[];
         check=safetyCheck(rows,remoteCurrent);
+        var requirementActiveIds=idSet(requirementsCurrent.filter(activeRequirement).map(function(item){return item.data&&item.data.cedula;}));
+        var extraRequirementIds=difference(requirementActiveIds,check.fileIds);
+        check.retireIds=check.missingIds.concat(extraRequirementIds).filter(function(id,index,array){return array.indexOf(id)===index;});
         if(!confirmSafety(check,periodoId)){
           return {cancelled:true,result:{ok:false,blocked:true,cancelled:true,message:"Actualización cancelada por la alerta de seguridad del 10%."}};
         }
@@ -531,7 +533,13 @@ Función:
         message("Preparando "+rows.length+" estudiantes, matrículas y requisitos directamente desde el archivo...","");
         documents=buildDocuments(rows,periodoId);
         var studentIds=Object.keys(check.fileIds).concat(check.missingIds).filter(function(id,index,array){return array.indexOf(id)===index;});
-        return getStudents(studentIds).then(function(map){studentMap=map;return {cancelled:false};});
+        return getStudents(studentIds).then(function(map){
+          studentMap=map;
+          if(check.retireIds&&check.retireIds.length){
+            return fetchAll("matriculas",{}).then(function(items){allEnrollments=items||[];return {cancelled:false};});
+          }
+          allEnrollments=[];return {cancelled:false};
+        });
       })
       .then(function(stage){
         if(stage&&stage.cancelled){return stage;}
@@ -546,14 +554,14 @@ Función:
         aux=makeAuxiliaryDocuments(periodoId,rows,check);
         documents.importaciones=aux.importaciones;
         documents.historial=aux.historial;
+        var careerCodes=(documents.carreras||[]).map(function(doc){return text(doc.codigoCarrera);}).filter(Boolean);
         return Promise.all([
-          fetchAll("periodos",{}),
-          fetchAll("carreras",{}),
-          fetchAll("importaciones",{periodoId:periodoId}),
-          fetchAll("historial",{periodoId:periodoId})
+          repository().getById("periodos",periodoId),
+          mapLimit(careerCodes,READ_CONCURRENCY,function(code){return repository().getById("carreras",code);})
         ]).then(function(values){
-          remoteMaps.periodos=mapByDocumentId(values[0]);remoteMaps.carreras=mapByDocumentId(values[1]);
-          remoteMaps.importaciones=mapByDocumentId(values[2]);remoteMaps.historial=mapByDocumentId(values[3]);
+          remoteMaps.periodos=Object.create(null);if(values[0]){remoteMaps.periodos[periodoId]=values[0];}
+          remoteMaps.carreras=Object.create(null);(values[1]||[]).forEach(function(item,index){if(item){remoteMaps.carreras[careerCodes[index]]=item;}});
+          remoteMaps.importaciones=Object.create(null);remoteMaps.historial=Object.create(null);
           return {cancelled:false};
         });
       })
