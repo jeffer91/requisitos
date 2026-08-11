@@ -5,13 +5,14 @@ Función:
 - Mantener la ruta histórica usada por carga.html.
 - Cargar primero la corrección de raíz Carga -> BDLocal -> Firebase.
 - Cargar la reconstrucción completa desde el roster ACTIVO del período.
+- Hacer autoritativa la carga actual y acelerar el bootstrap cuando Firebase está vacía.
 - Cargar después el controlador inteligente Firebase una sola vez.
 - No crear conexiones ni sincronizadores paralelos.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.2.0-complete-rebuild-loader";
+  var VERSION="2.3.0-authoritative-fast-loader";
   var currentScript=document.currentScript;
   var base=currentScript&&currentScript.src?currentScript.src:window.location.href;
   var loading=Object.create(null);
@@ -19,6 +20,7 @@ Función:
   function smart(){return window.CargaFirebaseSmart||null;}
   function rootFix(){return window.CargaFirebaseRootFix||null;}
   function completeRebuild(){return window.CargaFirebaseCompleteRebuild||null;}
+  function finalize(){return window.CargaFirebaseFinalize||null;}
   function source(relative){
     try{return new URL(relative,base).href;}
     catch(error){return relative;}
@@ -77,14 +79,21 @@ Función:
       .then(function(){
         var rebuild=completeRebuild();
         if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
+        return loadScript("./carga.firebase-finalize.js",finalize,"la validación final de Firebase");
+      })
+      .then(function(){
+        var finalizer=finalize();
+        if(finalizer&&typeof finalizer.install==="function"){finalizer.install();}
         return loadScript("./carga.firebase-smart.js",smart,"el controlador inteligente de Firebase");
       })
       .then(function(){
         var fix=rootFix();
         var rebuild=completeRebuild();
+        var finalizer=finalize();
         if(fix&&typeof fix.installSaveFix==="function"){fix.installSaveFix();}
         if(fix&&typeof fix.installTargetFix==="function"){fix.installTargetFix();}
         if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
+        if(finalizer&&typeof finalizer.install==="function"){finalizer.install();}
         return expose();
       });
   }
@@ -97,6 +106,7 @@ Función:
         version:VERSION,
         rootFixLoaded:!!rootFix(),
         completeRebuildLoaded:!!completeRebuild(),
+        finalizeLoaded:!!finalize(),
         smartLoaded:!!smart(),
         source:source("./carga.firebase-smart.js")
       };
