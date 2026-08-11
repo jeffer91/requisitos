@@ -7,12 +7,13 @@ Función:
 - Cargar la reconstrucción completa desde el roster ACTIVO del período.
 - Hacer autoritativa la carga actual y acelerar el bootstrap cuando Firebase está vacía.
 - Cargar después el controlador inteligente Firebase una sola vez.
+- Supervisar la acción final y verificar Estudiante, matrículas y requisitos 1:1.
 - No crear conexiones ni sincronizadores paralelos.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.3.0-authoritative-fast-loader";
+  var VERSION="2.4.0-completeness-supervisor-loader";
   var currentScript=document.currentScript;
   var base=currentScript&&currentScript.src?currentScript.src:window.location.href;
   var loading=Object.create(null);
@@ -21,6 +22,7 @@ Función:
   function rootFix(){return window.CargaFirebaseRootFix||null;}
   function completeRebuild(){return window.CargaFirebaseCompleteRebuild||null;}
   function finalize(){return window.CargaFirebaseFinalize||null;}
+  function supervisor(){return window.CargaFirebaseSupervisor||null;}
   function source(relative){
     try{return new URL(relative,base).href;}
     catch(error){return relative;}
@@ -94,6 +96,11 @@ Función:
         if(fix&&typeof fix.installTargetFix==="function"){fix.installTargetFix();}
         if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
         if(finalizer&&typeof finalizer.install==="function"){finalizer.install();}
+        return loadScript("./carga.firebase-supervisor.js",supervisor,"el supervisor de integridad Firebase");
+      })
+      .then(function(){
+        var guard=supervisor();
+        if(guard&&typeof guard.bind==="function"){guard.bind();}
         return expose();
       });
   }
@@ -108,6 +115,7 @@ Función:
         completeRebuildLoaded:!!completeRebuild(),
         finalizeLoaded:!!finalize(),
         smartLoaded:!!smart(),
+        supervisorLoaded:!!supervisor(),
         source:source("./carga.firebase-smart.js")
       };
     }
