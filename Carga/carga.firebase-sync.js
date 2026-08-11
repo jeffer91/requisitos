@@ -4,19 +4,21 @@ Ruta: /Carga/carga.firebase-sync.js
 Función:
 - Mantener la ruta histórica usada por carga.html.
 - Cargar primero la corrección de raíz Carga -> BDLocal -> Firebase.
+- Cargar la reconstrucción completa desde el roster ACTIVO del período.
 - Cargar después el controlador inteligente Firebase una sola vez.
 - No crear conexiones ni sincronizadores paralelos.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="2.1.0-rootfix-loader";
+  var VERSION="2.2.0-complete-rebuild-loader";
   var currentScript=document.currentScript;
   var base=currentScript&&currentScript.src?currentScript.src:window.location.href;
   var loading=Object.create(null);
 
   function smart(){return window.CargaFirebaseSmart||null;}
   function rootFix(){return window.CargaFirebaseRootFix||null;}
+  function completeRebuild(){return window.CargaFirebaseCompleteRebuild||null;}
   function source(relative){
     try{return new URL(relative,base).href;}
     catch(error){return relative;}
@@ -70,12 +72,19 @@ Función:
   function load(){
     return loadScript("./carga.firebase-rootfix.js",rootFix,"la corrección de raíz Firebase")
       .then(function(){
+        return loadScript("./carga.firebase-complete-rebuild.js",completeRebuild,"la reconstrucción completa de Firebase");
+      })
+      .then(function(){
+        var rebuild=completeRebuild();
+        if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
         return loadScript("./carga.firebase-smart.js",smart,"el controlador inteligente de Firebase");
       })
       .then(function(){
         var fix=rootFix();
+        var rebuild=completeRebuild();
         if(fix&&typeof fix.installSaveFix==="function"){fix.installSaveFix();}
         if(fix&&typeof fix.installTargetFix==="function"){fix.installTargetFix();}
+        if(rebuild&&typeof rebuild.install==="function"){rebuild.install();}
         return expose();
       });
   }
@@ -87,6 +96,7 @@ Función:
       return {
         version:VERSION,
         rootFixLoaded:!!rootFix(),
+        completeRebuildLoaded:!!completeRebuild(),
         smartLoaded:!!smart(),
         source:source("./carga.firebase-smart.js")
       };
