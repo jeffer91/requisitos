@@ -10,7 +10,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.0.1-global-alex-leon";
+  var VERSION = "2.1.0-global-all-responsibles";
   var ELIGIBILITY_KEY = "__pendientes_defensa_nucleos__";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -32,17 +32,32 @@ Función o funciones:
     institucion:"ITSQMET"
   };
 
+  /*
+   * El correo general se envía a las autoridades y responsables que
+   * aparecen en Coordi. Verónica Ayala atiende dos áreas, por lo que su
+   * dirección se incluye una sola vez para evitar destinatarios duplicados.
+   */
+  var globalRecipients = [
+    "aleon@itsqmet.edu.ec",
+    "veayala@itsqmet.edu.ec",
+    "mtomala@itsqmet.edu.ec",
+    "lsalinas@itsqmet.edu.ec",
+    "paraujo@itsqmet.edu.ec",
+    "mortegaf@itsqmet.edu.ec",
+    "mhernandez@itsqmet.edu.ec"
+  ];
+
   var global = {
     id:"global",
     tipo:"global",
     area:"Reporte general",
-    responsable:"Dr. Alex León",
-    saludo:"Estimado Dr. Alex León",
-    correos:["aleon@itsqmet.edu.ec"],
-    correo:"aleon@itsqmet.edu.ec",
+    responsable:"Autoridades y responsables de áreas",
+    saludo:"Estimadas autoridades y responsables de área",
+    correos:globalRecipients.slice(),
+    correo:globalRecipients.join(", "),
     copias:[],
     whatsapp:"",
-    descripcion:"Reporte general de cumplimiento de requisitos."
+    descripcion:"Reporte general de cumplimiento de requisitos enviado a autoridades y responsables de las áreas involucradas."
   };
 
   var eligibility = {
