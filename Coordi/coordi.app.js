@@ -3,14 +3,15 @@ Nombre completo: coordi.app.js
 Ruta o ubicación: /Requisitos/Coordi/coordi.app.js
 Función o funciones:
 - Actualizar Coordi automáticamente al cambiar los filtros.
-- Mostrar los tres tipos de correo en la misma pantalla.
+- Permitir el primer render con datos aunque Outlook y WhatsApp todavía estén cargando.
+- Mostrar los tres tipos de correo en la misma pantalla cuando comunicaciones estén listas.
 - Abrir Outlook Web con destinatarios, copias, asunto y cuerpo preparados.
 - Abrir WhatsApp únicamente para comunicaciones por requisito.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION = "4.1.0-outlook-web-full-compose";
+  var VERSION = "4.2.0-data-first-render";
   var state = {
     periodId:"",division:"",career:"",requirementKey:"",report:null,currentMail:null,currentWhatsApp:null,
     loading:false,openingMail:false,pendingRender:null,refreshTimer:null,statusTimer:null,eventsBound:false,booted:false
@@ -34,8 +35,13 @@ Función o funciones:
     state.statusTimer = setTimeout(function(){ state.statusTimer = null; status(""); },Number(duration || 3200));
   }
   function ensureModules(){
-    if(window.COOReport && window.COORender && window.COOMail && window.COOWhatsApp){ return true; }
-    status("No se cargaron todos los módulos de Coordi.","warn");
+    /*
+     * El render de períodos y datos solo depende de COOReport y COORender.
+     * COOMail y COOWhatsApp se cargan de forma diferida desde coordi.bootstrap.js,
+     * por lo que no deben bloquear el primer render de la pantalla.
+     */
+    if(window.COOReport && window.COORender){ return true; }
+    status("No se cargaron los módulos de datos de Coordi.","warn");
     return false;
   }
   function mergeRenderOptions(current,next){
@@ -87,7 +93,7 @@ Función o funciones:
   function bindDataEvents(){
     if(state.eventsBound){ return; }
     state.eventsBound = true;
-    ["bdlocal:screen-data-updated","bdlocal:conexiones-cache-updated","bdlocal:legacy-snapshot","requisitos:bl:snapshot-changed"].forEach(function(name){
+    ["bdlocal:screen-data-updated","bdlocal:conexiones-cache-updated","bdlocal:legacy-snapshot","requisitos:bl:snapshot-changed","coordi:communications-ready"].forEach(function(name){
       window.addEventListener(name,scheduleDataRefresh);
     });
     window.addEventListener("storage",function(event){
@@ -104,6 +110,10 @@ Función o funciones:
   }
   function openMail(){
     if(state.openingMail){ return; }
+    if(!window.COOMail || typeof window.COOMail.open !== "function"){
+      status("Outlook todavía se está preparando. Intente nuevamente en un momento.","warn");
+      return;
+    }
     if(!state.currentMail){ status("No existe un correo preparado para este filtro.","warn"); return; }
     state.openingMail = true;
     setMailButtonBusy(true);
@@ -122,6 +132,10 @@ Función o funciones:
     });
   }
   function openWhatsApp(){
+    if(!window.COOWhatsApp || typeof window.COOWhatsApp.open !== "function"){
+      status("WhatsApp todavía se está preparando. Intente nuevamente en un momento.","warn");
+      return;
+    }
     if(!state.currentWhatsApp){ status("No existe un WhatsApp preparado para este filtro.","warn"); return; }
     status("Abriendo WhatsApp...","");
     Promise.resolve(window.COOWhatsApp.open(state.currentWhatsApp)).then(function(){
