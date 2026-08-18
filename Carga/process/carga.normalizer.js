@@ -21,9 +21,20 @@
       createdAt:new Date().toISOString()
     };
   }
+  function text(value){return String(value==null?"":value).trim();}
+  function ensureName(row){
+    row=row||{};
+    var current=text(row.nombres||row.Nombres||row.nombre||row.Nombre||row.estudiante||row.Estudiante);
+    if(!current){
+      row.nombres="PENDIENTE";
+      row.Nombres="PENDIENTE";
+    }
+    return row;
+  }
   function normalizeOne(row){
     var mapped=window.CargaFieldMap?window.CargaFieldMap.mapRow(row):row;
-    return window.BDLNormCarrera?window.BDLNormCarrera.normalizeRow(mapped):mapped;
+    mapped=window.BDLNormCarrera?window.BDLNormCarrera.normalizeRow(mapped):mapped;
+    return ensureName(mapped);
   }
   function normalizeRows(rows,options){
     options=options||{};rows=Array.isArray(rows)?rows:[];
@@ -45,5 +56,5 @@
     });
   }
 
-  window.CargaNormalizer={version:"2.0.0-async",normalizeRows:normalizeRows,normalizeRowsAsync:normalizeRowsAsync};
+  window.CargaNormalizer={version:"2.1.0-pending-name",normalizeRows:normalizeRows,normalizeRowsAsync:normalizeRowsAsync};
 })(window);
