@@ -6,12 +6,13 @@ Función o funciones:
 - Mantener PENDIENTE cuando no existe ningún nombre disponible.
 - Completar el borrado local de estudiantes y períodos aunque BL2Core no exponga métodos delete.
 - Limpiar datos distribuidos, colas y cachés del período sin borrar personas globales.
+- Verificar que el borrado terminó antes de informar éxito.
 - Recordar períodos eliminados para que los períodos base no reaparezcan en Carga al reiniciar.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-carga-integrity";
+  var VERSION="1.0.1-verified-delete";
   var DELETED_PERIODS_KEY="carga.periodos.eliminados.v1";
   var patched=false;
 
@@ -101,15 +102,21 @@ Función o funciones:
   function markDeleted(periodoId){var rows=readDeletedPeriods();rows.push(canon(periodoId));writeDeletedPeriods(rows);}
   function unmarkDeleted(periodoId){var id=canon(periodoId);writeDeletedPeriods(readDeletedPeriods().filter(function(item){return item!==id;}));}
 
+  function rowsForPeriod(storeName,periodoId){
+    var database=db();periodoId=canon(periodoId);
+    if(!database||typeof database.getAll!=="function"){return Promise.resolve([]);}
+    return database.getAll(storeName).catch(function(){return [];}).then(function(rows){
+      return (Array.isArray(rows)?rows:[]).filter(function(row){return periodOf(row)===periodoId;});
+    });
+  }
   function removeRowsFromStore(storeName,periodoId){
     var database=db();periodoId=canon(periodoId);
-    if(!database||typeof database.getAll!=="function"||typeof database.remove!=="function"){return Promise.resolve(0);}
-    return database.getAll(storeName).catch(function(){return [];}).then(function(rows){
-      rows=(Array.isArray(rows)?rows:[]).filter(function(row){return periodOf(row)===periodoId;});
+    if(!database||typeof database.remove!=="function"){return Promise.resolve(0);}
+    return rowsForPeriod(storeName,periodoId).then(function(rows){
       var removed=0,chain=Promise.resolve();
       rows.forEach(function(row){
         var id=primaryKey(storeName,row);if(!id){return;}
-        chain=chain.then(function(){return database.remove(storeName,id).then(function(){removed+=1;}).catch(function(){return false;});});
+        chain=chain.then(function(){return database.remove(storeName,id).then(function(){removed+=1;});});
       });
       return chain.then(function(){return removed;});
     });
@@ -122,6 +129,27 @@ Función o funciones:
     return chain.then(function(){return result;});
   }
   function totalRemoved(result){return Object.keys(result||{}).reduce(function(total,name){return total+Number(result[name]||0);},0);}
+  function verifyPurgedStores(stores,periodoId){
+    var remaining={};var chain=Promise.resolve();
+    (stores||[]).forEach(function(storeName){
+      chain=chain.then(function(){return rowsForPeriod(storeName,periodoId).then(function(rows){if(rows.length){remaining[storeName]=rows.length;}});});
+    });
+    return chain.then(function(){
+      var names=Object.keys(remaining);
+      if(names.length){
+        throw new Error("El borrado quedó incompleto. Aún existen registros del período en: "+names.map(function(name){return name+" ("+remaining[name]+")";}).join(", ")+".");
+      }
+      return true;
+    });
+  }
+  function verifyPeriodRemoved(periodoId){
+    var database=db();periodoId=canon(periodoId);
+    if(!database||typeof database.get!=="function"){return Promise.resolve(true);}
+    return database.get("periodos",periodoId).then(function(period){
+      if(period){throw new Error("El período todavía existe en BDLocal después del borrado.");}
+      return true;
+    });
+  }
 
   function refreshAfterDelete(periodoId){
     var api=connector();
@@ -159,7 +187,7 @@ Función o funciones:
     periodoId=canon(periodoId);
     if(!periodoId){return Promise.reject(new Error("Seleccione un período válido."));}
     return purgeStores(STUDENT_PERIOD_STORES,periodoId).then(function(counts){
-      return resetPeriodMetadata(periodoId).then(function(){return refreshAfterDelete(periodoId);}).then(function(){
+      return verifyPurgedStores(STUDENT_PERIOD_STORES,periodoId).then(function(){return resetPeriodMetadata(periodoId);}).then(function(){return refreshAfterDelete(periodoId);}).then(function(){
         var deleted=Number(counts.estudiantes||0)||Number(counts.matriculas_periodo||0)||0;
         emit("bl2:students-deleted",{ok:true,periodoId:periodoId,deleted:deleted,details:counts,source:"CargaIntegrityFixes"});
         return {ok:true,deleted:deleted,totalRemoved:totalRemoved(counts),details:counts,periodoId:periodoId};
@@ -171,10 +199,11 @@ Función o funciones:
     periodoId=canon(periodoId);
     if(!periodoId){return Promise.reject(new Error("Seleccione un período válido."));}
     markDeleted(periodoId);
-    return purgeStores(STUDENT_PERIOD_STORES.concat(COMPLETE_PERIOD_EXTRA_STORES),periodoId).then(function(counts){
+    var stores=STUDENT_PERIOD_STORES.concat(COMPLETE_PERIOD_EXTRA_STORES);
+    return purgeStores(stores,periodoId).then(function(counts){
       var database=db();
-      var removePeriod=database&&typeof database.remove==="function"?database.remove("periodos",periodoId).catch(function(){return false;}):Promise.resolve(false);
-      return removePeriod.then(function(){return clearActivePeriodIfNeeded(periodoId);}).then(function(){return refreshAfterDelete(periodoId);}).then(function(){
+      var removePeriod=database&&typeof database.remove==="function"?database.remove("periodos",periodoId):Promise.reject(new Error("BL2DB no permite borrar períodos."));
+      return removePeriod.then(function(){return verifyPurgedStores(stores,periodoId);}).then(function(){return verifyPeriodRemoved(periodoId);}).then(function(){return clearActivePeriodIfNeeded(periodoId);}).then(function(){return refreshAfterDelete(periodoId);}).then(function(){
         emit("bl2:period-deleted",{ok:true,periodoId:periodoId,details:counts,source:"CargaIntegrityFixes"});
         return {ok:true,deleted:Number(counts.estudiantes||0)||Number(counts.matriculas_periodo||0)||0,totalRemoved:totalRemoved(counts)+1,details:counts,periodoId:periodoId};
       });
