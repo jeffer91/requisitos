@@ -11,7 +11,7 @@ Función o funciones:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-carga-to-shared-cache-recovery";
+  var VERSION="1.0.1-carga-frame-id";
   var MESSAGE_PUBLISH="requisitos:bdlocal-cache:publish";
   var state={installed:false,recoveries:0,skipped:0,failures:0,lastPeriodId:"",lastStudents:0,lastRequirements:0,lastDurationMs:0,lastError:"",updatedAt:""};
   var active=Object.create(null);
@@ -33,7 +33,13 @@ Función o funciones:
   function session(){return window.MAQ_BASELOCAL_SESSION||null;}
   function frames(){return Array.prototype.slice.call(document.querySelectorAll("iframe")||[]);}
   function moduleId(frame){return text(frame&&frame.dataset&&frame.dataset.moduleId||frame&&frame.getAttribute&&frame.getAttribute("data-module-id")||"");}
-  function cargaFrame(){return frames().filter(function(frame){return moduleId(frame)==="carga";})[0]||null;}
+  function cargaFrame(){
+    return frames().filter(function(frame){
+      var id=moduleId(frame);
+      var src=text(frame&&frame.getAttribute&&frame.getAttribute("src")||"").toLowerCase();
+      return id==="carga_excel"||id==="carga"||src.indexOf("/carga/carga.html")>=0||src.indexOf("../carga/carga.html")>=0;
+    })[0]||null;
+  }
   function cargaWindow(){var frame=cargaFrame();try{return frame&&frame.contentWindow||null;}catch(error){return null;}}
   function isCargaSource(source){var frame=cargaFrame();return !!(frame&&source&&frame.contentWindow===source);}
   function snapshot(){var current=session();if(!current||typeof current.getSnapshot!=="function"){return null;}try{return current.getSnapshot({clone:false});}catch(error){return current.getSnapshot();}}
