@@ -4,6 +4,7 @@ Ruta: /Coordi/coordi.bootstrap.js
 Función:
 - Abrir Coordi desde la caché compartida sin reconstruir BDLocal.
 - Cargar primero datos y reporte; preparar Outlook y WhatsApp después del primer render.
+- Aplicar el formato visual del correo general después de cargar COOMail.
 - Mostrar errores concretos en lugar de mantener “Conectando” indefinidamente.
 ========================================================= */
 (function(window,document){
@@ -53,8 +54,9 @@ Función:
   function scheduleCommunicationFeatures(){
     var run=function(){
       load("coo.mail.js",function(){return window.COOMail;})
+        .then(function(){return load("coo.mail.visual.js",function(){return window.COOMailVisual;});})
         .then(function(){return load("coo.whatsapp.js",function(){return window.COOWhatsApp;});})
-        .then(function(){emit("coordi:communications-ready",{ok:true,mail:true,whatsapp:true});})
+        .then(function(){emit("coordi:communications-ready",{ok:true,mail:true,mailVisual:true,whatsapp:true});})
         .catch(function(error){emit("coordi:communications-error",{ok:false,error:error.message||String(error)});});
     };
     if(typeof window.requestIdleCallback==="function"){window.requestIdleCallback(run,{timeout:1400});}else{window.setTimeout(run,180);}
@@ -82,6 +84,6 @@ Función:
       });
   }
 
-  window.CoordiBootstrap={version:"2.0.0-cache-first",boot:boot,connectorReady:connectorReady};
+  window.CoordiBootstrap={version:"2.1.0-visual-mail",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
