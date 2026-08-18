@@ -3,6 +3,7 @@ Nombre completo: carga.index.js
 Ruta o ubicación: /Carga/carga.index.js
 Función o funciones:
 - Preparar BDLocal, cone.carga.js y sus operaciones exclusivas.
+- Aplicar correcciones de integridad antes de habilitar la interfaz.
 - Exponer una única preparación del conector para la interfaz.
 - Evitar refrescos duplicados durante el arranque.
 - Reintentar auditorías pendientes después de recuperar la conexión.
@@ -13,6 +14,7 @@ Función o funciones:
   var ADAPTER_PATH="../BDLocal/adapters/bdl.screen-deps.js";
   var CONNECTOR_PATH="../BDLocal/conexiones/cone.carga.js";
   var OPS_PATH="../BDLocal/conexiones/cone.carga.ops.js";
+  var FIXES_PATH="./carga.integrity-fixes.js";
   var loading={};
   var connectorTask=null;
 
@@ -37,7 +39,16 @@ Función o funciones:
   }
   function ensureConnector(){
     if(connectorTask){return connectorTask;}
-    connectorTask=ensureAdapter().then(function(){return connector()||loadScript(CONNECTOR_PATH,connector);}).then(function(){return loadScript(OPS_PATH,function(){var con=connector();return con&&typeof con.listStudents==="function"&&typeof con.saveDivisions==="function"?con:null;});}).then(function(con){return Promise.resolve(typeof con.ready==="function"?con.ready():true).then(function(status){if(status&&status.ok===false){throw new Error(status.error||"ConCarga no está listo.");}return con;});}).catch(function(error){connectorTask=null;throw error;});
+    connectorTask=ensureAdapter()
+      .then(function(){return connector()||loadScript(CONNECTOR_PATH,connector);})
+      .then(function(){return loadScript(OPS_PATH,function(){var con=connector();return con&&typeof con.listStudents==="function"&&typeof con.saveDivisions==="function"?con:null;});})
+      .then(function(con){
+        return loadScript(FIXES_PATH,function(){return window.CargaIntegrityFixes;}).then(function(fixes){
+          return Promise.resolve(fixes&&typeof fixes.patch==="function"?fixes.patch():con).then(function(){return con;});
+        });
+      })
+      .then(function(con){return Promise.resolve(typeof con.ready==="function"?con.ready():true).then(function(status){if(status&&status.ok===false){throw new Error(status.error||"ConCarga no está listo.");}return con;});})
+      .catch(function(error){connectorTask=null;throw error;});
     return connectorTask;
   }
   function refreshPeriods(){
@@ -55,6 +66,6 @@ Función o funciones:
     }).catch(function(error){emit("carga:bdlocal-error",{ok:false,source:"ConCarga",error:error.message||String(error),at:new Date().toISOString()});});
   }
 
-  window.CargaConnectionIndex={version:"4.1.0-audit-recovery",ensureConnector:ensureConnector,refreshPeriods:refreshPeriods,retryAudits:retryAudits};
+  window.CargaConnectionIndex={version:"4.2.0-integrity-fixes",ensureConnector:ensureConnector,refreshPeriods:refreshPeriods,retryAudits:retryAudits};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
