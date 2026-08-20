@@ -4,6 +4,7 @@ Nombre completo: stats.html
 Ruta o ubicación: /Stats/stats.html
 Función o funciones:
 - Mostrar estadísticas del módulo Requisitos usando BDLocal.
+- Priorizar el reporte de cierre del período: cuántos llegaron, cuántos no y por qué.
 - Resumir estudiantes por matrícula, período, división, carrera, requisito, notas y Telegram.
 - Mostrar una sola sección activa desde la navegación lateral.
 - Actualizar desde Firebase exclusivamente los campos de Telegram.
@@ -14,6 +15,7 @@ Función o funciones:
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stats Requisitos</title>
   <link rel="stylesheet" href="stats.css" />
+  <link rel="stylesheet" href="stats.closure.css" />
   <link rel="stylesheet" href="stats.notes.analytics.css" />
   <link rel="stylesheet" href="stats.notes.priorities.css" />
   <link rel="stylesheet" href="stats.overrides.css" />
@@ -22,6 +24,7 @@ Función o funciones:
   <main class="stats-app stats-shell">
     <aside class="stats-side" aria-label="Navegación de estadísticas">
       <div class="stats-side-title">Stats</div>
+      <a href="#stats-cierre-section">Cierre</a>
       <a href="#stats-resumen-section">Resumen</a>
       <a href="#stats-notas-section">Notas</a>
       <a href="#stats-requisitos-section">Requisitos</a>
@@ -42,6 +45,14 @@ Función o funciones:
         <label>Estado<select id="stats-estado"><option value="">Todos</option><option value="cumple">Cumple</option><option value="no_cumple">No cumple</option></select></label>
         <label>Requisito<select id="stats-requisito"><option value="">Todos los requisitos</option></select></label>
         <button id="stats-refresh" type="button">Actualizar</button>
+      </section>
+
+      <section id="stats-cierre-section" class="stats-section stats-closure-wrap">
+        <div class="stats-section-head">
+          <div><p class="stats-eyebrow">Reporte de cierre</p><h1>Cierre del período</h1></div>
+          <span id="stats-closure-scope" class="stats-period-chip">Selecciona un período</span>
+        </div>
+        <div id="stats-closure-report" class="stats-closure-report-empty"><div class="empty">Selecciona el período terminado para generar el reporte de cierre.</div></div>
       </section>
 
       <section id="stats-resumen-section" class="stats-section">
