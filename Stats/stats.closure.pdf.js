@@ -3,7 +3,7 @@ Nombre completo: stats.closure.pdf.js
 Ruta o ubicación: /Stats/stats.closure.pdf.js
 Función:
 - Descargar en PDF el reporte visible de cierre del período.
-- Usar html2pdf.js local, sin depender de servicios externos.
+- Intentar primero html2pdf.js local y usar una copia CDN estable como respaldo.
 - Incluir encabezado, alcance, KPIs, causas, aprobación final y detalle.
 - Expandir tablas para que no se corte el contenido por el scroll de pantalla.
 ========================================================= */
@@ -11,6 +11,7 @@ Función:
   "use strict";
 
   var exporting=false;
+  var enginePromise=null;
 
   function el(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
@@ -51,6 +52,72 @@ Función:
       "@media(max-width:760px){.stats-section-head{align-items:flex-start}.stats-closure-head-actions{justify-content:flex-start}}"
     ].join("\n");
     document.head.appendChild(style);
+  }
+
+  function loadScript(src,timeoutMs){
+    return new Promise(function(resolve,reject){
+      var script=document.createElement("script");
+      var settled=false;
+      var timer=window.setTimeout(function(){
+        if(settled){return;}
+        settled=true;
+        try{script.remove();}catch(error){}
+        reject(new Error("Tiempo agotado al cargar "+src));
+      },Math.max(2500,Number(timeoutMs||6000)));
+
+      function finish(ok,error){
+        if(settled){return;}
+        settled=true;
+        window.clearTimeout(timer);
+        if(ok){resolve(window.html2pdf);}else{
+          try{script.remove();}catch(innerError){}
+          reject(error||new Error("No se pudo cargar "+src));
+        }
+      }
+
+      script.src=src;
+      script.async=true;
+      script.onload=function(){
+        finish(typeof window.html2pdf==="function",new Error("La librería cargó pero no expuso html2pdf."));
+      };
+      script.onerror=function(){finish(false,new Error("No se pudo cargar "+src));};
+      (document.head||document.documentElement).appendChild(script);
+    });
+  }
+
+  function ensureEngine(){
+    if(typeof window.html2pdf==="function"){
+      return Promise.resolve(window.html2pdf);
+    }
+    if(enginePromise){return enginePromise;}
+
+    var sources=[
+      "../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js",
+      "../node_modules/html2pdf.js/dist/html2pdf.bundle.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.12.1/html2pdf.bundle.min.js"
+    ];
+
+    enginePromise=new Promise(function(resolve,reject){
+      var index=0;
+      function next(lastError){
+        if(typeof window.html2pdf==="function"){
+          resolve(window.html2pdf);
+          return;
+        }
+        if(index>=sources.length){
+          reject(lastError||new Error("La biblioteca PDF no está disponible."));
+          return;
+        }
+        var src=sources[index++];
+        loadScript(src,6500).then(resolve).catch(next);
+      }
+      next();
+    }).catch(function(error){
+      enginePromise=null;
+      throw error;
+    });
+
+    return enginePromise;
   }
 
   function buildSource(report){
@@ -107,6 +174,18 @@ Función:
     return base+".pdf";
   }
 
+  function saveWithEngine(engine,report,host){
+    var options={
+      margin:[8,8,8,8],
+      filename:filename(report),
+      image:{type:"jpeg",quality:.98},
+      html2canvas:{scale:1.5,useCORS:true,backgroundColor:"#ffffff",logging:false},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
+      pagebreak:{mode:["css","legacy"],avoid:["tr",".stats-closure-kpi",".stats-closure-final-grid article"]}
+    };
+    return Promise.resolve(engine().set(options).from(host).save());
+  }
+
   function download(){
     if(exporting){return;}
 
@@ -119,44 +198,24 @@ Función:
       return;
     }
 
-    if(typeof window.html2pdf!=="function"){
-      window.alert("La biblioteca PDF no está disponible.");
-      return;
-    }
-
     exporting=true;
     if(button){button.disabled=true;button.textContent="...";}
 
     var host=null;
-    try{
-      host=buildSource(report);
-      var options={
-        margin:[8,8,8,8],
-        filename:filename(report),
-        image:{type:"jpeg",quality:.98},
-        html2canvas:{scale:1.5,useCORS:true,backgroundColor:"#ffffff",logging:false},
-        jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
-        pagebreak:{mode:["css","legacy"],avoid:["tr",".stats-closure-kpi",".stats-closure-final-grid article"]}
-      };
-
-      var worker=window.html2pdf().set(options).from(host).save();
-      Promise.resolve(worker)
-        .catch(function(error){
-          console.error("[StatsClosurePDF]",error);
-          window.alert("No se pudo generar el PDF del cierre.");
-        })
-        .finally(function(){
-          if(host&&host.parentNode){host.parentNode.removeChild(host);}
-          exporting=false;
-          syncButton();
-        });
-    }catch(error){
-      if(host&&host.parentNode){host.parentNode.removeChild(host);}
-      exporting=false;
-      syncButton();
-      console.error("[StatsClosurePDF]",error);
-      window.alert(error.message||"No se pudo generar el PDF del cierre.");
-    }
+    ensureEngine()
+      .then(function(engine){
+        host=buildSource(report);
+        return saveWithEngine(engine,report,host);
+      })
+      .catch(function(error){
+        console.error("[StatsClosurePDF]",error);
+        window.alert("No se pudo cargar el generador PDF. Verifica la conexión o reinstala las dependencias de la aplicación.");
+      })
+      .finally(function(){
+        if(host&&host.parentNode){host.parentNode.removeChild(host);}
+        exporting=false;
+        syncButton();
+      });
   }
 
   function bind(){
@@ -189,5 +248,5 @@ Función:
     bind();
   }
 
-  window.StatsClosurePDF={version:"1.0.0",download:download,syncButton:syncButton};
+  window.StatsClosurePDF={version:"1.1.0-fallback-loader",download:download,syncButton:syncButton,ensureEngine:ensureEngine};
 })(window,document);
