@@ -17,7 +17,12 @@ Función:
   function el(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
   function norm(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();}
-  function pct(value,total){return total?Math.round((Number(value||0)*10000)/Number(total||0))/100:0;}
+  function pct(value,total){
+    var numerator=Number(value);
+    var denominator=Number(total);
+    if(!Number.isFinite(numerator)||!Number.isFinite(denominator)||denominator<=0){return 0;}
+    return Math.round((numerator*10000)/denominator)/100;
+  }
   function esc(value){return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
 
   function currentState(){
@@ -142,8 +147,8 @@ Función:
       reached:reached.length,
       incomplete:incomplete.length,
       notReached:notReached,
-      arrivalRate:pct(reached,rows.length),
-      activeArrivalRate:pct(reached,active.length),
+      arrivalRate:pct(reached.length,rows.length),
+      activeArrivalRate:pct(reached.length,active.length),
       causes:causesRows,
       incidents:incidentTotal,
       detail:detail,
@@ -251,5 +256,5 @@ Función:
 
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind);}else{bind();}
 
-  window.StatsClosure={version:"1.0.0",build:build,render:render,refresh:schedule};
+  window.StatsClosure={version:"1.0.1-rate-fix",build:build,render:render,refresh:schedule};
 })(window,document);
