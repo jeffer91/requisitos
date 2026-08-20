@@ -15,7 +15,7 @@ Con qué se conecta:
   "use strict";
 
   var DEFAULT_SECTION = "stats-cierre-section";
-  var STORAGE_KEY = "REQ_STATS_ACTIVE_SECTION_V1";
+  var STORAGE_KEY = "REQ_STATS_ACTIVE_SECTION_V2";
   var initialized = false;
 
   function text(value) {
