@@ -3,6 +3,7 @@ Nombre completo: stats.sections.js
 Ruta o ubicación: /Requisitos/Stats/stats.sections.js
 Función o funciones:
 - Controlar la navegación lateral de Stats.
+- Abrir por defecto el reporte de cierre del período.
 - Mostrar solo la sección seleccionada por clic.
 - Ocultar todas las demás secciones para evitar que se mezclen al bajar.
 - Mantener compatibilidad con renderizados existentes de stats.app.js.
@@ -13,7 +14,7 @@ Con qué se conecta:
 (function (window, document) {
   "use strict";
 
-  var DEFAULT_SECTION = "stats-resumen-section";
+  var DEFAULT_SECTION = "stats-cierre-section";
   var STORAGE_KEY = "REQ_STATS_ACTIVE_SECTION_V1";
   var initialized = false;
 
@@ -29,8 +30,6 @@ Con qué se conecta:
     style.textContent = [
       ".stats-main > .stats-section.is-stats-section-hidden{display:none!important}",
       ".stats-side a.is-active{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe;font-weight:950}",
-      ".stats-section.stats-subsection-filter > .stats-card:not(.stats-subsection-active){display:none!important}",
-      ".stats-section.stats-subsection-filter{grid-template-columns:1fr!important}",
       ".stats-section.is-stats-section-active{animation:statsSectionIn .14s ease-out}",
       "@keyframes statsSectionIn{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:none}}"
     ].join("\n");
@@ -72,15 +71,6 @@ Con qué se conecta:
     return DEFAULT_SECTION;
   }
 
-  function resetSubsectionFilters() {
-    mainSections().forEach(function (section) {
-      section.classList.remove("stats-subsection-filter");
-      section.querySelectorAll(".stats-subsection-active").forEach(function (node) {
-        node.classList.remove("stats-subsection-active");
-      });
-    });
-  }
-
   function setLinkState(activeId) {
     links().forEach(function (link) {
       var id = cleanHash(link.getAttribute("href"));
@@ -103,30 +93,6 @@ Con qué se conecta:
     });
   }
 
-  function applySubsectionRule(activeId, target, mainSection) {
-    resetSubsectionFilters();
-
-    if (!mainSection) return;
-
-    if (activeId === "stats-periodos-section") {
-      mainSection.classList.add("stats-subsection-filter");
-      target.classList.add("stats-subsection-active");
-      return;
-    }
-
-    if (activeId === "stats-carreras-section") {
-      var cards = Array.prototype.slice.call(mainSection.querySelectorAll(":scope > .stats-card"));
-      var carreraCard = cards.find(function (card) {
-        return card.id !== "stats-periodos-section";
-      });
-
-      if (carreraCard) {
-        mainSection.classList.add("stats-subsection-filter");
-        carreraCard.classList.add("stats-subsection-active");
-      }
-    }
-  }
-
   function setActiveSection(id, options) {
     options = options || {};
     id = cleanHash(id) || DEFAULT_SECTION;
@@ -141,16 +107,15 @@ Con qué se conecta:
     if (!mainSection) return;
 
     showOnlyMainSection(mainSection);
-    applySubsectionRule(id, target, mainSection);
-    setLinkState(id);
+    setLinkState(mainSection.id);
 
     try {
-      window.localStorage.setItem(STORAGE_KEY, id);
+      window.localStorage.setItem(STORAGE_KEY, mainSection.id);
     } catch (error) {}
 
     if (!options.silentHash) {
       try {
-        window.history.replaceState(null, "", "#" + id);
+        window.history.replaceState(null, "", "#" + mainSection.id);
       } catch (error) {}
     }
 
@@ -196,7 +161,6 @@ Con qué se conecta:
   function boot() {
     bind();
 
-    // Reaplica la sección activa después de renderizados grandes de stats.app.js.
     window.setTimeout(function () {
       setActiveSection(initialSectionId(), {
         silentHash: true,
