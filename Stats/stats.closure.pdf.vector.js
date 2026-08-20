@@ -2,8 +2,9 @@
 Nombre completo: stats.closure.pdf.vector.js
 Ruta: /Stats/stats.closure.pdf.vector.js
 Función:
-- Reemplazar la exportación basada en html2canvas por un PDF vectorial con jsPDF.
-- Evitar PDFs en blanco en Electron.
+- Generar el PDF de cierre directamente con jsPDF, sin html2canvas.
+- Validar el documento antes de descargarlo para evitar archivos vacíos.
+- Guardar exactamente los bytes PDF que fueron validados.
 - Incluir resumen ejecutivo, causas, requisitos, carreras, aprobación final y detalle.
 ========================================================= */
 (function(window,document){
@@ -11,6 +12,7 @@ Función:
 
   var exporting=false;
   var enginePromise=null;
+  var lastValidation=null;
 
   function el(id){return document.getElementById(id);}
   function text(value){return String(value==null?"":value).trim();}
@@ -18,7 +20,7 @@ Función:
   function pct(value,total){var d=num(total);return d>0?Math.round((num(value)*10000)/d)/100:0;}
   function slug(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^0-9A-Za-z_-]+/g,"_").replace(/_+/g,"_").replace(/^_+|_+$/g,"");}
   function state(){return window.StatsApp&&typeof window.StatsApp.getState==="function"?window.StatsApp.getState()||{}:{};}
-  function currentReport(){if(!window.StatsClosure||typeof window.StatsClosure.build!=="function"){return null;}try{return window.StatsClosure.build()||null;}catch(error){return null;}}
+  function currentReport(){if(!window.StatsClosure||typeof window.StatsClosure.build!=="function"){return null;}try{return window.StatsClosure.build()||null;}catch(error){console.error("[StatsClosurePDFVector] No se pudo construir el reporte.",error);return null;}}
   function selectedText(id,fallback){var node=el(id);if(node&&node.options&&node.selectedIndex>=0){var value=text(node.options[node.selectedIndex].textContent);if(value){return value;}}return text(fallback);}
   function isRetired(row){var value=text(row&&(row._estadoMatricula||row.estadoMatricula||row.EstadoMatricula||"ACTIVO")).toUpperCase();return value==="RETIRADO"||!!(row&&row.retirado===true);}
   function approvalOf(row){if(row&&row._approval){return row._approval;}if(window.StatsRules&&typeof window.StatsRules.studentApproval==="function"){try{return window.StatsRules.studentApproval(row||{})||{};}catch(error){}}return {approved:false,missingRequirements:[]};}
@@ -90,7 +92,7 @@ Función:
   function loadScript(src,timeoutMs){
     return new Promise(function(resolve,reject){
       var script=document.createElement("script"),settled=false;
-      var timer=window.setTimeout(function(){if(settled){return;}settled=true;try{script.remove();}catch(error){}reject(new Error("Tiempo agotado al cargar "+src));},Math.max(2500,Number(timeoutMs||6500)));
+      var timer=window.setTimeout(function(){if(settled){return;}settled=true;try{script.remove();}catch(error){}reject(new Error("Tiempo agotado al cargar "+src));},Math.max(2500,Number(timeoutMs||5000)));
       function done(ok,error){if(settled){return;}settled=true;window.clearTimeout(timer);if(ok){resolve(ctor());}else{try{script.remove();}catch(innerError){}reject(error||new Error("No se pudo cargar "+src));}}
       script.src=src;script.async=true;
       script.onload=function(){done(!!ctor(),new Error("jsPDF cargó pero no expuso su constructor."));};
@@ -102,16 +104,47 @@ Función:
   function ensureEngine(){
     if(ctor()){return Promise.resolve(ctor());}
     if(enginePromise){return enginePromise;}
-    var sources=["../node_modules/jspdf/dist/jspdf.umd.min.js","../node_modules/jspdf/dist/jspdf.umd.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"];
-    enginePromise=new Promise(function(resolve,reject){var i=0;function next(lastError){if(ctor()){resolve(ctor());return;}if(i>=sources.length){reject(lastError||new Error("jsPDF no está disponible."));return;}loadScript(sources[i++],6500).then(resolve).catch(next);}next();}).catch(function(error){enginePromise=null;throw error;});
+    var sources=["../node_modules/jspdf/dist/jspdf.umd.min.js","../node_modules/jspdf/dist/jspdf.umd.js"];
+    enginePromise=new Promise(function(resolve,reject){
+      var i=0;
+      function next(lastError){
+        if(ctor()){resolve(ctor());return;}
+        if(i>=sources.length){reject(lastError||new Error("jsPDF local no está disponible."));return;}
+        loadScript(sources[i++],5000).then(resolve).catch(next);
+      }
+      next();
+    }).catch(function(error){enginePromise=null;throw error;});
     return enginePromise;
   }
 
   function filename(report){var s=state(),base="Reporte_Cierre_"+slug(report.periodId||"periodo");if(text(s.division)){base+="_"+slug(s.division);}if(text(s.career)){base+="_"+slug(s.career);}return base+".pdf";}
 
+  function pdfTail(buffer,maxBytes){
+    var bytes=new Uint8Array(buffer),start=Math.max(0,bytes.length-Math.max(128,maxBytes||512)),out="";
+    for(var i=start;i<bytes.length;i++){out+=String.fromCharCode(bytes[i]);}
+    return out;
+  }
+
+  function validatePdf(doc,buffer){
+    if(!buffer||!(buffer instanceof ArrayBuffer)){throw new Error("jsPDF no devolvió un ArrayBuffer válido.");}
+    if(buffer.byteLength<2500){throw new Error("El PDF generado es demasiado pequeño ("+buffer.byteLength+" bytes). Se canceló la descarga.");}
+    var bytes=new Uint8Array(buffer);
+    var header=String.fromCharCode.apply(null,Array.prototype.slice.call(bytes,0,5));
+    if(header!=="%PDF-"){throw new Error("El archivo generado no tiene una cabecera PDF válida.");}
+    if(pdfTail(buffer,1024).indexOf("%%EOF")===-1){throw new Error("El PDF quedó incompleto: no se encontró el cierre del documento.");}
+    var pages=typeof doc.getNumberOfPages==="function"?doc.getNumberOfPages():0;
+    if(pages<1){throw new Error("El PDF no contiene páginas.");}
+    var internalPages=doc.internal&&Array.isArray(doc.internal.pages)?doc.internal.pages.slice(1):[];
+    var operations=internalPages.reduce(function(sum,page){return sum+(Array.isArray(page)?page.length:0);},0);
+    if(operations<25){throw new Error("El PDF no contiene suficientes instrucciones de contenido ("+operations+").");}
+    lastValidation={ok:true,bytes:buffer.byteLength,pages:pages,operations:operations,at:new Date().toISOString()};
+    console.info("[StatsClosurePDFVector] PDF validado",lastValidation);
+    return lastValidation;
+  }
+
   function generate(JsPDF,report){
     var rows=rowsForReport(report),requirements=requirementSummary(rows),careers=careerSummary(rows),meta=metadata(report),notes=findings(report,requirements,careers);
-    var doc=new JsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:true});
+    var doc=new JsPDF({orientation:"portrait",unit:"mm",format:"a4",compress:false});
     var PAGE_W=210,PAGE_H=297,M=12,BOTTOM=14,CONTENT=PAGE_W-(M*2),y=14;
 
     function setFont(size,style,color){doc.setFont("helvetica",style||"normal");doc.setFontSize(size||9);var c=color||[23,32,51];doc.setTextColor(c[0],c[1],c[2]);}
@@ -124,7 +157,7 @@ Función:
     function drawTable(headers,data,widths,options){options=options||{};var fs=options.fontSize||7.2,lh=options.lineHeight||3.1,pad=1.6,headerH=7;function header(){ensure(headerH+2);var x=M;doc.setFillColor(234,241,251);doc.setDrawColor(203,213,225);setFont(fs,"bold",[30,58,95]);headers.forEach(function(h,i){doc.rect(x,y,widths[i],headerH,"FD");var lines=doc.splitTextToSize(text(h),widths[i]-(pad*2));doc.text(lines,x+pad,y+4.4);x+=widths[i];});y+=headerH;}
       header();
       (data||[]).forEach(function(row){var wrapped=row.map(function(cell,i){setFont(fs,"normal",[23,32,51]);return doc.splitTextToSize(text(cell),Math.max(3,widths[i]-(pad*2)));});var maxLines=1;wrapped.forEach(function(lines){maxLines=Math.max(maxLines,lines.length);});var rh=Math.max(6,maxLines*lh+2.4);if(y+rh>PAGE_H-BOTTOM){newPage();header();}var x=M;row.forEach(function(cell,i){doc.setFillColor(255,255,255);doc.setDrawColor(219,227,239);doc.rect(x,y,widths[i],rh,"FD");setFont(fs,"normal",[23,32,51]);doc.text(wrapped[i],x+pad,y+4);x+=widths[i];});y+=rh;});y+=4;}
-    function footer(){var pages=doc.getNumberOfPages();for(var i=1;i<=pages;i++){doc.setPage(i);setFont(7,"normal",[100,116,139]);doc.setDrawColor(203,213,225);doc.line(M,PAGE_H-10,PAGE_W-M,PAGE_H-10);doc.text("Reporte generado automáticamente desde Stats · Requisitos",M,PAGE_H-6);doc.text("Página "+i+" de "+pages,PAGE_W-M,PAGE_H-6,{align:"right"});}}
+    function footer(){var pages=doc.getNumberOfPages();for(var i=1;i<=pages;i++){doc.setPage(i);setFont(7,"normal",[100,116,139]);doc.setDrawColor(203,213,225);doc.line(M,PAGE_H-10,PAGE_W-M,PAGE_H-10);doc.text("Reporte generado automáticamente desde Stats - Requisitos",M,PAGE_H-6);doc.text("Página "+i+" de "+pages,PAGE_W-M,PAGE_H-6,{align:"right"});}}
 
     setFont(8,"bold",[37,99,235]);doc.text("UNIDAD DE TITULACIÓN Y EFICIENCIA TERMINAL",M,y);y+=6;setFont(20,"bold",[15,23,42]);doc.text("Reporte de cierre del período",M,y);y+=8;setFont(8,"normal",[71,85,105]);doc.text("Período: "+meta.period,M,y);doc.text("Fecha: "+meta.generated,PAGE_W-M,y,{align:"right"});y+=5;doc.text("Sede: "+meta.sede,M,y);doc.text("División: "+meta.division,PAGE_W-M,y,{align:"right"});y+=5;doc.text("Carrera: "+meta.career,M,y);y+=7;doc.setDrawColor(37,99,235);doc.setLineWidth(.8);doc.line(M,y,PAGE_W-M,y);y+=6;
 
@@ -138,17 +171,26 @@ Función:
 
     sectionTitle("5. Aprobación final","Resultados registrados en los campos de aprobación final.");var finalRows=(report.final||[]).map(function(item){return [item.label,item.total,item.cumple,item.no_cumple,item.avance+"%"];});if(!finalRows.length){finalRows=[["Sin campos de aprobación final",0,0,0,"0%"]];}drawTable(["Evaluación final","Evaluados","Aprobados","No aprobados / pendientes","Aprobación"],finalRows,[82,24,24,34,22],{fontSize:6.9});
 
-    sectionTitle("6. Principales hallazgos","Síntesis automática basada en los datos del período.");notes.forEach(function(item){paragraph("• "+item,8.2,3.8,2);});
+    sectionTitle("6. Principales hallazgos","Síntesis automática basada en los datos del período.");notes.forEach(function(item){paragraph("- "+item,8.2,3.8,2);});
 
-    sectionTitle("7. Detalle de quienes no llegaron","Listado individual de retiros y requisitos pendientes.",true);var detailRows=(report.detail||[]).map(function(item,index){var row=item.row||{};return [index+1,nameOf(row),idOf(row),careerOf(row),item.type==="retirado"?"Retirado":"No llegó",(item.causes||[]).join(", ")];});if(!detailRows.length){detailRows=[["—","Todos los estudiantes llegaron","","","","Sin pendientes"]];}drawTable(["#","Estudiante","Cédula","Carrera","Estado","Motivo(s)"],detailRows,[7,36,23,46,20,54],{fontSize:6.3,lineHeight:2.75});
+    sectionTitle("7. Detalle de quienes no llegaron","Listado individual de retiros y requisitos pendientes.",true);var detailRows=(report.detail||[]).map(function(item,index){var row=item.row||{};return [index+1,nameOf(row),idOf(row),careerOf(row),item.type==="retirado"?"Retirado":"No llegó",(item.causes||[]).join(", ")];});if(!detailRows.length){detailRows=[["-","Todos los estudiantes llegaron","","","","Sin pendientes"]];}drawTable(["#","Estudiante","Cédula","Carrera","Estado","Motivo(s)"],detailRows,[7,36,23,46,20,54],{fontSize:6.3,lineHeight:2.75});
 
     footer();
     var buffer=doc.output("arraybuffer");
-    if(!buffer||buffer.byteLength<1500){throw new Error("El PDF generado no contiene suficiente información. Se canceló la descarga para evitar un archivo vacío.");}
-    return doc;
+    validatePdf(doc,buffer);
+    return {doc:doc,buffer:buffer};
   }
 
-  function saveDoc(doc,name){var blob=doc.output("blob");if(!blob||blob.size<1500){throw new Error("El PDF generado está vacío.");}var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;a.style.display="none";document.body.appendChild(a);a.click();window.setTimeout(function(){try{URL.revokeObjectURL(url);}catch(error){}try{a.remove();}catch(error){}},5000);}
+  function saveBuffer(buffer,name){
+    if(!buffer||!(buffer instanceof ArrayBuffer)){throw new Error("No existen bytes PDF válidos para descargar.");}
+    var blob=new Blob([buffer],{type:"application/pdf"});
+    if(blob.size!==buffer.byteLength||blob.size<2500){throw new Error("El archivo PDF no superó la validación final de tamaño.");}
+    var url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=name;a.type="application/pdf";a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    window.setTimeout(function(){try{URL.revokeObjectURL(url);}catch(error){}try{a.remove();}catch(error){}},5000);
+  }
 
   function syncButton(){var button=el("stats-closure-pdf");if(!button){return;}var report=currentReport();button.disabled=exporting||!report||report.requiresPeriod===true||!text(report.periodId);button.textContent="PDF";}
 
@@ -157,12 +199,15 @@ Función:
     var report=currentReport(),button=el("stats-closure-pdf");
     if(!report||report.requiresPeriod===true||!text(report.periodId)){window.alert("Selecciona un período para generar el PDF.");syncButton();return;}
     exporting=true;if(button){button.disabled=true;button.textContent="...";}
-    ensureEngine().then(function(JsPDF){var doc=generate(JsPDF,report);saveDoc(doc,filename(report));}).catch(function(error){console.error("[StatsClosurePDFVector]",error);window.alert("No se pudo generar el PDF: "+(error.message||String(error)));}).finally(function(){exporting=false;syncButton();});
+    ensureEngine()
+      .then(function(JsPDF){var generated=generate(JsPDF,report);saveBuffer(generated.buffer,filename(report));})
+      .catch(function(error){lastValidation={ok:false,error:error.message||String(error),at:new Date().toISOString()};console.error("[StatsClosurePDFVector]",error);window.alert("No se pudo generar el PDF: "+(error.message||String(error)));})
+      .finally(function(){exporting=false;syncButton();});
   }
 
   function replaceButton(){var old=el("stats-closure-pdf");if(!old||!old.parentNode){return null;}var fresh=old.cloneNode(true);old.parentNode.replaceChild(fresh,old);fresh.addEventListener("click",download);return fresh;}
   function bind(){replaceButton();["stats-periodo","stats-sede","stats-division","stats-carrera"].forEach(function(id){var node=el(id);if(node){node.addEventListener("change",function(){window.setTimeout(syncButton,0);});}});["stats:bootstrap-ready","stats:cache-invalidated","bdlocal:conexiones-cache-updated","requisitos:bdlocal-cambio-disponible"].forEach(function(name){window.addEventListener(name,function(){window.setTimeout(syncButton,0);});});syncButton();}
 
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",bind);}else{bind();}
-  window.StatsClosurePDFVector={version:"1.0.0-direct-jspdf",download:download,syncButton:syncButton,ensureEngine:ensureEngine,generate:generate};
+  window.StatsClosurePDFVector={version:"1.1.0-validated-bytes",download:download,syncButton:syncButton,ensureEngine:ensureEngine,generate:generate,getLastValidation:function(){return lastValidation;}};
 })(window,document);
