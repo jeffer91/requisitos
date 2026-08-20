@@ -50,7 +50,10 @@ Función o funciones:
       <section id="stats-cierre-section" class="stats-section stats-closure-wrap">
         <div class="stats-section-head">
           <div><p class="stats-eyebrow">Reporte de cierre</p><h1>Cierre del período</h1></div>
-          <span id="stats-closure-scope" class="stats-period-chip">Selecciona un período</span>
+          <div class="stats-closure-head-actions">
+            <span id="stats-closure-scope" class="stats-period-chip">Selecciona un período</span>
+            <button id="stats-closure-pdf" type="button" title="Descargar reporte de cierre en PDF" disabled>PDF</button>
+          </div>
         </div>
         <div id="stats-closure-report" class="stats-closure-report-empty"><div class="empty">Selecciona el período terminado para generar el reporte de cierre.</div></div>
       </section>
@@ -111,8 +114,10 @@ Función o funciones:
     </section>
   </main>
 
+  <script src="../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js"></script>
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
   <script src="stats.bootstrap.js"></script>
+  <script src="stats.closure.pdf.js"></script>
 </body>
 </html>
