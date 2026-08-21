@@ -1,1 +1,292 @@
-TEMP
+/* =========================================================
+Nombre completo: bdl.firebase.mapper.v2.js
+Ruta: /BDLocal/firebase/bdl.firebase.mapper.v2.js
+Función:
+- Separar una fila local en estudiante, matrícula, requisitos y notas.
+- Calcular dataHash únicamente con datos funcionales.
+- Excluir fechas, versión y metadatos de sincronización del hash.
+- Canonicalizar requisitos para evitar alias duplicados en Firebase.
+- No escribir directamente en IndexedDB ni Firebase.
+========================================================= */
+(function(window){
+  "use strict";
+
+  var VERSION="1.2.0-canonical-requirements";
+  var DEFAULT_REQUIREMENTS=[
+    "Academico","Documentacion","Financiero","Titulacion",
+    "PracticasVinculacion","Vinculacion","SeguimientoGraduados","Ingles",
+    "ActualizacionDatos","AprobacionTitulacion","AprobacionComplexivoProyecto"
+  ];
+  var REQUIREMENT_ALIASES={
+    Academico:["Academico","Académico","academico"],
+    Documentacion:["Documentacion","Documentación","documentacion"],
+    Financiero:["Financiero","financiero"],
+    Titulacion:["Titulacion","Titulación","titulacion"],
+    PracticasVinculacion:["PracticasVinculacion","PrácticasVinculacion","Practicas/Vinculacion","Prácticas/Vinculación","practicasVinculacion"],
+    Vinculacion:["Vinculacion","Vinculación","vinculacion"],
+    SeguimientoGraduados:["SeguimientoGraduados","seguimientoGraduados"],
+    Ingles:["Ingles","Inglés","ingles"],
+    ActualizacionDatos:["ActualizacionDatos","ActualizaciónDatos","actualizacionDatos"],
+    AprobacionTitulacion:["AprobacionTitulacion","AprobaciónTitulacion","aprobacionTitulacion"],
+    AprobacionComplexivoProyecto:["AprobacionComplexivoProyecto","AprobaciónComplexivoProyecto","aprobacionComplexivoProyecto"]
+  };
+  var NOTE_ALIASES={
+    notaTeorica:["notaTeorica","teorico","NotaTeorica","Nota 1"],
+    notaPractica:["notaPractica","practico","NotaPractica","Nota 2"],
+    notaComplexivo:["notaComplexivo","complexivo","NotaComplexivo"],
+    notaTeoricaSupletorio:["notaTeoricaSupletorio","teoricoSupletorio"],
+    notaPracticaSupletorio:["notaPracticaSupletorio","practicoSupletorio"],
+    notaSupletorio:["notaSupletorio","supletorioComplexivo","Supletorio Complexivo"],
+    notaEscrito:["notaEscrito","escrito","trabajoEscrito","Notart","Nart","notaArticulo"],
+    notaDefensaTrabajo:["notaDefensaTrabajo","defensaTrabajo","Notdef","Ndef","notaDefensa"],
+    notaTrabajoTitulacion:["notaTrabajoTitulacion","trabajoTitulacion","Notafinal","Nfinal","notaFinal"],
+    notaArticulo:["notaArticulo","Notart","Nart","notart"],
+    notaDefensa:["notaDefensa","Notdef","Ndef","notdef"],
+    notaFinal:["notaFinal","Notafinal","Nfinal","notafinal"],
+    notaOficial:["notaOficial"],
+    estadoEvaluacion:["estadoEvaluacion","estadoDefensa","resultadoTitulacion"]
+  };
+  var HASH_EXCLUDED={
+    createdAt:true,updatedAt:true,version:true,dataHash:true,
+    firebaseDocumentId:true,ultimaSincronizacion:true,lastChangeIds:true,
+    syncSource:true,syncTarget:true,syncEntity:true,syncSchemaVersion:true,
+    _firebaseEntity:true,_firebaseDocumentId:true,_firebaseDataHash:true,
+    _firebaseVersion:true,_firebaseUpdatedAt:true,_firebaseDeleted:true,
+    _firebaseImportedAt:true,_syncSource:true,_skipOutbox:true
+  };
+
+  function text(value){return String(value==null?"":value).trim();}
+  function identity(){return window.RequisitosFirebaseIdentity||null;}
+  function first(row,names){
+    row=row||{};names=Array.isArray(names)?names:[];
+    for(var i=0;i<names.length;i+=1){
+      var value=row[names[i]];
+      if(value!==undefined&&value!==null&&text(value)!==""){return value;}
+    }
+    return "";
+  }
+  function normalizeKey(value){
+    var utils=window.BL2Config&&window.BL2Config.utils||{};
+    if(typeof utils.normalizeKey==="function"){return text(utils.normalizeKey(value));}
+    return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase().replace(/[^a-z0-9]+/g,"").trim();
+  }
+  function canonicalRequirementName(value){
+    var key=normalizeKey(value);
+    var names=Object.keys(REQUIREMENT_ALIASES);
+    for(var i=0;i<names.length;i+=1){
+      var canonical=names[i];
+      var aliases=REQUIREMENT_ALIASES[canonical]||[];
+      for(var j=0;j<aliases.length;j+=1){
+        if(normalizeKey(aliases[j])===key){return canonical;}
+      }
+    }
+    return "";
+  }
+  function canonicalizeRequirements(values){
+    values=values&&typeof values==="object"&&!Array.isArray(values)?values:{};
+    var output={};
+    Object.keys(values).forEach(function(key){
+      var canonical=canonicalRequirementName(key)||key;
+      var value=values[key];
+      if(value===undefined||value===null||text(value)===""){return;}
+      output[canonical]=value;
+    });
+    return output;
+  }
+  function clean(value){
+    if(value===undefined||typeof value==="function"){return undefined;}
+    if(value===null){return null;}
+    if(Array.isArray(value)){return value.map(clean).filter(function(item){return item!==undefined;});}
+    if(typeof value==="object"){
+      var output={};
+      Object.keys(value).sort().forEach(function(key){
+        if(key.charAt(0)==="_"||key==="original"){return;}
+        var item=clean(value[key]);
+        if(item!==undefined){output[key]=item;}
+      });
+      return output;
+    }
+    return value;
+  }
+  function stableString(value){
+    if(value===null||value===undefined){return String(value);}
+    if(typeof value!=="object"){return JSON.stringify(value);}
+    if(Array.isArray(value)){return "["+value.map(stableString).join(",")+"]";}
+    return "{"+Object.keys(value).sort().map(function(key){
+      return JSON.stringify(key)+":"+stableString(value[key]);
+    }).join(",")+"}";
+  }
+  function dataHash(value){
+    var source=stableString(value);var hash=2166136261;
+    for(var i=0;i<source.length;i+=1){
+      hash^=source.charCodeAt(i);
+      hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);
+    }
+    return "h"+(hash>>>0).toString(16).padStart(8,"0");
+  }
+  function functionalContent(value){
+    if(value===null||value===undefined){return value;}
+    if(Array.isArray(value)){return value.map(function(item){return functionalContent(item);});}
+    if(typeof value!=="object"){return value;}
+    var output={};
+    Object.keys(value).sort().forEach(function(key){
+      if(HASH_EXCLUDED[key]||key.charAt(0)==="_"){return;}
+      var item=functionalContent(value[key]);
+      if(item!==undefined){output[key]=item;}
+    });
+    if(output.valores&&typeof output.valores==="object"&&!Array.isArray(output.valores)){
+      output.valores=canonicalizeRequirements(output.valores);
+    }
+    return output;
+  }
+  function numberOrNull(value){
+    if(value===null||value===undefined||text(value)===""){return null;}
+    var parsed=Number(text(value).replace(",","."));
+    return Number.isFinite(parsed)?Math.round(parsed*100)/100:null;
+  }
+  function requirementFields(){return DEFAULT_REQUIREMENTS.slice();}
+  function requirementKey(row){
+    row=row||{};
+    return text(row.requisitoKey||row.requirementKey||row.key||row.campo||row.field||row.nombre||row.codigo||
+      (typeof row.requisito==="string"?row.requisito:""));
+  }
+  function requirementValue(row){
+    row=row||{};var names=["valor","value","estado","estadoKey","cumple","aprobado","resultado"];
+    for(var i=0;i<names.length;i+=1){
+      var value=row[names[i]];
+      if(value===undefined||value===null){continue;}
+      if(value&&typeof value==="object"){value=value.id||value.value||value.label||"";}
+      if(typeof value==="boolean"||typeof value==="number"||text(value)!==""){return value;}
+    }
+    return "";
+  }
+  function commonMeta(row,entity,content){
+    row=row||{};content=clean(content||{})||{};
+    var stamp=new Date().toISOString();
+    var createdAt=text(row.createdAt||row.creadoEn)||stamp;
+    var updatedAt=text(row.updatedAt||row.actualizadoEn||row.ultimaEdicionLocal)||stamp;
+    var version=Number(row.version||row.dataVersion||1);
+    if(!Number.isInteger(version)||version<1){version=1;}
+    var output=Object.assign({},content,{
+      createdAt:createdAt,
+      updatedAt:updatedAt,
+      version:version,
+      eliminado:row.eliminado===true,
+      eliminadoEn:row.eliminado===true?text(row.eliminadoEn)||updatedAt:""
+    });
+    output.dataHash=dataHash({entity:entity,data:functionalContent(output)});
+    return output;
+  }
+  function studentDocument(row){
+    row=row||{};var helper=identity();
+    var cedula=helper?helper.cedulaOf(row):text(first(row,["cedula","numeroIdentificacion"]));
+    if(!cedula){return null;}
+    return commonMeta(row,"estudiantes",{
+      id:cedula,cedula:cedula,
+      nombres:text(first(row,["nombres","Nombres","nombreCompleto","NombreCompleto","nombre"])),
+      correoPersonal:text(first(row,["correoPersonal","CorreoPersonal","emailPersonal"])),
+      correoInstitucional:text(first(row,["correoInstitucional","CorreoInstitucional","emailInstitucional"])),
+      celular:text(first(row,["celular","Celular","telefono","Telefono","Teléfono"])),
+      telegramUser:text(first(row,["telegramUser","_telegramUser","usuarioTelegram","telegram"])).replace(/^@+/,""),
+      telegramChatId:text(first(row,["telegramChatId","_telegramChatId","chatIdTelegram","chatId"])),
+      sede:text(first(row,["sede","Sede"])),
+      codigoCarreraActual:text(first(row,["codigoCarreraActual","CodigoCarrera","codigoCarrera","CódigoCarrera"])),
+      nombreCarreraActual:text(first(row,["nombreCarreraActual","NombreCarrera","nombreCarrera","Carrera","carrera"]))
+    });
+  }
+  function enrollmentDocument(row){
+    row=row||{};var helper=identity();var current=helper?helper.identityFromRow(row):null;
+    if(!current||!current.ok){return null;}
+    var status=text(first(row,["estadoMatricula","_estadoMatricula","matricula"])).toUpperCase()||"ACTIVO";
+    var retired=row.retirado===true||status==="RETIRADO";
+    return commonMeta(row,"matriculas",{
+      id:current.remoteId,localId:current.localId,periodoId:current.periodoId,cedula:current.cedula,
+      codigoCarrera:text(first(row,["CodigoCarrera","codigoCarrera","CódigoCarrera"])),
+      nombreCarrera:text(first(row,["NombreCarrera","nombreCarrera","Carrera","carrera"])),
+      sede:text(first(row,["Sede","sede"])),division:text(first(row,["division","_division","divisionAsignada"])),
+      estadoMatricula:status,retirado:retired,
+      retiradoEn:retired?text(row.retiradoEn||row.estadoMatriculaActualizadaEn):"",
+      modalidadTitulacion:text(first(row,["modalidadTitulacion","modalidad","tipoTitulacion"]))
+    });
+  }
+  function requirementsDocument(row,requirementRows){
+    row=row||{};requirementRows=Array.isArray(requirementRows)?requirementRows:[];
+    var helper=identity();var current=helper?helper.identityFromRow(row):null;
+    if(!current||!current.ok){return null;}
+    var values={};
+    DEFAULT_REQUIREMENTS.forEach(function(canonical){
+      var aliases=REQUIREMENT_ALIASES[canonical]||[canonical];
+      var value=first(row,aliases);
+      if(value!==""){values[canonical]=value;}
+    });
+    requirementRows.forEach(function(item){
+      if(item&&item.eliminado===true){return;}
+      var key=requirementKey(item);var canonical=canonicalRequirementName(key);var value=requirementValue(item);
+      if(!canonical||value===""){return;}
+      values[canonical]=value;
+    });
+    values=canonicalizeRequirements(values);
+    return commonMeta(row,"requisitos",{
+      id:current.remoteId,localId:current.localId,periodoId:current.periodoId,cedula:current.cedula,
+      valores:values,
+      observaciones:text(first(row,["observacionesRequisitos","observacionRequisitos","observaciones","observacion"]))
+    });
+  }
+  function notesDocument(row,noteRow){
+    row=row||{};noteRow=Object.assign({},row,noteRow||{});
+    var helper=identity();var current=helper?helper.identityFromRow(noteRow):null;
+    if(!current||!current.ok){return null;}
+    var content={
+      id:current.remoteId,localId:current.localId,periodoId:current.periodoId,cedula:current.cedula,
+      modalidadTitulacion:text(first(noteRow,["modalidadTitulacion","modalidad","tipoTitulacion"])),
+      oportunidadAplicada:text(first(noteRow,["oportunidadAplicada"])),
+      notaMinimaAprobacion:numberOrNull(first(noteRow,["notaMinimaAprobacion"])),
+      codigoTitulacion:text(first(noteRow,["codigoTitulacion","Código Titulación"])),
+      horarioOrigen:text(first(noteRow,["horarioOrigen","Horario","HorarioComplexivo"]))
+    };
+    Object.keys(NOTE_ALIASES).forEach(function(field){
+      var raw=first(noteRow,NOTE_ALIASES[field]);
+      content[field]=field==="estadoEvaluacion"?text(raw):numberOrNull(raw);
+    });
+    return commonMeta(noteRow,"notas",content);
+  }
+  function bundle(row,options){
+    options=options||{};
+    var student=studentDocument(row);
+    var enrollment=enrollmentDocument(row);
+    var requirements=requirementsDocument(row,options.requirements||row&&row.requisitos||row&&row.requirements||[]);
+    var notes=notesDocument(row,options.notes||row&&row.notas||row&&row._notes||{});
+    var valid=!!(student&&enrollment&&requirements&&notes);
+    return {
+      ok:valid,
+      identity:identity()?identity().identityFromRow(row||{}):null,
+      documents:{estudiantes:student,matriculas:enrollment,requisitos:requirements,notas:notes},
+      errors:[
+        !student?"No se pudo formar estudiantes.":"",
+        !enrollment?"No se pudo formar matriculas.":"",
+        !requirements?"No se pudo formar requisitos.":"",
+        !notes?"No se pudo formar notas.":""
+      ].filter(Boolean),
+      version:VERSION
+    };
+  }
+
+  window.RequisitosFirebaseMapper={
+    version:VERSION,
+    studentDocument:studentDocument,
+    enrollmentDocument:enrollmentDocument,
+    requirementsDocument:requirementsDocument,
+    notesDocument:notesDocument,
+    bundle:bundle,
+    dataHash:dataHash,
+    functionalContent:functionalContent,
+    clean:clean,
+    requirementFields:requirementFields,
+    requirementAliases:REQUIREMENT_ALIASES,
+    canonicalRequirementName:canonicalRequirementName,
+    canonicalizeRequirements:canonicalizeRequirements,
+    noteAliases:NOTE_ALIASES
+  };
+  try{window.dispatchEvent(new CustomEvent("requisitos:firebase-mapper-ready",{detail:{ok:true,version:VERSION,at:new Date().toISOString()}}));}catch(error){}
+})(window);
