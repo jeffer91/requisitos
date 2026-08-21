@@ -29,6 +29,13 @@ service cloud.firestore {
       return !('periodoId' in data) || validPeriod(data.periodoId);
     }
 
+    function validReportGroup(data) {
+      return data.grupoInforme is string
+        && (data.grupoInforme == 'PRESENCIAL'
+          || data.grupoInforme == 'ONLINE'
+          || data.grupoInforme == 'PVC');
+    }
+
     /* Colección física oficial de estudiantes. */
     match /Estudiante/{identificacion} {
       allow read: if true;
@@ -85,6 +92,41 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if documentId.size() > 0
         && validOptionalPeriod(request.resource.data)
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    /* Colecciones nuevas de Informtit. No modifican las colecciones oficiales existentes. */
+    match /nucleos/{documentId} {
+      allow read: if true;
+      allow create, update: if validPeriod(request.resource.data.periodoId)
+        && validReportGroup(request.resource.data)
+        && request.resource.data.nucleo is int
+        && request.resource.data.nucleo >= 1
+        && documentId.matches('^[0-9]{4}-[0-9]{2}__[0-9]{4}-[0-9]{2}__.+__N[0-9]+$')
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /complexivo/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
+        && validReportGroup(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /titulacion/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
+        && validReportGroup(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /cronogramas/{documentId} {
+      allow read: if true;
+      allow create, update: if validPeriod(request.resource.data.periodoId)
+        && validReportGroup(request.resource.data)
+        && documentId == request.resource.data.periodoId + '__' + request.resource.data.grupoInforme
         && validMetadata(request.resource.data);
       allow delete: if false;
     }
