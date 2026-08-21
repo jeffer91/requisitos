@@ -21,12 +21,14 @@ check(/function\s+validIdentification\s*\(/.test(rules),"Debe validarse la ident
 check(/value\.matches\('\^\[0-9A-Za-z\]\{6,20\}\$'\)/.test(rules),"Las reglas deben aceptar cédulas y documentos extranjeros alfanuméricos");
 check(!/\^\[0-9\]\{10\}\$/.test(rules),"Las reglas no deben limitar toda identificación a diez dígitos");
 check(/function\s+validStudentPeriodDocument\s*\(/.test(rules),"Debe validarse la identidad período-identificación");
+check(/function\s+validReportGroup\s*\(/.test(rules),"Debe validarse el grupo de informe de Informtit");
 check(/allow\s+delete\s*:\s*if\s+false/.test(rules),"Las colecciones oficiales deben impedir eliminaciones físicas");
 check(/match\s+\/\{document=\*\*\}\s*\{[\s\S]*allow\s+read\s*,\s*write\s*:\s*if\s+false/.test(rules),"Las colecciones no declaradas deben quedar bloqueadas");
 
 [
   "Estudiante","matriculas","requisitos","notas",
-  "periodos","carreras","importaciones","historial"
+  "periodos","carreras","importaciones","historial",
+  "nucleos","complexivo","titulacion","cronogramas"
 ].forEach((collection)=>{
   check(new RegExp("match\\s+\\/"+collection+"\\/").test(rules),"Falta la regla para "+collection);
 });
