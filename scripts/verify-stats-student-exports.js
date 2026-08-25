@@ -2,6 +2,7 @@
 
 const fs=require("node:fs");
 const path=require("node:path");
+const vm=require("node:vm");
 const root=path.resolve(__dirname,"..");
 
 function read(file){return fs.readFileSync(path.join(root,file),"utf8");}
@@ -35,6 +36,7 @@ check(css.includes(".stats-mini-export-xlsx")&&css.includes(".stats-mini-export-
 const currentRowsBlock=exporter.slice(exporter.indexOf("function currentRows()"),exporter.indexOf("function selectedLabel"));
 check(currentRowsBlock&&!currentRowsBlock.includes("slice(0,"),"La exportación no debe limitarse al máximo visual de filas.");
 
-try{new Function(exporter);}catch(error){console.error("1. stats.students.export.js tiene error de sintaxis: "+error.message);process.exit(1);}
+try{new vm.Script(exporter,{filename:"Stats/stats.students.export.js"});}
+catch(error){console.error("1. stats.students.export.js tiene error de sintaxis: "+error.message);process.exit(1);}
 
 console.log("OK: exportaciones XLSX/PDF de la vista filtrada de estudiantes verificadas.");
