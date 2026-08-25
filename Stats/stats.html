@@ -8,6 +8,7 @@ Función o funciones:
 - Resumir estudiantes por matrícula, período, división, carrera, requisito, notas y Telegram.
 - Mostrar una sola sección activa desde la navegación lateral.
 - Actualizar desde Firebase exclusivamente los campos de Telegram.
+- Exportar la vista filtrada de estudiantes a XLSX y PDF.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -19,6 +20,8 @@ Función o funciones:
   <link rel="stylesheet" href="stats.notes.analytics.css" />
   <link rel="stylesheet" href="stats.notes.priorities.css" />
   <link rel="stylesheet" href="stats.overrides.css" />
+  <script src="../node_modules/xlsx/dist/xlsx.full.min.js" data-requisitos-dependency="sheetjs@0.20.3"></script>
+  <script src="../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js" data-requisitos-dependency="html2pdf.js@0.14.0"></script>
 </head>
 <body>
   <main class="stats-app stats-shell">
@@ -105,7 +108,16 @@ Función o funciones:
       </section>
 
       <section id="stats-estudiantes-section" class="stats-section stats-card">
-        <div class="stats-card-head"><h2>Estudiantes</h2><span id="stats-estudiantes-meta">0 estudiantes</span></div>
+        <div class="stats-card-head stats-students-head">
+          <h2>Estudiantes</h2>
+          <div class="stats-students-head-actions">
+            <span id="stats-estudiantes-meta">0 estudiantes</span>
+            <div class="stats-students-export-actions" aria-label="Descargar estudiantes de la vista actual">
+              <button id="stats-students-xlsx" class="stats-mini-export stats-mini-export-xlsx" type="button" title="Descargar esta vista en Excel" aria-label="Descargar esta vista en Excel" disabled>XLSX</button>
+              <button id="stats-students-pdf" class="stats-mini-export stats-mini-export-pdf" type="button" title="Descargar esta vista en PDF" aria-label="Descargar esta vista en PDF" disabled>PDF</button>
+            </div>
+          </div>
+        </div>
         <div class="stats-student-search"><label>Buscar estudiante<input id="stats-student-search" type="search" placeholder="Nombre, cédula o carrera" autocomplete="off" /></label></div>
         <div id="stats-estudiantes"><div class="empty">La tabla de estudiantes se activará al seleccionar un período.</div></div>
       </section>
