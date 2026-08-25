@@ -5,6 +5,7 @@ Función:
 - Abrir Stats desde la caché compartida.
 - Cargar primero cálculo e interfaz y diferir Firebase/Telegram hasta después del primer render.
 - Cargar el reporte de cierre del período después de StatsApp.
+- Cargar la exportación XLSX/PDF de la vista de estudiantes.
 - Mostrar errores concretos en lugar de permanecer indefinidamente en “Conectando”.
 ========================================================= */
 (function(window,document){
@@ -79,6 +80,7 @@ Función:
       .then(function(){return load("stats.charts.js",function(){return window.StatsCharts;});})
       .then(function(){return load("stats.tables.js",function(){return window.StatsTables;});})
       .then(function(){return load("stats.students.js",function(){return window.StatsStudents;});})
+      .then(function(){return load("stats.students.export.js",function(){return window.StatsStudentsExport;});})
       .then(function(){return load("stats.notes.js",function(){return window.StatsNotes;});})
       .then(function(){return load("stats.ui.patch.js",function(){return window.StatsUIPatch;});})
       .then(function(){return load("stats.app.js",function(){return window.StatsApp;});})
@@ -88,7 +90,8 @@ Función:
       .then(function(){return load("stats.render-ready.js",function(){return window.StatsRenderReady;});})
       .then(function(){
         if(window.StatsSedeFilter&&typeof window.StatsSedeFilter.install==="function"){window.StatsSedeFilter.install();}
-        emit("stats:bootstrap-ready",{ok:true,source:"ConStats",cacheFirst:true,directFirebase:false,optionalDeferred:true,closureReport:true});
+        if(window.StatsStudentsExport&&typeof window.StatsStudentsExport.install==="function"){window.StatsStudentsExport.install();}
+        emit("stats:bootstrap-ready",{ok:true,source:"ConStats",cacheFirst:true,directFirebase:false,optionalDeferred:true,closureReport:true,studentExports:true});
         scheduleOptionalConnectorFeatures();
       })
       .catch(function(error){
@@ -97,6 +100,6 @@ Función:
       });
   }
 
-  window.StatsBootstrap={version:"2.1.0-closure-report",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"2.2.0-student-exports",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
