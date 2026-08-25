@@ -14,10 +14,13 @@ const css=read("Stats/stats.overrides.css");
 
 check(html.includes('id="stats-students-xlsx"'),"Falta el botón XLSX de estudiantes.");
 check(html.includes('id="stats-students-pdf"'),"Falta el botón PDF de estudiantes.");
-check(html.includes('../node_modules/xlsx/dist/xlsx.full.min.js'),"Stats no carga SheetJS local.");
-check(html.includes('../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js'),"Stats no carga html2pdf local.");
+check(!html.includes('xlsx.full.min.js'),"Stats no debe cargar SheetJS hasta que el usuario exporte.");
+check(!html.includes('html2pdf.bundle.min.js'),"Stats no debe cargar html2pdf hasta que el usuario exporte.");
 check(bootstrap.includes('load("stats.students.export.js"'),"El bootstrap no carga el exportador de estudiantes.");
 check(bootstrap.indexOf('load("stats.students.export.js"')>bootstrap.indexOf('load("stats.students.js"'),"El exportador debe cargarse después de StatsStudents.");
+check(exporter.includes('XLSX_PATH="../node_modules/xlsx/dist/xlsx.full.min.js"'),"El exportador no declara SheetJS local.");
+check(exporter.includes('HTML2PDF_PATH="../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js"'),"El exportador no declara html2pdf local.");
+check(exporter.includes("ensureXlsx()")&&exporter.includes("ensureHtml2Pdf()"),"Las dependencias deben cargarse bajo demanda.");
 check(exporter.includes("window.XLSX.writeFile"),"La descarga Excel no genera un XLSX real.");
 check(exporter.includes("window.html2pdf().set"),"La descarga PDF no utiliza el generador PDF local.");
 check(exporter.includes('selectedLabel("stats-sede"'),"El exportador no conserva el filtro de sede.");
