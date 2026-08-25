@@ -50,6 +50,17 @@
 .stats-student-order{min-width:220px}
 .stats-whatsapp-link{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:5px 9px;border-radius:999px;background:#dcfce7;color:#166534;text-decoration:none;font-size:11px;font-weight:950;border:1px solid #bbf7d0}
 .stats-whatsapp-link:hover{background:#bbf7d0}
+.stats-students-head{align-items:center}
+.stats-students-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0}
+.stats-students-head-actions>span{white-space:nowrap}
+.stats-students-export-actions{display:inline-flex;align-items:center;gap:5px;padding-left:2px}
+.stats-mini-export{min-height:28px;height:28px;padding:0 9px;border-radius:9px;background:#fff;font-size:10px;line-height:1;font-weight:950;letter-spacing:.02em;box-shadow:0 2px 7px rgba(15,23,42,.06)}
+.stats-mini-export:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 5px 12px rgba(15,23,42,.1)}
+.stats-mini-export:disabled{cursor:not-allowed;opacity:.42;box-shadow:none}
+.stats-mini-export-xlsx{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.stats-mini-export-xlsx:hover:not(:disabled){background:#dcfce7}
+.stats-mini-export-pdf{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+.stats-mini-export-pdf:hover:not(:disabled){background:#fee2e2}
 
 /* Telegram */
 .stats-telegram-dashboard{display:grid;gap:14px}
@@ -74,4 +85,6 @@
   .stats-notes-summary-grid,.stats-telegram-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .stats-student-controls{align-items:stretch}
   .stats-student-order{min-width:0;width:100%}
+  .stats-students-head{align-items:flex-start}
+  .stats-students-head-actions{align-items:flex-end;flex-direction:column;gap:5px}
 }
