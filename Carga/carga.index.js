@@ -3,6 +3,7 @@ Nombre completo: carga.index.js
 Ruta o ubicación: /Carga/carga.index.js
 Función o funciones:
 - Preparar BDLocal, cone.carga.js y sus operaciones exclusivas.
+- Instalar el guard de integridad de divisiones antes de habilitar la interfaz.
 - Aplicar correcciones de integridad antes de habilitar la interfaz.
 - Exponer una única preparación del conector para la interfaz.
 - Evitar refrescos duplicados durante el arranque.
@@ -14,6 +15,7 @@ Función o funciones:
   var ADAPTER_PATH="../BDLocal/adapters/bdl.screen-deps.js";
   var CONNECTOR_PATH="../BDLocal/conexiones/cone.carga.js";
   var OPS_PATH="../BDLocal/conexiones/cone.carga.ops.js";
+  var DIVISION_GUARD_PATH="../BDLocal/patches/bdl.divisiones.period-guard.js";
   var FIXES_PATH="./carga.integrity-fixes.js";
   var loading={};
   var connectorTask=null;
@@ -43,6 +45,11 @@ Función o funciones:
       .then(function(){return connector()||loadScript(CONNECTOR_PATH,connector);})
       .then(function(){return loadScript(OPS_PATH,function(){var con=connector();return con&&typeof con.listStudents==="function"&&typeof con.saveDivisions==="function"?con:null;});})
       .then(function(con){
+        return loadScript(DIVISION_GUARD_PATH,function(){return window.CargaDivisionesPeriodGuard;}).then(function(guard){
+          return Promise.resolve(guard&&typeof guard.install==="function"?guard.install():true).then(function(){return con;});
+        });
+      })
+      .then(function(con){
         return loadScript(FIXES_PATH,function(){return window.CargaIntegrityFixes;}).then(function(fixes){
           return Promise.resolve(fixes&&typeof fixes.patch==="function"?fixes.patch():con).then(function(){return con;});
         });
@@ -66,6 +73,6 @@ Función o funciones:
     }).catch(function(error){emit("carga:bdlocal-error",{ok:false,source:"ConCarga",error:error.message||String(error),at:new Date().toISOString()});});
   }
 
-  window.CargaConnectionIndex={version:"4.2.0-integrity-fixes",ensureConnector:ensureConnector,refreshPeriods:refreshPeriods,retryAudits:retryAudits};
+  window.CargaConnectionIndex={version:"4.3.0-division-integrity",ensureConnector:ensureConnector,refreshPeriods:refreshPeriods,retryAudits:retryAudits};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
