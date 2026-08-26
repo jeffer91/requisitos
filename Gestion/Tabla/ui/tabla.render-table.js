@@ -11,7 +11,7 @@ Función o funciones:
   "use strict";
 
   var VERSION =
-    "2.2.0-requirement-badges";
+    "2.3.0-regular-titulation-gate";
 
   var U =
     window.TablaUtils ||
@@ -280,8 +280,28 @@ function requirementShort(item){
   return shorts[key] || text(item && (item.label || item.nombre || item.key)) || "Req";
 }
 
+function regularState(row){
+  try{
+    if(
+      window.TablaRegularPolicy &&
+      typeof window.TablaRegularPolicy.analyze === "function"
+    ){
+      return window.TablaRegularPolicy.analyze(row || {});
+    }
+  }catch(error){}
+
+  return null;
+}
+
 function missingRequirements(row){
   row = row || {};
+
+  var state = regularState(row);
+  if(state){
+    return Array.isArray(state.missing)
+      ? state.missing.slice()
+      : [];
+  }
 
   var requirements = Array.isArray(row._requisitosFaltantes)
     ? row._requisitosFaltantes
@@ -304,10 +324,13 @@ function missingRequirements(row){
     return status === "no_cumple" || status === "no cumple";
   });
 }
+
   function requirementsCell(row){
   var missing = missingRequirements(row);
+  var state = regularState(row);
+  var titulationBlocked = !!(state && state.titulationBlocked);
 
-  if(!missing.length){
+  if(!missing.length && !titulationBlocked){
     if(rowStatus(row) === "cumple"){
       return (
         '<div class="tabla-req-badges">' +
@@ -319,19 +342,28 @@ function missingRequirements(row){
     return '<span class="tabla-req-empty" title="Sin faltantes confirmados">—</span>';
   }
 
+  var badges = missing.map(function(item){
+    var label = text(item && (item.label || item.nombre || item.key));
+
+    return (
+      '<span class="tabla-req-badge tabla-req-badge--missing" title="' +
+      esc(label || requirementShort(item)) +
+      '">' +
+      esc(requirementShort(item)) +
+      '</span>'
+    );
+  }).join("");
+
+  if(titulationBlocked){
+    badges +=
+      '<span class="tabla-req-badge tabla-req-badge--locked" ' +
+      'title="Titulación: no habilitada hasta cumplir los requisitos previos">' +
+      'Tit · No habilitada</span>';
+  }
+
   return (
     '<div class="tabla-req-badges" aria-label="Requisitos faltantes">' +
-    missing.map(function(item){
-      var label = text(item && (item.label || item.nombre || item.key));
-
-      return (
-        '<span class="tabla-req-badge tabla-req-badge--missing" title="' +
-        esc(label || requirementShort(item)) +
-        '">' +
-        esc(requirementShort(item)) +
-        '</span>'
-      );
-    }).join("") +
+    badges +
     '</div>'
   );
 }
