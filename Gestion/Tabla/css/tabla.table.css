@@ -352,3 +352,10 @@ td:first-child {
   font-size: 13px;
   font-weight: 700;
 }
+
+
+.tabla-req-badge--locked {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
