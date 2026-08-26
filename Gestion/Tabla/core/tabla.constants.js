@@ -9,7 +9,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-period-policy";
+  var VERSION = "3.1.0-regular-requirement-order";
 
   function deepFreeze(value){
     if(!value || typeof value !== "object" || Object.isFrozen(value)){
@@ -42,9 +42,6 @@ Función:
       "documentacion", "Documentación", "Documentacion",
       "documentacionacademica", "documentacionAcademica"
     ]),
-    requirement("financiero", "financiero", "Financiero", [
-      "financiero", "Financiero", "deuda", "pagos"
-    ]),
     requirement("practicasvinculacion", "practicasVinculacion", "Prácticas preprofesionales", [
       "practicasvinculacion", "practicasVinculacion",
       "PrácticasVinculacion", "PracticasVinculacion",
@@ -63,7 +60,10 @@ Función:
     requirement("actualizaciondatos", "actualizacionDatos", "Actualización de datos", [
       "actualizaciondatos", "actualizacionDatos",
       "ActualizaciónDatos", "ActualizacionDatos", "datos"
-    ])
+    ]),
+    requirement("financiero", "financiero", "Financiero", [
+      "financiero", "Financiero", "deuda", "pagos"
+    ]),
   ];
 
   var REGULAR_REQUIREMENTS = [
