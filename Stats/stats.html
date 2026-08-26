@@ -82,9 +82,29 @@ Función o funciones:
         <div id="stats-notes" class="stats-notes-wrap"><div class="empty">Cargando resumen de notas...</div></div>
       </section>
 
-      <section id="stats-requisitos-section" class="stats-section stats-grid-main">
-        <article class="stats-card"><div class="stats-card-head"><h2>Estados generales</h2><span id="stats-estados-meta">0 estudiantes</span></div><div id="stats-estados" class="stats-bars"></div></article>
-        <article class="stats-card"><div class="stats-card-head"><h2>Requisitos</h2><span>Cumplimiento según filtros</span></div><div id="stats-requisitos" class="stats-bars"></div></article>
+      <section id="stats-requisitos-section" class="stats-section stats-requirements-section">
+        <div class="stats-requirements-overview">
+          <article class="stats-card stats-states-card">
+            <div class="stats-card-head"><h2>Estados generales</h2><span id="stats-estados-meta">0 estudiantes</span></div>
+            <div id="stats-estados" class="stats-bars"></div>
+          </article>
+
+          <article class="stats-card stats-requirements-bars-card">
+            <div class="stats-card-head"><h2>Requisitos</h2><span>Cumplimiento según filtros</span></div>
+            <div id="stats-requisitos" class="stats-bars stats-requirements-bars"></div>
+          </article>
+        </div>
+
+        <article class="stats-card stats-requirements-detail-card">
+          <div class="stats-card-head">
+            <div>
+              <h2>Detalle numérico de requisitos</h2>
+              <p class="stats-table-help">Total es el universo filtrado. Aplica es la base usada para calcular el porcentaje de cumplimiento.</p>
+            </div>
+            <span id="stats-requisitos-tabla-meta">0 estudiantes</span>
+          </div>
+          <div id="stats-requisitos-tabla" class="stats-table-wrap stats-requirements-table"><div class="empty">Cargando valores absolutos...</div></div>
+        </article>
       </section>
 
       <section id="stats-carreras-section" class="stats-section stats-card">
@@ -127,6 +147,7 @@ Función o funciones:
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
   <script src="stats.bootstrap.js"></script>
+  <script src="stats.numeric-tables.js"></script>
   <script src="stats.closure.pdf.vector.js"></script>
 </body>
 </html>
