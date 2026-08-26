@@ -11,7 +11,7 @@ Función o funciones:
   "use strict";
 
   var VERSION =
-    "2.2.0-preserve-requirement-cell";
+    "2.3.0-channel-specific-messages";
 
   var C =
     window.TablaConstants ||
@@ -661,7 +661,25 @@ Función o funciones:
       );
   }
 
-  function messageFor(row, type){
+  function messageFor(row, type, channel){
+    if(
+      channel === "WA" &&
+      window.TablaMessage &&
+      typeof window
+        .TablaMessage
+        .generarMensajeWhatsApp ===
+        "function"
+    ){
+      return window.TablaMessage
+        .generarMensajeWhatsApp(
+          row,
+          type,
+          {
+            texto: ""
+          }
+        );
+    }
+
     if(
       window.TablaMessage &&
       typeof window
@@ -925,7 +943,8 @@ Función o funciones:
     var message =
       messageFor(
         row,
-        type
+        type,
+        channel
       );
 
     markBusy(
