@@ -329,41 +329,6 @@ function classifyPeriod(value){
     ? object(value)
     : {};
 
-  var explicit = key(
-    pick(
-      source,
-      [
-        "tipoPeriodo", "periodType", "tipo", "clasificacion",
-        "_tipoPeriodo", "periodoTipo"
-      ],
-      ""
-    )
-  );
-
-  if(explicit === "regular"){
-    return {
-      id: TYPES.regular || "REGULAR",
-      label: "Regular",
-      isRegular: true,
-      isPVC: false,
-      pattern: "EXPLICIT_REGULAR",
-      raw: text(value),
-      normalized: explicit
-    };
-  }
-
-  if(explicit === "pvc"){
-    return {
-      id: TYPES.pvc || "PVC",
-      label: "PVC",
-      isRegular: false,
-      isPVC: true,
-      pattern: "EXPLICIT_PVC",
-      raw: text(value),
-      normalized: explicit
-    };
-  }
-
   var raw = value && typeof value === "object"
     ? text(
         pick(
@@ -400,6 +365,17 @@ function classifyPeriod(value){
 
   var regular = regularByText || regularById;
 
+  var declared = key(
+    pick(
+      source,
+      [
+        "tipoPeriodo", "periodType", "tipo", "clasificacion",
+        "_tipoPeriodo", "periodoTipo"
+      ],
+      ""
+    )
+  );
+
   return {
     id: regular ? (TYPES.regular || "REGULAR") : (TYPES.pvc || "PVC"),
     label: regular ? "Regular" : "PVC",
@@ -411,7 +387,11 @@ function classifyPeriod(value){
         ? "REGULAR_TEXT"
         : "PVC_FALLBACK",
     raw: raw,
-    normalized: normalized
+    normalized: normalized,
+    declared: declared,
+    declarationMatches:
+      !declared ||
+      declared === (regular ? "regular" : "pvc")
   };
 }
 
