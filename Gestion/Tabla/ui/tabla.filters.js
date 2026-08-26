@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.0.0-real-missing-only";
+  var VERSION = "3.1.0-regular-titulation-gate";
   var C = window.TablaConstants || {};
   var U = window.TablaUtils || {};
   var N = window.TablaDataNormalizer || {};
@@ -160,6 +160,13 @@ Función:
 
   function isTrueMissing(row, item){
     if(!requirementApplies(row, item)){ return false; }
+
+    if(
+      window.TablaRegularPolicy &&
+      typeof window.TablaRegularPolicy.isEffectiveMissing === "function"
+    ){
+      return window.TablaRegularPolicy.isEffectiveMissing(row, item);
+    }
 
     return normalizeStatus(
       item && (
