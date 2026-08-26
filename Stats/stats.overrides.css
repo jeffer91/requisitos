@@ -12,6 +12,51 @@
 .stats-final-layout{display:grid;gap:14px}
 #stats-final-charts{min-height:0}
 
+/* Requisitos y tablas numéricas */
+.stats-requirements-section{display:grid;gap:12px}
+.stats-requirements-overview{display:grid;gap:12px}
+.stats-states-card .stats-bars{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stats-states-card .stats-bar-row{grid-template-columns:minmax(110px,160px) minmax(140px,1fr) 150px}
+.stats-requirements-bars{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
+.stats-requirements-bars .stats-bar-row{grid-template-columns:minmax(145px,210px) minmax(120px,1fr) 150px}
+.stats-requirements-bars .stats-bar-value{white-space:nowrap}
+.stats-bar-row.is-not-applicable{background:#f8fafc;border-color:#e2e8f0}
+.stats-bar-row.is-not-applicable .stats-bar-track{background:#e2e8f0;border-color:#cbd5e1}
+.stats-bar-row.is-not-applicable .stats-bar-fill{width:0!important}
+.stats-bar-row.is-not-applicable .stats-bar-value{color:#64748b}
+.stats-requirements-detail-card{overflow:visible}
+.stats-table-help{margin:5px 0 0;color:#64748b;font-size:11px;font-weight:750;line-height:1.4}
+.stats-requirements-table{max-height:none;overflow-x:auto;overflow-y:visible}
+.stats-data-table{min-width:820px;table-layout:auto}
+.stats-data-table th,.stats-data-table td{vertical-align:middle}
+.stats-data-table th:not(:first-child),.stats-data-table td:not(:first-child){text-align:center}
+.stats-data-table th:first-child,.stats-data-table td:first-child{min-width:220px;text-align:left}
+.stats-data-table tbody tr.is-not-applicable{background:#f8fafc}
+.stats-data-table tbody tr.is-not-applicable td{color:#64748b}
+.stats-number-pill{display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding:5px 9px;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#334155;font-size:12px;font-weight:950;line-height:1}
+.stats-number-total{background:#f8fafc;color:#334155}
+.stats-number-applies{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.stats-number-ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
+.stats-number-bad{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.stats-number-na{background:#f1f5f9;border-color:#cbd5e1;color:#475569}
+.stats-percent-value{display:inline-flex;align-items:center;justify-content:center;min-width:70px;padding:5px 9px;border-radius:999px;background:#ecfdf5;color:#166534;font-size:12px;font-weight:950}
+.stats-percent-value.is-na{background:#f1f5f9;color:#64748b}
+
+/* Organización general de tablas */
+.stats-table-wrap{box-shadow:inset 0 0 0 1px rgba(226,232,240,.2)}
+.stats-table-wrap table{min-width:680px}
+.stats-table-wrap thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#334155;border-bottom:1px solid #cbd5e1;font-size:11px;font-weight:950;letter-spacing:.02em;white-space:nowrap}
+.stats-table-wrap tbody td{border-bottom:1px solid #eef2f7}
+.stats-table-wrap tbody tr:nth-child(even){background:#fbfdff}
+.stats-table-wrap tbody tr:hover{background:#eff6ff}
+.stats-table-wrap tbody tr:last-child td{border-bottom:0}
+.stats-table-wrap th,.stats-table-wrap td{padding:10px 12px}
+.stats-table-wrap th:not(:first-child),.stats-table-wrap td:not(:first-child){text-align:center}
+.stats-table-wrap td:first-child strong{color:#0f172a}
+.stats-sort-head{transition:background .15s ease,color .15s ease}
+.stats-sort-head:hover{background:#eaf2ff!important;color:#1d4ed8}
+.stats-sort-head[aria-sort="ascending"],.stats-sort-head[aria-sort="descending"]{background:#dbeafe!important;color:#1d4ed8}
+
 /* Notas */
 .stats-notes-dashboard{display:grid;gap:14px}
 .stats-notes-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px}
@@ -80,6 +125,7 @@
 @media(max-width:1100px){
   .stats-notes-summary-grid{grid-template-columns:repeat(3,minmax(120px,1fr))}
   .stats-notes-columns,.stats-telegram-grid{grid-template-columns:1fr}
+  .stats-states-card .stats-bars,.stats-requirements-bars{grid-template-columns:1fr}
 }
 @media(max-width:720px){
   .stats-notes-summary-grid,.stats-telegram-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -87,4 +133,6 @@
   .stats-student-order{min-width:0;width:100%}
   .stats-students-head{align-items:flex-start}
   .stats-students-head-actions{align-items:flex-end;flex-direction:column;gap:5px}
+  .stats-states-card .stats-bar-row,.stats-requirements-bars .stats-bar-row{grid-template-columns:1fr;gap:6px}
+  .stats-bar-value{text-align:left}
 }
