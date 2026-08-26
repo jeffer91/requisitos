@@ -14,7 +14,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "2.1.0-memory-sort-requirements";
+  var VERSION = "2.2.0-regular-filter-sort";
 
   var C =
     window.TablaConstants ||
@@ -380,6 +380,25 @@ function readData(current){
 function missingRequirementCount(row){
   row = row || {};
 
+  try{
+    if(
+      window.TablaRegularPolicy &&
+      typeof window.TablaRegularPolicy.analyze === "function"
+    ){
+      var analysis = window.TablaRegularPolicy.analyze(row);
+      return Array.isArray(analysis.missing)
+        ? analysis.missing.length
+        : 0;
+    }
+  }catch(error){}
+
+  if(
+    Filters &&
+    typeof Filters.missingFor === "function"
+  ){
+    return Filters.missingFor(row).length;
+  }
+
   if(Array.isArray(row._requisitosFaltantes)){
     return row._requisitosFaltantes.length;
   }
@@ -402,6 +421,59 @@ function missingRequirementCount(row){
 
     return status === "no_cumple" || status === "no cumple";
   }).length;
+}
+
+function selectedPeriodProbe(periodValue){
+  var value = text(periodValue);
+  var periods = dataCache && Array.isArray(dataCache.periods)
+    ? dataCache.periods
+    : [];
+
+  for(var i = 0; i < periods.length; i += 1){
+    var itemId = periodId(periods[i]);
+
+    if(
+      U.samePeriod
+        ? U.samePeriod(itemId, value)
+        : itemId === value
+    ){
+      return {
+        _periodoId: itemId || value,
+        _periodo: periodLabel(periods[i]) || itemId || value
+      };
+    }
+  }
+
+  return {
+    _periodoId: value,
+    _periodo: value
+  };
+}
+
+function isRegularPeriodSelection(periodValue){
+  if(!text(periodValue)){
+    return false;
+  }
+
+  var probe = selectedPeriodProbe(periodValue);
+
+  try{
+    if(
+      window.TablaRegularPolicy &&
+      typeof window.TablaRegularPolicy.isRegular === "function"
+    ){
+      return window.TablaRegularPolicy.isRegular(probe);
+    }
+
+    if(
+      window.TablaDataNormalizer &&
+      typeof window.TablaDataNormalizer.classifyPeriod === "function"
+    ){
+      return window.TablaDataNormalizer.classifyPeriod(probe).isRegular === true;
+    }
+  }catch(error){}
+
+  return false;
 }
 
 function sortRowsByRequirements(rows, order){
@@ -883,6 +955,24 @@ function sortRowsByRequirements(rows, order){
     if(field === "periodId"){
       patch.division = "";
       patch.career = "";
+
+      var nextPeriodId = text(patch.periodId);
+      var currentRequirements = Array.isArray(state().requirements)
+        ? state().requirements.slice()
+        : [];
+
+      if(
+        nextPeriodId &&
+        !isRegularPeriodSelection(nextPeriodId)
+      ){
+        currentRequirements = currentRequirements.filter(function(value){
+          return text(value).toLowerCase() !== "titulacion";
+        });
+
+        patch.requirements = currentRequirements.length
+          ? currentRequirements
+          : ["falta"];
+      }
 
       closeMessageMenu();
     }
