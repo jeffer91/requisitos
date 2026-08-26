@@ -3,23 +3,39 @@ Nombre completo: stats.data.connector-patch.js
 Ruta: /Stats/stats.data.connector-patch.js
 Función:
 - Hidratar estudiantes con notas entregadas por ConStats.
-- No cargar repositorios ni abrir BDLocal desde Stats.
+- Mantener las notas fuera de la ruta crítica de arranque de Stats.
+- Cargar notas únicamente para el período seleccionado.
+- No cargar repositorios ni abrir BDLocal directamente desde Stats.
 ========================================================= */
-(function(window){
+(function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-constats-only";
-  var state={installed:false,loading:null,notes:[],byKey:Object.create(null),byCedula:Object.create(null),error:"",loadedAt:""};
+  var VERSION="1.1.0-period-deferred-notes";
+  var state={
+    installed:false,
+    bound:false,
+    loading:null,
+    loadingPeriod:"",
+    currentPeriod:"",
+    requestSeq:0,
+    notes:[],
+    byKey:Object.create(null),
+    byCedula:Object.create(null),
+    error:"",
+    loadedAt:""
+  };
 
   function text(value){return String(value==null?"":value).trim();}
   function cedula(value){var raw=text(value).replace(/[^0-9A-Za-z]/g,"");return /^\d{9}$/.test(raw)?"0"+raw:raw;}
   function period(value){value=text(value);var match=value.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);return match?match[1]+"-"+match[2]+"__"+match[3]+"-"+match[4]:value.replace(/_+/g,"__");}
   function api(){return window.ConStats||window.BDLocalStats||null;}
+  function selectedPeriod(){var node=document.getElementById("stats-periodo");return period(node&&node.value||"");}
   function cedulaOf(row){row=row||{};return cedula(row.cedula||row._cedula||row.numeroIdentificacion||row.NumeroIdentificacion||row.Cedula||row["Cédula"]);}
   function periodOf(row){row=row||{};return period(row.periodoId||row.periodId||row.periodoCanonicoId||row.ultimoPeriodoId||row._periodoId||row._bl2PeriodoId);}
   function keyOf(row){var c=cedulaOf(row),p=periodOf(row);return c&&p?c+"__"+p:"";}
   function number(value){if(value===null||value===undefined||text(value)===""){return null;}var result=Number(text(value).replace(",","."));return Number.isFinite(result)?result:null;}
   function first(row,names){row=row||{};for(var i=0;i<names.length;i+=1){if(Object.prototype.hasOwnProperty.call(row,names[i])&&text(row[names[i]])!==""){return row[names[i]];}}return "";}
+  function emit(name,detail){try{window.dispatchEvent(new CustomEvent(name,{detail:detail||{}}));}catch(error){}}
 
   function normalizeNote(input){
     var row=Object.assign({},input||{});
@@ -39,8 +55,9 @@ Función:
     });
   }
 
-  function index(rows){
-    state.notes=(Array.isArray(rows)?rows:[]).map(normalizeNote);
+  function index(rows,periodoId){
+    state.currentPeriod=period(periodoId||"");
+    state.notes=(Array.isArray(rows)?rows:[]).map(normalizeNote).filter(function(note){return !state.currentPeriod||periodOf(note)===state.currentPeriod;});
     state.byKey=Object.create(null);
     state.byCedula=Object.create(null);
     state.notes.forEach(function(note){
@@ -53,15 +70,38 @@ Función:
     return state.notes;
   }
 
-  function load(force){
-    if(state.loading&&!force){return state.loading;}
+  function clear(periodoId){
+    state.requestSeq+=1;
+    state.loading=null;
+    state.loadingPeriod="";
+    return index([],periodoId||"");
+  }
+
+  function loadPeriod(periodoId,force){
+    periodoId=period(periodoId||selectedPeriod());
+    if(!periodoId){return Promise.resolve(clear(""));}
+    if(!force&&state.currentPeriod===periodoId&&state.loadedAt){return Promise.resolve(state.notes);}
+    if(state.loading&&state.loadingPeriod===periodoId&&!force){return state.loading;}
+
     var current=api();
-    if(!current||typeof current.listNotes!=="function"){return Promise.reject(new Error("ConStats.listNotes no está disponible."));}
-    state.loading=Promise.resolve(current.listNotes({})).then(index).catch(function(error){
-      index([]);
-      state.error=error&&error.message?error.message:String(error);
+    if(!current||typeof current.listNotes!=="function"){
+      return Promise.reject(new Error("ConStats.listNotes no está disponible."));
+    }
+
+    var seq=++state.requestSeq;
+    state.loadingPeriod=periodoId;
+    state.loading=Promise.resolve(current.listNotes({periodoId:periodoId,periodId:periodoId})).then(function(rows){
+      if(seq!==state.requestSeq){return state.notes;}
+      return index(rows,periodoId);
+    }).catch(function(error){
+      if(seq===state.requestSeq){
+        index([],periodoId);
+        state.error=error&&error.message?error.message:String(error);
+      }
       return [];
-    }).finally(function(){state.loading=null;});
+    }).finally(function(){
+      if(seq===state.requestSeq){state.loading=null;state.loadingPeriod="";}
+    });
     return state.loading;
   }
 
@@ -85,6 +125,7 @@ Función:
     copy._bdlNotaRegistro=Object.assign({},note);
     return copy;
   }
+
   function hydrateRows(rows){return (Array.isArray(rows)?rows:[]).map(hydrate);}
   function mapResult(result){
     if(Array.isArray(result)){return hydrateRows(result);}
@@ -102,30 +143,78 @@ Función:
     apiObject[name]=wrapped;
   }
 
+  function refreshStatsAfterNotes(periodoId){
+    if(selectedPeriod()!==periodoId){return;}
+    try{
+      if(window.StatsCore&&typeof window.StatsCore.invalidate==="function"){
+        window.StatsCore.invalidate({keepPeriods:true,reason:"notes-loaded"});
+      }
+      if(window.StatsApp&&typeof window.StatsApp.render==="function"){
+        window.StatsApp.render({force:false,reason:"notes-loaded"});
+      }
+    }catch(error){}
+    emit("stats:notes-loaded",{ok:true,periodoId:periodoId,total:state.notes.length,at:new Date().toISOString()});
+  }
+
+  function requestSelectedPeriod(force){
+    var periodoId=selectedPeriod();
+    if(!periodoId){clear("");return Promise.resolve([]);}
+    return loadPeriod(periodoId,force===true).then(function(rows){
+      if(state.currentPeriod===periodoId&&!state.error){refreshStatsAfterNotes(periodoId);}
+      return rows;
+    });
+  }
+
+  function bind(){
+    if(state.bound){return;}
+    state.bound=true;
+    var periodNode=document.getElementById("stats-periodo");
+    if(periodNode){
+      periodNode.addEventListener("change",function(){requestSelectedPeriod(false);});
+    }
+    window.addEventListener("stats:cache-invalidated",function(event){
+      var reason=text(event&&event.detail&&event.detail.reason||"");
+      if(reason==="refresh-button"||reason==="manual-refresh"){requestSelectedPeriod(true);}
+    });
+  }
+
   function install(){
     var current=api();
     if(!current){return false;}
-    if(current.__statsConnectorDataPatch){state.installed=true;return true;}
+    if(current.__statsConnectorDataPatch){state.installed=true;bind();return true;}
     ["students","getStudents","rows","getRows"].forEach(function(name){wrap(current,name,hydrateRows);});
     wrap(current,"listStudents",mapResult);
-    var originalReady=typeof current.ready==="function"?current.ready:null;
-    current.ready=function(){var args=arguments;return Promise.resolve(originalReady?originalReady.apply(current,args):true).then(function(result){return load(false).then(function(){return result;});});};
-    ["refresh","refreshFull"].forEach(function(name){
-      var original=current[name];
-      if(typeof original!=="function"){return;}
-      current[name]=function(){var args=arguments;return Promise.resolve(original.apply(current,args)).then(function(result){return load(true).then(function(){return result;});});};
-    });
     current.__statsConnectorDataPatch=true;
     state.installed=true;
+    bind();
     return true;
   }
 
   function ready(){
     if(!install()){return Promise.reject(new Error("ConStats no está disponible."));}
-    return load(false).then(function(){return status();});
+    return Promise.resolve(status());
   }
-  function status(){return {ok:!state.error,version:VERSION,source:"ConStats",installed:state.installed,notes:state.notes.length,loadedAt:state.loadedAt,error:state.error};}
 
-  window.StatsDataPatch={version:VERSION,install:install,ready:ready,reload:load,hydrateStudent:hydrate,status:status};
-  window.addEventListener("bdlocal:conexiones-cache-updated",function(){if(state.installed){load(true);}});
-})(window);
+  function status(){return {
+    ok:!state.error,
+    version:VERSION,
+    source:"ConStats",
+    installed:state.installed,
+    deferred:true,
+    currentPeriod:state.currentPeriod,
+    loadingPeriod:state.loadingPeriod,
+    notes:state.notes.length,
+    loadedAt:state.loadedAt,
+    error:state.error
+  };}
+
+  window.StatsDataPatch={
+    version:VERSION,
+    install:install,
+    ready:ready,
+    loadPeriod:loadPeriod,
+    reload:function(){return requestSelectedPeriod(true);},
+    hydrateStudent:hydrate,
+    status:status
+  };
+})(window,document);
