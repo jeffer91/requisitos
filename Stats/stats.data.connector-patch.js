@@ -10,7 +10,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.1.0-period-deferred-notes";
+  var VERSION="1.1.1-period-deferred-notes";
   var state={
     installed:false,
     bound:false,
@@ -109,9 +109,9 @@ Función:
     var key=keyOf(row);
     if(key&&state.byKey[key]){return state.byKey[key];}
     var id=cedulaOf(row),list=id&&state.byCedula[id]?state.byCedula[id]:[];
-    if(list.length===1){return list[0];}
     var p=periodOf(row);
-    return list.filter(function(note){return !p||periodOf(note)===p;})[0]||null;
+    if(p){return list.filter(function(note){return periodOf(note)===p;})[0]||null;}
+    return list.length===1?list[0]:null;
   }
 
   function hydrate(row){
