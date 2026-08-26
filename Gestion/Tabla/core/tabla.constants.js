@@ -63,7 +63,7 @@ Función:
     ]),
     requirement("financiero", "financiero", "Financiero", [
       "financiero", "Financiero", "deuda", "pagos"
-    ]),
+    ])
   ];
 
   var REGULAR_REQUIREMENTS = [
