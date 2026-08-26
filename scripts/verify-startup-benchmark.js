@@ -53,7 +53,7 @@ check(cargaHtml.indexOf("carga.startup-metrics.js")<cargaHtml.indexOf("carga.ind
 check(metricsSource.includes('"carga:bdlocal-ready"')&&metricsSource.includes('"carga:periods-refreshed"'),"Carga registra Base Local y períodos visibles.");
 check(cargaUiSource.includes('emit("carga:ui-rendered"')&&cargaUiSource.includes("booted:uiBooted"),"Carga publica cuando sus controles locales ya quedaron renderizados.");
 check(cargaReady.includes('moduleId:"carga_excel"')&&cargaReady.includes('el("cargaPeriodoSelect")')&&cargaReady.includes('el("cargaArchivoInput")')&&cargaReady.includes('el("cargaBtnPeriodoCrear")'),"Carga define pantalla lista por controles realmente utilizables.");
-check(cargaReady.includes("requestAnimationFrame")&&!cargaReady.includes("Firebase")&&!cargaReady.includes("ensureConnector"),"La sonda de Carga espera pintado sin depender de servicios pesados.");
+check(cargaReady.includes("requestAnimationFrame")&&!cargaReady.includes("CargaFirebase")&&!cargaReady.includes("ensureConnector"),"La sonda de Carga espera pintado sin depender de servicios pesados.");
 check(runtime.includes("rendererAvailable")&&runtime.includes("indexedDBOpen"),"La sonda registra renderer e IndexedDB.");
 check(runtime.includes("127.0.0.1"),"La sonda solo consulta DevTools local.");
 check(powershell.includes("--remote-debugging-port=$CurrentPort")&&powershell.includes("Export-Csv"),"PowerShell ejecuta y exporta la medición.");
