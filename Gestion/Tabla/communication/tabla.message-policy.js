@@ -51,6 +51,22 @@ Función:
     return text(item && (item.label || item.nombre || item.key)) || "Requisito";
   }
 
+  function decorateRequirements(row, items){
+    var decorated = typeof api.listarRequisitos === "function"
+      ? api.listarRequisitos(row || {})
+      : [];
+
+    var byKey = Object.create(null);
+    array(decorated).forEach(function(item){
+      byKey[policy.key(item)] = item;
+    });
+
+    return array(items).map(function(item){
+      var match = byKey[policy.key(item)] || {};
+      return Object.assign({}, item || {}, match);
+    });
+  }
+
   function groupedResponsibles(items){
     var groups = Object.create(null);
     var order = [];
@@ -161,6 +177,8 @@ Función:
       : state.titulationBlocked
         ? state.priorBlocking
         : [];
+
+    responsibleItems = decorateRequirements(row, responsibleItems);
 
     var groups = groupedResponsibles(responsibleItems);
 
