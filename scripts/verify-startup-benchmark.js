@@ -26,6 +26,8 @@ function check(value,message){
 
 const cargaHtml=read("Carga/carga.html");
 const metricsSource=read("Carga/carga.startup-metrics.js");
+const cargaUiSource=read("Carga/carga.ui.connector.js");
+const cargaReady=read("Carga/carga.render-ready.js");
 const runtime=read("scripts/medir-carga-base-runtime.js");
 const powershell=read("scripts/medir-carga-base.ps1");
 const mainHtml=read("Maqueta/maq-index.html");
@@ -45,8 +47,13 @@ const inpvcReady=read("InPVC/frontend/inpvc.render-ready.js");
 const packageJson=JSON.parse(read("package.json"));
 
 check(cargaHtml.includes('src="./carga.startup-metrics.js"'),"Carga incluye las métricas de arranque.");
+check(cargaHtml.includes('src="./carga.render-ready.js"'),"Carga incluye su sonda de pantalla utilizable.");
+check(cargaHtml.indexOf("carga.ui.connector.js")<cargaHtml.indexOf("carga.render-ready.js")&&cargaHtml.indexOf("carga.render-ready.js")<cargaHtml.indexOf("carga.index.js"),"La sonda de Carga se instala después de la UI y antes del conector pesado.");
 check(cargaHtml.indexOf("carga.startup-metrics.js")<cargaHtml.indexOf("carga.index.js"),"Las métricas se cargan antes del conector de Carga.");
 check(metricsSource.includes('"carga:bdlocal-ready"')&&metricsSource.includes('"carga:periods-refreshed"'),"Carga registra Base Local y períodos visibles.");
+check(cargaUiSource.includes('emit("carga:ui-rendered"')&&cargaUiSource.includes("booted:uiBooted"),"Carga publica cuando sus controles locales ya quedaron renderizados.");
+check(cargaReady.includes('moduleId:"carga_excel"')&&cargaReady.includes('el("cargaPeriodoSelect")')&&cargaReady.includes('el("cargaArchivoInput")')&&cargaReady.includes('el("cargaBtnPeriodoCrear")'),"Carga define pantalla lista por controles realmente utilizables.");
+check(cargaReady.includes("requestAnimationFrame")&&!cargaReady.includes("Firebase")&&!cargaReady.includes("ensureConnector"),"La sonda de Carga espera pintado sin depender de servicios pesados.");
 check(runtime.includes("rendererAvailable")&&runtime.includes("indexedDBOpen"),"La sonda registra renderer e IndexedDB.");
 check(runtime.includes("127.0.0.1"),"La sonda solo consulta DevTools local.");
 check(powershell.includes("--remote-debugging-port=$CurrentPort")&&powershell.includes("Export-Csv"),"PowerShell ejecuta y exporta la medición.");
@@ -54,7 +61,7 @@ check(packageJson.scripts["diagnostico:tiempo-base"]&&packageJson.scripts["test:
 
 check(mainHtml.includes("BDLocal → pantalla lista"),"La interfaz aclara que mide la pantalla lista.");
 check(mainHtml.includes('src="maq-bdlocal-delivery-timer.js"'),"La ventana principal carga el contador.");
-check(timerSource.includes('VERSION="3.0.0-all-active-screens-ready"'),"El contador usa la versión para todas las pantallas activas.");
+check(timerSource.includes('VERSION="3.1.0-usable-screen-ready"'),"El contador usa la versión que mide pantallas utilizables.");
 check(timerSource.includes('READY_EVENT="maqueta:screen-render-complete"'),"El contador usa el evento estándar de pantalla lista.");
 check(timerSource.includes("EXPLICIT_READY_MODULES"),"El contador distingue pantallas con confirmación explícita.");
 
@@ -67,6 +74,7 @@ for(const moduleId of activeModuleIds){
 }
 
 const expectedProbePaths=[
+  'path:"carga.render-ready.js"',
   'path:"centro-datos/centro-datos.render-ready.js"',
   'path:"core/tabla.render-ready.js"',
   'path:"stats.render-ready.js"',
@@ -119,7 +127,7 @@ check(inpvcReady.includes('moduleId:"titulacion"')&&inpvcReady.includes('el("inp
 check(inpvcReady.includes("current.context")&&inpvcReady.includes(".inpvc-section-card")&&inpvcReady.includes("requestAnimationFrame"),"InPVC valida el informe generado y su pintado final.");
 
 const localSources=[
-  metricsSource,timerSource,fichaReady,centroReady,tablaReady,statsReady,coordiReady,
+  metricsSource,cargaReady,timerSource,fichaReady,centroReady,tablaReady,statsReady,coordiReady,
   globalReady,reportesReady,defartReady,ncomplexReady,crDefReady,inpvcReady
 ];
 const forbidden=[/\bfetch\s*\(/,/firebase\.initialize/i,/supabase\.createClient/i,/google\.script/i,/BDLSyncV2\.request/i,/\.sync\s*\(/];
@@ -201,7 +209,11 @@ busHandlers["modulo:cambiado"]({moduloId:"carga_excel",modulo:{nombre:"Carga"}})
 child.dispatchEvent(new FakeCustomEvent("carga:periods-refreshed",{detail:{total:2}}));
 flush(1000);
 let result=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
-check(result.running===false&&result.completions===1,"Carga termina con sus períodos visibles.");
+check(result.running===true&&result.completions===0,"La llegada de períodos por sí sola no detiene Carga.");
+child.dispatchEvent(new FakeCustomEvent("maqueta:screen-render-complete",{detail:{moduleId:"carga_excel",source:"CargaRenderReady"}}));
+flush(1000);
+result=deliveryWindow.MAQ_BDLOCAL_DELIVERY_TIMER.status();
+check(result.running===false&&result.completions===1,"Carga termina únicamente con su confirmación visual utilizable.");
 
 function verifyExplicitModule(moduleId,label,source,expectedCompletions){
   frame.dataset.moduleId=moduleId;
