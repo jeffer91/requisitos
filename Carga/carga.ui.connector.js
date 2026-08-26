@@ -22,6 +22,8 @@ Función o funciones:
   var busy=false;
   var progressHideTimer=null;
   var progressValue=0;
+  var uiBooted=false;
+  var uiReadyAt=0;
 
   function text(value){return String(value==null?"":value).trim();}
   function byId(id){return document.getElementById(id);}
@@ -102,6 +104,17 @@ Función o funciones:
     setText("cargaPeriodosCount",periods.length+" período"+(periods.length===1?"":"s"));
     setText("cargaDivisionesCount",selectedDiv()?(selectedDiv().divisiones||[]).length+" divisiones":"0 divisiones");
     updateControls();
+  }
+  function markUIReady(source){
+    uiBooted=true;
+    if(!uiReadyAt){uiReadyAt=Date.now();}
+    emit("carga:ui-rendered",{
+      ok:true,
+      source:source||"CargaUI",
+      periodCount:periods.length,
+      selectedPeriodId:text(els.periodo&&els.periodo.value),
+      at:new Date().toISOString()
+    });
   }
   function refreshPeriods(){
     return ensureConnector().then(function(con){return typeof con.getPeriods==="function"?con.getPeriods():typeof con.listPeriods==="function"?con.listPeriods():[];}).then(function(rows){replacePeriods(rows);renderSelectors();return periods;});
@@ -203,11 +216,24 @@ Función o funciones:
   function fillMonths(select,selected){if(!select){return;}select.replaceChildren();MONTHS.forEach(function(item){appendOption(select,item[0],item[1]);});select.value=selected;}
   function boot(){
     mapElements();var year=new Date().getFullYear();fillMonths(els.fromMonth,"04");fillMonths(els.toMonth,"09");if(els.fromYear){els.fromYear.value=year;}if(els.toYear){els.toYear.value=year;}
-    loadCachedPeriods();renderSelectors();bind();renderValidation();resetProgress();
+    loadCachedPeriods();renderSelectors();bind();renderValidation();resetProgress();markUIReady("cached-periods");
     var wait=window.CargaConnectionIndex&&typeof window.CargaConnectionIndex.ensureConnector==="function"?window.CargaConnectionIndex.ensureConnector():ensureConnector();
-    Promise.resolve(wait).then(refreshPeriods).then(function(){var selected=text(storageGet(LS_PERIODO,""));if(els.periodo&&periodById(selected)){els.periodo.value=selected;onPeriodChange();}return loadDeleteSummary(selectedDelete());}).then(function(){showMessage("success","Carga conectada mediante ConCarga.");}).catch(function(error){showMessage("error",error.message||String(error));});
+    Promise.resolve(wait).then(refreshPeriods).then(function(){markUIReady("bdlocal-periods");var selected=text(storageGet(LS_PERIODO,""));if(els.periodo&&periodById(selected)){els.periodo.value=selected;onPeriodChange();}return loadDeleteSummary(selectedDelete());}).then(function(){showMessage("success","Carga conectada mediante ConCarga.");}).catch(function(error){showMessage("error",error.message||String(error));});
   }
 
-  window.CargaUI={version:"4.1.0-monotonic-progress",refreshPeriods:refreshPeriods,updateControls:updateControls};
+  function status(){
+    return {
+      version:"4.2.0-visible-ready",
+      booted:uiBooted,
+      readyAt:uiReadyAt,
+      busy:busy,
+      periodCount:periods.length,
+      selectedPeriodId:text(els.periodo&&els.periodo.value),
+      fileInputReady:!!els.file,
+      createReady:!!els.create&&!els.create.disabled
+    };
+  }
+
+  window.CargaUI={version:"4.2.0-visible-ready",refreshPeriods:refreshPeriods,updateControls:updateControls,status:status};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
