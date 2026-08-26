@@ -10,8 +10,9 @@ Función:
 (function(window, document){
   "use strict";
 
-  var VERSION = "3.0.0-functional-status-summary";
+  var VERSION = "3.1.0-auto-hide-success";
   var U = window.TablaUtils || {};
+  var statusTimer = null;
 
   function el(id){
     return document.getElementById(id);
@@ -39,8 +40,28 @@ Función:
     var box = el("tabla-status");
     if(!box){ return; }
 
+    if(statusTimer){
+      window.clearTimeout(statusTimer);
+      statusTimer = null;
+    }
+
     box.textContent = text(message);
     box.className = "tabla-status" + (type ? " " + type : "");
+
+    if(type === "ok" && text(message)){
+      statusTimer = window.setTimeout(function(){
+        statusTimer = null;
+
+        if(
+          box &&
+          box.classList &&
+          box.classList.contains("ok")
+        ){
+          box.textContent = "";
+          box.className = "tabla-status";
+        }
+      }, 3000);
+    }
   }
 
   function studentWord(total){
