@@ -4,7 +4,8 @@ Ruta: /Coordi/coordi.bootstrap.js
 Función:
 - Abrir Coordi desde la caché compartida sin reconstruir BDLocal.
 - Cargar primero datos y reporte; preparar Outlook y WhatsApp después del primer render.
-- Aplicar el formato visual del correo general después de cargar COOMail.
+- Recuperar períodos regulares cuando matrícula y selector usan formatos de período distintos.
+- Aplicar el formato visual del correo general y adaptar Abril-Septiembre a Examen Complexivo.
 - Mostrar errores concretos en lugar de mantener “Conectando” indefinidamente.
 ========================================================= */
 (function(window,document){
@@ -55,8 +56,9 @@ Función:
     var run=function(){
       load("coo.mail.js",function(){return window.COOMail;})
         .then(function(){return load("coo.mail.visual.js",function(){return window.COOMailVisual;});})
+        .then(function(){return load("coo.mail.regular-fix.js",function(){return window.COOMailRegularFix;});})
         .then(function(){return load("coo.whatsapp.js",function(){return window.COOWhatsApp;});})
-        .then(function(){emit("coordi:communications-ready",{ok:true,mail:true,mailVisual:true,whatsapp:true});})
+        .then(function(){emit("coordi:communications-ready",{ok:true,mail:true,mailVisual:true,mailRegular:true,whatsapp:true});})
         .catch(function(error){emit("coordi:communications-error",{ok:false,error:error.message||String(error)});});
     };
     if(typeof window.requestIdleCallback==="function"){window.requestIdleCallback(run,{timeout:1400});}else{window.setTimeout(run,180);}
@@ -68,6 +70,7 @@ Función:
       .then(function(){return load("../Stats/stats.rules.js",function(){return window.StatsRules;});})
       .then(function(){return load("coo.config.js",function(){return window.COOConfig;});})
       .then(function(){return load("coo.data.js",function(){return window.COOData;});})
+      .then(function(){return load("coo.period-regular-fix.js",function(){return window.COORegularPeriodFix;});})
       .then(function(){return load("coo.report.js",function(){return window.COOReport;});})
       .then(function(){return load("coo.report.compliance-fix.js",function(){return window.COOReportComplianceFix;});})
       .then(function(){return load("coo.render.js",function(){return window.COORender;});})
@@ -75,7 +78,7 @@ Función:
       .then(function(){return load("coordi.render-ready.js",function(){return window.CoordiRenderReady;});})
       .then(function(){
         setStatus("","",true);
-        emit("coordi:bootstrap-ready",{ok:true,source:"ConCoordi",cacheFirst:true,communicationsDeferred:true});
+        emit("coordi:bootstrap-ready",{ok:true,source:"ConCoordi",cacheFirst:true,regularPeriodRecovery:true,communicationsDeferred:true});
         scheduleCommunicationFeatures();
       })
       .catch(function(error){
@@ -84,6 +87,6 @@ Función:
       });
   }
 
-  window.CoordiBootstrap={version:"2.1.0-visual-mail",boot:boot,connectorReady:connectorReady};
+  window.CoordiBootstrap={version:"2.2.0-regular-period-recovery",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
