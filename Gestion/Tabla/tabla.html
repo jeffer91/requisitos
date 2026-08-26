@@ -163,6 +163,14 @@
   Ordenar requisitos
 </button>
 
+<span
+  id="tabla-message-counter"
+  class="tabla-message-counter"
+  title="Contador de mensajes/contactos del período seleccionado"
+>
+  Mensajes: <strong id="tabla-message-counter-value">0</strong>
+</span>
+
 <div class="tabla-message-menu">
 
             <button
@@ -249,26 +257,6 @@
         <button
           type="button"
           class="tabla-req-chip"
-          data-req-filter="financiero"
-          aria-pressed="false"
-          title="Financiero pendiente"
-        >
-          Fin
-        </button>
-
-        <button
-          type="button"
-          class="tabla-req-chip"
-          data-req-filter="titulacion"
-          aria-pressed="false"
-          title="Titulación pendiente"
-        >
-          Tit
-        </button>
-
-        <button
-          type="button"
-          class="tabla-req-chip"
           data-req-filter="practicasvinculacion"
           aria-pressed="false"
           title="Prácticas preprofesionales pendientes"
@@ -315,6 +303,27 @@
         >
           Datos
         </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="financiero"
+          aria-pressed="false"
+          title="Financiero pendiente"
+        >
+          Fin
+        </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="titulacion"
+          aria-pressed="false"
+          title="Titulación pendiente"
+        >
+          Tit
+        </button>
+
 
       </div>
     </section>
@@ -902,6 +911,7 @@
   ====================================================== -->
 
   <script src="data/tabla.data-normalizer.js"></script>
+  <script src="core/tabla.regular-policy.js"></script>
   <script src="data/tabla.data-source.js"></script>
   <script src="data/tabla.data-guard.js"></script>
 
@@ -920,6 +930,7 @@
   ====================================================== -->
 
   <script src="communication/tabla.message.js"></script>
+  <script src="communication/tabla.message-policy.js"></script>
   <script src="communication/tabla.whatsapp.js"></script>
   <script src="communication/tabla.email.js"></script>
   <script src="communication/tabla.telegram-api.js"></script>
@@ -932,6 +943,7 @@
   <script src="history/tabla.history-store.js"></script>
   <script src="history/tabla.history-query.js"></script>
   <script src="history/tabla.history.js"></script>
+  <script src="ui/tabla.message-counter.js"></script>
 
   <!-- =====================================================
   TELEGRAM INDIVIDUAL
