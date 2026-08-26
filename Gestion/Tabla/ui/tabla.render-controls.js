@@ -15,7 +15,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "2.0.0";
+  var VERSION = "2.1.0-hide-titulation-pvc";
   var C = window.TablaConstants || {};
   var U = window.TablaUtils || {};
 
@@ -241,7 +241,8 @@ Con qué se conecta:
   }
 
   function renderChips(
-    requirements
+    requirements,
+    state
   ){
     var wrap =
       el("tabla-req-chips");
@@ -257,6 +258,52 @@ Con qué se conecta:
         ? requirements
         : [];
 
+    state = state || {};
+
+    var selectedPeriod = null;
+    var periods = Array.isArray(state.periods)
+      ? state.periods
+      : [];
+
+    for(var i = 0; i < periods.length; i += 1){
+      var currentId = periodId(periods[i]);
+
+      if(
+        U.samePeriod
+          ? U.samePeriod(currentId, state.periodId)
+          : currentId === text(state.periodId)
+      ){
+        selectedPeriod = periods[i];
+        break;
+      }
+    }
+
+    var periodProbe = {
+      _periodoId: text(state.periodId),
+      _periodo: selectedPeriod
+        ? (periodLabel(selectedPeriod) || periodId(selectedPeriod))
+        : text(state.periodId)
+    };
+
+    var hasSelectedPeriod = !!text(state.periodId);
+    var isRegular = false;
+
+    if(hasSelectedPeriod){
+      try{
+        if(
+          window.TablaRegularPolicy &&
+          typeof window.TablaRegularPolicy.isRegular === "function"
+        ){
+          isRegular = window.TablaRegularPolicy.isRegular(periodProbe);
+        }else if(
+          window.TablaDataNormalizer &&
+          typeof window.TablaDataNormalizer.classifyPeriod === "function"
+        ){
+          isRegular = window.TablaDataNormalizer.classifyPeriod(periodProbe).isRegular === true;
+        }
+      }catch(error){}
+    }
+
     Array.prototype
       .forEach.call(
         wrap.querySelectorAll(
@@ -268,9 +315,26 @@ Con qué se conecta:
               "data-req-filter"
             );
 
+          var titulationChip =
+            reqKey === "titulacion";
+
+          var available =
+            !titulationChip ||
+            !hasSelectedPeriod ||
+            isRegular;
+
           var active =
+            available &&
             requirements
               .indexOf(reqKey) >= 0;
+
+          button.hidden =
+            titulationChip &&
+            hasSelectedPeriod &&
+            !isRegular;
+
+          button.disabled =
+            !available;
 
           button.classList
             .toggle(
@@ -281,6 +345,13 @@ Con qué se conecta:
           button.setAttribute(
             "aria-pressed",
             active
+              ? "true"
+              : "false"
+          );
+
+          button.setAttribute(
+            "aria-hidden",
+            button.hidden
               ? "true"
               : "false"
           );
@@ -316,7 +387,8 @@ Con qué se conecta:
 
     renderChips(
         state.requirements ||
-        []
+        [],
+        state
       );
 
       var sortRequirements =
