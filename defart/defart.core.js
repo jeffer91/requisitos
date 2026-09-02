@@ -539,14 +539,16 @@ Con qué se conecta:
     var notes = notesOf(source);
     var nart = notes.nart;
     var ndef = notes.ndef;
-    var canArt = req.ok;
-    var canDef = canArt && nart !== null && nart >= 7;
+    var canArt = true;
+    var requirementsOk = req.loaded !== false && req.ok;
+    var canDef = requirementsOk && nart !== null && nart >= 7;
     var nfin = canDef ? calculateFinal(nart, ndef) : null;
     var estado = "Pendiente Art";
 
-    if (!canArt) estado = "Sin requisitos";
+    if (nart !== null && nart < 7) estado = "Supletorio Art";
+    else if (req.loaded === false) estado = "Requisitos no cargados";
+    else if (!req.ok) estado = "Sin requisitos";
     else if (nart === null) estado = "Pendiente Art";
-    else if (nart < 7) estado = "Supletorio Art";
     else if (ndef === null) estado = "Pendiente Def";
     else if (ndef < 7) estado = "Supletorio Def";
     else estado = "Completo";
@@ -565,6 +567,8 @@ Con qué se conecta:
     source._nfin = nfin;
     source._canArt = canArt;
     source._canDef = canDef;
+    source._requirementsOk = requirementsOk;
+    source._requirementsLoaded = req.loaded !== false;
     source._estadoDefensa = estado;
     source._missingRequirements = req.missing;
     source._requirementValues = req.values;
@@ -747,8 +751,7 @@ Con qué se conecta:
     var errors = [];
     if (Object.prototype.hasOwnProperty.call(change, "nart") && !isValidNote(change.nart)) errors.push("N-ART inválida: " + current._nombre);
     if (Object.prototype.hasOwnProperty.call(change, "ndef") && !isValidNote(change.ndef)) errors.push("N-DEF inválida: " + current._nombre);
-    if (Object.prototype.hasOwnProperty.call(change, "nart") && !current._canArt) errors.push("N-ART bloqueada por requisitos aplicables: " + current._nombre + " · Falta: " + current._missingRequirements.join(", "));
-    if (Object.prototype.hasOwnProperty.call(change, "ndef") && (!current._canArt || nart === null || nart < 7)) errors.push("N-DEF bloqueada hasta que N-ART sea 7 o más: " + current._nombre);
+    if (Object.prototype.hasOwnProperty.call(change, "ndef") && (!current._requirementsOk || nart === null || nart < 7)) errors.push("N-DEF bloqueada hasta cumplir requisitos y tener N-ART igual o mayor a 7: " + current._nombre);
     if (nart !== null && (nart < 0 || nart > 10)) errors.push("N-ART fuera de rango: " + current._nombre);
     if (ndef !== null && (ndef < 0 || ndef > 10)) errors.push("N-DEF fuera de rango: " + current._nombre);
     return errors;
