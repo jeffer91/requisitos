@@ -108,6 +108,7 @@ Función o funciones:
     if(article == null){ return "SIN_ARTICULO"; }
     if(article < 7){ return "ARTICULO_NO_APROBADO"; }
     if(defense == null){ return "PENDIENTE_DEFENSA"; }
+    if(defense < 7){ return "DEFENSA_NO_APROBADA"; }
     if(finalValue == null){ return "PENDIENTE_FINAL"; }
     return finalValue >= 7 ? "APROBADO" : "NO_APROBADO";
   }
