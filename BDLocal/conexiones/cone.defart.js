@@ -95,12 +95,53 @@ Función:
   function changedNoteFields(before,after){before=before||{};after=after||{};return ["Notart","Notdef","Notafinal"].filter(function(field){return JSON.stringify(before[field])!==JSON.stringify(after[field]);});}
   function historyRows(before,after,context){var id=identity(after);var stamp=now();return changedNoteFields(before,after).map(function(field,index){var row={id:"historial__defart__"+id.localId+"__"+norm(field)+"__"+stamp.replace(/[^0-9]/g,"")+"__"+index,entidad:"notas",entidadId:id.localId,periodoId:id.periodoId,cedula:id.cedula,campo:field,anterior:before&&before[field]!==undefined?clone(before[field]):null,nuevo:after[field],accion:"ACTUALIZAR_NOTA",usuario:text(context&&context.usuario||context&&context.user),pantalla:"Defart",createdAt:stamp,updatedAt:stamp};return {row:row,change:baseChange("historial",after,row,row.id)};});}
   function previousNote(note){var id=identity(note);var current=notesRepo();return current&&typeof current.getByPeriodoCedula==="function"?current.getByPeriodoCedula(id.periodoId,id.cedula).catch(function(){return null;}):Promise.resolve(null);}
-  function enqueue(saved,before,context){var current=changesRepo();if(!current||typeof current.saveMany!=="function"){return Promise.reject(new Error("BDLRepoCambios no está disponible."));}var history=historyRows(before,saved,context);var changes=[changeFromNote(saved)].concat(history.map(function(item){return item.change;}));var localLogs=logsRepo();var logTask=localLogs&&typeof localLogs.saveMany==="function"?localLogs.saveMany(history.map(function(item){return {id:item.row.id,scope:"Defart",level:"INFO",message:"Cambio de "+item.row.campo,data:item.row,createdAt:item.row.createdAt,updatedAt:item.row.updatedAt};})):Promise.resolve([]);return Promise.resolve(logTask).then(function(){return current.saveMany(changes,{source:"defart",tabla:"notas_titulacion",accion:"UPSERT"});});}
+  function enqueue(saved,before,context){return enqueueMany([saved],[before],context);}
+  function enqueueMany(savedRows,beforeRows,context){
+    var current=changesRepo();if(!current||typeof current.saveMany!=="function"){return Promise.reject(new Error("BDLRepoCambios no está disponible."));}
+    savedRows=Array.isArray(savedRows)?savedRows:[];beforeRows=Array.isArray(beforeRows)?beforeRows:[];
+    var changes=[],logs=[];
+    savedRows.forEach(function(saved,index){
+      var history=historyRows(beforeRows[index]||{},saved,context);
+      changes.push(changeFromNote(saved));
+      history.forEach(function(item){
+        changes.push(item.change);
+        logs.push({id:item.row.id,scope:"Defart",level:"INFO",message:"Cambio de "+item.row.campo,data:item.row,createdAt:item.row.createdAt,updatedAt:item.row.updatedAt});
+      });
+    });
+    var localLogs=logsRepo();
+    var logTask=localLogs&&typeof localLogs.saveMany==="function"&&logs.length?localLogs.saveMany(logs):Promise.resolve([]);
+    return Promise.resolve(logTask).then(function(){return changes.length?current.saveMany(changes,{source:"defart",tabla:"notas_titulacion",accion:"UPSERT"}):[];});
+  }
   function refreshCache(periodoId){var currentHub=hub();if(!currentHub||typeof currentHub.refreshCache!=="function"){return Promise.resolve(null);}return currentHub.refreshCache({source:"cone.defart.save",sourceScreen:SCREEN,periodoId:periodoId||"",full:true,immediate:true,force:true,changed:true}).catch(function(){return null;});}
-  function save(payload,context){payload=payload||{};context=context||{};state.writes+=1;var before=null;return requireReady().then(function(){return previousNote(payload);}).then(function(existing){before=existing||{};var current=service();if(!current||typeof current.saveNota!=="function"){throw new Error("BDLServiceDefensas.saveNota no está disponible.");}return current.saveNota(payload);}).then(function(saved){saved=saved||payload;if(context.enqueue===false){return saved;}return enqueue(saved,before,context).then(function(){return saved;});}).then(function(saved){return refreshCache(text(saved&&(saved.periodoId||saved.periodId)||payload.periodoId)).then(function(){try{window.dispatchEvent(new CustomEvent("bdlocal:defart-saved",{detail:{ok:true,source:SOURCE,row:saved,history:true}}));}catch(error){}return saved;});});}
+  function saveMany(payloads,context){
+    payloads=(Array.isArray(payloads)?payloads:[]).filter(Boolean);context=context||{};
+    if(!payloads.length){return Promise.resolve([]);}
+    state.writes+=payloads.length;
+    var beforeRows=[];
+    return requireReady()
+      .then(function(){return Promise.all(payloads.map(function(payload){return previousNote(payload);}));})
+      .then(function(existing){
+        beforeRows=existing.map(function(row){return row||{};});
+        var current=service();if(!current||typeof current.saveNota!=="function"){throw new Error("BDLServiceDefensas.saveNota no está disponible.");}
+        return Promise.all(payloads.map(function(payload){return current.saveNota(payload);}));
+      })
+      .then(function(savedRows){
+        savedRows=savedRows.map(function(saved,index){return saved||payloads[index];});
+        if(context.enqueue===false){return savedRows;}
+        return enqueueMany(savedRows,beforeRows,context).then(function(){return savedRows;});
+      })
+      .then(function(savedRows){
+        var periods={};savedRows.forEach(function(row){var p=text(row&&(row.periodoId||row.periodId));if(p){periods[p]=true;}});
+        return Promise.all(Object.keys(periods).map(refreshCache)).then(function(){
+          try{window.dispatchEvent(new CustomEvent("bdlocal:defart-saved",{detail:{ok:true,source:SOURCE,rows:savedRows,history:true,batch:true}}));}catch(error){}
+          return savedRows;
+        });
+      });
+  }
+  function save(payload,context){payload=payload||{};return saveMany([payload],context||{}).then(function(rows){return rows[0]||payload;});}
   function update(payload,context){return save(payload,context);}
   function refresh(options){options=options||{};return requireReady().then(function(){var current=legacy();return current&&typeof current.refresh==="function"?current.refresh(options):null;}).then(function(){return ready({force:true});});}
 
-  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,read:read,refresh:refresh,reload:refresh,status:status,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,getFiltered:listStudents,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,save:save,saveNota:save,update:update};
+  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,read:read,refresh:refresh,reload:refresh,status:status,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,getFiltered:listStudents,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,save:save,saveNota:save,saveMany:saveMany,saveNotas:saveMany,update:update};
   window.ConDefart=api;window.BDLocalConeDefart=api;register();var currentHub=hub();if(currentHub&&typeof currentHub.register==="function"){currentHub.register(SCREEN,api);}
 })(window,document);
