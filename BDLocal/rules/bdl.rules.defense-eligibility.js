@@ -9,7 +9,7 @@ Función:
 ========================================================= */
 (function(window){
   "use strict";
-  var VERSION="1.0.0-defense-domain";
+  var VERSION="1.1.0-nart-independent-requirements";
   var BASE=[
     {key:"academico",label:"Académico",aliases:["academico","académico","Academico","Académico"]},
     {key:"documentacion",label:"Documentación",aliases:["documentacion","documentación","Documentacion","Documentación","documentos"]},
@@ -66,6 +66,27 @@ Función:
   function notes(row){row=row||{};function first(names){for(var i=0;i<names.length;i++){if(row[names[i]]!==undefined&&row[names[i]]!==null&&text(row[names[i]])!=="")return row[names[i]];}return null;}return {nart:numberOrNull(first(["Notart","Nart","nart","notart","notaArticulo","nota_articulo","articulo"])),ndef:numberOrNull(first(["Notdef","Ndef","ndef","notdef","notaDefensa","nota_defensa","defensa"])),nfin:numberOrNull(first(["Notafinal","Nfinal","Nfin","nfin","notafinal","notaFinal","nota_final","final"]))};}
   function calculateFinal(a,d){a=numberOrNull(a);d=numberOrNull(d);if(a===null||d===null||a<7)return null;return round2(a*.70+d*.30);}
   function noteState(a,d,f){a=numberOrNull(a);d=numberOrNull(d);f=numberOrNull(f);if(a===null)return "SIN_ARTICULO";if(a<7)return "ARTICULO_NO_APROBADO";if(d===null)return "PENDIENTE_DEFENSA";if(d<7)return "DEFENSA_NO_APROBADA";if(f===null)f=calculateFinal(a,d);if(f===null)return "PENDIENTE_FINAL";return f>=7?"APROBADO":"NO_APROBADO";}
-  function evaluate(row){var req=requirementSummary(row),n=notes(row);if(n.nfin===null)n.nfin=calculateFinal(n.nart,n.ndef);var canArt=req.loaded&&req.ok,canDef=canArt&&n.nart!==null&&n.nart>=7,state="Pendiente Art";if(!req.loaded)state="Requisitos no cargados";else if(!req.ok)state="Sin requisitos";else if(n.nart===null)state="Pendiente Art";else if(n.nart<7)state="Supletorio Art";else if(n.ndef===null)state="Pendiente Def";else if(n.ndef<7)state="Supletorio Def";else state="Completo";var intento=n.ndef!==null&&n.ndef<7?2:1;return {requirementsLoaded:req.loaded,requirementsOk:req.ok,missingRequirements:req.missing,requirementValues:req.values,periodType:req.periodType,nart:n.nart,ndef:n.ndef,nfin:n.nfin,canArt:canArt,canDef:canDef,stateLabel:state,noteState:noteState(n.nart,n.ndef,n.nfin),eligibleForSchedule:canDef&&(n.ndef===null||n.ndef<7),intento:intento,tipoDefensa:intento===2?"SUPLETORIO":"ORDINARIA"};}
+  function evaluate(row){
+    var req=requirementSummary(row),n=notes(row);
+    if(n.nfin===null)n.nfin=calculateFinal(n.nart,n.ndef);
+    var canArt=true;
+    var requirementsReady=req.loaded&&req.ok;
+    var canDef=requirementsReady&&n.nart!==null&&n.nart>=7;
+    var state="Pendiente Art";
+    if(n.nart!==null&&n.nart<7)state="Supletorio Art";
+    else if(!req.loaded)state="Requisitos no cargados";
+    else if(!req.ok)state="Sin requisitos";
+    else if(n.nart===null)state="Pendiente Art";
+    else if(n.ndef===null)state="Pendiente Def";
+    else if(n.ndef<7)state="Supletorio Def";
+    else state="Completo";
+    var intento=n.ndef!==null&&n.ndef<7?2:1;
+    return {
+      requirementsLoaded:req.loaded,requirementsOk:req.ok,missingRequirements:req.missing,requirementValues:req.values,
+      periodType:req.periodType,nart:n.nart,ndef:n.ndef,nfin:n.nfin,canArt:canArt,canDef:canDef,stateLabel:state,
+      noteState:noteState(n.nart,n.ndef,n.nfin),eligibleForSchedule:canDef&&(n.ndef===null||n.ndef<7),
+      intento:intento,tipoDefensa:intento===2?"SUPLETORIO":"ORDINARIA"
+    };
+  }
   window.BDLDefenseEligibility={version:VERSION,BASE_REQUIREMENTS:BASE,REGULAR_EXTRA_REQUIREMENTS:EXTRA,classifyPeriod:classifyPeriod,requirementsForStudent:requirementsForStudent,valueOf:valueOf,isApproved:isApproved,requirementSummary:requirementSummary,notes:notes,calculateFinal:calculateFinal,noteState:noteState,evaluate:evaluate,helpers:{text:text,norm:norm,compact:compact,numberOrNull:numberOrNull}};
 })(window);
