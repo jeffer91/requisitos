@@ -17,6 +17,7 @@ Función o funciones:
   <link rel="stylesheet" href="defart.table.visual.css" />
   <link rel="stylesheet" href="defart.pagination.css" />
   <link rel="stylesheet" href="defart.compact.css" />
+  <link rel="stylesheet" href="defart.bulk-import.css" />
   <link rel="stylesheet" href="defart.firebase-sync.css" />
   <script src="../node_modules/xlsx/dist/xlsx.full.min.js" data-requisitos-dependency="sheetjs@0.20.3"></script>
 </head>
@@ -36,7 +37,10 @@ Función o funciones:
       <div class="def-toolbar-row def-toolbar-row-secondary">
         <label class="def-search-box"><span>Buscar estudiante</span><input id="def-filter-search" type="search" placeholder="Cédula, nombre, carrera o división..." /></label>
         <div class="def-mini-summary" aria-label="Resumen de pantalla"><span id="def-visible-count">Cargando...</span><span id="def-save-state">Preparando...</span></div>
-        <div class="def-toolbar-actions"><button id="def-btn-export" class="def-btn-export" type="button">Descargar Excel</button></div>
+        <div class="def-toolbar-actions">
+          <button id="def-btn-bulk-import" class="def-btn-bulk" type="button">Carga masiva N-DEF</button>
+          <button id="def-btn-export" class="def-btn-export" type="button">Descargar Excel</button>
+        </div>
       </div>
     </section>
 
@@ -75,6 +79,49 @@ Función o funciones:
   </main>
 
   <button id="def-btn-save" class="def-floating-save" type="button" disabled>Guardar cambios</button>
+
+  <section id="def-bulk-modal" class="def-bulk-modal" role="dialog" aria-modal="true" aria-labelledby="def-bulk-title" aria-hidden="true" hidden>
+    <div class="def-bulk-dialog">
+      <header class="def-bulk-head">
+        <div>
+          <h2 id="def-bulk-title">Carga masiva de notas de defensa</h2>
+          <p>Pegue la tabla completa de Moodle. El sistema identifica estudiante, correo y calificación, y propone coincidencias antes de guardar.</p>
+          <div class="def-bulk-meta">
+            <span class="def-bulk-chip">Destino: N-DEF</span>
+            <span class="def-bulk-chip">Período: <strong id="def-bulk-period">Sin período seleccionado</strong></span>
+            <span class="def-bulk-chip">Escala automática: X/Y → 0–10</span>
+          </div>
+        </div>
+        <button class="def-bulk-close" type="button" data-def-bulk-close aria-label="Cerrar">×</button>
+      </header>
+
+      <div class="def-bulk-input-panel">
+        <label class="def-bulk-paste-wrap">
+          <span>Contenido copiado desde Moodle</span>
+          <textarea id="def-bulk-paste" placeholder="Pegue aquí todo el contenido de la tabla de Moodle, sin limpiarlo. Puede incluir enlaces, comentarios, archivos, fechas y demás texto."></textarea>
+        </label>
+        <div class="def-bulk-input-actions">
+          <button id="def-bulk-analyze" class="def-bulk-primary" type="button">Analizar y cruzar</button>
+          <button id="def-bulk-clear" type="button">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="def-bulk-content">
+        <div id="def-bulk-summary" class="def-bulk-summary"></div>
+        <div id="def-bulk-message" class="def-bulk-message">Pegue el contenido completo copiado desde Moodle.</div>
+        <div id="def-bulk-results" class="def-bulk-results"><div class="def-bulk-empty">Todavía no se han analizado datos.</div></div>
+      </div>
+
+      <footer class="def-bulk-footer">
+        <div class="def-bulk-footer-copy">Las coincidencias dudosas y las notas existentes no se sobrescriben automáticamente. El guardado usa la misma ruta oficial de Defensas.</div>
+        <div class="def-bulk-footer-actions">
+          <button type="button" data-def-bulk-close>Cancelar</button>
+          <button id="def-bulk-apply" class="def-bulk-primary" type="button" disabled>Guardar notas confirmadas</button>
+        </div>
+      </footer>
+    </div>
+  </section>
+
   <script src="defart.bootstrap.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
   <script src="defart.firebase-sync.js"></script>
