@@ -12,10 +12,18 @@ function syntax(file){try{new vm.Script(read(file),{filename:file});}catch(error
 const connectorFile="BDLocal/conexiones/cone.defart.js";
 const bridgeFile="defart/defart.save-service-bridge.js";
 const bootstrapFile="defart/defart.bootstrap.js";
-[connectorFile,bridgeFile,bootstrapFile].forEach(syntax);
+const eligibilityFile="BDLocal/rules/bdl.rules.defense-eligibility.js";
+const coreFile="defart/defart.core.js";
+const tableFile="defart/defart.table.js";
+const guardFile="defart/defart.requirements-guard.js";
+[connectorFile,bridgeFile,bootstrapFile,eligibilityFile,coreFile,tableFile,guardFile].forEach(syntax);
 
 const connector=read(connectorFile);
 const bootstrap=read(bootstrapFile);
+const bridgeSource=read(bridgeFile);
+const coreSource=read(coreFile);
+const tableSource=read(tableFile);
+const guardSource=read(guardFile);
 check(connector.includes('return {periodoId:periodoId,cedula:cedula,localId:cedula&&periodoId?cedula+"__"+periodoId'),"ConDefart debe construir la clave local cédula__período");
 check(connector.includes('baseChange("notas_titulacion"'),"ConDefart debe crear cambios específicos de notas");
 check(connector.includes('baseChange("historial"'),"ConDefart debe crear cambios de historial");
@@ -23,6 +31,32 @@ check(connector.includes('estadoSheets:"SINCRONIZADO"'),"Defart no debe crear pe
 check(connector.includes('estadoSupabase:"SINCRONIZADO"'),"Defart no debe crear pendientes para Supabase");
 check(connector.includes('estadoFirebase:"PENDIENTE"'),"Defart debe crear pendientes para Firebase");
 check(!bootstrap.includes("defart.persistence.js"),"Defart no debe cargar el mirror antiguo duplicado");
+check(!bridgeSource.includes("N-ART bloqueada por requisitos"),"El guardado no debe bloquear N-ART por requisitos.");
+check(!coreSource.includes("N-ART bloqueada por requisitos"),"El núcleo no debe bloquear N-ART por requisitos.");
+check(tableSource.includes('var enabled = isArt ? true : shown._canDef;'),"La tabla debe mantener N-ART siempre habilitada.");
+check(guardSource.includes("_canArt: true"),"El guard de requisitos no debe deshabilitar N-ART.");
+
+
+const eligibilitySandbox={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set};
+eligibilitySandbox.window=eligibilitySandbox;
+const eligibilityContext=vm.createContext(eligibilitySandbox);
+new vm.Script(read(eligibilityFile),{filename:eligibilityFile}).runInContext(eligibilityContext);
+const blockedByRequirements=eligibilitySandbox.BDLDefenseEligibility.evaluate({
+  tipoPeriodo:"PVC",
+  Notart:8,
+  Academico:"CUMPLE",
+  Documentacion:"PENDIENTE",
+  Financiero:"PENDIENTE"
+});
+check(blockedByRequirements.canArt===true,"N-ART debe poder registrarse aunque falten requisitos.");
+check(blockedByRequirements.canDef===false,"N-DEF debe permanecer bloqueada si faltan requisitos.");
+check(blockedByRequirements.stateLabel==="Sin requisitos","Con N-ART >=7 y requisitos pendientes debe conservar estado Sin requisitos.");
+
+const failedArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate({
+  tipoPeriodo:"PVC",
+  Notart:6.5
+});
+check(failedArticle.canArt===true&&failedArticle.stateLabel==="Supletorio Art","N-ART <7 debe quedar como Supletorio Art sin depender de requisitos.");
 
 const calls=[];
 const sandbox={
