@@ -3,7 +3,7 @@ Nombre completo: bl2.config.v2.js
 Ruta o ubicación: /BDLocal/bl2.config.v2.js
 Función o funciones:
 - Configurar DB_VERSION 2 sin borrar tablas existentes.
-- Declarar las trece tablas oficiales V2.
+- Declarar catorce tablas oficiales V2, incluyendo cronograma_defensas.
 - Reutilizar tablas V2 para resumen, errores y metadatos legacy.
 - Centralizar índices esperados para diagnóstico y mantenimiento.
 - Separar Firebase personal de Firebase académico sin tocar credenciales.
@@ -35,13 +35,14 @@ Función o funciones:
   defineStore("logs","logs");
   defineStore("backups","backups");
 
-  /* Trece stores oficiales V2. */
+  /* Catorce stores oficiales V2. */
   defineStore("periodosCarreras","periodos_carreras");
   defineStore("periodosDivisiones","periodos_divisiones");
   defineStore("personas","personas");
   defineStore("matriculasPeriodo","matriculas_periodo");
   defineStore("requisitosEstudiante","requisitos_estudiante");
   defineStore("notasTitulacion","notas_titulacion");
+  defineStore("cronogramaDefensas","cronograma_defensas");
   defineStore("contactosEstudiante","contactos_estudiante");
   defineStore("divisionesEstudiante","divisiones_estudiante");
   defineStore("importaciones","importaciones");
@@ -61,7 +62,7 @@ Función o funciones:
 
   var requiredV2Keys = [
     "periodosCarreras","periodosDivisiones","personas","matriculasPeriodo",
-    "requisitosEstudiante","notasTitulacion","contactosEstudiante",
+    "requisitosEstudiante","notasTitulacion","cronogramaDefensas","contactosEstudiante",
     "divisionesEstudiante","importaciones","cambiosPendientes",
     "syncEstado","erroresValidacion","cacheViews"
   ];
@@ -78,7 +79,7 @@ Función o funciones:
     requiredStoreKeys:requiredKeys.slice(),
     requiredV2StoreKeys:requiredV2Keys.slice(),
     aliases:{ resumen:stores.resumen,errores:stores.errores,syncMeta:stores.syncMeta },
-    note:"DB_VERSION 2 mantiene nueve stores generales/legacy y trece stores V2: veintidós tablas físicas."
+    note:"DB_VERSION 2 mantiene nueve stores generales/legacy y catorce stores V2: veintitrés tablas físicas."
   });
 
   config.dbV2.requiredStores = unique(requiredKeys.map(function(key){ return stores[key]; }));
@@ -91,6 +92,7 @@ Función o funciones:
     matriculasPeriodo:["periodoId","cedula","periodo_cedula","estadoMatricula","carreraKey","divisionKey","updatedAt"],
     requisitosEstudiante:["idEstudiantePeriodo","periodoId","cedula","periodo_cedula","requisitoKey","estadoKey","updatedAt"],
     notasTitulacion:["periodoId","cedula","periodo_cedula","estadoDefensaKey","updatedAt"],
+    cronogramaDefensas:["periodoId","cedula","periodo_cedula","intento","estadoCronograma","fechaISO","sede","aula","updatedAt"],
     contactosEstudiante:["idEstudiantePeriodo","periodoId","cedula","periodo_cedula","tipoKey","updatedAt"],
     divisionesEstudiante:["idEstudiantePeriodo","periodoId","cedula","periodo_cedula","divisionKey","updatedAt"],
     importaciones:["periodoId","source","createdAt","updatedAt"],
@@ -142,7 +144,7 @@ Función o funciones:
   function hasRequiredStoreNames(storeNames){ return missingRequiredStoreNames(storeNames).length === 0; }
 
   function isConfigReady(){
-    return !!config.stores && Number(config.dbVersion || 0) >= 2 && requiredV2Stores().length === requiredV2Keys.length && requiredStores().length === 22;
+    return !!config.stores && Number(config.dbVersion || 0) >= 2 && requiredV2Stores().length === requiredV2Keys.length && requiredStores().length === requiredKeys.length;
   }
 
   config.dbV2.requiredStoresList = requiredStores;
