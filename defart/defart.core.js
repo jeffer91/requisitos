@@ -162,7 +162,7 @@ Con qué se conecta:
   }
 
   function reqEngine() {
-    return window.BL2RequirementsEngine || window.StatsRules || null;
+    return window.BDLDefenseEligibility || window.BL2RequirementsEngine || window.StatsRules || null;
   }
 
   function repo() {
@@ -421,9 +421,7 @@ Con qué se conecta:
       if (reqEngine() && typeof reqEngine().requirementsForStudent === "function") {
         var engineList = reqEngine().requirementsForStudent(row || {});
         if (Array.isArray(engineList) && engineList.length) {
-          return engineList.map(normalizeEngineRequirement).filter(function (req) {
-            return keyNorm(req.key) !== "titulacion";
-          });
+          return engineList.map(normalizeEngineRequirement);
         }
       }
     } catch (error) {}
@@ -432,6 +430,11 @@ Con qué se conecta:
   }
 
   function requirementSummary(row) {
+    if(window.BDLDefenseEligibility && typeof window.BDLDefenseEligibility.requirementSummary === "function"){
+      var shared = window.BDLDefenseEligibility.requirementSummary(row || {});
+      return {ok:shared.ok===true,missing:Array.isArray(shared.missing)?shared.missing.slice():[],values:shared.values||{},total:Number(shared.total||0),loaded:shared.loaded!==false,periodType:shared.periodType||null};
+    }
+
     var missing = [];
     var values = {};
     var list = applicableRequirements(row);
@@ -442,12 +445,7 @@ Con qué se conecta:
       if (!requirementOk(row, req)) missing.push(req.label);
     });
 
-    return {
-      ok: missing.length === 0,
-      missing: missing,
-      values: values,
-      total: list.length
-    };
+    return {ok:missing.length===0,missing:missing,values:values,total:list.length,loaded:row&&row._bdlRequirementsLoaded!==false};
   }
 
   function isActive(row) {
