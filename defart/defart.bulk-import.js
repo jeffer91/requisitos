@@ -13,7 +13,7 @@ Función:
 (function(window, document){
   "use strict";
 
-  var VERSION="1.1.0-smart-moodle-nart-only";
+  var VERSION="1.2.0-smart-moodle-nart-match";
   var state={
     opened:false,
     periodId:"",
@@ -39,13 +39,29 @@ Función:
     return /^\d{9}$/.test(raw)?"0"+raw:raw;
   }
   function idOf(row){row=row||{};return text(row._defId||row.idEstudiantePeriodo||row.studentId||row.id||row._cedula||row.cedula);}
-  function emailOf(row){
+  function emailsOf(row){
     row=row||{};
-    return normalizeEmail(
-      row.correoInstitucional||row.CorreoInstitucional||row.emailInstitucional||row.EmailInstitucional||
-      row.correoElectronico||row.CorreoElectronico||row.direccionCorreo||row.DireccionCorreo||
-      row.correo||row.Correo||row.email||row.Email||row.mail||row.Mail||""
-    );
+    var contacto=row._contacto||{},persona=row._persona||{};
+    var values=[
+      row.correoInstitucional,row.CorreoInstitucional,row.emailInstitucional,row.EmailInstitucional,
+      contacto.correoInstitucional,contacto.CorreoInstitucional,contacto.emailInstitucional,
+      persona.correoInstitucional,persona.CorreoInstitucional,
+      row.correoElectronico,row.CorreoElectronico,row.direccionCorreo,row.DireccionCorreo,
+      row.correo,row.Correo,row.email,row.Email,row.mail,row.Mail,row._correo,
+      row.correoPersonal,row.CorreoPersonal,row.emailPersonal,
+      contacto.correo,contacto.Correo,contacto.email,contacto.Email,
+      contacto.correoPersonal,contacto.CorreoPersonal,contacto.emailPersonal,
+      persona.correoPersonal,persona.CorreoPersonal
+    ];
+    var seen={};
+    return values.map(normalizeEmail).filter(function(value){
+      if(!value||value.indexOf("@")<1||seen[value]){return false;}
+      seen[value]=true;return true;
+    });
+  }
+  function emailOf(row){
+    var list=emailsOf(row);
+    return list[0]||"";
   }
   function nameOf(row){
     row=row||{};
@@ -116,7 +132,33 @@ Función:
     return Math.round((score/max*10)*100)/100;
   }
   function cleanName(value){
-    return text(value).replace(/^\*+|\*+$/g,"").replace(/^Seleccione\s+/i,"").replace(/\[[^\]]*\]\([^)]*\)/g," ").replace(/\s+/g," ").replace(/[|]+$/g,"").trim();
+    return text(value)
+      .replace(/^\*+|\*+$/g,"")
+      .replace(/^Seleccione\s+/i,"")
+      .replace(/!??\[[^\]]*\]\([^)]*\)/g," ")
+      .replace(/\[[^\]]*\]/g," ")
+      .replace(/[|]+/g," ")
+      .replace(/\s+/g," ")
+      .trim();
+  }
+  function collapseRepeatedName(value){
+    var list=cleanName(value).split(/\s+/).filter(Boolean);
+    if(list.length<4){return list.join(" ");}
+    var first=normalized(list[0]);
+    for(var start=1;start<list.length;start+=1){
+      if(normalized(list[start])!==first){continue;}
+      var matched=0;
+      while(start+matched<list.length&&matched<start&&normalized(list[matched])===normalized(list[start+matched])){matched+=1;}
+      if(matched>=2){return list.slice(0,matched).join(" ");}
+    }
+    return list.join(" ");
+  }
+  function cleanMoodleName(value){
+    var cleaned=cleanName(value)
+      .replace(/\b(?:enviado\s+para\s+calificar|calificado|calificar|editar|ocultar|comentarios?|archivos?|ultima\s+modificacion)\b.*$/i," ")
+      .replace(/\s+/g," ")
+      .trim();
+    return collapseRepeatedName(cleaned);
   }
   function extractEmail(block){
     var fixed=String(block||"").replace(/\\@/g,"@");
@@ -134,7 +176,7 @@ Función:
   }
   function previousName(lines,index){
     for(var i=index-1;i>=Math.max(0,index-6);i--){
-      var line=cleanName(lines[i]);
+      var line=cleanMoodleName(lines[i]);
       if(!line){continue;}
       if(/@|calific|ocultar|enviado|comentario|archivo|editar|ultima modificacion/i.test(normalized(line))){continue;}
       if(/^\d+(?:[.,]\d+)?(?:\s*\/\s*\d+(?:[.,]\d+)?)?$/.test(line)){continue;}
@@ -143,14 +185,17 @@ Función:
     return "";
   }
   function parseBySelected(source){
-    var regex=/Seleccione\s+([^|\n\r]{3,140})/gi,m,anchors=[];
-    while((m=regex.exec(source))!==null){anchors.push({index:m.index,name:cleanName(m[1])});}
+    var regex=/Seleccione\s+/gi,m,anchors=[];
+    while((m=regex.exec(source))!==null){anchors.push({index:m.index});}
     if(!anchors.length){return [];}
     return anchors.map(function(anchor,index){
       var end=index+1<anchors.length?anchors[index+1].index:source.length;
-      var block=source.slice(anchor.index,end),grade=extractGrade(block);
+      var block=source.slice(anchor.index,end),grade=extractGrade(block),correo=extractEmail(block);
+      var emailMatch=block.match(/[A-Z0-9._%+-]+\\?@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+      var beforeEmail=emailMatch?block.slice(0,emailMatch.index):block;
+      var nombre=cleanMoodleName(beforeEmail);
       return {
-        rowNumber:index+1,format:"moodle_grading",nombreCompleto:anchor.name,correo:extractEmail(block),
+        rowNumber:index+1,format:"moodle_grading",nombreCompleto:nombre,correo:correo,
         notaArticulo:grade?grade.nart:null,rawScore:grade?grade.score:null,rawMax:grade?grade.max:null,
         rawGrade:grade?grade.raw:"",rawText:block,warnings:grade?[]:["No se detectó una calificación X / Y."]
       };
@@ -159,14 +204,16 @@ Función:
   function parseByEmail(source){
     var fixed=String(source||"").replace(/\\@/g,"@"),lines=fixed.split(/\r?\n/),entries=[];
     lines.forEach(function(line,index){
-      var emails=line.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[];
-      emails.forEach(function(email){entries.push({line:index,email:normalizeEmail(email)});});
+      var re=/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig,m;
+      while((m=re.exec(line))!==null){entries.push({line:index,index:m.index,email:normalizeEmail(m[0])});}
     });
     return entries.map(function(entry,index){
       var end=index+1<entries.length?entries[index+1].line:lines.length;
       var block=lines.slice(entry.line,end).join("\n"),grade=extractGrade(block);
+      var sameLine=cleanMoodleName(lines[entry.line].slice(0,entry.index));
+      var nombre=sameLine&&sameLine.split(/\s+/).length>=2?sameLine:previousName(lines,entry.line);
       return {
-        rowNumber:index+1,format:"moodle_grading",nombreCompleto:previousName(lines,entry.line),correo:entry.email,
+        rowNumber:index+1,format:"moodle_grading",nombreCompleto:nombre,correo:entry.email,
         notaArticulo:grade?grade.nart:null,rawScore:grade?grade.score:null,rawMax:grade?grade.max:null,
         rawGrade:grade?grade.raw:"",rawText:block,warnings:grade?[]:["No se detectó una calificación X / Y."]
       };
@@ -188,14 +235,14 @@ Función:
   }
 
   function candidateScore(imported,student){
-    var email=normalizeEmail(imported.correo),studentEmail=emailOf(student);
-    var name=imported.nombreCompleto,studentName=nameOf(student);
-    if(email&&studentEmail&&email===studentEmail){return {score:100,method:"correo",exact:true};}
+    var email=normalizeEmail(imported.correo),studentEmails=emailsOf(student);
+    var name=cleanMoodleName(imported.nombreCompleto),studentName=nameOf(student);
+    if(email&&studentEmails.indexOf(email)>=0){return {score:100,method:"correo",exact:true};}
     if(normalized(name)&&normalized(name)===normalized(studentName)){return {score:99,method:"nombre exacto",exact:true};}
-    if(name&&studentName&&fingerprint(name)===fingerprint(studentName)){return {score:98,method:"nombre reordenado",exact:true};}
+    if(name&&studentName&&fingerprint(name)===fingerprint(studentName)){return {score:99,method:"mismos nombres y apellidos",exact:true};}
     var similarity=nameSimilarity(name,studentName);
     var score=Math.round(similarity*100);
-    if(email&&studentEmail&&email.split("@")[0]===studentEmail.split("@")[0]){score=Math.max(score,96);}
+    if(email&&studentEmails.some(function(studentEmail){return email.split("@")[0]===studentEmail.split("@")[0];})){score=Math.max(score,96);}
     return {score:score,method:"nombre aproximado",exact:false};
   }
   function topCandidates(imported,students){
@@ -216,7 +263,7 @@ Función:
     return {student:null,kind:"ambiguous",confidence:first.score,method:first.method,candidates:ranked};
   }
   function defaultAction(item){
-    if(!item.student||item.importConflict||item.duplicate){return "skip";}
+    if(!item.student||item.importConflict||item.duplicate||item.imported.notaArticulo==null){return "skip";}
     var current=currentNart(item.student);
     if(item.kind!=="exact"){return "skip";}
     if(current==null){return "load";}
@@ -228,10 +275,11 @@ Función:
     var items=(parsedRows||[]).map(function(imported,index){
       var match=chooseMatch(imported,students);
       var item={
-        key:"import_"+index,imported:imported,student:match.student,kind:match.kind,confidence:match.confidence,
+        key:"import_"+index,imported:imported,student:match.student,kind:match.kind,matchKind:match.kind,confidence:match.confidence,
         method:match.method,candidates:match.candidates||[],duplicate:false,importConflict:false,duplicateOf:"",
-        action:"skip",selected:false,saved:false
+        action:"skip",selected:false,saved:false,hasGrade:imported.notaArticulo!=null
       };
+      if(!item.hasGrade){item.kind="no-grade";}
       item.action=defaultAction(item);
       item.selected=item.action==="load";
       return item;
@@ -284,6 +332,7 @@ Función:
       conflict:items.filter(function(x){return x.kind==="conflict";}).length,
       duplicate:items.filter(function(x){return x.kind==="duplicate";}).length,
       unmatched:items.filter(function(x){return x.kind==="unmatched";}).length,
+      noGrade:items.filter(function(x){return x.kind==="no-grade";}).length,
       ready:items.filter(function(x){return x.selected&&x.student&&(x.action==="load"||x.action==="replace")&&!x.importConflict&&!x.duplicate;}).length
     };
   }
@@ -291,7 +340,8 @@ Función:
     if(!item){return item;}
     item.student=student||null;
     if(!student){item.kind="unmatched";item.confidence=0;item.method="manual";item.action="skip";item.selected=false;return item;}
-    item.kind="manual";item.confidence=100;item.method="selección manual";item.importConflict=false;item.duplicate=false;
+    item.kind=item.imported.notaArticulo==null?"no-grade":"manual";item.matchKind="manual";item.confidence=100;item.method="selección manual";item.importConflict=false;item.duplicate=false;
+    if(item.imported.notaArticulo==null){item.action="skip";item.selected=false;return item;}
     var current=currentNart(student);
     if(current==null){item.action="load";item.selected=true;}
     else if(sameNote(current,item.imported.notaArticulo)){item.action="same";item.selected=false;}
@@ -319,14 +369,43 @@ Función:
       return text(s.periodId);
     }catch(error){return "";}
   }
-  function loadStudents(periodId){
-    if(!periodId){return Promise.reject(new Error("Seleccione un período antes de analizar."));}
+  function mergeStudentSources(defRow,detailRow){
+    var merged=Object.assign({},detailRow||{});
+    Object.keys(defRow||{}).forEach(function(key){
+      var value=defRow[key];
+      if(value!==undefined&&value!==null&&text(value)!==""){merged[key]=value;}
+      else if(merged[key]===undefined){merged[key]=value;}
+    });
+    return merged;
+  }
+  function detailedStudents(periodId){
+    var service=window.BDLServiceEstudiantes||(window.BDLServices&&typeof window.BDLServices.get==="function"?window.BDLServices.get("estudiantes"):null);
+    if(!service||typeof service.list!=="function"){return Promise.resolve([]);}
+    return Promise.resolve(service.list({periodoId:periodId,periodId:periodId,matricula:"ACTIVO",sortKey:"nombres",sortDir:"asc"})).catch(function(){return [];});
+  }
+  function defartStudents(periodId){
     if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.getExportRows==="function"){
       return Promise.resolve(window.DefartServiceBridge.getExportRows({periodId:periodId,division:"",career:"",status:"",sede:"",search:"",sortKey:"_nombre",sortDir:"asc"}));
     }
-    var s=window.DefartApp&&window.DefartApp.getState?window.DefartApp.getState():{};
-    var data=s&&s.data||{};
+    var appState=window.DefartApp&&window.DefartApp.getState?window.DefartApp.getState():{};
+    var data=appState&&appState.data||{};
     return Promise.resolve(Array.isArray(data.exportRows)?data.exportRows:(Array.isArray(data.rows)?data.rows:[]));
+  }
+  function loadStudents(periodId){
+    if(!periodId){return Promise.reject(new Error("Seleccione un período antes de analizar."));}
+    return Promise.all([defartStudents(periodId),detailedStudents(periodId)]).then(function(values){
+      var defRows=Array.isArray(values[0])?values[0]:[],details=Array.isArray(values[1])?values[1]:[];
+      if(!defRows.length){return details;}
+      var byId={},byCedula={};
+      details.forEach(function(row){
+        var id=idOf(row),cedula=normalizeCedula(row._cedula||row.cedula||row.numeroIdentificacion);
+        if(id){byId[id]=row;}if(cedula){byCedula[cedula]=row;}
+      });
+      return defRows.map(function(row){
+        var id=idOf(row),cedula=normalizeCedula(row._cedula||row.cedula||row.numeroIdentificacion);
+        return mergeStudentSources(row,byId[id]||byCedula[cedula]||null);
+      });
+    });
   }
   function open(){
     if(!document){return;}
@@ -349,6 +428,7 @@ Función:
     setMessage("Pegue el contenido completo copiado desde Moodle.","");
   }
   function category(item){
+    if(item.kind==="no-grade"){return "no-grade";}
     if(item.kind==="exact"||item.kind==="manual"){return "exact";}
     if(item.kind==="probable"||item.kind==="ambiguous"){return "review";}
     if(item.kind==="conflict"||item.kind==="duplicate"){return "conflict";}
@@ -356,6 +436,7 @@ Función:
   }
   function visibleItems(){return state.tab==="all"?state.items:state.items.filter(function(item){return category(item)===state.tab;});}
   function statusLabel(item){
+    if(item.kind==="no-grade")return "Sin calificación";
     if(item.kind==="exact")return "Exacta · "+item.confidence+"%";
     if(item.kind==="manual")return "Manual";
     if(item.kind==="probable")return "Probable · "+item.confidence+"%";
@@ -366,6 +447,7 @@ Función:
   }
   function actionOptions(item){
     var current=item.student?currentNart(item.student):null,opts=[];
+    if(item.imported.notaArticulo==null){return '<option value="skip">Sin calificación · no cargar</option>';}
     if(!item.student||item.importConflict||item.duplicate){return '<option value="skip">No cargar</option>';}
     if(current==null){
       opts.push(["load","Cargar N-ART"]);
@@ -381,7 +463,7 @@ Función:
     return opts.map(function(opt){return '<option value="'+opt[0]+'" '+(item.action===opt[0]?"selected":"")+'>'+esc(opt[1])+'</option>';}).join("");
   }
   function candidateSelect(item){
-    if(item.kind==="exact"&&item.student){
+    if(item.student&&(item.kind==="exact"||item.kind==="manual"||(item.kind==="no-grade"&&item.matchKind==="exact"))){
       return '<strong>'+esc(nameOf(item.student))+'</strong><small>'+esc(emailOf(item.student)||careerOf(item.student))+'</small>';
     }
     var seen={},options=['<option value="">Elegir estudiante...</option>'];
@@ -393,7 +475,7 @@ Función:
   }
   function rowHtml(item){
     var current=item.student?currentNart(item.student):null;
-    var canSelect=item.student&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace");
+    var canSelect=item.imported.notaArticulo!=null&&item.student&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace");
     return '<tr class="def-bulk-row is-'+esc(category(item))+'">'+
       '<td class="def-bulk-check"><input type="checkbox" data-bulk-select="'+esc(item.key)+'" '+(item.selected?"checked":"")+' '+(!canSelect?"disabled":"")+'></td>'+
       '<td><strong>'+esc(item.imported.nombreCompleto||"Nombre no detectado")+'</strong><small>'+esc(item.imported.correo||"Sin correo")+'</small></td>'+
@@ -408,7 +490,8 @@ Función:
     var s=summary(state.items),box=el("def-bulk-summary");if(!box)return;
     box.innerHTML=[
       ["Detectados",s.total,"all"],["Exactos",s.exact,"exact"],["Revisar",s.review,"review"],
-      ["Conflictos",s.conflict+s.duplicate,"conflict"],["No encontrados",s.unmatched,"unmatched"],["Listos",s.ready,"ready"]
+      ["Conflictos",s.conflict+s.duplicate,"conflict"],["No encontrados",s.unmatched,"unmatched"],
+      ["Sin nota",s.noGrade,"no-grade"],["Listos",s.ready,"ready"]
     ].map(function(x){return '<button type="button" class="def-bulk-stat '+(state.tab===x[2]?"is-active":"")+'" data-bulk-tab="'+x[2]+'" '+(x[2]==="ready"?"disabled":"")+'><span>'+esc(x[0])+'</span><strong>'+x[1]+'</strong></button>';}).join("");
     var apply=el("def-bulk-apply");if(apply){apply.disabled=state.saving||s.ready===0;apply.textContent=s.ready?"Guardar "+s.ready+" nota(s) confirmada(s)":"Guardar notas confirmadas";}
   }
@@ -435,7 +518,7 @@ Función:
       state.items=buildItems(parsed.rows,state.students);
       state.analyzed=true;state.tab="all";render();
       var s=summary(state.items);
-      setMessage("Cruce terminado: "+s.exact+" exactos, "+s.review+" por revisar, "+(s.conflict+s.duplicate)+" conflictos/duplicados y "+s.unmatched+" no encontrados.","ok");
+      setMessage("Cruce terminado: "+s.exact+" exactos, "+s.review+" por revisar, "+(s.conflict+s.duplicate)+" conflictos/duplicados, "+s.unmatched+" no encontrados y "+s.noGrade+" sin calificación.","ok");
     }).catch(function(error){state.items=[];state.analyzed=true;render();setMessage(error&&error.message?error.message:String(error),"warn");});
   }
   function findItem(key){return state.items.find(function(item){return item.key===key;})||null;}
@@ -516,7 +599,7 @@ Función:
     version:VERSION,parse:parse,parseBySelected:parseBySelected,parseByEmail:parseByEmail,
     match:function(rows,students){return buildItems(rows,students);},buildItems:buildItems,
     chooseMatch:chooseMatch,topCandidates:topCandidates,nameSimilarity:nameSimilarity,
-    normalizeEmail:normalizeEmail,normalizeCedula:normalizeCedula,fingerprint:fingerprint,
+    normalizeEmail:normalizeEmail,normalizeCedula:normalizeCedula,emailsOf:emailsOf,cleanMoodleName:cleanMoodleName,fingerprint:fingerprint,
     summary:summary,manualAssign:manualAssign,changesForSave:changesForSave,
     open:open,close:close,analyze:analyze,save:save,bind:bind,
     getState:function(){return {periodId:state.periodId,parsed:state.parsed,items:state.items.slice(),summary:summary(state.items)};}
