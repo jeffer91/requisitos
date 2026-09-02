@@ -286,6 +286,21 @@ Función:
         ]
       },
       {
+        name: storeName("cronogramaDefensas", "cronograma_defensas"),
+        options: { keyPath: "id" },
+        indexes: [
+          ["periodoId", "periodoId"],
+          ["cedula", "cedula"],
+          ["periodo_cedula", ["periodoId", "cedula"]],
+          ["intento", "intento"],
+          ["estadoCronograma", "estadoCronograma"],
+          ["fechaISO", "fechaISO"],
+          ["sede", "sede"],
+          ["aula", "aula"],
+          ["updatedAt", "updatedAt"]
+        ]
+      },
+      {
         name: storeName("contactosEstudiante", "contactos_estudiante"),
         options: { keyPath: "id" },
         indexes: [
@@ -398,6 +413,7 @@ Función:
       storeName("matriculasPeriodo", "matriculas_periodo"),
       storeName("requisitosEstudiante", "requisitos_estudiante"),
       storeName("notasTitulacion", "notas_titulacion"),
+      storeName("cronogramaDefensas", "cronograma_defensas"),
       storeName("contactosEstudiante", "contactos_estudiante"),
       storeName("divisionesEstudiante", "divisiones_estudiante"),
       storeName("cambiosPendientes", "cambios_pendientes"),
