@@ -236,15 +236,26 @@ Con qué se conecta:
       ]
     },
     {
+      id: "pedagogia-matriz",
+      nombre: "Pedagogía · Matriz",
+      carreraKey: "pedagogia",
+      sede: "Matriz",
+      duracionMinutos: DEFAULT_DURATION,
+      bloques: [
+        { dia: "", aula: "305", inicio: "10:30", fin: "12:00", tribunalId: "ped-01" }
+      ]
+    },
+    {
       id: "carreras-pequenas-matriz",
       nombre: "Carreras pequeñas · Matriz",
       carreraKey: "mixto",
       sede: "Matriz",
+      allowedCareerKeys: ["mecanica","alimentos","marketing"],
       duracionMinutos: DEFAULT_DURATION,
       bloques: [
-        { dia: "", aula: "303", inicio: "10:30", fin: "12:00", tribunalId: "mec-01" },
-        { dia: "", aula: "303", inicio: "10:30", fin: "12:00", tribunalId: "alim-01" },
-        { dia: "", aula: "", inicio: "10:30", fin: "12:00", tribunalId: "mkt-01" }
+        { dia: "", aula: "303", inicio: "10:30", fin: "12:00", tribunalId: "mec-01", careerKeys:["mecanica"] },
+        { dia: "", aula: "303", inicio: "10:30", fin: "12:00", tribunalId: "alim-01", careerKeys:["alimentos"] },
+        { dia: "", aula: "", inicio: "10:30", fin: "12:00", tribunalId: "mkt-01", careerKeys:["marketing"] }
       ]
     },
     {
@@ -252,6 +263,7 @@ Con qué se conecta:
       nombre: "Virtual · General",
       carreraKey: "mixto",
       sede: "Virtual",
+      allowedCareerKeys: ["administracion","talentoHumano","contabilidad","redes","marketing","pedagogia","educacionInicial","mecanica","alimentos"],
       duracionMinutos: DEFAULT_DURATION,
       bloques: [
         { dia: "", aula: "", inicio: "10:30", fin: "12:30", tribunalId: "" }
@@ -272,6 +284,7 @@ Con qué se conecta:
 
   function detectCareerKey(carrera){
     var clean = norm(carrera);
+    if(!clean){ return "sin_carrera"; }
     var keys = Object.keys(CAREER_ALIASES);
 
     for(var i = 0; i < keys.length; i += 1){
@@ -279,7 +292,7 @@ Con qué se conecta:
       var aliases = CAREER_ALIASES[key] || [];
       var found = aliases.some(function(alias){
         var normalizedAlias = norm(alias);
-        return clean === normalizedAlias || clean.indexOf(normalizedAlias) !== -1 || normalizedAlias.indexOf(clean) !== -1;
+        return clean === normalizedAlias || clean.indexOf(normalizedAlias) !== -1 || (clean.length >= 6 && normalizedAlias.indexOf(clean) !== -1);
       });
       if(found){ return key; }
     }
@@ -294,8 +307,9 @@ Con qué se conecta:
 
   function templatesPorCarrera(carrera){
     var key = detectCareerKey(carrera);
+    if(key === "sin_carrera" || key === "mixto"){ return []; }
     return TEMPLATES.filter(function(template){
-      return template.carreraKey === key || template.carreraKey === "mixto";
+      return template.carreraKey === key || (Array.isArray(template.allowedCareerKeys) && template.allowedCareerKeys.indexOf(key) >= 0);
     });
   }
 
