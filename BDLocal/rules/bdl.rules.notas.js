@@ -64,6 +64,7 @@ Función o funciones:
     if(notart == null){ return "SIN_ARTICULO"; }
     if(notart < 7){ return "ARTICULO_NO_APROBADO"; }
     if(notdef == null){ return "PENDIENTE_DEFENSA"; }
+    if(notdef < 7){ return "DEFENSA_NO_APROBADA"; }
     if(notafinal == null){ return "PENDIENTE_FINAL"; }
     return notafinal >= 7 ? "APROBADO" : "NO_APROBADO";
   }
