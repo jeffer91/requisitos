@@ -84,6 +84,43 @@ gguerra@itsqmet.edu.ec
 const sameItems=api.buildItems(sameDuplicate.rows,students);
 check(sameItems.filter(item=>item.kind==="duplicate").length===1,"Un duplicado idéntico se consolida y solo una fila queda operativa.");
 
+
+const flattened=api.parse(`
+Seleccione LISBETH ALEXANDRA MERA ZAMBRANO LM LISBETH ALEXANDRA MERA ZAMBRANO lmeraz\\@itsqmet.edu.ec Enviado para calificar Calificado Calificar 90,00 / 100,00 Editar
+Seleccione JOSE ROLANDO CABAL CEDEÑO JC JOSE ROLANDO CABAL CEDEÑO jcabal\\@itsqmet.edu.ec Enviado para calificar Calificado Calificar 90,00 / 100,00 Editar
+`);
+check(flattened.rows[0].nombreCompleto==="LISBETH ALEXANDRA MERA ZAMBRANO","El parser elimina iniciales de avatar y nombre duplicado de Moodle.");
+check(flattened.rows[1].nombreCompleto==="JOSE ROLANDO CABAL CEDEÑO","El parser limpia nombres duplicados en texto plano.");
+
+const reorderedStudents=[
+  {_defId:"1",_nombre:"MERA ZAMBRANO LISBETH ALEXANDRA",_correo:"lmeraz@itsqmet.edu.ec",_nart:null},
+  {_defId:"2",_nombre:"CABAL CEDEÑO JOSE ROLANDO",CorreoInstitucional:"jcabal@itsqmet.edu.ec",_nart:null}
+];
+const reorderedItems=api.buildItems(flattened.rows,reorderedStudents);
+check(reorderedItems[0].kind==="exact"&&reorderedItems[0].confidence===100,"El correo hidratado en _correo produce coincidencia exacta.");
+check(reorderedItems[1].kind==="exact"&&reorderedItems[1].confidence===100,"El correo institucional produce coincidencia exacta.");
+check(api.cleanMoodleName("LISBETH ALEXANDRA MERA ZAMBRANO LM LISBETH ALEXANDRA MERA ZAMBRANO")==="LISBETH ALEXANDRA MERA ZAMBRANO","La limpieza de nombre elimina repetición e iniciales.");
+
+const reorderedNoEmail=api.buildItems(
+  [{rowNumber:1,nombreCompleto:"JOSE ROLANDO CABAL CEDEÑO",correo:"",notaArticulo:9}],
+  [{_defId:"3",_nombre:"CABAL CEDEÑO JOSE ROLANDO",_nart:null}]
+);
+check(reorderedNoEmail[0].kind==="exact"&&reorderedNoEmail[0].confidence===99,"Mismos nombres y apellidos en distinto orden cuentan como coincidencia exacta.");
+
+const zeroAndMissing=api.parse(`
+Seleccione ESTUDIANTE CERO EC ESTUDIANTE CERO cero@itsqmet.edu.ec Calificar 0,00 / 100,00
+Seleccione ESTUDIANTE SIN NOTA ES ESTUDIANTE SIN NOTA sinnota@itsqmet.edu.ec Enviado para calificar
+`);
+check(zeroAndMissing.rows[0].notaArticulo===0,"0/100 se conserva como N-ART 0.00.");
+check(zeroAndMissing.rows[1].notaArticulo===null,"Una fila sin X/Y queda realmente sin calificación.");
+const missingItems=api.buildItems(zeroAndMissing.rows,[
+  {_defId:"4",_nombre:"ESTUDIANTE CERO",correoInstitucional:"cero@itsqmet.edu.ec",_nart:null},
+  {_defId:"5",_nombre:"ESTUDIANTE SIN NOTA",correoInstitucional:"sinnota@itsqmet.edu.ec",_nart:null}
+]);
+check(missingItems[0].action==="load"&&missingItems[0].selected===true,"N-ART 0.00 sí queda disponible para cargar.");
+check(missingItems[1].kind==="no-grade"&&missingItems[1].action==="skip"&&missingItems[1].selected===false,"Sin calificación nunca se ofrece para cargar.");
+check(api.changesForSave(missingItems).length===1&&api.changesForSave(missingItems)[0].nart===0,"Los cambios guardables incluyen cero, pero excluyen filas sin nota.");
+
 if(errors.length){
   console.error("\nVERIFICACIÓN CARGA MASIVA DEFENSAS: ERROR ("+errors.length+")");
   errors.forEach((error,index)=>console.error((index+1)+". "+error));
