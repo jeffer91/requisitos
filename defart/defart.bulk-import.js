@@ -218,7 +218,7 @@ Función:
   function defaultAction(item){
     if(!item.student||item.importConflict||item.duplicate){return "skip";}
     var current=currentNdef(item.student);
-    if(item.kind!=="exact"){return "review";}
+    if(item.kind!=="exact"){return "skip";}
     if(current==null){return "load";}
     if(sameNote(current,item.imported.notaDefensa)){return "same";}
     return "keep";
@@ -469,7 +469,18 @@ Función:
       if(result.ok===false){throw new Error(result.message||"No se pudieron guardar las notas.");}
       state.saved=Number(result.saved||changes.length);
       state.items.forEach(function(item){
-        if(item.selected&&(item.action==="load"||item.action==="replace")){item.saved=true;item.selected=false;item.action="same";}
+        if(item.selected&&(item.action==="load"||item.action==="replace")){
+          item.saved=true;
+          item.selected=false;
+          if(item.student){
+            item.student._ndef=item.imported.notaDefensa;
+            item.student.Notdef=item.imported.notaDefensa;
+            item.student.Ndef=item.imported.notaDefensa;
+            item.student.ndef=item.imported.notaDefensa;
+            item.student.notaDefensa=item.imported.notaDefensa;
+          }
+          item.action="same";
+        }
       });
       try{if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.clear==="function")window.DefartServiceBridge.clear({resetPage:false,keepLast:false});}catch(error){}
       try{if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.refresh==="function")window.DefartServiceBridge.refresh();else if(window.DefartApp&&typeof window.DefartApp.render==="function")window.DefartApp.render();}catch(error2){}
