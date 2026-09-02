@@ -64,6 +64,7 @@ Función:
     {path:"../repositories/bdl.repo.matriculas.js",test:function(){return window.BDLRepoMatriculas||(window.BDLRepositories&&window.BDLRepositories.get("matriculas"));}},
     {path:"../repositories/bdl.repo.requisitos.js",test:function(){return window.BDLRepoRequisitos||(window.BDLRepositories&&window.BDLRepositories.get("requisitos"));}},
     {path:"../repositories/bdl.repo.notas.js",test:function(){return window.BDLRepoNotas;}},
+    {path:"../repositories/bdl.repo.cronograma-defensas.js",test:function(){return window.BDLRepoCronogramaDefensas;}},
     {path:"../repositories/bdl.repo.logs.js",test:function(){return window.BDLRepoLogs||(window.BDLRepositories&&window.BDLRepositories.get("logs"));}},
     {path:"../repositories/bdl.repo.cambios.js",test:function(){return window.BDLRepoCambios||(window.BDLRepositories&&window.BDLRepositories.get("cambios"));}},
     {path:"../services/bdl.service.periodos.js",test:function(){return window.BDLServicePeriodos;}},
