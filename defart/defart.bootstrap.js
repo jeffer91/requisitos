@@ -33,7 +33,7 @@ Función:
   }
   function screenModules(){return sequence([
     {path:"defart.core.js",test:function(){return window.DefartCore;}},
-    {path:"defart.continuity.js"},{path:"defart.export.js"},{path:"defart.table.js"},{path:"defart.performance.js"},
+    {path:"defart.export.js"},{path:"defart.table.js"},{path:"defart.performance.js"},
     {path:"defart.service-bridge.js",test:function(){return window.DefartServiceBridge;}},
     {path:"defart.save-service-bridge.js",test:function(){return window.DefartSaveServiceBridge;}},
     {path:"defart.requirements-guard.js"},{path:"defart.periodo-normalizer.js"},
