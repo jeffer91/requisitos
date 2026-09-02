@@ -96,11 +96,10 @@ Con qué se conecta:
     var shown = withPending(original, options);
     var isArt = field === "nart";
     var value = isArt ? shown._nart : shown._ndef;
-    var enabled = isArt ? shown._canArt : shown._canDef;
-    var title = "";
-
-    if(!enabled && isArt){ title = "Bloqueado por requisitos pendientes."; }
-    if(!enabled && !isArt){ title = "Bloqueado hasta tener N-ART igual o mayor a 7."; }
+    var enabled = isArt ? true : shown._canDef;
+    var title = isArt
+      ? "N-ART puede registrarse aunque existan requisitos pendientes."
+      : (!enabled ? "Bloqueado hasta cumplir requisitos y tener N-ART igual o mayor a 7." : "");
 
     return '<input class="def-note-input" type="number" min="0" max="10" step="0.01" inputmode="decimal" data-id="'+esc(original._defId)+'" data-field="'+esc(field)+'" value="'+esc(noteText(value))+'" '+(enabled ? "" : "disabled")+' title="'+esc(title)+'" />';
   }
