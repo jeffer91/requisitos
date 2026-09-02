@@ -4,7 +4,7 @@
 Archivo: verify-defart-bulk-import.js
 Ruta: /scripts/verify-defart-bulk-import.js
 Función:
-- Verificar el parser de texto bruto de Moodle para N-DEF.
+- Verificar el parser de texto bruto de Moodle para N-ART.
 - Confirmar conversión X/100 a escala 0-10.
 - Probar cruce por correo, nombre exacto y nombre aproximado.
 - Asegurar que notas existentes no se sobrescriban automáticamente.
@@ -37,20 +37,20 @@ const parsed=api.parse(pasted);
 check(parsed.ok===true,"El texto pegado de Moodle se reconoce.");
 check(parsed.rows.length===3,"Se detectan tres estudiantes.");
 check(parsed.rows[0].correo==="gguerra@itsqmet.edu.ec","Se limpia el correo escapado de Markdown.");
-check(parsed.rows[0].notaDefensa===10,"100/100 se convierte a N-DEF 10.");
-check(parsed.rows[1].notaDefensa===9,"90/100 se convierte a N-DEF 9.");
-check(parsed.rows[2].notaDefensa===8.5,"85/100 se convierte a N-DEF 8.5.");
+check(parsed.rows[0].notaArticulo===10,"100/100 se convierte a N-ART 10.");
+check(parsed.rows[1].notaArticulo===9,"90/100 se convierte a N-ART 9.");
+check(parsed.rows[2].notaArticulo===8.5,"85/100 se convierte a N-ART 8.5.");
 
 const students=[
-  {_defId:"0100000001__2026-02__2026-08",_cedula:"0100000001",_nombre:"GABRIEL FERNANDO GUERRA ZAVALA",correoInstitucional:"gguerra@itsqmet.edu.ec",_nart:8.5,_ndef:null,_carrera:"ADMINISTRACIÓN"},
-  {_defId:"0100000002__2026-02__2026-08",_cedula:"0100000002",_nombre:"LISBETH ALEXANDRA MERA ZAMBRANO",correoInstitucional:"lmeraz@itsqmet.edu.ec",_nart:9,_ndef:8.5,_carrera:"REDES"},
-  {_defId:"0100000003__2026-02__2026-08",_cedula:"0100000003",_nombre:"CRUZ ELSA MARIA SÁNCHEZ MACIAS",correoInstitucional:"otro@itsqmet.edu.ec",_nart:9,_ndef:null,_carrera:"CONTABILIDAD"}
+  {_defId:"0100000001__2026-02__2026-08",_cedula:"0100000001",_nombre:"GABRIEL FERNANDO GUERRA ZAVALA",correoInstitucional:"gguerra@itsqmet.edu.ec",_nart:null,_ndef:8.5,_carrera:"ADMINISTRACIÓN"},
+  {_defId:"0100000002__2026-02__2026-08",_cedula:"0100000002",_nombre:"LISBETH ALEXANDRA MERA ZAMBRANO",correoInstitucional:"lmeraz@itsqmet.edu.ec",_nart:8.5,_ndef:9,_carrera:"REDES"},
+  {_defId:"0100000003__2026-02__2026-08",_cedula:"0100000003",_nombre:"CRUZ ELSA MARIA SÁNCHEZ MACIAS",correoInstitucional:"otro@itsqmet.edu.ec",_nart:null,_ndef:7.5,_carrera:"CONTABILIDAD"}
 ];
 
 const items=api.buildItems(parsed.rows,students);
 check(items[0].kind==="exact"&&items[0].confidence===100,"El correo exacto tiene prioridad y 100% de confianza.");
-check(items[0].action==="load"&&items[0].selected===true,"Una N-DEF vacía con coincidencia exacta queda lista para cargar.");
-check(items[1].kind==="exact"&&items[1].action==="keep"&&items[1].selected===false,"Una N-DEF existente diferente no se sobrescribe automáticamente.");
+check(items[0].action==="load"&&items[0].selected===true,"Una N-ART vacía con coincidencia exacta queda lista para cargar.");
+check(items[1].kind==="exact"&&items[1].action==="keep"&&items[1].selected===false,"Una N-ART existente diferente no se sobrescribe automáticamente.");
 check(items[2].kind==="probable"&&items[2].confidence>=90,"Un nombre con segundo nombre adicional se propone como coincidencia probable.");
 check(items[2].selected===false,"Una coincidencia probable requiere revisión.");
 
@@ -58,8 +58,9 @@ items[1].action="replace";
 items[1].selected=true;
 const changes=api.changesForSave(items);
 check(changes.length===2,"Solo las notas confirmadas se preparan para guardar.");
-check(changes.some(change=>change.id==="0100000002__2026-02__2026-08"&&change.ndef===9),"El reemplazo explícito de nota existente se respeta.");
+check(changes.some(change=>change.id==="0100000002__2026-02__2026-08"&&change.nart===9),"El reemplazo explícito de N-ART existente se respeta.");
 check(changes.every(change=>change._row&&change._bulkImport===true),"Cada cambio lleva la fila validada para la ruta oficial de Defensas.");
+check(changes.every(change=>Object.prototype.hasOwnProperty.call(change,"nart")&&!Object.prototype.hasOwnProperty.call(change,"ndef")),"La carga masiva genera exclusivamente cambios N-ART y nunca N-DEF.");
 
 const duplicateParsed=api.parse(`
 Seleccione GABRIEL FERNANDO GUERRA ZAVALA
