@@ -27,7 +27,11 @@ Función:
     try{var state=window.DefartApp&&window.DefartApp.getState?window.DefartApp.getState():{};var data=state.data||{};return Array.isArray(data.exportRows)&&data.exportRows.length?data.exportRows:(Array.isArray(data.rows)?data.rows:[]);}catch(error){return [];}
   }
   function rowId(row){return text(row&&(row._defId||row.idEstudiantePeriodo||row.studentId||row._docId||row.id||row.cedula));}
-  function findRow(change){var id=text(change&&change.id);return stateRows().find(function(row){return rowId(row)===id;})||null;}
+  function findRow(change){
+    if(change&&change._row&&typeof change._row==="object"){return change._row;}
+    var id=text(change&&change.id);
+    return stateRows().find(function(row){return rowId(row)===id;})||null;
+  }
   function splitCanonicalId(id){
     id=text(id);if(id.indexOf("__")<0){return {periodoId:"",cedula:""};}
     var parts=id.split("__"),first=text(parts[0]),rest=text(parts.slice(1).join("__"));
