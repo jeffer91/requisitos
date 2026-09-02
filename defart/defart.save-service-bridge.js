@@ -10,7 +10,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="1.1.0-canonical-local-id";
+  var VERSION="1.2.0-nart-no-requirements-block";
 
   function text(value){return String(value==null?"":value).trim();}
   function num(value){
@@ -69,8 +69,9 @@ Función:
     var engine=window.BDLDefenseEligibility;
     if(engine&&typeof engine.evaluate==="function"){
       var decision=engine.evaluate(Object.assign({},row||{},note));
-      if(Object.prototype.hasOwnProperty.call(change||{},"nart")&&!decision.requirementsOk){errors.push("N-ART bloqueada por requisitos pendientes: "+(decision.missingRequirements||[]).join(", "));}
-      if(Object.prototype.hasOwnProperty.call(change||{},"ndef")&&(!decision.requirementsOk||decision.nart===null||decision.nart<7)){errors.push("N-DEF bloqueada hasta cumplir requisitos y tener N-ART igual o mayor a 7.");}
+      if(Object.prototype.hasOwnProperty.call(change||{},"ndef")&&(!decision.requirementsLoaded||!decision.requirementsOk||decision.nart===null||decision.nart<7)){
+        errors.push("N-DEF bloqueada hasta cumplir requisitos y tener N-ART igual o mayor a 7.");
+      }
     }
     return errors.filter(Boolean);
   }
