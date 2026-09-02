@@ -2,18 +2,18 @@
 Nombre completo: defart.bulk-import.js
 Ruta: /defart/defart.bulk-import.js
 Función:
-- Abrir un popup de carga masiva de N-DEF.
+- Abrir un popup de carga masiva exclusiva de N-ART.
 - Leer texto bruto copiado desde Moodle, incluso en formato Markdown.
 - Extraer nombre, correo y calificación X/100.
 - Cruzar por correo, nombre exacto, huella de nombre y similitud.
 - Marcar coincidencias exactas, probables, ambiguas, duplicados y conflictos.
-- No sobrescribir N-DEF existente sin confirmación.
+- No sobrescribir N-ART existente sin confirmación.
 - Guardar únicamente mediante DefartCore.saveNotes / ConDefart.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION="1.0.0-smart-moodle-import";
+  var VERSION="1.1.0-smart-moodle-nart-only";
   var state={
     opened:false,
     periodId:"",
@@ -52,11 +52,11 @@ Función:
     return text(row._nombre||row.Nombres||row.nombres||row.Nombre||row.nombre||row.nombreCompleto||row.NombreCompleto||row.Estudiante||row.estudiante);
   }
   function careerOf(row){return text(row._carrera||row.NombreCarrera||row.nombreCarrera||row.carrera||row.Carrera||"");}
-  function currentNdef(row){
+  function currentNart(row){
     row=row||{};
-    var value=row._ndef;
+    var value=row._nart;
     if(value===undefined||value===null||text(value)===""){
-      value=row.Notdef!==undefined?row.Notdef:(row.Ndef!==undefined?row.Ndef:(row.ndef!==undefined?row.ndef:row.notaDefensa));
+      value=row.Notart!==undefined?row.Notart:(row.Nart!==undefined?row.Nart:(row.nart!==undefined?row.nart:row.notaArticulo));
     }
     if(value===undefined||value===null||text(value)===""){return null;}
     var n=Number(text(value).replace(",","."));
@@ -128,7 +128,7 @@ Función:
     var re=/(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(\d{1,3}(?:[.,]\d{1,2})?)/g,m,list=[];
     while((m=re.exec(fixed))!==null){
       var score=parseNumber(m[1]),max=parseNumber(m[2]),ten=toTen(score,max);
-      if(ten!=null&&max<=1000){list.push({score:score,max:max,ndef:ten,raw:m[0],index:m.index});}
+      if(ten!=null&&max<=1000){list.push({score:score,max:max,nart:ten,raw:m[0],index:m.index});}
     }
     return list.length?list[0]:null;
   }
@@ -151,7 +151,7 @@ Función:
       var block=source.slice(anchor.index,end),grade=extractGrade(block);
       return {
         rowNumber:index+1,format:"moodle_grading",nombreCompleto:anchor.name,correo:extractEmail(block),
-        notaDefensa:grade?grade.ndef:null,rawScore:grade?grade.score:null,rawMax:grade?grade.max:null,
+        notaArticulo:grade?grade.nart:null,rawScore:grade?grade.score:null,rawMax:grade?grade.max:null,
         rawGrade:grade?grade.raw:"",rawText:block,warnings:grade?[]:["No se detectó una calificación X / Y."]
       };
     }).filter(function(row){return row.nombreCompleto||row.correo;});
@@ -167,7 +167,7 @@ Función:
       var block=lines.slice(entry.line,end).join("\n"),grade=extractGrade(block);
       return {
         rowNumber:index+1,format:"moodle_grading",nombreCompleto:previousName(lines,entry.line),correo:entry.email,
-        notaDefensa:grade?grade.ndef:null,rawScore:grade?grade.score:null,rawMax:grade?grade.max:null,
+        notaArticulo:grade?grade.nart:null,rawScore:grade?grade.score:null,rawMax:grade?grade.max:null,
         rawGrade:grade?grade.raw:"",rawText:block,warnings:grade?[]:["No se detectó una calificación X / Y."]
       };
     });
@@ -180,7 +180,7 @@ Función:
     if(!rows.length){rows=parseByEmail(source);}
     rows=rows.filter(function(row){return row.correo||row.nombreCompleto;});
     if(!rows.length){result.errors.push("No se detectaron estudiantes. Pegue el contenido completo de la tabla de calificaciones de Moodle.");return result;}
-    var withGrade=rows.filter(function(row){return row.notaDefensa!=null;}).length;
+    var withGrade=rows.filter(function(row){return row.notaArticulo!=null;}).length;
     if(!withGrade){result.errors.push("Se detectaron estudiantes, pero ninguna calificación con formato X / Y.");}
     if(withGrade<rows.length){result.warnings.push((rows.length-withGrade)+" estudiante(s) no tienen una calificación reconocible.");}
     result.ok=withGrade>0;result.format="moodle_grading";result.rows=rows;result.total=rows.length;
@@ -217,10 +217,10 @@ Función:
   }
   function defaultAction(item){
     if(!item.student||item.importConflict||item.duplicate){return "skip";}
-    var current=currentNdef(item.student);
+    var current=currentNart(item.student);
     if(item.kind!=="exact"){return "skip";}
     if(current==null){return "load";}
-    if(sameNote(current,item.imported.notaDefensa)){return "same";}
+    if(sameNote(current,item.imported.notaArticulo)){return "same";}
     return "keep";
   }
   function importedIdentity(row){return normalizeEmail(row.correo)||fingerprint(row.nombreCompleto)||("row_"+row.rowNumber);}
@@ -247,7 +247,7 @@ Función:
       var group=byImported[key];
       if(group.length<2){return;}
       var grades={};
-      group.forEach(function(item){if(item.imported.notaDefensa!=null){grades[String(item.imported.notaDefensa)]=true;}});
+      group.forEach(function(item){if(item.imported.notaArticulo!=null){grades[String(item.imported.notaArticulo)]=true;}});
       if(Object.keys(grades).length>1){
         group.forEach(function(item){item.importConflict=true;item.kind="conflict";item.action="skip";item.selected=false;});
       }else{
@@ -266,7 +266,7 @@ Función:
       var group=byStudent[id];
       if(group.length<2){return;}
       var grades={};
-      group.forEach(function(item){grades[String(item.imported.notaDefensa)]=true;});
+      group.forEach(function(item){grades[String(item.imported.notaArticulo)]=true;});
       if(Object.keys(grades).length>1){
         group.forEach(function(item){item.importConflict=true;item.kind="conflict";item.action="skip";item.selected=false;});
       }else{
@@ -292,17 +292,17 @@ Función:
     item.student=student||null;
     if(!student){item.kind="unmatched";item.confidence=0;item.method="manual";item.action="skip";item.selected=false;return item;}
     item.kind="manual";item.confidence=100;item.method="selección manual";item.importConflict=false;item.duplicate=false;
-    var current=currentNdef(student);
+    var current=currentNart(student);
     if(current==null){item.action="load";item.selected=true;}
-    else if(sameNote(current,item.imported.notaDefensa)){item.action="same";item.selected=false;}
+    else if(sameNote(current,item.imported.notaArticulo)){item.action="same";item.selected=false;}
     else{item.action="keep";item.selected=false;}
     return item;
   }
   function changesForSave(items){
     return (items||[]).filter(function(item){
-      return item.student&&item.selected&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace")&&item.imported.notaDefensa!=null;
+      return item.student&&item.selected&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace")&&item.imported.notaArticulo!=null;
     }).map(function(item){
-      return {id:idOf(item.student),ndef:item.imported.notaDefensa,_row:item.student,_bulkImport:true};
+      return {id:idOf(item.student),nart:item.imported.notaArticulo,_row:item.student,_bulkImport:true};
     });
   }
 
@@ -365,17 +365,17 @@ Función:
     return "No encontrado";
   }
   function actionOptions(item){
-    var current=item.student?currentNdef(item.student):null,opts=[];
+    var current=item.student?currentNart(item.student):null,opts=[];
     if(!item.student||item.importConflict||item.duplicate){return '<option value="skip">No cargar</option>';}
     if(current==null){
-      opts.push(["load","Cargar N-DEF"]);
+      opts.push(["load","Cargar N-ART"]);
       opts.push(["skip","No cargar"]);
-    }else if(sameNote(current,item.imported.notaDefensa)){
+    }else if(sameNote(current,item.imported.notaArticulo)){
       opts.push(["same","Ya es igual"]);
       opts.push(["skip","No cargar"]);
     }else{
       opts.push(["keep","Mantener "+current.toFixed(2)]);
-      opts.push(["replace","Reemplazar por "+Number(item.imported.notaDefensa).toFixed(2)]);
+      opts.push(["replace","Reemplazar por "+Number(item.imported.notaArticulo).toFixed(2)]);
       opts.push(["skip","No cargar"]);
     }
     return opts.map(function(opt){return '<option value="'+opt[0]+'" '+(item.action===opt[0]?"selected":"")+'>'+esc(opt[1])+'</option>';}).join("");
@@ -392,14 +392,14 @@ Función:
     return '<select class="def-bulk-candidate" data-key="'+esc(item.key)+'">'+options.join("")+'</select>';
   }
   function rowHtml(item){
-    var current=item.student?currentNdef(item.student):null;
+    var current=item.student?currentNart(item.student):null;
     var canSelect=item.student&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace");
     return '<tr class="def-bulk-row is-'+esc(category(item))+'">'+
       '<td class="def-bulk-check"><input type="checkbox" data-bulk-select="'+esc(item.key)+'" '+(item.selected?"checked":"")+' '+(!canSelect?"disabled":"")+'></td>'+
       '<td><strong>'+esc(item.imported.nombreCompleto||"Nombre no detectado")+'</strong><small>'+esc(item.imported.correo||"Sin correo")+'</small></td>'+
       '<td>'+candidateSelect(item)+'</td>'+
       '<td class="def-bulk-note">'+(current==null?"—":current.toFixed(2))+'</td>'+
-      '<td class="def-bulk-note"><strong>'+esc(item.imported.notaDefensa==null?"—":Number(item.imported.notaDefensa).toFixed(2))+'</strong><small>'+esc(item.imported.rawGrade||"")+'</small></td>'+
+      '<td class="def-bulk-note"><strong>'+esc(item.imported.notaArticulo==null?"—":Number(item.imported.notaArticulo).toFixed(2))+'</strong><small>'+esc(item.imported.rawGrade||"")+'</small></td>'+
       '<td><span class="def-bulk-badge is-'+esc(category(item))+'">'+esc(statusLabel(item))+'</span><small>'+esc(item.method||"")+'</small></td>'+
       '<td><select class="def-bulk-action" data-key="'+esc(item.key)+'">'+actionOptions(item)+'</select></td>'+
     '</tr>';
@@ -419,7 +419,7 @@ Función:
     if(!state.analyzed){body.innerHTML='<div class="def-bulk-empty">Todavía no se han analizado datos.</div>';return;}
     var rows=visibleItems();
     if(!rows.length){body.innerHTML='<div class="def-bulk-empty">No hay registros en esta categoría.</div>';return;}
-    body.innerHTML='<div class="def-bulk-table-wrap"><table class="def-bulk-table"><thead><tr><th></th><th>Moodle</th><th>Coincidencia en Defensas</th><th>Actual</th><th>Nueva N-DEF</th><th>Coincidencia</th><th>Acción</th></tr></thead><tbody>'+rows.map(rowHtml).join("")+'</tbody></table></div>';
+    body.innerHTML='<div class="def-bulk-table-wrap"><table class="def-bulk-table"><thead><tr><th></th><th>Moodle</th><th>Coincidencia en Defensas</th><th>Actual</th><th>Nueva N-ART</th><th>Coincidencia</th><th>Acción</th></tr></thead><tbody>'+rows.map(rowHtml).join("")+'</tbody></table></div>';
   }
   function analyze(){
     if(state.saving)return;
@@ -454,7 +454,7 @@ Función:
     var item=findItem(input.getAttribute("data-bulk-select"));if(!item)return;
     item.selected=!!input.checked;
     if(item.selected&&item.action==="keep")item.action="replace";
-    if(item.selected&&item.action==="review")item.action=currentNdef(item.student)==null?"load":"replace";
+    if(item.selected&&item.action==="review")item.action=currentNart(item.student)==null?"load":"replace";
     if(!item.selected&&(item.action==="load"||item.action==="replace"))item.action="skip";
     render();
   }
@@ -473,18 +473,18 @@ Función:
           item.saved=true;
           item.selected=false;
           if(item.student){
-            item.student._ndef=item.imported.notaDefensa;
-            item.student.Notdef=item.imported.notaDefensa;
-            item.student.Ndef=item.imported.notaDefensa;
-            item.student.ndef=item.imported.notaDefensa;
-            item.student.notaDefensa=item.imported.notaDefensa;
+            item.student._nart=item.imported.notaArticulo;
+            item.student.Notart=item.imported.notaArticulo;
+            item.student.Nart=item.imported.notaArticulo;
+            item.student.nart=item.imported.notaArticulo;
+            item.student.notaArticulo=item.imported.notaArticulo;
           }
           item.action="same";
         }
       });
       try{if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.clear==="function")window.DefartServiceBridge.clear({resetPage:false,keepLast:false});}catch(error){}
       try{if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.refresh==="function")window.DefartServiceBridge.refresh();else if(window.DefartApp&&typeof window.DefartApp.render==="function")window.DefartApp.render();}catch(error2){}
-      setMessage(state.saved+" nota(s) guardada(s). N-FIN y estado fueron recalculados; quedan listas para la sincronización habitual con Firebase.","ok");
+      setMessage(state.saved+" nota(s) de artículo guardada(s). El estado de artículo fue recalculado; las notas quedan listas para la sincronización habitual con Firebase.","ok");
       render();
     }).catch(function(error){setMessage(error&&error.message?error.message:String(error),"warn");}).finally(function(){state.saving=false;render();});
   }
