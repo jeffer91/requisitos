@@ -39,6 +39,7 @@ Con qué se conecta:
     rows: [],
     loading: false,
     cacheStatus: null,
+    cacheStale: false,
     firmaActual: null
   };
 
@@ -136,8 +137,8 @@ Con qué se conecta:
     var hasScheduler = !!(window.CR_DEF_SCHEDULER && typeof window.CR_DEF_SCHEDULER.generar === "function");
 
     if(els.btnActualizar){ els.btnActualizar.disabled = state.loading || !hasPeriodo || !hasData; }
-    if(els.btnGenerar){ els.btnGenerar.disabled = state.loading || !hasPeriodo || !hasRowsForAction() || !hasScheduler; }
-    if(els.btnExportar){ els.btnExportar.disabled = state.loading || !hasRowsForAction(); }
+    if(els.btnGenerar){ els.btnGenerar.disabled = state.loading || state.cacheStale || !hasPeriodo || !hasRowsForAction() || !hasScheduler; }
+    if(els.btnExportar){ els.btnExportar.disabled = state.loading || state.cacheStale || !hasRowsForAction(); }
 
     if(!hasData){
       safeSetText(els.actionsHint, "BDLocal no disponible en esta pantalla.");
@@ -261,6 +262,7 @@ Con qué se conecta:
     if(cache && Array.isArray(cache.rows)){
       state.rows = cache.rows;
       state.cacheStatus = cache;
+      state.cacheStale = false;
       setCacheStatus("Cache cargada");
       updateFiltersFromRows(state.rows);
       renderTable();
@@ -293,9 +295,10 @@ Con qué se conecta:
         ? window.CR_DEF_CACHE.status(periodoId, firma)
         : null;
 
-      if(status && status.hasCache && status.stale){
+      state.cacheStale = !!(status && status.hasCache && status.stale);
+      if(state.cacheStale){
         setCacheStatus("Cache desactualizada");
-        setAlert("warn", "BDLocal cambió.", "La cache de Cr-def puede estar desactualizada. Presiona Actualizar aptos antes de generar cronograma.");
+        setAlert("warn", "BDLocal cambió.", "La cache de Cr-def está desactualizada. Actualiza aptos antes de generar o exportar.");
       }else if(status && status.hasCache){
         setCacheStatus("Cache actualizada");
       }
@@ -305,6 +308,24 @@ Con qué se conecta:
     }).catch(function(){
       updateButtons();
       return null;
+    });
+  }
+
+  function rowIdentity(row){
+    return text(row && row.id) || [row && row.periodoId, row && row.cedula, row && (row.intento || 1)].map(text).join("__");
+  }
+
+  function preserveCurrentSchedule(nextRows){
+    var current = Object.create(null);
+    (state.rows || []).forEach(function(row){ current[rowIdentity(row)] = row; });
+    return (Array.isArray(nextRows) ? nextRows : []).map(function(row){
+      var previous = current[rowIdentity(row)];
+      if(!previous){ return row; }
+      ["aula","dia","hora","tribunal1","tribunal2","tribunal3","cronograma","cronogramaEstado"].forEach(function(key){
+        if((row[key] == null || text(row[key]) === "") && previous[key] != null && text(previous[key]) !== ""){ row[key] = previous[key]; }
+      });
+      if(text(row.dia) && text(row.hora)){ row.estadoClave = "programado"; row.estado = "Defensa programada"; }
+      return row;
     });
   }
 
@@ -320,8 +341,9 @@ Con qué se conecta:
 
     window.CR_DEF_DATA.cargarAptos(state.periodo).then(function(result){
       result = result || {};
-      state.rows = Array.isArray(result.rows) ? result.rows : [];
+      state.rows = preserveCurrentSchedule(Array.isArray(result.rows) ? result.rows : []);
       state.firmaActual = result.firma || null;
+      state.cacheStale = false;
 
       var saved = false;
       if(window.CR_DEF_CACHE && typeof window.CR_DEF_CACHE.savePeriodCache === "function"){
@@ -477,7 +499,7 @@ Con qué se conecta:
     rows = Array.isArray(rows) ? rows : [];
     var aptos = rows.filter(function(row){ return row.estadoClave === "apto" || row.estadoClave === "supletorio"; }).length;
     var programados = rows.filter(function(row){ return row.estadoClave === "programado"; }).length;
-    var sinDefensa = rows.filter(function(row){ return !text(row.dia) || !text(row.hora); }).length;
+    var sinDefensa = rows.filter(function(row){ return ["apto","supletorio","sin-cupo"].indexOf(row.estadoClave) >= 0 && (!text(row.dia) || !text(row.hora)); }).length;
     var conflictos = rows.filter(function(row){ return row.estadoClave === "conflicto"; }).length;
 
     safeSetText(els.totalAptos, aptos);
@@ -508,8 +530,8 @@ Con qué se conecta:
     bindEvents();
     exposeDebugApi();
 
-    if(!window.BL2DB){
-      setAlert("danger", "BDLocal no cargó.", "No se encontró BL2DB. Revisa las rutas de scripts de BDLocal.");
+    if(!window.CR_DEF_DATA || !window.CR_DEF_DATA.dbAvailable || !window.CR_DEF_DATA.dbAvailable()){
+      setAlert("danger", "BDLocal no disponible.", "ConCrDef no quedó disponible para esta pantalla.");
       setCacheStatus("BDLocal no disponible");
       updateButtons();
       renderTable();
