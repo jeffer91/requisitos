@@ -17,7 +17,8 @@ Función:
     var raw=text(value).replace(",",".");
     if(!raw){return null;}
     var number=Number(raw);
-    return Number.isFinite(number)?Math.max(0,Math.min(10,Math.round(number*100)/100)):null;
+    if(!Number.isFinite(number)||number<0||number>10){return NaN;}
+    return Math.round(number*100)/100;
   }
   function firstValue(){for(var i=0;i<arguments.length;i+=1){var value=arguments[i];if(value!==undefined&&value!==null&&text(value)!==""){return value;}}return null;}
   function nfin(article,defense){article=num(article);defense=num(defense);if(article==null||defense==null||article<7){return null;}return Math.round(((article*0.70)+(defense*0.30))*100)/100;}
@@ -50,22 +51,40 @@ Función:
       Notart:article,Notdef:defense,Notafinal:finalGrade,
       Nart:article,Ndef:defense,Nfinal:finalGrade,
       notart:article,notdef:defense,notafinal:finalGrade,
-      estadoNota:finalGrade==null?"PENDIENTE":(finalGrade>=7?"APROBADO":"NO_APROBADO"),
+      estadoNota:window.BDLDefenseEligibility&&typeof window.BDLDefenseEligibility.noteState==="function"
+        ?window.BDLDefenseEligibility.noteState(article,defense,finalGrade)
+        :(article==null?"SIN_ARTICULO":(article<7?"ARTICULO_NO_APROBADO":(defense==null?"PENDIENTE_DEFENSA":(defense<7?"DEFENSA_NO_APROBADA":(finalGrade!=null&&finalGrade>=7?"APROBADO":"NO_APROBADO"))))),
       origen:"defart",updatedAt:new Date().toISOString()
     };
+  }
+  function validatePrepared(change,note,row){
+    var errors=[];
+    if(Number.isNaN(note.Notart)){errors.push("N-ART inválida o fuera de rango.");}
+    if(Number.isNaN(note.Notdef)){errors.push("N-DEF inválida o fuera de rango.");}
+    if(!note.idEstudiantePeriodo||!note.periodoId||!note.cedula){errors.push("Falta identificación canónica del estudiante/período.");}
+    var engine=window.BDLDefenseEligibility;
+    if(engine&&typeof engine.evaluate==="function"){
+      var decision=engine.evaluate(Object.assign({},row||{},note));
+      if(Object.prototype.hasOwnProperty.call(change||{},"nart")&&!decision.requirementsOk){errors.push("N-ART bloqueada por requisitos pendientes: "+(decision.missingRequirements||[]).join(", "));}
+      if(Object.prototype.hasOwnProperty.call(change||{},"ndef")&&(!decision.requirementsOk||decision.nart===null||decision.nart<7)){errors.push("N-DEF bloqueada hasta cumplir requisitos y tener N-ART igual o mayor a 7.");}
+    }
+    return errors.filter(Boolean);
   }
   function saveDirect(changesList){
     changesList=Array.isArray(changesList)?changesList:[];
     if(!changesList.length){return Promise.resolve({ok:true,saved:0,total:0,errors:[],message:"No hay cambios pendientes."});}
     var current=connector();if(!current||typeof current.save!=="function"){return Promise.reject(new Error("ConDefart.save no está disponible."));}
-    var notes=changesList.map(notaFromChange).filter(function(note){return note.idEstudiantePeriodo&&note.periodoId&&note.cedula;});
-    if(!notes.length){return Promise.reject(new Error("No se pudieron construir notas completas."));}
-    var saved=0,errors=[],chain=Promise.resolve();
-    notes.forEach(function(note){chain=chain.then(function(){return current.save(note,{enqueue:true,source:"defart",origen:"defart"}).then(function(){saved+=1;}).catch(function(error){errors.push(error&&error.message?error.message:String(error));});});});
-    return chain.then(function(){
-      var result={ok:errors.length===0,saved:saved,total:changesList.length,errors:errors,direct:true,source:"ConDefart",message:saved+" cambio(s) guardado(s) mediante ConDefart."};
+    var prepared=changesList.map(function(change){var row=findRow(change)||{},note=notaFromChange(change);return {change:change,row:row,note:note,errors:validatePrepared(change,note,row)};});
+    var errors=[];prepared.forEach(function(item){item.errors.forEach(function(error){errors.push((text(item.row&&item.row._nombre)||text(item.note.cedula)||"Estudiante")+": "+error);});});
+    if(errors.length){return Promise.reject(new Error(errors.join(" | ")));}
+    var notes=prepared.map(function(item){return item.note;});
+    var operation=typeof current.saveMany==="function"
+      ?current.saveMany(notes,{enqueue:true,source:"defart",origen:"defart"})
+      :notes.reduce(function(chain,note){return chain.then(function(saved){return current.save(note,{enqueue:true,source:"defart",origen:"defart"}).then(function(){saved.push(note);return saved;});});},Promise.resolve([]));
+    return Promise.resolve(operation).then(function(savedRows){
+      var saved=Array.isArray(savedRows)?savedRows.length:notes.length;
+      var result={ok:true,saved:saved,total:changesList.length,errors:[],direct:true,batch:typeof current.saveMany==="function",source:"ConDefart",message:saved+" cambio(s) guardado(s) mediante ConDefart."};
       try{window.dispatchEvent(new CustomEvent("bdlocal:defart-notas-saved",{detail:result}));}catch(error){}
-      if(!result.ok){throw new Error(errors.join(" | ")||"ConDefart no confirmó todos los cambios.");}
       try{if(window.DefartServiceBridge&&typeof window.DefartServiceBridge.refresh==="function"){window.DefartServiceBridge.refresh();}}catch(error2){}
       return result;
     });
