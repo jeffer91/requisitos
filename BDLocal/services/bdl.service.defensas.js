@@ -216,6 +216,10 @@ Función:
       return "PENDIENTE_DEFENSA";
     }
 
+    if (ndef < 7){
+      return "DEFENSA_NO_APROBADA";
+    }
+
     if (nfin == null){
       return "PENDIENTE_FINAL";
     }
@@ -238,6 +242,9 @@ Función:
 
       PENDIENTE_DEFENSA:
         "Pendiente defensa",
+
+      DEFENSA_NO_APROBADA:
+        "Defensa no aprobada",
 
       PENDIENTE_FINAL:
         "Pendiente nota final",
@@ -687,7 +694,9 @@ Función:
             current ===
               "NO_APROBADO" ||
             current ===
-              "ARTICULO_NO_APROBADO"
+              "ARTICULO_NO_APROBADO" ||
+            current ===
+              "DEFENSA_NO_APROBADA"
           );
         }
       );
