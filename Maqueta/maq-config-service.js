@@ -6,6 +6,7 @@ Función o funciones:
 - Mantener Carga como pantalla inicial.
 - Mostrar nombres completos y consistentes en la navegación.
 - Excluir del menú superior el grupo antiguo Títulos.
+- Excluir Reportes del menú superior.
 ========================================================= */
 (function(window){
   "use strict";
@@ -17,7 +18,6 @@ Función o funciones:
     {tipo:"modulo",moduloId:"stat_main",etiqueta:"Estadísticas"},
     {tipo:"modulo",moduloId:"coordi",etiqueta:"Coordi"},
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
-    {tipo:"modulo",moduloId:"modulo_reporte",etiqueta:"Reportes"},
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"},
