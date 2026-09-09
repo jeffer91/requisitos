@@ -5,6 +5,7 @@ Función o funciones:
 - Controlar la pantalla Carga mediante CargaApp y ConCarga.
 - Mostrar progreso real, continuo y sin retrocesos.
 - Usar BDLocal como fuente oficial de períodos.
+- Resolver el contador de divisiones desde ConCarga sin depender de copias desactualizadas del período.
 - Renderizar textos sin insertar HTML proveniente de archivos.
 ========================================================= */
 (function(window,document){
@@ -58,6 +59,21 @@ Función o funciones:
     var con=connector();if(!con){return Promise.reject(new Error("ConCarga no está cargado."));}
     return Promise.resolve(typeof con.ready==="function"?con.ready():true).then(function(result){if(result&&result.ok===false){throw new Error(result.error||"ConCarga no está listo.");}return con;});
   }
+  function refreshDivisionCount(period){
+    period=period||null;
+    var periodId=canon(period&&period.id||"");
+    var cached=period&&Array.isArray(period.divisiones)?period.divisiones:[];
+    if(!periodId){setText("cargaDivisionesCount","0 divisiones");return Promise.resolve([]);}
+    setText("cargaDivisionesCount",cached.length+" divisiones");
+    return ensureConnector().then(function(con){
+      return typeof con.listDivisions==="function"?con.listDivisions(periodId):cached;
+    }).then(function(rows){
+      var divisions=Array.isArray(rows)?rows:[];
+      var current=selectedDiv();
+      if(current&&current.id===periodId){setText("cargaDivisionesCount",divisions.length+" divisiones");}
+      return divisions;
+    }).catch(function(){return cached;});
+  }
   function showMessage(type,message){
     var node=els.toast||els.message;if(!node){return;}
     node.className=(node===els.toast?"carga-toast ":"carga-message ")+"is-"+(type||"success");node.textContent=message||"";show(node);
@@ -98,11 +114,12 @@ Función o funciones:
   }
   function renderSelectors(){
     var loadCurrent=text(els.periodo&&els.periodo.value||storageGet(LS_PERIODO,""));
-    var divCurrent=text(els.divPeriodo&&els.divPeriodo.value||storageGet(LS_DIV_PERIOD,""));
+    var divStored=text(storageGet(LS_DIV_PERIOD,""));
+    var divCurrent=text(els.divPeriodo&&els.divPeriodo.value||divStored||loadCurrent);
     var delCurrent=text(els.deletePeriodo&&els.deletePeriodo.value);
     fillPeriodSelect(els.periodo,loadCurrent);fillPeriodSelect(els.divPeriodo,divCurrent);fillPeriodSelect(els.deletePeriodo,delCurrent);
     setText("cargaPeriodosCount",periods.length+" período"+(periods.length===1?"":"s"));
-    setText("cargaDivisionesCount",selectedDiv()?(selectedDiv().divisiones||[]).length+" divisiones":"0 divisiones");
+    refreshDivisionCount(selectedDiv());
     updateControls();
   }
   function markUIReady(source){
@@ -170,7 +187,7 @@ Función o funciones:
     if(!period){setText("cargaStatStudents","0");setText("cargaStatCareers","0");setText("cargaStatDivisions","0");setText("cargaStatLastLoad","—");return Promise.resolve([]);}
     setText("cargaResumenPeriodo",period.label);
     return ensureConnector().then(function(con){return Promise.all([con.listStudents({periodoId:period.id,matricula:""}),typeof con.listCareers==="function"?con.listCareers(period.id):[],typeof con.listDivisions==="function"?con.listDivisions(period.id):[]]);})
-      .then(function(values){var students=Array.isArray(values[0])?values[0]:[],careers=Array.isArray(values[1])?values[1]:[],divisions=Array.isArray(values[2])?values[2]:[];setText("cargaStatStudents",students.length);setText("cargaStatCareers",careers.length);setText("cargaStatDivisions",divisions.length);setText("cargaDivisionesCount",divisions.length+" divisiones");setText("cargaStatLastLoad",period.updatedAt?new Date(period.updatedAt).toLocaleDateString("es-EC"):"—");return students;});
+      .then(function(values){var students=Array.isArray(values[0])?values[0]:[],careers=Array.isArray(values[1])?values[1]:[],divisions=Array.isArray(values[2])?values[2]:[];setText("cargaStatStudents",students.length);setText("cargaStatCareers",careers.length);setText("cargaStatDivisions",divisions.length);setText("cargaStatLastLoad",period.updatedAt?new Date(period.updatedAt).toLocaleDateString("es-EC"):"—");refreshDivisionCount(selectedDiv());return students;});
   }
   function loadDeleteSummary(period){
     if(!period){setText("cargaBorrarResumen","Seleccione un período para revisar lo que se borrará.");return Promise.resolve([]);}
@@ -178,6 +195,8 @@ Función o funciones:
   }
   function onPeriodChange(){
     var period=selectedLoad();if(period){storageSet(LS_PERIODO,period.id);storageSet(LS_LABEL,period.label);}else{try{localStorage.removeItem(LS_PERIODO);localStorage.removeItem(LS_LABEL);}catch(error){}}
+    var explicitDiv=text(storageGet(LS_DIV_PERIOD,""));
+    if(period&&els.divPeriodo&&!explicitDiv&&periodById(period.id)){els.divPeriodo.value=period.id;refreshDivisionCount(period);}
     invalidate();loadSummary(period).catch(function(error){showMessage("error",error.message||"No se pudo actualizar el resumen del período.");});emit("bl2:period-change",period?{periodoId:period.id,periodoLabel:period.label,source:"CargaUI-ConCarga"}:{});
   }
   function deleteStudents(){
@@ -205,13 +224,13 @@ Función o funciones:
     if(els.create){els.create.addEventListener("click",createPeriod);}if(els.periodo){els.periodo.addEventListener("change",onPeriodChange);}if(els.file){els.file.addEventListener("change",function(){handleFile(this.files&&this.files[0]);});}
     if(els.drop){els.drop.addEventListener("dragover",function(event){event.preventDefault();els.drop.classList.add("is-over");});els.drop.addEventListener("dragleave",function(){els.drop.classList.remove("is-over");});els.drop.addEventListener("drop",function(event){event.preventDefault();els.drop.classList.remove("is-over");var file=event.dataTransfer&&event.dataTransfer.files&&event.dataTransfer.files[0];if(file){handleFile(file);}});}
     if(els.analyze){els.analyze.addEventListener("click",analyze);}if(els.save){els.save.addEventListener("click",save);}if(els.clear){els.clear.addEventListener("click",function(){if(els.file){els.file.value="";}handleFile(null);if(window.CargaState){window.CargaState.reset();}renderValidation();});}
-    if(els.divPeriodo){els.divPeriodo.addEventListener("change",function(){var period=selectedDiv();storageSet(LS_DIV_PERIOD,period?period.id:"");setText("cargaDivisionesCount",period?(period.divisiones||[]).length+" divisiones":"0 divisiones");updateControls();});}
+    if(els.divPeriodo){els.divPeriodo.addEventListener("change",function(){var period=selectedDiv();storageSet(LS_DIV_PERIOD,period?period.id:"");refreshDivisionCount(period);updateControls();});}
     if(els.divButton){els.divButton.addEventListener("click",function(){var period=selectedDiv();if(period&&window.CargaDivisionesPopup){window.CargaDivisionesPopup.open(period);}});}
     if(els.deletePeriodo){els.deletePeriodo.addEventListener("change",function(){loadDeleteSummary(selectedDelete());updateControls();});}
     if(els.deleteStudents){els.deleteStudents.addEventListener("click",deleteStudents);}if(els.deletePeriod){els.deletePeriod.addEventListener("click",deletePeriod);}
     window.addEventListener("carga:progress",function(event){setProgress(event&&event.detail||{});});
     window.addEventListener("carga:periods-refreshed",function(event){replacePeriods(event&&event.detail&&event.detail.periods||[]);renderSelectors();});
-    window.addEventListener("carga:divisions-saved",function(){refreshPeriods().then(function(){return loadSummary(selectedLoad());}).catch(function(error){showMessage("error",error.message||"No se pudo actualizar el resumen de divisiones.");});});
+    window.addEventListener("carga:divisions-saved",function(){refreshPeriods().then(function(){return Promise.all([loadSummary(selectedLoad()),refreshDivisionCount(selectedDiv())]);}).catch(function(error){showMessage("error",error.message||"No se pudo actualizar el resumen de divisiones.");});});
   }
   function fillMonths(select,selected){if(!select){return;}select.replaceChildren();MONTHS.forEach(function(item){appendOption(select,item[0],item[1]);});select.value=selected;}
   function boot(){
@@ -223,7 +242,7 @@ Función o funciones:
 
   function status(){
     return {
-      version:"4.2.0-visible-ready",
+      version:"4.3.0-readonly-divisions",
       booted:uiBooted,
       readyAt:uiReadyAt,
       busy:busy,
@@ -234,6 +253,6 @@ Función o funciones:
     };
   }
 
-  window.CargaUI={version:"4.2.0-visible-ready",refreshPeriods:refreshPeriods,updateControls:updateControls,status:status};
+  window.CargaUI={version:"4.3.0-readonly-divisions",refreshPeriods:refreshPeriods,refreshDivisionCount:refreshDivisionCount,updateControls:updateControls,status:status};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);

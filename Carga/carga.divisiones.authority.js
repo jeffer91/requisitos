@@ -4,13 +4,14 @@ Ruta o ubicación: /Carga/carga.divisiones.authority.js
 Función o funciones:
 - Hacer que ConCarga entregue una sola configuración de divisiones por período.
 - Priorizar las divisiones persistidas oficialmente y usar cachés locales solo como compatibilidad.
-- Migrar una sola vez divisiones históricas o locales cuando no existe configuración oficial.
+- Recuperar divisiones históricas o locales únicamente como lectura cuando no existe configuración oficial.
+- Impedir que una consulta de divisiones escriba, refresque o cambie el período activo.
 - Evitar que Carga muestre 0 divisiones mientras otras pantallas todavía conocen la configuración.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.1.0-canonical-period-divisions";
+  var VERSION="1.2.0-readonly-resolution";
   var LS_DIVISIONES="carga.periodos.divisiones";
   var LS_PERIODOS="carga.periodos.local";
   var patched=false;
@@ -115,9 +116,6 @@ Función o funciones:
     });
     return sanitize(api,order.map(function(id){return map[id];}),allowedCareers||[]);
   }
-  function hasCareerAssignments(divisions){
-    return (Array.isArray(divisions)?divisions:[]).some(function(item){return item&&Array.isArray(item.carreras)&&item.carreras.length>0;});
-  }
   function localConfigured(periodoId){
     periodoId=canon(periodoId);
     var store=storageGet(LS_DIVISIONES,{})||{};
@@ -142,24 +140,6 @@ Función o funciones:
     if(!found){periods.push(Object.assign({},period,{id:periodoId,periodoId:periodoId,periodoCanonicoId:periodoId,divisiones:divisions||[],carrerasDetectadas:careers||[],updatedAt:now()}));}
     storageSet(LS_PERIODOS,periods);
   }
-  function periodRecord(api,periodoId){
-    periodoId=canon(periodoId);
-    if(!api||typeof api.getPeriods!=="function"){return Promise.resolve({id:periodoId,periodoId:periodoId});}
-    return Promise.resolve(api.getPeriods()).catch(function(){return [];}).then(function(periods){
-      return (Array.isArray(periods)?periods:[]).filter(function(item){return periodIdOf(item)===periodoId;})[0]||{id:periodoId,periodoId:periodoId,periodoCanonicoId:periodoId};
-    });
-  }
-  function persistMigration(api,originalSaveDivisions,period,divisions,careers,source){
-    return Promise.resolve(originalSaveDivisions(period,divisions)).then(function(result){
-      var saved=result&&result.period&&Array.isArray(result.period.divisiones)?result.period.divisiones:divisions;
-      saved=sanitize(api,saved,careers);
-      cacheLocal(result&&result.period||period,saved,careers);
-      var detail={ok:true,periodoId:periodIdOf(result&&result.period||period),divisiones:saved.length,carreras:careers.length,migrated:true,source:source||"CargaDivisionAuthority",version:VERSION};
-      emit("carga:divisions-migrated",detail);
-      emit("carga:divisions-saved",detail);
-      return saved;
-    });
-  }
 
   function patchApi(api){
     if(!api||api.__cargaDivisionAuthorityPatched){return api;}
@@ -173,27 +153,18 @@ Función o funciones:
       var rowsTask=typeof api.listStudents==="function"?api.listStudents({periodoId:periodoId,matricula:""}):Promise.resolve([]);
       return Promise.all([
         Promise.resolve(originalListDivisions(periodoId)).catch(function(){return [];}),
-        Promise.resolve(rowsTask).catch(function(){return [];}),
-        periodRecord(api,periodoId)
+        Promise.resolve(rowsTask).catch(function(){return [];})
       ]).then(function(values){
         var official=Array.isArray(values[0])?values[0]:[];
         var rows=Array.isArray(values[1])?values[1]:[];
-        var period=values[2]||{id:periodoId,periodoId:periodoId};
         var careers=uniqueCareers(api,rows);
-        if(official.length){return sanitize(api,official,careers);}
+        var officialSafe=sanitize(api,official,careers);
+        if(officialSafe.length){return officialSafe;}
 
         var legacy=legacyDivisions(api,rows,careers);
-        var local=localConfigured(periodoId);
-        var configured=mergeConfiguredWithLegacy(api,local,legacy,careers);
-        if(configured.length){
-          if(!rows.length||hasCareerAssignments(configured)){
-            return persistMigration(api,originalSaveDivisions,period,configured,careers,"CargaDivisionAuthority.local-migration").catch(function(){return configured;});
-          }
-          return configured;
-        }
-
-        if(!legacy.length){return [];}
-        return persistMigration(api,originalSaveDivisions,period,legacy,careers,"CargaDivisionAuthority.legacy-migration").catch(function(){return legacy;});
+        var configured=mergeConfiguredWithLegacy(api,localConfigured(periodoId),legacy,careers);
+        if(configured.length){return configured;}
+        return sanitize(api,legacy,careers);
       });
     };
     api.getDivisions=api.listDivisions;
@@ -223,5 +194,5 @@ Función o funciones:
     patchApi(api);patched=true;return Promise.resolve(api);
   }
 
-  window.CargaDivisionAuthority={version:VERSION,install:install,patchApi:patchApi,legacyDivisions:legacyDivisions,mergeConfiguredWithLegacy:mergeConfiguredWithLegacy};
+  window.CargaDivisionAuthority={version:VERSION,install:install,patchApi:patchApi,legacyDivisions:legacyDivisions,mergeConfiguredWithLegacy:mergeConfiguredWithLegacy,localConfigured:localConfigured};
 })(window);
