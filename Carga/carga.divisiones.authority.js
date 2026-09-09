@@ -4,13 +4,13 @@ Ruta o ubicación: /Carga/carga.divisiones.authority.js
 Función o funciones:
 - Hacer que ConCarga entregue una sola configuración de divisiones por período.
 - Priorizar las divisiones persistidas oficialmente y usar cachés locales solo como compatibilidad.
-- Migrar una sola vez divisiones históricas de estudiantes cuando no existe configuración oficial.
+- Migrar una sola vez divisiones históricas o locales cuando no existe configuración oficial.
 - Evitar que Carga muestre 0 divisiones mientras otras pantallas todavía conocen la configuración.
 ========================================================= */
 (function(window){
   "use strict";
 
-  var VERSION="1.0.0-canonical-period-divisions";
+  var VERSION="1.1.0-canonical-period-divisions";
   var LS_DIVISIONES="carga.periodos.divisiones";
   var LS_PERIODOS="carga.periodos.local";
   var patched=false;
@@ -100,6 +100,24 @@ Función o funciones:
     });
     return Object.keys(divisions).map(function(id){var item=divisions[id];item.carreras=uniqueCareers(api,item.carreras);return item;}).sort(function(a,b){return a.nombre.localeCompare(b.nombre,"es",{sensitivity:"base"});});
   }
+  function mergeConfiguredWithLegacy(api,configured,legacy,allowedCareers){
+    var map=Object.create(null),order=[];
+    (Array.isArray(configured)?configured:[]).forEach(function(item){
+      var div=normalizeDivision(api,item);if(!div){return;}
+      var id=key(div.nombre||div.id);if(!map[id]){map[id]=div;order.push(id);}
+      else{map[id].carreras=uniqueCareers(api,[].concat(map[id].carreras||[],div.carreras||[]));}
+    });
+    (Array.isArray(legacy)?legacy:[]).forEach(function(item){
+      var div=normalizeDivision(api,item);if(!div){return;}
+      var id=key(div.nombre||div.id);
+      if(!map[id]){map[id]=div;order.push(id);}
+      else if(!(map[id].carreras||[]).length){map[id].carreras=div.carreras||[];}
+    });
+    return sanitize(api,order.map(function(id){return map[id];}),allowedCareers||[]);
+  }
+  function hasCareerAssignments(divisions){
+    return (Array.isArray(divisions)?divisions:[]).some(function(item){return item&&Array.isArray(item.carreras)&&item.carreras.length>0;});
+  }
   function localConfigured(periodoId){
     periodoId=canon(periodoId);
     var store=storageGet(LS_DIVISIONES,{})||{};
@@ -131,6 +149,17 @@ Función o funciones:
       return (Array.isArray(periods)?periods:[]).filter(function(item){return periodIdOf(item)===periodoId;})[0]||{id:periodoId,periodoId:periodoId,periodoCanonicoId:periodoId};
     });
   }
+  function persistMigration(api,originalSaveDivisions,period,divisions,careers,source){
+    return Promise.resolve(originalSaveDivisions(period,divisions)).then(function(result){
+      var saved=result&&result.period&&Array.isArray(result.period.divisiones)?result.period.divisiones:divisions;
+      saved=sanitize(api,saved,careers);
+      cacheLocal(result&&result.period||period,saved,careers);
+      var detail={ok:true,periodoId:periodIdOf(result&&result.period||period),divisiones:saved.length,carreras:careers.length,migrated:true,source:source||"CargaDivisionAuthority",version:VERSION};
+      emit("carga:divisions-migrated",detail);
+      emit("carga:divisions-saved",detail);
+      return saved;
+    });
+  }
 
   function patchApi(api){
     if(!api||api.__cargaDivisionAuthorityPatched){return api;}
@@ -153,18 +182,18 @@ Función o funciones:
         var careers=uniqueCareers(api,rows);
         if(official.length){return sanitize(api,official,careers);}
 
-        var configured=sanitize(api,localConfigured(periodoId),careers);
-        if(configured.length){return configured;}
+        var legacy=legacyDivisions(api,rows,careers);
+        var local=localConfigured(periodoId);
+        var configured=mergeConfiguredWithLegacy(api,local,legacy,careers);
+        if(configured.length){
+          if(!rows.length||hasCareerAssignments(configured)){
+            return persistMigration(api,originalSaveDivisions,period,configured,careers,"CargaDivisionAuthority.local-migration").catch(function(){return configured;});
+          }
+          return configured;
+        }
 
-        var migrated=legacyDivisions(api,rows,careers);
-        if(!migrated.length){return [];}
-        return Promise.resolve(originalSaveDivisions(period,migrated)).then(function(result){
-          var saved=result&&result.period&&Array.isArray(result.period.divisiones)?result.period.divisiones:migrated;
-          saved=sanitize(api,saved,careers);
-          cacheLocal(result&&result.period||period,saved,careers);
-          emit("carga:divisions-migrated",{ok:true,periodoId:periodoId,divisiones:saved.length,source:"CargaDivisionAuthority",version:VERSION});
-          return saved;
-        }).catch(function(){return migrated;});
+        if(!legacy.length){return [];}
+        return persistMigration(api,originalSaveDivisions,period,legacy,careers,"CargaDivisionAuthority.legacy-migration").catch(function(){return legacy;});
       });
     };
     api.getDivisions=api.listDivisions;
@@ -194,5 +223,5 @@ Función o funciones:
     patchApi(api);patched=true;return Promise.resolve(api);
   }
 
-  window.CargaDivisionAuthority={version:VERSION,install:install,patchApi:patchApi,legacyDivisions:legacyDivisions};
+  window.CargaDivisionAuthority={version:VERSION,install:install,patchApi:patchApi,legacyDivisions:legacyDivisions,mergeConfiguredWithLegacy:mergeConfiguredWithLegacy};
 })(window);
