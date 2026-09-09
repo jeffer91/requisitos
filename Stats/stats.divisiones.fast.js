@@ -2,50 +2,46 @@
 Nombre completo: stats.divisiones.fast.js
 Ruta o ubicación: /Requisitos/Stats/stats.divisiones.fast.js
 Función o funciones:
-- Hacer que Stats use divisiones configuradas por período para llenar filtros.
-- Evitar que el selector de divisiones dependa solo de recorrer estudiantes.
+- Hacer que Stats use exclusivamente las divisiones configuradas para el período.
+- Evitar que valores históricos de estudiantes reconstruyan divisiones inexistentes.
 - Mantener el resumen calculado por StatsCore sin romper KPIs ni tablas.
-Con qué se conecta:
-- ../BDLocal/adapters/bdl.divisiones.fast-cache.js
-- stats.core.js
-- stats.app.js
 ========================================================= */
 (function(window){
   "use strict";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
-
   function unique(list){
     var map = {};
     (Array.isArray(list) ? list : []).forEach(function(item){
-      item = text(item);
+      item = text(item && typeof item === "object" ? (item.nombre || item.label || item.name || item.id || item.value) : item);
       if(item){ map[item.toLowerCase()] = item; }
     });
     return Object.keys(map).map(function(key){ return map[key]; }).sort(function(a, b){
       return a.localeCompare(b, "es", { sensitivity:"base" });
     });
   }
-
   function configuredDivisions(periodId, rows){
     var service = window.BLDivisionesService || null;
     periodId = text(periodId);
-    if(!service){ return []; }
+    if(!service || !periodId){ return { authoritative:false, values:[] }; }
 
     try{
       if(typeof service.listDivisionsWithEmpty === "function"){
-        return unique(service.listDivisionsWithEmpty(rows || [], "", { periodoId:periodId, periodId:periodId }) || []);
+        return { authoritative:true, values:unique(service.listDivisionsWithEmpty(rows || [], "", { periodoId:periodId, periodId:periodId }) || []) };
       }
     }catch(error){}
-
     try{
-      if(periodId && typeof service.divisionsForPeriod === "function"){
-        return unique((service.divisionsForPeriod(periodId) || []).map(function(div){ return div && (div.nombre || div.label || div.id); }));
+      if(typeof service.listDivisions === "function"){
+        return { authoritative:true, values:unique(service.listDivisions(rows || [], { periodoId:periodId, periodId:periodId }) || []) };
       }
     }catch(error2){}
-
-    return [];
+    try{
+      if(typeof service.divisionsForPeriod === "function"){
+        return { authoritative:true, values:unique(service.divisionsForPeriod(periodId) || []) };
+      }
+    }catch(error3){}
+    return { authoritative:true, values:[] };
   }
-
   function patch(){
     if(!window.StatsCore || window.StatsCore.__divisionesFastInstalled){ return false; }
     if(typeof window.StatsCore.resumen !== "function"){ return false; }
@@ -57,22 +53,22 @@ Con qué se conecta:
       var data = originalResumen.apply(window.StatsCore, arguments) || {};
       options = options || {};
       var periodId = text(options.periodId || options.periodoId || "");
-      var configured = configuredDivisions(periodId, data.rows || data.estudiantes || []);
-      if(configured.length){ data.divisionList = configured; }
+      var authority = configuredDivisions(periodId, data.rows || data.estudiantes || []);
+      if(authority.authoritative){ data.divisionList = authority.values.slice(); }
       return data;
     };
 
     window.StatsCore.divisions = function(list, options){
       options = options || {};
-      var configured = configuredDivisions(options.periodId || options.periodoId || "", list || []);
-      if(configured.length){ return configured; }
+      var authority = configuredDivisions(options.periodId || options.periodoId || "", list || []);
+      if(authority.authoritative){ return authority.values.slice(); }
       return originalDivisions ? originalDivisions.apply(window.StatsCore, arguments) : [];
     };
 
     window.StatsCore.__divisionesFastInstalled = true;
+    window.StatsCore.__divisionesAuthoritativeByPeriod = true;
     return true;
   }
-
   function boot(){
     if(patch()){ return; }
     var tries = 0;
@@ -82,9 +78,6 @@ Con qué se conecta:
     }, 120);
   }
 
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", boot);
-  }else{
-    boot();
-  }
+  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
+  else{ boot(); }
 })(window);
