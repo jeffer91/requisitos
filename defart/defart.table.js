@@ -4,7 +4,7 @@ Ruta o ubicación: /Requisitos/defart/defart.table.js
 Función o funciones:
 - Renderizar la tabla visual de Defensas separada de defart.app.js.
 - Mostrar encabezados ordenables con indicador visual ascendente/descendente.
-- Pintar filas alternadas y estados: pendiente, completo, error, guardado y cambios sin guardar.
+- Pintar filas alternadas y estados, dando prioridad visual a requisitos incompletos o no cargados.
 - Mostrar en Acciones un botón claro de Guardar por fila.
 - Actualizar vista previa de una fila sin reconstruir toda la tabla.
 - Mantener la fila más liviana: sin período debajo del nombre y sin sede debajo de carrera.
@@ -64,6 +64,29 @@ Con qué se conecta:
     if(value === "Supletorio Art" || value === "Supletorio Def"){ return "estado-supletorio"; }
     return "estado-pendiente";
   }
+  function requirementsVisualState(row){
+    row = row || {};
+    if(row._requirementsLoaded === false){
+      return {
+        rowClass:"requirements-not-loaded",
+        pillClass:"estado-requisitos-no-cargados",
+        label:"Requisitos no cargados",
+        title:"Los requisitos todavía no están cargados."
+      };
+    }
+    if(row._requirementsOk === false || row._estadoDefensa === "Sin requisitos"){
+      var missing = Array.isArray(row._missingRequirements)
+        ? row._missingRequirements.map(text).filter(Boolean)
+        : [];
+      return {
+        rowClass:"requirements-incomplete",
+        pillClass:"estado-requisitos-incompletos",
+        label:"Requisitos incompletos",
+        title:missing.length ? "Faltan: " + missing.join(", ") : "Tiene requisitos pendientes."
+      };
+    }
+    return null;
+  }
   function feedbackFor(id, options){
     var map = options && options.rowFeedback ? options.rowFeedback : {};
     return text(map[id]);
@@ -72,6 +95,8 @@ Con qué se conecta:
     var row = withPending(original, options);
     var id = original && original._defId;
     var classes = [stateClass(row)];
+    var requirementState = requirementsVisualState(row);
+    if(requirementState){ classes.push(requirementState.rowClass); }
     if(pendingPatch(original, options)){ classes.push("is-pending"); }
     var feedback = feedbackFor(id, options);
     if(feedback === "saving"){ classes.push("is-saving"); }
@@ -81,6 +106,10 @@ Con qué se conecta:
   }
   function statePill(row){
     row = row || {};
+    var requirementState = requirementsVisualState(row);
+    if(requirementState){
+      return '<span class="def-pill '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'">'+esc(requirementState.label)+'</span>';
+    }
     return '<span class="def-pill '+esc(stateClass(row))+'">'+esc(row._estadoDefensa || "Pendiente")+'</span>';
   }
   function sortIcon(key, options){
