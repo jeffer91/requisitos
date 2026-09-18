@@ -332,3 +332,91 @@ Con qué se conecta:
     padding: 0 9px;
   }
 }
+
+
+/* =========================================================
+   Alerta prioritaria de requisitos en Defensas
+   - Rojo siempre que existan requisitos incompletos.
+   - Amarillo siempre que los requisitos todavía no estén cargados.
+   - Los estados de guardado no pueden ocultar estas alertas.
+========================================================= */
+.def-pill.def-requirement-alert{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-left: 9px;
+  padding-right: 10px;
+  font-weight: 1000;
+}
+
+.def-requirement-alert-icon{
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 1000;
+}
+
+.def-pill.estado-requisitos-incompletos .def-requirement-alert-icon{
+  background: #ffffff;
+  color: #b91c1c;
+}
+
+.def-pill.estado-requisitos-no-cargados .def-requirement-alert-icon{
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+/* Prioridad absoluta: un pendiente/guardado/error nunca tapa el rojo de requisitos. */
+.def-table tbody tr.requirements-incomplete td,
+.def-table tbody tr.requirements-incomplete:hover td,
+.def-table tbody tr.requirements-incomplete.is-pending td,
+.def-table tbody tr.requirements-incomplete.is-saved td,
+.def-table tbody tr.requirements-incomplete.is-saving td,
+.def-table tbody tr.requirements-incomplete.is-error td{
+  background: #fee2e2 !important;
+}
+
+.def-table tbody tr.requirements-incomplete td:first-child,
+.def-table tbody tr.requirements-incomplete:hover td:first-child,
+.def-table tbody tr.requirements-incomplete.is-pending td:first-child,
+.def-table tbody tr.requirements-incomplete.is-saved td:first-child,
+.def-table tbody tr.requirements-incomplete.is-saving td:first-child,
+.def-table tbody tr.requirements-incomplete.is-error td:first-child{
+  border-left-color: #dc2626 !important;
+  box-shadow: inset 5px 0 0 #dc2626 !important;
+}
+
+.def-table tbody tr.requirements-incomplete .col-accion{
+  background: #fee2e2 !important;
+}
+
+/* Los requisitos todavía no cargados conservan advertencia amarilla. */
+.def-table tbody tr.requirements-not-loaded td,
+.def-table tbody tr.requirements-not-loaded:hover td,
+.def-table tbody tr.requirements-not-loaded.is-pending td,
+.def-table tbody tr.requirements-not-loaded.is-saved td,
+.def-table tbody tr.requirements-not-loaded.is-saving td,
+.def-table tbody tr.requirements-not-loaded.is-error td{
+  background: #fff7ed !important;
+}
+
+.def-table tbody tr.requirements-not-loaded td:first-child,
+.def-table tbody tr.requirements-not-loaded:hover td:first-child,
+.def-table tbody tr.requirements-not-loaded.is-pending td:first-child,
+.def-table tbody tr.requirements-not-loaded.is-saved td:first-child,
+.def-table tbody tr.requirements-not-loaded.is-saving td:first-child,
+.def-table tbody tr.requirements-not-loaded.is-error td:first-child{
+  border-left-color: #f59e0b !important;
+  box-shadow: inset 5px 0 0 #f59e0b !important;
+}
+
+.def-table tbody tr.requirements-not-loaded .col-accion{
+  background: #fff7ed !important;
+}
