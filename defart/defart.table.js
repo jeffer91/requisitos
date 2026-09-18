@@ -70,7 +70,7 @@ Con qué se conecta:
       return {
         rowClass:"requirements-not-loaded",
         pillClass:"estado-requisitos-no-cargados",
-        label:"Requisitos no cargados",
+        label:"Req. no cargados",
         title:"Los requisitos todavía no están cargados."
       };
     }
@@ -81,7 +81,7 @@ Con qué se conecta:
       return {
         rowClass:"requirements-incomplete",
         pillClass:"estado-requisitos-incompletos",
-        label:"Requisitos incompletos",
+        label:"Req. incompletos",
         title:missing.length ? "Faltan: " + missing.join(", ") : "Tiene requisitos pendientes."
       };
     }
@@ -108,7 +108,7 @@ Con qué se conecta:
     row = row || {};
     var requirementState = requirementsVisualState(row);
     if(requirementState){
-      return '<span class="def-pill def-requirement-alert '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'"><span class="def-requirement-alert-icon" aria-hidden="true">!</span><span>'+esc(requirementState.label)+'</span></span>';
+      return '<span class="def-pill def-requirement-alert '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'"><span class="def-requirement-alert-icon" aria-hidden="true"></span><span>'+esc(requirementState.label)+'</span></span>';
     }
     return '<span class="def-pill '+esc(stateClass(row))+'">'+esc(row._estadoDefensa || "Pendiente")+'</span>';
   }
