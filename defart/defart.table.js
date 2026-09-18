@@ -108,7 +108,7 @@ Con qué se conecta:
     row = row || {};
     var requirementState = requirementsVisualState(row);
     if(requirementState){
-      return '<span class="def-pill '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'">'+esc(requirementState.label)+'</span>';
+      return '<span class="def-pill def-requirement-alert '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'"><span class="def-requirement-alert-icon" aria-hidden="true">!</span><span>'+esc(requirementState.label)+'</span></span>';
     }
     return '<span class="def-pill '+esc(stateClass(row))+'">'+esc(row._estadoDefensa || "Pendiente")+'</span>';
   }
@@ -266,7 +266,7 @@ Con qué se conecta:
     var ndefInput = rowEl.querySelector('.def-note-input[data-field="ndef"]');
     if(ndefInput){
       ndefInput.disabled = !preview._canDef;
-      ndefInput.title = preview._canDef ? "" : "Bloqueado hasta tener N-ART igual o mayor a 7.";
+      ndefInput.title = preview._canDef ? "" : "Bloqueado hasta cumplir requisitos y tener N-ART igual o mayor a 7.";
     }
   }
   function defaultHeaders(){ return HEADERS.slice(); }
