@@ -2,23 +2,21 @@
 Nombre completo: cr-def.export.js
 Ruta: /Cr-def/cr-def.export.js
 Función:
-- Exportar el cronograma real agrupado por carrera.
-- Usar Día, Hora, Sede, Nombres completos, Carrera, Tribunal 1/Coordinador,
-  Tribunal 2, Investigador y Aula.
-- Mantener cédula, notas y estado solo como datos internos.
+- Exportar cronograma agrupado por fecha y carrera.
+- Incluir Hora, Estudiante, Cédula, Sede, Tribunal 1, Tribunal 2,
+  Tribunal 3 (investigador) y Aula.
 ========================================================= */
 (function(window,document){
   "use strict";
 
   var COLUMNS=[
-    ["dia","Día"],
     ["hora","Hora"],
+    ["nombre","Estudiante"],
+    ["cedula","Cédula"],
     ["sede","Sede"],
-    ["nombre","Nombres completos"],
-    ["carrera","Carrera"],
-    ["tribunal1","Tribunal 1 / Coordinador"],
+    ["tribunal1","Tribunal 1"],
     ["tribunal2","Tribunal 2"],
-    ["investigador","Investigador"],
+    ["investigador","Tribunal 3"],
     ["aula","Aula"]
   ];
 
@@ -28,7 +26,7 @@ Función:
   function esc(value){return txt(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;");}
   function app(){return window.CR_DEF_APP||null;}
   function state(){return app()&&app().state?app().state:null;}
-  function value(row,key){if(key==="investigador")return txt(row&& (row.investigador||row.tribunal3));return txt(row&&row[key]);}
+  function value(row,key){if(key==="investigador")return txt(row&&(row.investigador||row.tribunal3));return txt(row&&row[key]);}
 
   function rowMatches(row,st){
     st=st||{};var filtros=st.filtros||{};
@@ -36,10 +34,7 @@ Función:
     if(st.busqueda&&haystack.indexOf(norm(st.busqueda))===-1)return false;
     if(filtros.carrera&&norm(row.carrera)!==norm(filtros.carrera))return false;
     if(filtros.sede&&norm(row.sede)!==norm(filtros.sede))return false;
-    if(filtros.estado){
-      if(filtros.estado==="sin-cupo")return !txt(row.dia)||!txt(row.hora);
-      return norm(row.estadoClave)===norm(filtros.estado);
-    }
+    if(filtros.estado&&norm(row.estadoClave)!==norm(filtros.estado))return false;
     return true;
   }
 
@@ -47,14 +42,16 @@ Función:
     var raw=txt(value),m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/),iso=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if(iso)return iso[1]+"-"+String(iso[2]).padStart(2,"0")+"-"+String(iso[3]).padStart(2,"0");
     if(m)return m[3]+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0");
-    return "9999-99-99|"+raw;
+    return "9999-99-99";
   }
 
   function sortedRows(rows){
     return (rows||[]).slice().sort(function(a,b){
+      var da=dateSortKey(a.dia),db=dateSortKey(b.dia);
+      if(da!==db)return da.localeCompare(db);
       var c=txt(a.carrera).localeCompare(txt(b.carrera),"es",{sensitivity:"base"});
       if(c!==0)return c;
-      return [dateSortKey(a.dia),txt(a.hora),txt(a.nombre)].join("|").localeCompare([dateSortKey(b.dia),txt(b.hora),txt(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
+      return [txt(a.hora),txt(a.nombre)].join("|").localeCompare([txt(b.hora),txt(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
     });
   }
 
@@ -65,13 +62,26 @@ Función:
   }
 
   function grouped(rows){
-    var groups=[],map=Object.create(null);
+    var dates=[],dateMap=Object.create(null);
     (rows||[]).forEach(function(row){
-      var name=txt(row.carrera)||"SIN CARRERA",key=norm(name);
-      if(!map[key]){map[key]={carrera:name,rows:[]};groups.push(map[key]);}
-      map[key].rows.push(row);
+      var dateLabel=txt(row.dia)||"SIN FECHA";
+      var dateKey=dateSortKey(row.dia)+"|"+norm(dateLabel);
+      if(!dateMap[dateKey]){
+        dateMap[dateKey]={dia:dateLabel,carreras:[],careerMap:Object.create(null)};
+        dates.push(dateMap[dateKey]);
+      }
+      var dateGroup=dateMap[dateKey];
+      var career=txt(row.carrera)||"SIN CARRERA",careerKey=norm(career);
+      if(!dateGroup.careerMap[careerKey]){
+        dateGroup.careerMap[careerKey]={carrera:career,rows:[]};
+        dateGroup.carreras.push(dateGroup.careerMap[careerKey]);
+      }
+      dateGroup.careerMap[careerKey].rows.push(row);
     });
-    return groups;
+    dates.forEach(function(dateGroup){
+      dateGroup.carreras.sort(function(a,b){return a.carrera.localeCompare(b.carrera,"es",{sensitivity:"base"});});
+    });
+    return dates;
   }
 
   function periodoLabel(){
@@ -85,9 +95,7 @@ Función:
     if(kind==="warn"||kind==="danger"){
       if(panel)panel.hidden=false;
       if(box){box.className="cr-alert cr-alert--"+kind;box.innerHTML="<strong>"+esc(title||"Aviso")+"</strong> "+esc(message||"");}
-    }else if(panel){
-      panel.hidden=true;
-    }
+    }else if(panel){panel.hidden=true;}
   }
 
   function injectPanel(){
@@ -95,9 +103,11 @@ Función:
     var actions=$(".cr-toolbar");
     if(!actions||!actions.parentNode)return;
     var panel=document.createElement("section");
-    panel.className="cr-export-panel";panel.hidden=true;panel.setAttribute("data-cr-export-panel","");
-    panel.innerHTML="<div class=\"cr-export-head\"><div><h2>Exportar cronograma</h2><p>La salida se agrupa por carrera con la estructura institucional.</p></div><button type=\"button\" class=\"cr-btn\" data-cr-export-close>Cerrar</button></div>"+
-      "<div class=\"cr-export-actions\"><button type=\"button\" class=\"cr-btn cr-btn--primary\" data-cr-export-csv>Excel CSV</button><button type=\"button\" class=\"cr-btn\" data-cr-export-pdf>PDF / Imprimir</button><button type=\"button\" class=\"cr-btn\" data-cr-export-whatsapp>Texto WhatsApp</button><button type=\"button\" class=\"cr-btn\" data-cr-export-mail>Tabla correo</button></div>"+
+    panel.className="cr-export-panel";
+    panel.hidden=true;
+    panel.setAttribute("data-cr-export-panel","");
+    panel.innerHTML="<div class=\"cr-export-head\"><div><h2>Exportar cronograma</h2><p>La salida respeta Fecha → Carrera → estudiantes.</p></div><button type=\"button\" class=\"cr-btn\" data-cr-export-close>Cerrar</button></div>"+
+      "<div class=\"cr-export-actions\"><button type=\"button\" class=\"cr-btn\" data-cr-export-csv>Excel CSV</button><button type=\"button\" class=\"cr-btn\" data-cr-export-pdf>PDF / Imprimir</button><button type=\"button\" class=\"cr-btn\" data-cr-export-whatsapp>Texto WhatsApp</button><button type=\"button\" class=\"cr-btn\" data-cr-export-mail>Tabla correo</button></div>"+
       "<p class=\"cr-export-note\" data-cr-export-note>Selecciona una opción.</p><textarea class=\"cr-copy-box\" data-cr-export-copy hidden readonly></textarea>";
     actions.parentNode.insertBefore(panel,actions.nextSibling);
   }
@@ -112,37 +122,49 @@ Función:
     var rows=filteredRows();
     if(!rows.length){setAlert("warn","Sin datos.","No hay filas para exportar.");return;}
     var lines=[];
-    grouped(rows).forEach(function(group,index){
-      lines.push(csvCell(group.carrera));
-      lines.push(COLUMNS.map(function(c){return csvCell(c[1]);}).join(","));
-      group.rows.forEach(function(row){lines.push(COLUMNS.map(function(c){return csvCell(value(row,c[0]));}).join(","));});
-      if(index<grouped(rows).length-1)lines.push("");
+    grouped(rows).forEach(function(dateGroup,dateIndex){
+      lines.push(csvCell(dateGroup.dia));
+      dateGroup.carreras.forEach(function(group,careerIndex){
+        lines.push(csvCell(group.carrera));
+        lines.push(COLUMNS.map(function(c){return csvCell(c[1]);}).join(","));
+        group.rows.forEach(function(row){lines.push(COLUMNS.map(function(c){return csvCell(value(row,c[0]));}).join(","));});
+        if(careerIndex<dateGroup.carreras.length-1)lines.push("");
+      });
+      if(dateIndex<grouped(rows).length-1)lines.push("");
     });
     var blob=new Blob(["\ufeff"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
     var url=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=url;a.download=filename("csv");document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},500);
-    setAlert("info","CSV generado.","Se exportaron "+rows.length+" defensas agrupadas por carrera.");
+    a.href=url;a.download=filename("csv");document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},500);
+    setAlert("info","","");
   }
 
   function buildPlainText(rows){
     var lines=["CRONOGRAMA DE DEFENSAS - "+periodoLabel(),""];
-    grouped(rows).forEach(function(group){
-      lines.push(group.carrera.toUpperCase());
-      group.rows.forEach(function(r){
-        lines.push([value(r,"dia"),value(r,"hora"),value(r,"sede"),value(r,"nombre"),value(r,"tribunal1"),value(r,"tribunal2"),value(r,"investigador"),"Aula "+(value(r,"aula")||"-")].filter(Boolean).join(" | "));
+    grouped(rows).forEach(function(dateGroup){
+      lines.push(dateGroup.dia);
+      dateGroup.carreras.forEach(function(group){
+        lines.push(group.carrera.toUpperCase());
+        lines.push("Hora | Estudiante | Cédula | Sede | Tribunal 1 | Tribunal 2 | Tribunal 3 | Aula");
+        group.rows.forEach(function(r){
+          lines.push(COLUMNS.map(function(c){return value(r,c[0])||"—";}).join(" | "));
+        });
+        lines.push("");
       });
-      lines.push("");
     });
     return lines.join("\n");
   }
 
   function buildHtmlTable(rows){
     var html="<h2>Cronograma de defensas - "+esc(periodoLabel())+"</h2>";
-    grouped(rows).forEach(function(group){
-      html+="<h3>"+esc(group.carrera)+"</h3><table border=\"1\" cellspacing=\"0\" cellpadding=\"6\" style=\"border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;margin-bottom:16px\"><thead><tr>";
-      html+=COLUMNS.map(function(c){return "<th>"+esc(c[1])+"</th>";}).join("")+"</tr></thead><tbody>";
-      group.rows.forEach(function(row){html+="<tr>"+COLUMNS.map(function(c){return "<td>"+esc(value(row,c[0]))+"</td>";}).join("")+"</tr>";});
-      html+="</tbody></table>";
+    grouped(rows).forEach(function(dateGroup){
+      html+="<h3>"+esc(dateGroup.dia)+"</h3>";
+      dateGroup.carreras.forEach(function(group){
+        html+="<h4>"+esc(group.carrera)+"</h4><table border=\"1\" cellspacing=\"0\" cellpadding=\"6\" style=\"border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;margin-bottom:16px\"><thead><tr>";
+        html+=COLUMNS.map(function(c){return "<th>"+esc(c[1])+"</th>";}).join("")+"</tr></thead><tbody>";
+        group.rows.forEach(function(row){html+="<tr>"+COLUMNS.map(function(c){return "<td>"+esc(value(row,c[0])||"—")+"</td>";}).join("")+"</tr>";});
+        html+="</tbody></table>";
+      });
     });
     return html;
   }
@@ -154,9 +176,9 @@ Función:
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(valueText).catch(function(){});
   }
 
-  function exportWhatsApp(){var rows=filteredRows();if(!rows.length){setAlert("warn","Sin datos.","No hay filas para preparar WhatsApp.");return;}showCopyBox(buildPlainText(rows),"Texto agrupado por carrera generado.");}
-  function exportMail(){var rows=filteredRows();if(!rows.length){setAlert("warn","Sin datos.","No hay filas para preparar correo.");return;}showCopyBox(buildHtmlTable(rows),"Tabla HTML agrupada por carrera generada.");window.location.href="mailto:?subject="+encodeURIComponent("Cronograma de defensas - "+periodoLabel())+"&body="+encodeURIComponent(buildPlainText(rows));}
-  function exportPDF(){var rows=filteredRows();if(!rows.length){setAlert("warn","Sin datos.","No hay filas para imprimir.");return;}setAlert("info","Preparando PDF.","Se imprimirá únicamente la tabla del cronograma.");setTimeout(function(){window.print();},200);}
+  function exportWhatsApp(){var rows=filteredRows();if(!rows.length){setAlert("warn","Sin datos.","No hay filas para preparar WhatsApp.");return;}showCopyBox(buildPlainText(rows),"Texto generado con fecha, carrera y cédula.");}
+  function exportMail(){var rows=filteredRows();if(!rows.length){setAlert("warn","Sin datos.","No hay filas para preparar correo.");return;}showCopyBox(buildHtmlTable(rows),"Tabla HTML generada.");window.location.href="mailto:?subject="+encodeURIComponent("Cronograma de defensas - "+periodoLabel())+"&body="+encodeURIComponent(buildPlainText(rows));}
+  function exportPDF(){var rows=filteredRows();if(!rows.length){setAlert("warn","Sin datos.","No hay filas para imprimir.");return;}setTimeout(function(){window.print();},150);}
   function togglePanel(){var panel=$("[data-cr-export-panel]");if(panel)panel.hidden=!panel.hidden;}
   function updateButton(){var btn=$("[data-cr-exportar]");if(btn)btn.disabled=!filteredRows().length;}
 
