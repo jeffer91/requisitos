@@ -269,7 +269,7 @@ Con qué se conecta:
       updateFiltersFromRows(state.rows);
       renderTable();
       updateButtons();
-      setAlert("info", "Cache cargada.", "Se muestran datos guardados localmente. Presiona Actualizar aptos para refrescar desde BDLocal.");
+      setAlert("info", "Cache cargada.", "Se muestran datos guardados localmente mientras Cr-def actualiza los aptos desde BDLocal.");
       return;
     }
 
@@ -278,7 +278,7 @@ Con qué se conecta:
     updateFiltersFromRows([]);
     renderTable();
     updateButtons();
-    setAlert("warn", "Sin cache para este período.", "Presiona Actualizar aptos para leer BDLocal y crear la cache rápida de Cr-def.");
+    setAlert("info", "Preparando período.", "Cr-def leerá BDLocal automáticamente y creará la cache rápida de este período.");
   }
 
   function setCacheStatus(message){
@@ -438,14 +438,14 @@ Con qué se conecta:
     els.tablaBody.innerHTML = "";
 
     if(!state.periodo){
-      els.tablaBody.appendChild(emptyRow("Selecciona un período y presiona Actualizar aptos."));
+      els.tablaBody.appendChild(emptyRow("Selecciona un período. Cr-def cargará automáticamente los estudiantes aptos."));
       updateSummary(filteredRows);
       updateButtons();
       return;
     }
 
     if(!filteredRows.length){
-      els.tablaBody.appendChild(emptyRow(state.rows.length ? "No hay resultados con los filtros actuales." : "No hay estudiantes aptos cargados. Presiona Actualizar aptos."));
+      els.tablaBody.appendChild(emptyRow(state.rows.length ? "No hay resultados con los filtros actuales." : "No hay estudiantes aptos para este período o la actualización aún está en curso."));
       updateSummary(filteredRows);
       updateButtons();
       return;
@@ -568,7 +568,7 @@ Con qué se conecta:
     loadPeriods().then(function(){
       if(!state.periodo){
         renderTable();
-        setAlert("info", "Cr-def listo.", "Selecciona un período y presiona Actualizar aptos para leer BDLocal.");
+        setAlert("info", "Cr-def listo.", "Selecciona un período; los estudiantes aptos se cargarán automáticamente desde BDLocal.");
       }
       updateButtons();
     });
