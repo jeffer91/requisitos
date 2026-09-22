@@ -2,10 +2,10 @@
 <!-- =========================================================
 Nombre completo: cr-def.html
 Ruta o ubicación: /Requisitos/Cr-def/cr-def.html
-Función o funciones:
-- Pantalla del módulo Cr-def para cronogramas de defensas.
+Función:
+- Pantalla compacta del cronograma de defensas.
+- Priorizar controles, programación y tabla en una sola vista de trabajo.
 - Consumir BDLocal exclusivamente mediante cone.crdef.js.
-- Esperar la conexión antes de iniciar la aplicación.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -18,41 +18,24 @@ Función o funciones:
 </head>
 <body>
   <main class="cr-shell" data-cr-def-app>
-    <header class="cr-hero">
-      <section class="cr-hero__text">
-        <p class="cr-eyebrow">Cr-def</p>
-        <h1>Cronograma de defensas</h1>
-        <p class="cr-subtitle">
-          Pantalla para preparar defensas de estudiantes aptos: requisitos en CUMPLE,
-          nota de artículo mayor o igual a 7 y sin defensa aprobada.
-        </p>
-      </section>
 
-      <section class="cr-period-card" aria-label="Filtro principal por período">
+    <section class="cr-toolbar cr-toolbar--main" aria-label="Filtros del cronograma">
+      <div class="cr-filter-box cr-filter-period">
         <label for="crPeriodo">Período</label>
         <select id="crPeriodo" class="cr-control" data-cr-periodo>
           <option value="">Seleccione período</option>
         </select>
-        <small data-cr-periodo-help>El período se carga desde BDLocal.</small>
-      </section>
-    </header>
+        <small data-cr-periodo-help>Períodos cargados desde BDLocal.</small>
+      </div>
 
-    <section class="cr-status-panel" aria-live="polite">
-      <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Conectando.</strong>
-        Esperando confirmación de ConCrDef.
-      </article>
-    </section>
-
-    <section class="cr-toolbar" aria-label="Herramientas internas">
       <div class="cr-search-box">
-        <label for="crBusqueda">Buscador inteligente</label>
+        <label for="crBusqueda">Buscar</label>
         <input id="crBusqueda" class="cr-control" type="search"
-          placeholder="Buscar por cédula, nombre, carrera, sede, aula o tribunal"
+          placeholder="Estudiante, carrera, sede, aula o tribunal"
           autocomplete="off" data-cr-busqueda />
       </div>
 
-      <div class="cr-filter-box" aria-label="Filtros internos de tabla">
+      <div class="cr-filter-box">
         <label for="crFiltroCarrera">Carrera</label>
         <select id="crFiltroCarrera" class="cr-control" data-cr-filtro-carrera>
           <option value="">Todas</option>
@@ -77,52 +60,58 @@ Función o funciones:
           <option value="conflicto">Con conflicto</option>
         </select>
       </div>
+
+      <div class="cr-toolbar-refresh">
+        <span class="cr-toolbar-refresh__label" aria-hidden="true">Datos</span>
+        <button type="button" class="cr-btn cr-btn--soft" data-cr-actualizar disabled>Actualizar</button>
+      </div>
     </section>
 
-    <section class="cr-plan-panel" aria-label="Días para generación automática">
-      <div class="cr-plan-head">
-        <div>
-          <h2>Días para defensa</h2>
-          <p>Cr-def no inventa fechas. Escribe los días que se pueden usar antes de generar.</p>
-        </div>
-        <span class="cr-plan-badge">30 min por defecto · duración variable</span>
-      </div>
+    <section class="cr-status-panel" aria-live="polite">
+      <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
+        <strong>Conectando.</strong>
+        Esperando confirmación de ConCrDef.
+      </article>
+    </section>
+
+    <section class="cr-plan-panel" aria-label="Programación automática">
       <div class="cr-plan-grid">
-        <label class="cr-plan-field" for="crDiasGlobales">
+        <label class="cr-plan-field cr-plan-field--global" for="crDiasGlobales">
           <span>Días generales</span>
           <input id="crDiasGlobales" class="cr-control" type="text"
-            placeholder="Ej: 10/07/2026, 11/07/2026" autocomplete="off"
+            placeholder="Ej: 22/09/2026, 23/09/2026" autocomplete="off"
             data-cr-dias-globales />
-          <small>Se aplican a todas las carreras que no tengan días propios.</small>
         </label>
-        <label class="cr-plan-field" for="crDiasCarrera">
-          <span>Días por carrera</span>
-          <textarea id="crDiasCarrera" class="cr-control cr-textarea" rows="3"
-            placeholder="Ej: Redes=10/07/2026,11/07/2026&#10;Administración=12/07/2026"
-            data-cr-dias-carrera></textarea>
-          <small>Formato: Carrera=fecha1,fecha2. También acepta Carrera|fecha1,fecha2.</small>
-        </label>
-      </div>
-    </section>
 
-    <section class="cr-actions" aria-label="Acciones principales">
-      <button type="button" class="cr-btn cr-btn--primary" data-cr-actualizar disabled>Actualizar aptos</button>
-      <button type="button" class="cr-btn" data-cr-generar disabled>Generar cronograma</button>
-      <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
-      <span class="cr-actions__hint" data-cr-actions-hint>Esperando conexión.</span>
+        <label class="cr-plan-field cr-plan-field--career" for="crDiasCarrera">
+          <span>Días por carrera</span>
+          <textarea id="crDiasCarrera" class="cr-control cr-textarea" rows="2"
+            placeholder="Ej: Ventas=24/09/2026 · Diseño Multimedia=22/09/2026"
+            data-cr-dias-carrera></textarea>
+        </label>
+
+        <div class="cr-plan-actions">
+          <span class="cr-plan-note">30 min por defecto · duración variable</span>
+          <div class="cr-plan-buttons">
+            <button type="button" class="cr-btn cr-btn--primary" data-cr-generar disabled>Generar cronograma</button>
+            <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
+          </div>
+          <span class="cr-actions__hint" data-cr-actions-hint>Esperando conexión.</span>
+        </div>
+      </div>
     </section>
 
     <section class="cr-summary-grid" aria-label="Resumen del cronograma">
       <article class="cr-summary-card">
-        <span class="cr-summary-card__label">Aptos para agendar</span>
+        <span class="cr-summary-card__label">Aptos</span>
         <strong data-cr-total-aptos>0</strong>
       </article>
       <article class="cr-summary-card">
-        <span class="cr-summary-card__label">Defensas programadas</span>
+        <span class="cr-summary-card__label">Programadas</span>
         <strong data-cr-total-programados>0</strong>
       </article>
       <article class="cr-summary-card cr-summary-card--warn">
-        <span class="cr-summary-card__label">Sin defensa asignada</span>
+        <span class="cr-summary-card__label">Sin asignar</span>
         <strong data-cr-total-sin-defensa>0</strong>
       </article>
       <article class="cr-summary-card cr-summary-card--danger">
@@ -133,19 +122,23 @@ Función o funciones:
 
     <section class="cr-table-card">
       <div class="cr-table-card__head">
-        <div>
-          <h2>Estudiantes aptos</h2>
-          <p>La tabla muestra el cronograma agrupado por carrera. Cédula, notas y estado se conservan internamente.</p>
-        </div>
+        <h2>Cronograma</h2>
         <span class="cr-pill" data-cr-cache-status>Cache pendiente</span>
       </div>
 
       <div class="cr-table-wrap">
-        <table class="cr-table" aria-label="Tabla base de cronograma de defensas">
+        <table class="cr-table" aria-label="Cronograma de defensas">
           <thead>
             <tr>
-              <th>Día</th><th>Hora</th><th>Sede</th><th>Nombres completos</th><th>Carrera</th>
-              <th>Tribunal 1 / Coordinador</th><th>Tribunal 2</th><th>Investigador</th><th>Aula</th>
+              <th>Día</th>
+              <th>Hora</th>
+              <th>Sede</th>
+              <th>Nombres completos</th>
+              <th>Carrera</th>
+              <th>Tribunal 1 / Coordinador</th>
+              <th>Tribunal 2</th>
+              <th>Investigador</th>
+              <th>Aula</th>
             </tr>
           </thead>
           <tbody data-cr-tabla-body>
