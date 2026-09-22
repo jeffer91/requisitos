@@ -359,10 +359,10 @@ Función:
   }
 
   function actualizarAptos(){
-    if(!state.periodo||!window.CR_DEF_DATA||typeof window.CR_DEF_DATA.cargarAptos!=="function")return;
+    if(!state.periodo||!window.CR_DEF_DATA||typeof window.CR_DEF_DATA.cargarAptos!=="function")return Promise.resolve(null);
     setLoading(true);
     setSaveStatus("Actualizando datos…","saving");
-    window.CR_DEF_DATA.cargarAptos(state.periodo).then(function(result){
+    return window.CR_DEF_DATA.cargarAptos(state.periodo).then(function(result){
       result=result||{};
       state.rows=preserveCurrentSchedule(Array.isArray(result.rows)?result.rows:[]);
       state.firmaActual=result.firma||null;
@@ -389,7 +389,7 @@ Función:
   }
 
   function rowMatches(row){
-    var haystack=norm([row.aula,row.dia,row.hora,row.sede,row.cedula,row.nombre,row.carrera,row.notaArticulo,row.tribunal1,row.tribunal2,row.investigador||row.tribunal3,row.estado,(row.alertas||[]).join(" ")].join(" "));
+    var haystack=norm([row.aula,row.dia,row.hora,row.sede,row.cedula,row.nombre,row.carrera,row.notaArticulo,row.notaDefensa,row.tribunal1,row.tribunal2,row.investigador||row.tribunal3,row.estado,(row.alertas||[]).join(" ")].join(" "));
     if(state.busqueda&&haystack.indexOf(norm(state.busqueda))===-1)return false;
     if(state.filtros.carrera&&norm(row.carrera)!==norm(state.filtros.carrera))return false;
     if(state.filtros.sede&&norm(row.sede)!==norm(state.filtros.sede))return false;
@@ -597,6 +597,60 @@ Función:
     return td;
   }
 
+  function defenseGradeCell(row){
+    var td=document.createElement("td");
+    td.className="cr-col-note cr-col-ndef";
+    var input=document.createElement("input");
+    input.type="number";
+    input.min="0";
+    input.max="10";
+    input.step="0.01";
+    input.inputMode="decimal";
+    input.className="cr-grade-input";
+    input.placeholder="—";
+    input.value=row.notaDefensa===null||row.notaDefensa===undefined||text(row.notaDefensa)===""?"":String(row.notaDefensa);
+    input.setAttribute("data-defense-grade",rowIdentity(row));
+    input.setAttribute("aria-label","Nota de defensa de "+text(row.nombre));
+    input.title="N-DEF entre 0 y 10. Se guarda al cambiar o presionar Enter.";
+    td.appendChild(input);
+    return td;
+  }
+
+  function saveDefenseGrade(key,rawValue){
+    var row=findRow(key);
+    if(!row)return Promise.resolve(false);
+    var cleaned=text(rawValue).replace(",",".");
+    if(cleaned===""){renderTable();return Promise.resolve(false);}
+    if(!/^\d{1,2}(?:\.\d{1,2})?$/.test(cleaned)){
+      setAlert("warn","Nota inválida.","La N-DEF debe tener máximo 2 decimales.");
+      renderTable();
+      return Promise.resolve(false);
+    }
+    var value=Number(cleaned);
+    if(!Number.isFinite(value)||value<0||value>10){
+      setAlert("warn","Nota inválida.","La N-DEF debe estar entre 0 y 10.");
+      renderTable();
+      return Promise.resolve(false);
+    }
+    value=Math.round(value*100)/100;
+    if(Number(row.notaDefensa)===value){return Promise.resolve(true);}
+    if(!window.CR_DEF_DATA||typeof window.CR_DEF_DATA.guardarNotaDefensa!=="function"){
+      setAlert("danger","No se puede guardar.","No está disponible el registro de N-DEF.");
+      return Promise.resolve(false);
+    }
+    setSaveStatus("Guardando N-DEF…","saving");
+    return window.CR_DEF_DATA.guardarNotaDefensa(row,value).then(function(){
+      setSaveStatus("N-DEF guardada","ok");
+      setAlert("info","","");
+      return actualizarAptos();
+    }).then(function(){return true;}).catch(function(error){
+      setSaveStatus("Error al guardar N-DEF","error");
+      setAlert("danger","No se pudo guardar N-DEF.",error&&error.message?error.message:String(error));
+      renderTable();
+      return false;
+    });
+  }
+
   function inputCell(row,field,type,listId){
     var td=document.createElement("td");
     var input=document.createElement("input");
@@ -637,7 +691,7 @@ Función:
     tr.appendChild(textCell(row.nombre,"cr-col-name"));
     tr.appendChild(textCell(row.cedula,"cr-col-cedula"));
     tr.appendChild(textCell(noteLabel(row.notaArticulo),"cr-col-note"));
-    tr.appendChild(textCell(noteLabel(row.notaDefensa),"cr-col-note"));
+    tr.appendChild(defenseGradeCell(row));
     tr.appendChild(textCell(row.sede));
     tr.appendChild(inputCell(row,"tribunal1","text","crPeopleCatalog"));
     tr.appendChild(inputCell(row,"tribunal2","text","crPeopleCatalog"));
@@ -722,6 +776,10 @@ Función:
     if(els.tablaBody){
       els.tablaBody.addEventListener("change",function(event){
         var input=event.target;
+        if(input.matches("[data-defense-grade]")){
+          saveDefenseGrade(input.getAttribute("data-defense-grade"),input.value);
+          return;
+        }
         if(input.matches("[data-career-date]")){
           applyCareerDate(
             input.getAttribute("data-career-date"),
@@ -752,7 +810,7 @@ Función:
         );
       });
       els.tablaBody.addEventListener("keydown",function(event){
-        if(event.key==="Enter"&&event.target.matches(".cr-inline-input")){
+        if(event.key==="Enter"&&event.target.matches(".cr-inline-input,.cr-grade-input")){
           event.preventDefault();
           event.target.blur();
         }
@@ -777,6 +835,7 @@ Función:
         updateButtons();
       },
       saveRows:persistRows,
+      saveDefenseGrade:saveDefenseGrade,
       rememberPerson:rememberPerson,
       rowClosed:rowClosed,
       blockClosed:blockClosed
