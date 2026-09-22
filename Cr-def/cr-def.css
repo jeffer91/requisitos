@@ -91,8 +91,8 @@ label{
 
 .cr-toolbar-actions{
   display:grid;
-  grid-template-columns:auto auto;
-  gap:5px;
+  grid-template-columns:auto auto auto;
+  gap:4px;
   align-items:end;
   min-width:170px;
 }
@@ -193,7 +193,7 @@ label{
 
 .cr-table{
   width:100%;
-  min-width:1220px;
+  min-width:1360px;
   border-collapse:collapse;
   background:#fff;
 }
@@ -323,13 +323,14 @@ input[type="time"].cr-inline-input{
   white-space:nowrap;
 }
 
-.cr-table td:nth-child(5) .cr-inline-input,
-.cr-table td:nth-child(6) .cr-inline-input,
-.cr-table td:nth-child(7) .cr-inline-input{min-width:140px}
-.cr-table td:nth-child(8) .cr-inline-input{min-width:62px}
+.cr-table td:nth-child(7) .cr-inline-input,
+.cr-table td:nth-child(8) .cr-inline-input,
+.cr-table td:nth-child(9) .cr-inline-input{min-width:132px}
+.cr-table td:nth-child(10) .cr-inline-input{min-width:58px}
 
-.cr-col-name{min-width:230px;font-weight:700}
-.cr-col-cedula{min-width:108px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cr-col-name{min-width:220px;font-weight:700}
+.cr-col-cedula{min-width:105px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cr-col-note{width:58px;min-width:58px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
 
 .cr-date-row td{
   background:#e2e8f0;
@@ -352,6 +353,35 @@ input[type="time"].cr-inline-input{
   white-space:nowrap;
   padding:5px 7px;
   border-bottom:1px solid #dbe4ef;
+}
+
+.cr-docente-panel{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  max-width:430px;
+  margin:0 0 8px auto;
+  padding:6px;
+  background:#fff;
+  border:1px solid var(--cr-border);
+  border-radius:10px;
+  box-shadow:var(--cr-shadow);
+}
+.cr-docente-panel[hidden]{display:none!important}
+.cr-docente-panel .cr-control{min-height:30px}
+.cr-docente-panel .cr-btn{min-height:30px;padding:4px 9px}
+
+.cr-career-row.is-closed td{background:#f1f5f9}
+.cr-career-row.is-closed .cr-career-name::after{
+  content:" · CERRADO";
+  color:var(--cr-success);
+  font-size:9px;
+}
+.cr-mini-btn.is-closed{color:var(--cr-success);border-color:#bbf7d0;background:#ecfdf5}
+.cr-inline-input:disabled,.cr-career-date:disabled{
+  background:#f8fafc;
+  color:#64748b;
+  cursor:not-allowed;
 }
 
 .cr-row--pending{background:#fffaf0}
