@@ -71,7 +71,6 @@ Función:
   function boot(){
     connectorReady()
       .then(function(){return load("cr-def.js",function(){return window.CR_DEF_APP;});})
-      .then(function(){return load("cr-def.scheduler.bridge.js");})
       .then(function(){return load("cr-def.render.js");})
       .then(function(){return load("cr-def.export.js");})
       .then(function(){try{window.dispatchEvent(new CustomEvent("cr-def:bootstrap-ready",{detail:{ok:true,source:"ConCrDef",version:VERSION}}));}catch(error){}})
