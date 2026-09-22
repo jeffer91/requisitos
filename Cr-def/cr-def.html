@@ -60,9 +60,16 @@ Función:
 
       <div class="cr-toolbar-actions">
         <button type="button" class="cr-btn cr-btn--soft" data-cr-actualizar disabled>Actualizar</button>
+        <button type="button" class="cr-btn" data-cr-docente-toggle>+ Docente</button>
         <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
         <span class="cr-save-status" data-cr-save-status>Guardado automático</span>
       </div>
+    </section>
+
+    <section class="cr-docente-panel" data-cr-docente-panel hidden>
+      <input class="cr-control" type="text" placeholder="Nombre del docente" data-cr-docente-nombre />
+      <button type="button" class="cr-btn cr-btn--soft" data-cr-docente-guardar>Guardar</button>
+      <button type="button" class="cr-mini-btn" data-cr-docente-cerrar aria-label="Cerrar">×</button>
     </section>
 
     <section class="cr-status-panel" data-cr-status-panel hidden aria-live="polite">
@@ -79,7 +86,7 @@ Función:
         <table class="cr-table" aria-label="Cronograma de defensas">
           <tbody data-cr-tabla-body>
             <tr class="cr-empty-row">
-              <td colspan="8">Selecciona un período.</td>
+              <td colspan="10">Selecciona un período.</td>
             </tr>
           </tbody>
         </table>
