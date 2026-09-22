@@ -189,6 +189,19 @@ Función:
     return String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");
   }
 
+  function durationForRow(row){
+    var direct=Number(row&&row.duracionMinutos||0);
+    if(Number.isFinite(direct)&&direct>0)return direct;
+    try{
+      var list=window.CR_DEF_TEMPLATES&&typeof window.CR_DEF_TEMPLATES.templatesPorCarrera==="function"
+        ?window.CR_DEF_TEMPLATES.templatesPorCarrera(row&&row.carrera):[];
+      var tpl=Array.isArray(list)&&list[0]||null;
+      var value=Number(tpl&&tpl.duracionMinutos||0);
+      if(Number.isFinite(value)&&value>0)return value;
+    }catch(error){}
+    return 30;
+  }
+
   function buildRange(start,duration){
     var min=minutesOf(start);
     if(min===null)return "";
@@ -358,7 +371,8 @@ Función:
     var row=findRow(key);
     if(!row)return;
     if(field==="hora"){
-      row.hora=value?buildRange(value,row.duracionMinutos||30):"";
+      row.duracionMinutos=durationForRow(row);
+      row.hora=value?buildRange(value,row.duracionMinutos):"";
     }else if(field==="investigador"){
       row.investigador=text(value);row.tribunal3=row.investigador;rememberPerson(value);
     }else{
