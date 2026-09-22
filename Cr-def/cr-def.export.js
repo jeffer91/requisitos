@@ -81,8 +81,13 @@ Función:
   }
 
   function setAlert(kind,title,message){
-    var box=$("[data-cr-alerta-principal]");
-    if(box){box.className="cr-alert cr-alert--"+(kind||"info");box.innerHTML="<strong>"+esc(title||"Aviso")+"</strong> "+esc(message||"");}
+    var panel=$("[data-cr-status-panel]"),box=$("[data-cr-alerta-principal]");
+    if(kind==="warn"||kind==="danger"){
+      if(panel)panel.hidden=false;
+      if(box){box.className="cr-alert cr-alert--"+kind;box.innerHTML="<strong>"+esc(title||"Aviso")+"</strong> "+esc(message||"");}
+    }else if(panel){
+      panel.hidden=true;
+    }
   }
 
   function injectPanel(){
