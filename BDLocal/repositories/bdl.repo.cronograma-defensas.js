@@ -8,7 +8,7 @@ Función:
 ========================================================= */
 (function(window){
   "use strict";
-  var VERSION="1.0.0-crdef-persistence";
+  var VERSION="1.1.0-crdef-investigador";
   var Repos=window.BDLRepositories;
   if(!Repos){return;}
 
@@ -36,7 +36,7 @@ Función:
     return periodoId&&cedula?cedula+"__"+periodoId+"__defensa_"+intento:"";
   }
   function parseRange(value){
-    var m=text(value).match(/(\d{1,2}:\d{2})\s*(?:a|-|–)\s*(\d{1,2}:\d{2})/i);
+    var m=text(value).match(/(\d{1,2}:\d{2})\s*(?:a|hasta|-|–)\s*(\d{1,2}:\d{2})/i);
     return m?{inicio:m[1],fin:m[2]}:{inicio:"",fin:""};
   }
   function normalize(row){
@@ -52,7 +52,9 @@ Función:
       fechaISO:text(row.fechaISO||row.diaISO||""),dia:text(row.dia||""),
       hora:text(row.hora||""),horaInicio:text(row.horaInicio||range.inicio),horaFin:text(row.horaFin||range.fin),
       aula:text(row.aula||""),sede:text(row.sede||""),
-      tribunal1:text(row.tribunal1||""),tribunal2:text(row.tribunal2||""),tribunal3:text(row.tribunal3||""),
+      tribunal1:text(row.tribunal1||""),tribunal2:text(row.tribunal2||""),
+      investigador:text(row.investigador||row.tribunal3||""),tribunal3:text(row.investigador||row.tribunal3||""),
+      duracionMinutos:Number(row.duracionMinutos||0)||null,
       estadoCronograma:text(row.estadoCronograma||row.cronogramaEstado||"BORRADOR").toUpperCase(),
       updatedAt:text(row.updatedAt)||now(),createdAt:text(row.createdAt)||now()
     });
