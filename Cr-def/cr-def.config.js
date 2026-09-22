@@ -17,6 +17,7 @@ Función o funciones:
     duracionMinutos: 30,
     permitirDuracionVariable: true,
     permitirCamposTribunalVacios: true,
+    agruparPorFecha: true,
     agruparPorCarrera: true,
 
     periodoFiltroPrincipal: true,
@@ -41,14 +42,13 @@ Función o funciones:
     },
 
     columnasCronograma: [
-      { id:"dia", etiqueta:"Día" },
       { id:"hora", etiqueta:"Hora" },
+      { id:"nombre", etiqueta:"Estudiante" },
+      { id:"cedula", etiqueta:"Cédula" },
       { id:"sede", etiqueta:"Sede" },
-      { id:"nombre", etiqueta:"Nombres completos" },
-      { id:"carrera", etiqueta:"Carrera" },
-      { id:"tribunal1", etiqueta:"Tribunal 1 / Coordinador" },
+      { id:"tribunal1", etiqueta:"Tribunal 1" },
       { id:"tribunal2", etiqueta:"Tribunal 2" },
-      { id:"investigador", etiqueta:"Investigador" },
+      { id:"investigador", etiqueta:"Tribunal 3" },
       { id:"aula", etiqueta:"Aula" }
     ],
 
