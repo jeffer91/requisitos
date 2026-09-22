@@ -554,6 +554,7 @@ Función:
     input.className="cr-inline-input";
     input.setAttribute("data-row-key",rowIdentity(row));
     input.setAttribute("data-field",field);
+    input.disabled=rowClosed(row);
     if(listId)input.setAttribute("list",listId);
     if(field==="hora"){
       input.value=parseTimeStart(row.hora);
@@ -585,6 +586,8 @@ Función:
     tr.appendChild(inputCell(row,"hora","time"));
     tr.appendChild(textCell(row.nombre,"cr-col-name"));
     tr.appendChild(textCell(row.cedula,"cr-col-cedula"));
+    tr.appendChild(textCell(noteLabel(row.notaArticulo),"cr-col-note"));
+    tr.appendChild(textCell(noteLabel(row.notaDefensa),"cr-col-note"));
     tr.appendChild(textCell(row.sede));
     tr.appendChild(inputCell(row,"tribunal1","text","crPeopleCatalog"));
     tr.appendChild(inputCell(row,"tribunal2","text","crPeopleCatalog"));
