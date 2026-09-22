@@ -38,7 +38,9 @@ check(app.includes('\"N-ART\"')&&app.includes('\"N-DEF\"'),"Cr-def debe mostrar 
 check(html.includes("data-cr-docente-toggle")&&app.includes("registerTeacher"),"Cr-def debe permitir registrar docentes reutilizables.");
 check(app.includes("data-cr-export-career-image")&&app.includes("data-cr-export-career-pdf"),"Cada carrera debe exponer exportación IMG y PDF.");
 check(exporter.includes("exportCareerImage")&&exporter.includes("exportCareerPdf"),"El exportador debe implementar imagen y PDF por carrera.");
-check(data.includes("historic")&&data.includes('estadoClave===\"defensa-aprobada\"'),"Cr-def debe conservar estudiantes ya programados aunque luego aprueben la defensa.");
+check(data.includes('estadoClave===\"defensa-aprobada\"')&&!data.includes("historicRow"),"N-DEF aprobada debe retirar al estudiante de Cr-def.");
+check(data.includes("guardarNotaDefensa")&&app.includes("saveDefenseGrade"),"Cr-def debe permitir registrar N-DEF desde la tabla.");
+check(connector.includes("saveDefenseGrade")&&connector.includes("cone.defart.js"),"Cr-def debe guardar N-DEF mediante el flujo oficial de Defensas.");
 check(app.includes("nextBlockStart")&&app.includes("Bloque cerrado."),"Nuevos aptos deben agregarse después del último horario y respetar bloques cerrados.");
 check(!html.includes("cr-summary-grid")&&!html.includes("data-cr-generar"),"La interfaz debe permanecer compacta sin tarjetas resumen ni generador antiguo.");
 check(css.includes("overflow-y:visible")&&!css.includes("max-height:calc"),"Cr-def no debe crear un segundo scroll vertical.");
