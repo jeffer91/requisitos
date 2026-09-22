@@ -12,7 +12,7 @@ Función o funciones:
   var CONFIG = {
     appId: "Cr-def",
     appName: "Cr-def · Cronograma de defensas",
-    version: "bloque-8-editor-fecha-carrera",
+    version: "bloque-9-cierre-notas-export",
 
     duracionMinutos: 30,
     permitirDuracionVariable: true,
@@ -45,6 +45,8 @@ Función o funciones:
       { id:"hora", etiqueta:"Hora" },
       { id:"nombre", etiqueta:"Estudiante" },
       { id:"cedula", etiqueta:"Cédula" },
+      { id:"notaArticulo", etiqueta:"N-ART" },
+      { id:"notaDefensa", etiqueta:"N-DEF" },
       { id:"sede", etiqueta:"Sede" },
       { id:"tribunal1", etiqueta:"Tribunal 1" },
       { id:"tribunal2", etiqueta:"Tribunal 2" },
