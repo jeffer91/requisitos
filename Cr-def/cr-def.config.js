@@ -12,7 +12,7 @@ Función o funciones:
   var CONFIG = {
     appId: "Cr-def",
     appName: "Cr-def · Cronograma de defensas",
-    version: "bloque-7-cronograma-real",
+    version: "bloque-8-editor-fecha-carrera",
 
     duracionMinutos: 30,
     permitirDuracionVariable: true,
