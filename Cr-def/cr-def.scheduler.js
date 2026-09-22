@@ -32,7 +32,10 @@ Función:
   function diasDe(row,opt){var byCareer=opt.porCarrera||{},candidates=[norm(row.carrera),norm(carreraKey(row.carrera))].filter(Boolean),keys=Object.keys(byCareer);for(var i=0;i<keys.length;i++){if(candidates.indexOf(norm(keys[i]))>=0)return byCareer[keys[i]];}return opt.globales||[];}
   function tribunal(id,carrera){
     var t=id&&tpl.tribunalPorId?tpl.tribunalPorId(id):null;
-    if(!t&&id&&tpl.tribunalesPorCarrera){var list=tpl.tribunalesPorCarrera(carrera)||[];t=list.find(function(item){return item.id===id;})||null;}
+    if(!t&&tpl.tribunalesPorCarrera){
+      var list=tpl.tribunalesPorCarrera(carrera)||[];
+      t=id?list.find(function(item){return item.id===id;})||list[0]||null:list[0]||null;
+    }
     t=t||{};
     return {tribunal1:txt(t.tribunal1),tribunal2:txt(t.tribunal2),investigador:txt(t.investigador||t.tribunal3)};
   }
