@@ -2,7 +2,7 @@
 Nombre completo: cr-def.render.js
 Ruta: /Cr-def/cr-def.render.js
 Función:
-- Decorar el cronograma real de 9 columnas.
+- Decorar el cronograma real de 8 columnas.
 - Resaltar programados, sin cupo y conflictos sin depender de columnas internas.
 - Mantener alertas en tooltip.
 ========================================================= */
