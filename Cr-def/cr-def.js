@@ -11,7 +11,7 @@ Función:
   "use strict";
 
   var APP_NAME="Cr-def";
-  var VERSION="bloque-8-editor-manual";
+  var VERSION="bloque-9-cierre-notas-export";
   var PEOPLE_KEY="CR_DEF_PERSONAS_V1";
   var state={
     periodo:"",
@@ -54,6 +54,11 @@ Función:
     els.btnExportar=$("[data-cr-exportar]");
     els.saveStatus=$("[data-cr-save-status]");
     els.peopleCatalog=$("[data-cr-people-catalog]");
+    els.docenteToggle=$("[data-cr-docente-toggle]");
+    els.docentePanel=$("[data-cr-docente-panel]");
+    els.docenteNombre=$("[data-cr-docente-nombre]");
+    els.docenteGuardar=$("[data-cr-docente-guardar]");
+    els.docenteCerrar=$("[data-cr-docente-cerrar]");
   }
 
   function setAlert(kind,title,message){
@@ -208,6 +213,45 @@ Función:
     duration=Number(duration||30);
     if(!Number.isFinite(duration)||duration<=0)duration=30;
     return formatMinutes(min)+"–"+formatMinutes(min+duration);
+  }
+
+  function rangeEndMinutes(value){
+    var matches=text(value).match(/(\d{1,2}:\d{2})\s*(?:a|hasta|-|–)\s*(\d{1,2}:\d{2})/i);
+    return matches?minutesOf(matches[2]):null;
+  }
+
+  function rowClosed(row){
+    return text(row&&(row.cronogramaEstado||row.estadoCronograma)).toUpperCase()==="CERRADO";
+  }
+
+  function blockClosed(rows){
+    rows=Array.isArray(rows)?rows:[];
+    return !!rows.length&&rows.every(rowClosed);
+  }
+
+  function assignAutomaticTimes(rows,force){
+    rows=(Array.isArray(rows)?rows:[]).slice();
+    var cursor=10*60+30;
+    rows.sort(function(a,b){return text(a.nombre).localeCompare(text(b.nombre),"es",{sensitivity:"base"});});
+    rows.forEach(function(row){
+      if(rowClosed(row))return;
+      var duration=durationForRow(row);
+      row.duracionMinutos=duration;
+      if(force||!text(row.hora)){
+        row.hora=buildRange(formatMinutes(cursor),duration);
+        cursor+=duration;
+      }else{
+        var end=rangeEndMinutes(row.hora);
+        if(end!==null)cursor=Math.max(cursor,end);
+      }
+    });
+    return rows;
+  }
+
+  function noteLabel(value){
+    if(value===null||value===undefined||text(value)==="")return "—";
+    var number=Number(String(value).replace(",","."));
+    return Number.isFinite(number)?String(Math.round(number*100)/100):text(value);
   }
 
   function dateSortKey(value){
