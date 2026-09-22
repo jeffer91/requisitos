@@ -4,7 +4,7 @@ const ROOT=path.resolve(__dirname,".."),errors=[];
 function read(file){return fs.readFileSync(path.join(ROOT,file),"utf8");}
 function check(v,m){if(!v)errors.push(m);}
 function syntax(file){try{new vm.Script(read(file),{filename:file});}catch(error){errors.push(`${file}: ${error.message}`);}}
-["BDLocal/rules/bdl.rules.defense-eligibility.js","BDLocal/repositories/bdl.repo.cronograma-defensas.js","Cr-def/cr-def.rules.js","Cr-def/cr-def.data.js","Cr-def/cr-def.scheduler.js","Cr-def/cr-def.scheduler.bridge.js","Cr-def/cr-def.templates.js","BDLocal/conexiones/cone.crdef.js"].forEach(syntax);
+["BDLocal/rules/bdl.rules.defense-eligibility.js","BDLocal/repositories/bdl.repo.cronograma-defensas.js","Cr-def/cr-def.rules.js","Cr-def/cr-def.data.js","Cr-def/cr-def.scheduler.js","Cr-def/cr-def.templates.js","Cr-def/cr-def.js","Cr-def/cr-def.bootstrap.js","Cr-def/cr-def.render.js","Cr-def/cr-def.export.js","Cr-def/cr-def.config.js","BDLocal/conexiones/cone.crdef.js"].forEach(syntax);
 
 const sandbox={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set};sandbox.window=sandbox;
 let ctx=vm.createContext(sandbox);new vm.Script(read("BDLocal/rules/bdl.rules.defense-eligibility.js")).runInContext(ctx);
@@ -31,5 +31,16 @@ check(!app.includes("if(!window.BL2DB)"),"Cr-def no debe depender directamente d
 check(templates.includes('return "sin_carrera"'),"Carrera vacía no debe caer en Administración.");
 check(templates.includes("allowedCareerKeys"),"Plantillas mixtas deben restringirse.");
 check(connector.includes("cronograma_defensas")&&connector.includes("saveSchedules"),"Cronograma debe persistirse.");
+const html=read("Cr-def/cr-def.html"),css=read("Cr-def/cr-def.css"),exporter=read("Cr-def/cr-def.export.js");
+check(app.includes("10*60+30")&&app.includes("assignAutomaticTimes"),"Cr-def debe asignar horas automáticas desde 10:30.");
+check(app.includes("data-career-close")&&app.includes('\"CERRADO\"'),"Cr-def debe permitir cerrar y reabrir defensas por carrera/fecha.");
+check(app.includes('\"N-ART\"')&&app.includes('\"N-DEF\"'),"Cr-def debe mostrar N-ART y N-DEF.");
+check(html.includes("data-cr-docente-toggle")&&app.includes("registerTeacher"),"Cr-def debe permitir registrar docentes reutilizables.");
+check(app.includes("data-cr-export-career-image")&&app.includes("data-cr-export-career-pdf"),"Cada carrera debe exponer exportación IMG y PDF.");
+check(exporter.includes("exportCareerImage")&&exporter.includes("exportCareerPdf"),"El exportador debe implementar imagen y PDF por carrera.");
+check(data.includes("historic")&&data.includes('estadoClave===\"defensa-aprobada\"'),"Cr-def debe conservar estudiantes ya programados aunque luego aprueben la defensa.");
+check(app.includes("nextBlockStart")&&app.includes("Bloque cerrado."),"Nuevos aptos deben agregarse después del último horario y respetar bloques cerrados.");
+check(!html.includes("cr-summary-grid")&&!html.includes("data-cr-generar"),"La interfaz debe permanecer compacta sin tarjetas resumen ni generador antiguo.");
+check(css.includes("overflow-y:visible")&&!css.includes("max-height:calc"),"Cr-def no debe crear un segundo scroll vertical.");
 if(errors.length){console.error("\nVERIFICACIÓN CR-DEF: ERROR\n");errors.forEach((e,i)=>console.error(`${i+1}. ${e}`));process.exit(1);}
 console.log("VERIFICACIÓN CR-DEF: OK");
