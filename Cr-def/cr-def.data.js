@@ -76,7 +76,23 @@ Función:
         record.requisitos=embedded.concat(byReq[key]||[]);record.requirements=record.requisitos;
         record.requisitos.forEach(function(req){putRequirement(record,req);});putNotes(record,[baseRow,baseRow._bdlNotas]);
         var ev=rules&&typeof rules.evaluarAptitud==="function"?rules.evaluarAptitud(record):{apto:false,estadoClave:"bloqueado",estado:"No apto",alertas:["Reglas Cr-def no disponibles."]};
-        if(ev.estadoClave==="defensa-aprobada"){defensaAprobada++;return;}
+        var saved1=saved[key+"__1"]||null,saved2=saved[key+"__2"]||null;
+        if(ev.estadoClave==="defensa-aprobada"){
+          defensaAprobada++;
+          var historic=saved2||saved1;
+          if(!historic){return;}
+          var historicAttempt=Number(historic.intento|| (saved2?2:1));
+          var historicRow={
+            id:key+"__"+historicAttempt,periodoId:periodoId,intento:historicAttempt,
+            tipoDefensa:historic.tipoDefensa||(historicAttempt===2?"SUPLETORIO":"ORDINARIA"),
+            aula:"",dia:"",hora:"",sede:record.sede,cedula:cedula,nombre:record.nombre,carrera:record.carrera,
+            notaArticulo:ev.notaArticulo==null?"":ev.notaArticulo,notaDefensa:ev.notaDefensa,
+            tribunal1:"",tribunal2:"",investigador:"",tribunal3:"",
+            estadoClave:"programado",estado:"Defensa programada",alertas:[],raw:record
+          };
+          rows.push(mergeSchedule(historicRow,historic));
+          return;
+        }
         if(!ev.apto){bloqueados++;return;}
         var intento=Number(ev.intento||1);
         var row={
@@ -105,7 +121,7 @@ Función:
           tipoDefensa:row.tipoDefensa||"ORDINARIA",aula:row.aula||"",dia:row.dia||"",hora:row.hora||"",sede:row.sede||"",
           tribunal1:row.tribunal1||"",tribunal2:row.tribunal2||"",investigador:investigador,tribunal3:investigador,
           duracionMinutos:Number(row.duracionMinutos||row.cronograma&&row.cronograma.duracionMinutos||0)||null,
-          estadoCronograma:row.cronogramaEstado||"BORRADOR",
+          estadoCronograma:row.cronogramaEstado||row.estadoCronograma||"BORRADOR",
           fechaISO:row.cronograma&&row.cronograma.fechaISO||"",
           horaInicio:row.cronograma&&row.cronograma.horaInicio||"",
           horaFin:row.cronograma&&row.cronograma.horaFin||"",
