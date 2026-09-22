@@ -244,9 +244,10 @@ Función:
     return !!rows.length&&rows.every(rowClosed);
   }
 
-  function assignAutomaticTimes(rows,force){
+  function assignAutomaticTimes(rows,force,startMinute){
     rows=(Array.isArray(rows)?rows:[]).slice();
-    var cursor=10*60+30;
+    var cursor=Number(startMinute);
+    if(!Number.isFinite(cursor)||cursor<0)cursor=10*60+30;
     rows.sort(function(a,b){return text(a.nombre).localeCompare(text(b.nombre),"es",{sensitivity:"base"});});
     rows.forEach(function(row){
       if(rowClosed(row))return;
@@ -261,6 +262,24 @@ Función:
       }
     });
     return rows;
+  }
+
+  function blockRows(carrera,iso){
+    return state.rows.filter(function(row){
+      return norm(row.carrera)===norm(carrera)&&displayDateToISO(row.dia)===text(iso);
+    });
+  }
+
+  function nextBlockStart(carrera,iso,excluded){
+    var excludedKeys=Object.create(null);
+    (excluded||[]).forEach(function(row){excludedKeys[rowIdentity(row)]=true;});
+    var cursor=10*60+30;
+    blockRows(carrera,iso).forEach(function(row){
+      if(excludedKeys[rowIdentity(row)])return;
+      var end=rangeEndMinutes(row.hora);
+      if(end!==null)cursor=Math.max(cursor,end);
+    });
+    return cursor;
   }
 
   function noteLabel(value){
@@ -449,21 +468,37 @@ Función:
   }
 
   function applyCareerDate(carrera,currentIso,newIso){
-    var display=newIso?canonicalDateToDisplay(newIso):"";
-    var changed=[];
-    state.rows.forEach(function(row){
+    currentIso=text(currentIso);newIso=text(newIso);
+    var candidates=state.rows.filter(function(row){
       var rowIso=displayDateToISO(row.dia);
       var sameCurrent=currentIso?rowIso===currentIso:!rowIso;
-      if(norm(row.carrera)===norm(carrera)&&sameCurrent&&!rowClosed(row)){
-        row.dia=display;
-        changed.push(row);
-      }
+      return norm(row.carrera)===norm(carrera)&&sameCurrent&&!rowClosed(row);
     });
-    if(!currentIso&&newIso){assignAutomaticTimes(changed,true);}
-    else if(newIso){assignAutomaticTimes(changed,false);}
+    if(!candidates.length)return;
+
+    var targetExisting=newIso?blockRows(carrera,newIso).filter(function(row){
+      return !candidates.some(function(candidate){return rowIdentity(candidate)===rowIdentity(row);});
+    }):[];
+
+    if(newIso&&targetExisting.length&&blockClosed(targetExisting)){
+      setAlert("warn","Bloque cerrado.","Reabre "+carrera+" del "+canonicalDateToDisplay(newIso)+" o selecciona otra fecha.");
+      return;
+    }
+
+    var display=newIso?canonicalDateToDisplay(newIso):"";
+    candidates.forEach(function(row){row.dia=display;});
+
+    if(newIso){
+      var start=nextBlockStart(carrera,newIso,candidates);
+      var joiningExisting=targetExisting.length>0;
+      assignAutomaticTimes(candidates,!currentIso||joiningExisting,start);
+    }else{
+      candidates.forEach(function(row){row.hora="";});
+    }
+
     normalizeScheduleStates();
     renderTable();
-    persistRows(changed.map(function(row){return findRow(rowIdentity(row))||row;}));
+    persistRows(candidates.map(function(row){return findRow(rowIdentity(row))||row;}));
   }
 
   function toggleCareerClosed(carrera,currentIso){
