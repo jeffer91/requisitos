@@ -389,11 +389,13 @@ Función:
     return state.rows.filter(function(row){return norm(row.carrera)===norm(carrera);});
   }
 
-  function applyCareerDate(carrera,iso){
-    var display=iso?canonicalDateToDisplay(iso):"";
+  function applyCareerDate(carrera,currentIso,newIso){
+    var display=newIso?canonicalDateToDisplay(newIso):"";
     var changed=[];
     state.rows.forEach(function(row){
-      if(norm(row.carrera)===norm(carrera)){
+      var rowIso=displayDateToISO(row.dia);
+      var sameCurrent=currentIso?rowIso===currentIso:!rowIso;
+      if(norm(row.carrera)===norm(carrera)&&sameCurrent){
         row.dia=display;
         changed.push(row);
       }
@@ -403,33 +405,56 @@ Función:
     persistRows(changed.map(function(row){return findRow(rowIdentity(row))||row;}));
   }
 
-  function commonCareerDate(rows){
-    var dates=unique((rows||[]).map(function(row){return displayDateToISO(row.dia);}).filter(Boolean));
-    return dates.length===1?dates[0]:"";
-  }
-
   function emptyRow(message){
     var tr=document.createElement("tr");
     tr.className="cr-empty-row";
     var td=document.createElement("td");
-    td.colSpan=9;td.textContent=message;
+    td.colSpan=8;td.textContent=message;
     tr.appendChild(td);
     return tr;
   }
 
-  function careerRow(carrera,rows){
+  function dateRow(label){
+    var tr=document.createElement("tr");
+    tr.className="cr-date-row";
+    var td=document.createElement("td");td.colSpan=8;
+    td.textContent=label||"SIN FECHA";
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function careerRow(carrera,rows,currentIso){
     var tr=document.createElement("tr");
     tr.className="cr-career-row";
-    var td=document.createElement("td");td.colSpan=9;
+    var td=document.createElement("td");td.colSpan=8;
     var wrap=document.createElement("div");wrap.className="cr-career-bar";
     var title=document.createElement("strong");title.className="cr-career-name";title.textContent=carrera||"SIN CARRERA";
     var controls=document.createElement("div");controls.className="cr-career-date-controls";
     var label=document.createElement("span");label.textContent="Fecha";
-    var input=document.createElement("input");input.type="date";input.className="cr-career-date";input.value=commonCareerDate(rows);input.setAttribute("data-career-date",carrera);
-    input.title="Aplica esta fecha a todos los estudiantes de la carrera";
-    var today=document.createElement("button");today.type="button";today.className="cr-mini-btn";today.textContent="Hoy";today.setAttribute("data-career-today",carrera);
+    var input=document.createElement("input");
+    input.type="date";
+    input.className="cr-career-date";
+    input.value=currentIso||"";
+    input.setAttribute("data-career-date",carrera);
+    input.setAttribute("data-current-date",currentIso||"");
+    input.title="Cambia la fecha de esta carrera dentro de este bloque";
+    var today=document.createElement("button");
+    today.type="button";
+    today.className="cr-mini-btn";
+    today.textContent="Hoy";
+    today.setAttribute("data-career-today",carrera);
+    today.setAttribute("data-current-date",currentIso||"");
     controls.appendChild(label);controls.appendChild(input);controls.appendChild(today);
     wrap.appendChild(title);wrap.appendChild(controls);td.appendChild(wrap);tr.appendChild(td);
+    return tr;
+  }
+
+  function columnHeaderRow(){
+    var tr=document.createElement("tr");
+    tr.className="cr-section-head-row";
+    ["Hora","Estudiante","Cédula","Sede","Tribunal 1","Tribunal 2","Tribunal 3","Aula"].forEach(function(label){
+      var th=document.createElement("th");th.textContent=label;tr.appendChild(th);
+    });
     return tr;
   }
 
@@ -466,11 +491,10 @@ Función:
     else if(!text(row.dia)||!text(row.hora))tr.className="cr-row--pending";
     if(Array.isArray(row.alertas)&&row.alertas.length)tr.title=row.alertas.join("\n");
 
-    tr.appendChild(textCell(row.dia,"cr-col-day"));
     tr.appendChild(inputCell(row,"hora","time"));
-    tr.appendChild(textCell(row.sede));
     tr.appendChild(textCell(row.nombre,"cr-col-name"));
-    tr.appendChild(textCell(row.carrera,"cr-col-career"));
+    tr.appendChild(textCell(row.cedula,"cr-col-cedula"));
+    tr.appendChild(textCell(row.sede));
     tr.appendChild(inputCell(row,"tribunal1","text","crPeopleCatalog"));
     tr.appendChild(inputCell(row,"tribunal2","text","crPeopleCatalog"));
     tr.appendChild(inputCell(row,"investigador","text","crPeopleCatalog"));
@@ -491,21 +515,41 @@ Función:
       return;
     }
     rows.sort(function(a,b){
+      var da=dateSortKey(a.dia),db=dateSortKey(b.dia);
+      if(da!==db)return da.localeCompare(db,"es",{numeric:true});
       var career=text(a.carrera).localeCompare(text(b.carrera),"es",{sensitivity:"base"});
       if(career!==0)return career;
-      return [dateSortKey(a.dia),parseTimeStart(a.hora),text(a.nombre)].join("|").localeCompare([dateSortKey(b.dia),parseTimeStart(b.hora),text(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
+      return [parseTimeStart(a.hora),text(a.nombre)].join("|").localeCompare([parseTimeStart(b.hora),text(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
     });
 
-    var groups=[],map=Object.create(null);
+    var dateGroups=[],dateMap=Object.create(null);
     rows.forEach(function(row){
-      var key=norm(row.carrera)||"sin_carrera";
-      if(!map[key]){map[key]={carrera:text(row.carrera)||"SIN CARRERA",rows:[]};groups.push(map[key]);}
-      map[key].rows.push(row);
+      var iso=displayDateToISO(row.dia);
+      var dateKey=iso||"__sin_fecha__";
+      if(!dateMap[dateKey]){
+        dateMap[dateKey]={iso:iso,label:text(row.dia)||"SIN FECHA",careerGroups:[],careerMap:Object.create(null)};
+        dateGroups.push(dateMap[dateKey]);
+      }
+      var dateGroup=dateMap[dateKey];
+      var careerKey=norm(row.carrera)||"sin_carrera";
+      if(!dateGroup.careerMap[careerKey]){
+        dateGroup.careerMap[careerKey]={carrera:text(row.carrera)||"SIN CARRERA",rows:[]};
+        dateGroup.careerGroups.push(dateGroup.careerMap[careerKey]);
+      }
+      dateGroup.careerMap[careerKey].rows.push(row);
     });
 
-    groups.forEach(function(group){
-      els.tablaBody.appendChild(careerRow(group.carrera,group.rows));
-      group.rows.forEach(function(row){els.tablaBody.appendChild(renderRow(row));});
+    dateGroups.forEach(function(dateGroup){
+      els.tablaBody.appendChild(dateRow(dateGroup.label));
+      dateGroup.careerGroups.sort(function(a,b){return a.carrera.localeCompare(b.carrera,"es",{sensitivity:"base"});});
+      dateGroup.careerGroups.forEach(function(group){
+        els.tablaBody.appendChild(careerRow(group.carrera,group.rows,dateGroup.iso));
+        els.tablaBody.appendChild(columnHeaderRow());
+        group.rows.sort(function(a,b){
+          return [parseTimeStart(a.hora),text(a.nombre)].join("|").localeCompare([parseTimeStart(b.hora),text(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
+        });
+        group.rows.forEach(function(row){els.tablaBody.appendChild(renderRow(row));});
+      });
     });
   }
 
@@ -528,7 +572,11 @@ Función:
       els.tablaBody.addEventListener("change",function(event){
         var input=event.target;
         if(input.matches("[data-career-date]")){
-          applyCareerDate(input.getAttribute("data-career-date"),input.value);
+          applyCareerDate(
+            input.getAttribute("data-career-date"),
+            input.getAttribute("data-current-date")||"",
+            input.value
+          );
           return;
         }
         if(input.matches(".cr-inline-input[data-row-key][data-field]")){
@@ -538,7 +586,11 @@ Función:
       els.tablaBody.addEventListener("click",function(event){
         var button=event.target.closest("[data-career-today]");
         if(!button)return;
-        applyCareerDate(button.getAttribute("data-career-today"),todayISO());
+        applyCareerDate(
+          button.getAttribute("data-career-today"),
+          button.getAttribute("data-current-date")||"",
+          todayISO()
+        );
       });
       els.tablaBody.addEventListener("keydown",function(event){
         if(event.key==="Enter"&&event.target.matches(".cr-inline-input")){
