@@ -633,7 +633,7 @@ Función:
       return Promise.resolve(false);
     }
     value=Math.round(value*100)/100;
-    if(Number(row.notaDefensa)===value){return Promise.resolve(true);}
+    if(text(row.notaDefensa)!==""&&Number(row.notaDefensa)===value){return Promise.resolve(true);}
     if(!window.CR_DEF_DATA||typeof window.CR_DEF_DATA.guardarNotaDefensa!=="function"){
       setAlert("danger","No se puede guardar.","No está disponible el registro de N-DEF.");
       return Promise.resolve(false);
