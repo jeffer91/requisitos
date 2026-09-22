@@ -25,7 +25,7 @@ Con qué se conecta:
   "use strict";
 
   var APP_NAME = "Cr-def";
-  var VERSION = "bloque-6-audit-1";
+  var VERSION = "bloque-7-cronograma-real";
 
   var state = {
     periodo: "",
@@ -178,6 +178,7 @@ Con qué se conecta:
         if(els.periodo){ els.periodo.value = last; }
         loadCacheForPeriod(last);
         checkCacheFreshness(last);
+        window.setTimeout(actualizarAptos, 0);
       }
 
       safeSetText(els.periodoHelp, state.periodos.length ? "Períodos cargados desde BDLocal." : "No hay períodos registrados en BDLocal.");
@@ -202,6 +203,7 @@ Con qué se conecta:
         loadCacheForPeriod(state.periodo);
         checkCacheFreshness(state.periodo);
         updateButtons();
+        if(state.periodo){ actualizarAptos(); }
       });
     }
 
@@ -312,7 +314,8 @@ Con qué se conecta:
   }
 
   function rowIdentity(row){
-    return text(row && row.id) || [row && row.periodoId, row && row.cedula, row && (row.intento || 1)].map(text).join("__");
+    row = row || {};
+    return [row.periodoId, row.cedula, row.intento || 1].map(text).join("__");
   }
 
   function preserveCurrentSchedule(nextRows){
@@ -321,9 +324,11 @@ Con qué se conecta:
     return (Array.isArray(nextRows) ? nextRows : []).map(function(row){
       var previous = current[rowIdentity(row)];
       if(!previous){ return row; }
-      ["aula","dia","hora","tribunal1","tribunal2","tribunal3","cronograma","cronogramaEstado"].forEach(function(key){
+      ["aula","dia","hora","sede","tribunal1","tribunal2","investigador","tribunal3","duracionMinutos","cronograma","cronogramaEstado"].forEach(function(key){
         if((row[key] == null || text(row[key]) === "") && previous[key] != null && text(previous[key]) !== ""){ row[key] = previous[key]; }
       });
+      row.investigador = text(row.investigador || row.tribunal3 || "");
+      row.tribunal3 = row.investigador;
       if(text(row.dia) && text(row.hora)){ row.estadoClave = "programado"; row.estado = "Defensa programada"; }
       return row;
     });
@@ -410,7 +415,7 @@ Con qué se conecta:
       row.notaArticulo,
       row.tribunal1,
       row.tribunal2,
-      row.tribunal3,
+      row.investigador || row.tribunal3,
       row.estado,
       (row.alertas || []).join(" ")
     ].join(" "));
@@ -446,7 +451,20 @@ Con qué se conecta:
       return;
     }
 
-    filteredRows.forEach(function(row){ els.tablaBody.appendChild(renderRow(row)); });
+    filteredRows.sort(function(a,b){
+      var ca=text(a.carrera), cb=text(b.carrera);
+      var career=ca.localeCompare(cb,"es",{sensitivity:"base"});
+      if(career!==0){ return career; }
+      return [text(a.dia),text(a.hora),text(a.nombre)].join("|").localeCompare([text(b.dia),text(b.hora),text(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
+    });
+    var currentCareer="";
+    filteredRows.forEach(function(row){
+      if(norm(row.carrera)!==norm(currentCareer)){
+        currentCareer=text(row.carrera)||"SIN CARRERA";
+        els.tablaBody.appendChild(careerRow(currentCareer));
+      }
+      els.tablaBody.appendChild(renderRow(row));
+    });
     updateSummary(filteredRows);
     updateButtons();
   }
@@ -455,14 +473,25 @@ Con qué se conecta:
     var tr = document.createElement("tr");
     tr.className = "cr-empty-row";
     var td = document.createElement("td");
-    td.colSpan = 12;
+    td.colSpan = 9;
     td.textContent = message;
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function careerRow(carrera){
+    var tr=document.createElement("tr");
+    tr.className="cr-career-row";
+    var td=document.createElement("td");
+    td.colSpan=9;
+    td.textContent=text(carrera)||"SIN CARRERA";
     tr.appendChild(td);
     return tr;
   }
 
   function renderRow(row){
     var tr = document.createElement("tr");
+    tr.setAttribute("data-cr-row-key", rowIdentity(row));
     if(row.estadoClave === "conflicto"){
       tr.className = "cr-row--danger";
     }else if(!text(row.dia) || !text(row.hora)){
@@ -470,21 +499,18 @@ Con qué se conecta:
     }
 
     [
-      row.aula,
       row.dia,
       row.hora,
       row.sede,
-      row.cedula,
       row.nombre,
       row.carrera,
-      row.notaArticulo,
       row.tribunal1,
       row.tribunal2,
-      row.tribunal3,
-      row.estado
+      row.investigador || row.tribunal3,
+      row.aula
     ].forEach(function(value){
       var td = document.createElement("td");
-      td.textContent = text(value) || "—";
+      td.textContent = text(value) || "";
       tr.appendChild(td);
     });
 
