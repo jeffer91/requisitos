@@ -87,7 +87,7 @@ Función:
 
   function injectPanel(){
     if($("[data-cr-export-panel]"))return;
-    var actions=$(".cr-plan-panel");
+    var actions=$(".cr-toolbar");
     if(!actions||!actions.parentNode)return;
     var panel=document.createElement("section");
     panel.className="cr-export-panel";panel.hidden=true;panel.setAttribute("data-cr-export-panel","");
