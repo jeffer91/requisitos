@@ -8,7 +8,7 @@ Función:
 ========================================================= */
 (function(window,document){
   "use strict";
-  var VERSION="2.0.0-active-persistent",SCREEN="cr_def",SOURCE="ConCrDef";
+  var VERSION="2.1.0-grade-write",SCREEN="cr_def",SOURCE="ConCrDef";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var loading=Object.create(null);
   var state={ready:false,promise:null,error:"",reads:0,writes:0,refreshes:0,loadedAt:"",dependenciesReady:false};
@@ -18,6 +18,7 @@ Función:
   function legacy(){return window.ConDefensas||window.BDLocalConeDefensas||null;}
   function service(){return window.BDLServiceDefensas||(window.BDLServices&&typeof window.BDLServices.get==="function"?window.BDLServices.get("defensas"):null);}
   function scheduleRepo(){return window.BDLRepoCronogramaDefensas||(window.BDLRepositories&&typeof window.BDLRepositories.get==="function"?(window.BDLRepositories.get("cronograma_defensas")||window.BDLRepositories.get("cronogramaDefensas")):null);}
+  function gradeWriter(){return window.ConDefart||window.BDLocalConeDefart||null;}
   function url(relative){try{return new URL(relative,base).href;}catch(error){return relative;}}
   function existing(src){return Array.prototype.slice.call(document.scripts||[]).some(function(item){return item.src===src||item.getAttribute("data-concrdef-src")===src;});}
   function waitFor(test,label,timeout){timeout=Math.max(500,Number(timeout||15000));var started=Date.now();return new Promise(function(resolve,reject){(function check(){var value=null;try{value=test();}catch(error){}if(value){resolve(value);return;}if(Date.now()-started>=timeout){reject(new Error("No se pudo preparar "+label+"."));return;}setTimeout(check,40);})();});}
@@ -36,7 +37,7 @@ Función:
   function register(){
     var registry=window.BDLocalConeRegistry;
     if(registry&&typeof registry.register==="function"){
-      registry.register(SCREEN,{label:"Cronograma de defensas",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"],aliases:["crdef","cr-def","sacar_n"],canRead:true,canWrite:true,operations:["ready","read","refresh","status","diagnose","listSchedules","saveSchedules"],tables:["periodos","personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","divisiones_estudiante","cronograma_defensas"],description:"Conector exclusivo de Cr-def con persistencia local."});
+      registry.register(SCREEN,{label:"Cronograma de defensas",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"],aliases:["crdef","cr-def","sacar_n"],canRead:true,canWrite:true,operations:["ready","read","refresh","status","diagnose","listSchedules","saveSchedules","saveDefenseGrade"],tables:["periodos","personas","matriculas_periodo","requisitos_estudiante","notas_titulacion","divisiones_estudiante","cronograma_defensas"],description:"Conector de Cr-def con cronograma y registro de nota de defensa."});
     }
   }
   function ensureDependencies(){
@@ -46,14 +47,17 @@ Función:
       .then(function(runtime){return runtime.ensure("defensas");})
       .then(function(){return load("cone.defensas.js",legacy);})
       .then(function(api){return api&&typeof api.ready==="function"?api.ready():api;})
+      .then(function(){return load("cone.defart.js",gradeWriter);})
+      .then(function(api){return api&&typeof api.ready==="function"?api.ready():api;})
       .then(function(){
         if(!legacy())throw new Error("ConDefensas no quedó disponible para Cr-def.");
         if(!service())throw new Error("BDLServiceDefensas no está disponible para Cr-def.");
         if(!scheduleRepo())throw new Error("BDLRepoCronogramaDefensas no está disponible para Cr-def.");
+        if(!gradeWriter())throw new Error("ConDefart no está disponible para registrar N-DEF.");
         state.dependenciesReady=true;return true;
       });
   }
-  function status(){return {ok:state.ready&&!state.error,ready:state.ready,version:VERSION,screen:SCREEN,source:SOURCE,error:state.error,reads:state.reads,writes:state.writes,refreshes:state.refreshes,loadedAt:state.loadedAt,dependency:!!legacy(),service:!!service(),scheduleRepo:!!scheduleRepo(),dependenciesReady:state.dependenciesReady};}
+  function status(){return {ok:state.ready&&!state.error,ready:state.ready,version:VERSION,screen:SCREEN,source:SOURCE,error:state.error,reads:state.reads,writes:state.writes,refreshes:state.refreshes,loadedAt:state.loadedAt,dependency:!!legacy(),service:!!service(),scheduleRepo:!!scheduleRepo(),gradeWriter:!!gradeWriter(),dependenciesReady:state.dependenciesReady};}
   function ready(options){options=options||{};if(state.ready&&!options.force)return Promise.resolve(status());if(state.promise&&!options.force)return state.promise;state.error="";state.promise=ensureDependencies().then(function(){state.ready=true;state.loadedAt=now();register();var h=hub();if(h&&typeof h.register==="function")h.register(SCREEN,api);return status();}).catch(function(error){state.ready=false;state.error=error&&error.message?error.message:String(error);return status();}).finally(function(){state.promise=null;});return state.promise;}
   function requireReady(){return ready().then(function(result){if(!result.ok)throw new Error(result.error||"Cr-def no está listo.");return result;});}
   function listPeriods(){return requireReady().then(function(){var current=legacy();if(current&&typeof current.listPeriods==="function")return current.listPeriods()||[];if(current&&typeof current.getPeriods==="function")return current.getPeriods()||[];return [];});}
@@ -65,6 +69,18 @@ Función:
     state.writes+=rows.length;
     return requireReady().then(function(){var current=scheduleRepo();if(!current||typeof current.saveMany!=="function")throw new Error("Repositorio de cronogramas no disponible.");return current.saveMany(rows);}).then(function(saved){try{window.dispatchEvent(new CustomEvent("bdlocal:crdef-saved",{detail:{ok:true,source:SOURCE,rows:saved,context:context}}));}catch(error){}return saved;});
   }
+  function saveDefenseGrade(payload,context){
+    payload=payload||{};context=context||{};
+    state.writes+=1;
+    return requireReady().then(function(){
+      var writer=gradeWriter();
+      if(!writer||typeof writer.save!=="function")throw new Error("No está disponible el guardado de N-DEF.");
+      return writer.save(payload,Object.assign({enqueue:true,source:"cr-def",origen:"cr-def"},context));
+    }).then(function(saved){
+      try{window.dispatchEvent(new CustomEvent("bdlocal:crdef-grade-saved",{detail:{ok:true,source:SOURCE,row:saved,context:context}}));}catch(error){}
+      return saved;
+    });
+  }
   function read(options){
     state.reads+=1;options=Object.assign({matricula:"ACTIVO"},options||{});
     return Promise.all([listPeriods(),listStudents(options),listRequirements(options),listSchedules(options)]).then(function(values){
@@ -72,6 +88,6 @@ Función:
     });
   }
   function refresh(options){state.refreshes+=1;return requireReady().then(function(){var current=legacy();return current&&typeof current.refresh==="function"?current.refresh(options||{}):null;}).then(function(){return ready({force:true});});}
-  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,read:read,refresh:refresh,reload:refresh,status:status,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,listRequirements:listRequirements,getRequirements:listRequirements,listSchedules:listSchedules,getSchedules:listSchedules,saveSchedules:saveSchedules};
+  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,read:read,refresh:refresh,reload:refresh,status:status,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,listRequirements:listRequirements,getRequirements:listRequirements,listSchedules:listSchedules,getSchedules:listSchedules,saveSchedules:saveSchedules,saveDefenseGrade:saveDefenseGrade};
   window.ConCrDef=api;window.BDLocalConeCrDef=api;register();var h=hub();if(h&&typeof h.register==="function")h.register(SCREEN,api);
 })(window,document);
