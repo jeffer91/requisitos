@@ -303,8 +303,27 @@ label{
   outline:none;
 }
 
-input[type="time"].cr-inline-input{min-width:96px}
-..cr-table td:nth-child(5) .cr-inline-input,
+.cr-time-editor{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:170px;
+}
+
+input[type="time"].cr-inline-input{
+  min-width:86px;
+  width:86px;
+}
+
+.cr-time-range{
+  min-width:78px;
+  color:#475569;
+  font-size:9px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.cr-table td:nth-child(5) .cr-inline-input,
 .cr-table td:nth-child(6) .cr-inline-input,
 .cr-table td:nth-child(7) .cr-inline-input{min-width:140px}
 .cr-table td:nth-child(8) .cr-inline-input{min-width:62px}
