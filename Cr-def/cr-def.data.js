@@ -76,21 +76,8 @@ Función:
         record.requisitos=embedded.concat(byReq[key]||[]);record.requirements=record.requisitos;
         record.requisitos.forEach(function(req){putRequirement(record,req);});putNotes(record,[baseRow,baseRow._bdlNotas]);
         var ev=rules&&typeof rules.evaluarAptitud==="function"?rules.evaluarAptitud(record):{apto:false,estadoClave:"bloqueado",estado:"No apto",alertas:["Reglas Cr-def no disponibles."]};
-        var saved1=saved[key+"__1"]||null,saved2=saved[key+"__2"]||null;
         if(ev.estadoClave==="defensa-aprobada"){
           defensaAprobada++;
-          var historic=saved2||saved1;
-          if(!historic){return;}
-          var historicAttempt=Number(historic.intento|| (saved2?2:1));
-          var historicRow={
-            id:key+"__"+historicAttempt,periodoId:periodoId,intento:historicAttempt,
-            tipoDefensa:historic.tipoDefensa||(historicAttempt===2?"SUPLETORIO":"ORDINARIA"),
-            aula:"",dia:"",hora:"",sede:record.sede,cedula:cedula,nombre:record.nombre,carrera:record.carrera,
-            notaArticulo:ev.notaArticulo==null?"":ev.notaArticulo,notaDefensa:ev.notaDefensa,
-            tribunal1:"",tribunal2:"",investigador:"",tribunal3:"",
-            estadoClave:"programado",estado:"Defensa programada",alertas:[],raw:record
-          };
-          rows.push(mergeSchedule(historicRow,historic));
           return;
         }
         if(!ev.apto){bloqueados++;return;}
@@ -109,6 +96,34 @@ Función:
     });
   }
   function calcularFirma(periodoId){periodoId=canonicalPeriodId(periodoId);return readPeriod(periodoId).then(function(data){return buildFirma(periodoId,data.students,data.requirements);});}
+  function guardarNotaDefensa(row,value){
+    row=row||{};
+    var nota=Number(String(value).replace(",","."));
+    if(!Number.isFinite(nota)||nota<0||nota>10){return Promise.reject(new Error("La N-DEF debe estar entre 0 y 10."));}
+    nota=Math.round(nota*100)/100;
+    var articulo=Number(String(row.notaArticulo).replace(",","."));
+    if(!Number.isFinite(articulo)||articulo<7){return Promise.reject(new Error("La N-DEF requiere N-ART igual o mayor a 7."));}
+    var final=Math.round(((articulo*0.70)+(nota*0.30))*100)/100;
+    var periodoId=canonicalPeriodId(row.periodoId);
+    var cedula=normalizeCedula(row.cedula);
+    var id=studentPeriodId(periodoId,cedula);
+    if(!periodoId||!cedula||!id){return Promise.reject(new Error("No se pudo identificar al estudiante y período."));}
+    return ensureConnector().then(function(c){
+      if(typeof c.saveDefenseGrade!=="function")throw new Error("ConCrDef.saveDefenseGrade no está disponible.");
+      var investigador=text(row.investigador||row.tribunal3||"");
+      return c.saveDefenseGrade({
+        id:id,notaId:id,idEstudiantePeriodo:id,studentId:id,
+        periodoId:periodoId,periodId:periodoId,cedula:cedula,numeroIdentificacion:cedula,
+        Notart:articulo,Nart:articulo,notart:articulo,nart:articulo,notaArticulo:articulo,
+        Notdef:nota,Ndef:nota,notdef:nota,ndef:nota,notaDefensa:nota,
+        Notafinal:final,Nfinal:final,notafinal:final,nfin:final,notaFinal:final,
+        fechaDefensa:text(row.dia||""),
+        tribunal:[row.tribunal1,row.tribunal2,investigador].map(text).filter(Boolean).join(" | "),
+        observacionDefensa:"N-DEF registrada desde Cr-def",
+        origen:"cr-def",updatedAt:new Date().toISOString()
+      },{source:"Cr-def",origen:"cr-def"});
+    });
+  }
   function guardarCronograma(rows){
     rows=(rows||[]).filter(function(row){return text(row.cedula)&&text(row.periodoId);});
     if(!rows.length)return Promise.resolve([]);
@@ -132,7 +147,7 @@ Función:
   }
   window.CR_DEF_DATA=Object.freeze({
     dbAvailable:function(){return !!connector();},connectionAvailable:function(){return !!connector();},
-    listarPeriodos:listarPeriodos,cargarAptos:cargarAptos,calcularFirma:calcularFirma,guardarCronograma:guardarCronograma,
+    listarPeriodos:listarPeriodos,cargarAptos:cargarAptos,calcularFirma:calcularFirma,guardarNotaDefensa:guardarNotaDefensa,guardarCronograma:guardarCronograma,
     helpers:Object.freeze({text:text,norm:norm,cedulaOf:cedulaOf,readFirst:readFirst,canonicalPeriodId:canonicalPeriodId,samePeriod:samePeriod,studentPeriodId:studentPeriodId})
   });
 })(window);
