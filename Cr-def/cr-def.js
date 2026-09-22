@@ -390,6 +390,13 @@ Con qué se conecta:
     setSelectOptions(els.filtroSede, sedes, "Todas");
   }
 
+  function dateSortKey(value){
+    var raw=text(value),m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/),iso=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if(iso){return iso[1]+"-"+String(iso[2]).padStart(2,"0")+"-"+String(iso[3]).padStart(2,"0");}
+    if(m){return m[3]+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0");}
+    return "9999-99-99|"+raw;
+  }
+
   function unique(values){
     var map = Object.create(null);
     var out = [];
@@ -455,7 +462,7 @@ Con qué se conecta:
       var ca=text(a.carrera), cb=text(b.carrera);
       var career=ca.localeCompare(cb,"es",{sensitivity:"base"});
       if(career!==0){ return career; }
-      return [text(a.dia),text(a.hora),text(a.nombre)].join("|").localeCompare([text(b.dia),text(b.hora),text(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
+      return [dateSortKey(a.dia),text(a.hora),text(a.nombre)].join("|").localeCompare([dateSortKey(b.dia),text(b.hora),text(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
     });
     var currentCareer="";
     filteredRows.forEach(function(row){
