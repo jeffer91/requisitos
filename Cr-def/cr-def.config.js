@@ -3,13 +3,8 @@ Nombre completo: cr-def.config.js
 Ruta o ubicación: /Requisitos/Cr-def/cr-def.config.js
 Función o funciones:
 - Centralizar configuración base del módulo Cr-def.
-- Definir columnas visibles, estados y parámetros generales.
-- Mantener valores quemados para evitar dependencias innecesarias.
-Con qué se conecta:
-- cr-def.html
-- cr-def.js
-- cr-def.rules.js
-- cr-def.templates.js
+- Mantener la regla académica separada de la presentación del cronograma.
+- Definir la salida real: día, hora, sede, estudiante, carrera, tribunal/coordinador, tribunal 2, investigador y aula.
 ========================================================= */
 (function(window){
   "use strict";
@@ -17,9 +12,12 @@ Con qué se conecta:
   var CONFIG = {
     appId: "Cr-def",
     appName: "Cr-def · Cronograma de defensas",
-    version: "bloque-2",
+    version: "bloque-7-cronograma-real",
 
     duracionMinutos: 30,
+    permitirDuracionVariable: true,
+    permitirCamposTribunalVacios: true,
+    agruparPorCarrera: true,
 
     periodoFiltroPrincipal: true,
 
@@ -33,56 +31,25 @@ Con qué se conecta:
     },
 
     estados: {
-      apto: {
-        clave: "apto",
-        etiqueta: "Apto para agendar",
-        tipo: "ok"
-      },
-      programado: {
-        clave: "programado",
-        etiqueta: "Defensa programada",
-        tipo: "info"
-      },
-      supletorio: {
-        clave: "supletorio",
-        etiqueta: "Supletorio / segunda defensa",
-        tipo: "warn"
-      },
-      sinCupo: {
-        clave: "sin-cupo",
-        etiqueta: "Sin defensa asignada",
-        tipo: "warn"
-      },
-      conflicto: {
-        clave: "conflicto",
-        etiqueta: "Con conflicto",
-        tipo: "danger"
-      },
-      bloqueado: {
-        clave: "bloqueado",
-        etiqueta: "No apto",
-        tipo: "danger"
-      },
-      defensaAprobada: {
-        clave: "defensa-aprobada",
-        etiqueta: "Defensa aprobada",
-        tipo: "done"
-      }
+      apto: { clave:"apto", etiqueta:"Apto para agendar", tipo:"ok" },
+      programado: { clave:"programado", etiqueta:"Defensa programada", tipo:"info" },
+      supletorio: { clave:"supletorio", etiqueta:"Supletorio / segunda defensa", tipo:"warn" },
+      sinCupo: { clave:"sin-cupo", etiqueta:"Sin defensa asignada", tipo:"warn" },
+      conflicto: { clave:"conflicto", etiqueta:"Con conflicto", tipo:"danger" },
+      bloqueado: { clave:"bloqueado", etiqueta:"No apto", tipo:"danger" },
+      defensaAprobada: { clave:"defensa-aprobada", etiqueta:"Defensa aprobada", tipo:"done" }
     },
 
     columnasCronograma: [
-      { id: "aula", etiqueta: "Aula" },
-      { id: "dia", etiqueta: "Día" },
-      { id: "hora", etiqueta: "Hora" },
-      { id: "sede", etiqueta: "Sede" },
-      { id: "cedula", etiqueta: "Cédula" },
-      { id: "nombre", etiqueta: "Nombre" },
-      { id: "carrera", etiqueta: "Carrera" },
-      { id: "notaArticulo", etiqueta: "Nota artículo" },
-      { id: "tribunal1", etiqueta: "Tribunal 1" },
-      { id: "tribunal2", etiqueta: "Tribunal 2" },
-      { id: "tribunal3", etiqueta: "Tribunal 3" },
-      { id: "estado", etiqueta: "Estado" }
+      { id:"dia", etiqueta:"Día" },
+      { id:"hora", etiqueta:"Hora" },
+      { id:"sede", etiqueta:"Sede" },
+      { id:"nombre", etiqueta:"Nombres completos" },
+      { id:"carrera", etiqueta:"Carrera" },
+      { id:"tribunal1", etiqueta:"Tribunal 1 / Coordinador" },
+      { id:"tribunal2", etiqueta:"Tribunal 2" },
+      { id:"investigador", etiqueta:"Investigador" },
+      { id:"aula", etiqueta:"Aula" }
     ],
 
     filtrosInternos: {
