@@ -477,6 +477,15 @@ Función:
       input.value=parseTimeStart(row.hora);
       input.step="1800";
       input.title=text(row.hora)||"Hora de inicio";
+      var wrap=document.createElement("div");
+      wrap.className="cr-time-editor";
+      var preview=document.createElement("span");
+      preview.className="cr-time-range";
+      preview.textContent=text(row.hora)||"";
+      wrap.appendChild(input);
+      wrap.appendChild(preview);
+      td.appendChild(wrap);
+      return td;
     }else{
       input.value=text(row[field]||(field==="investigador"?row.tribunal3:""));
     }
