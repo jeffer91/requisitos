@@ -1,11 +1,11 @@
 <!doctype html>
 <!-- =========================================================
 Nombre completo: cr-def.html
-Ruta o ubicación: /Requisitos/Cr-def/cr-def.html
+Ruta: /Requisitos/Cr-def/cr-def.html
 Función:
-- Pantalla compacta del cronograma de defensas.
-- Priorizar controles, programación y tabla en una sola vista de trabajo.
-- Consumir BDLocal exclusivamente mediante cone.crdef.js.
+- Mesa de programación editable para defensas.
+- Fecha por carrera, hora y responsables por estudiante.
+- Guardado automático en BDLocal.
 ========================================================= -->
 <html lang="es">
 <head>
@@ -18,14 +18,12 @@ Función:
 </head>
 <body>
   <main class="cr-shell" data-cr-def-app>
-
     <section class="cr-toolbar cr-toolbar--main" aria-label="Filtros del cronograma">
       <div class="cr-filter-box cr-filter-period">
         <label for="crPeriodo">Período</label>
         <select id="crPeriodo" class="cr-control" data-cr-periodo>
           <option value="">Seleccione período</option>
         </select>
-        <small data-cr-periodo-help>Períodos cargados desde BDLocal.</small>
       </div>
 
       <div class="cr-search-box">
@@ -56,74 +54,25 @@ Función:
           <option value="apto">Apto para agendar</option>
           <option value="programado">Defensa programada</option>
           <option value="supletorio">Supletorio / segunda defensa</option>
-          <option value="sin-cupo">Sin defensa asignada</option>
           <option value="conflicto">Con conflicto</option>
         </select>
       </div>
 
-      <div class="cr-toolbar-refresh">
-        <span class="cr-toolbar-refresh__label" aria-hidden="true">Datos</span>
+      <div class="cr-toolbar-actions">
         <button type="button" class="cr-btn cr-btn--soft" data-cr-actualizar disabled>Actualizar</button>
+        <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
+        <span class="cr-save-status" data-cr-save-status>Guardado automático</span>
       </div>
     </section>
 
-    <section class="cr-status-panel" aria-live="polite">
-      <article class="cr-alert cr-alert--info" data-cr-alerta-principal>
-        <strong>Conectando.</strong>
-        Esperando confirmación de ConCrDef.
-      </article>
-    </section>
-
-    <section class="cr-plan-panel" aria-label="Programación automática">
-      <div class="cr-plan-grid">
-        <label class="cr-plan-field cr-plan-field--global" for="crDiasGlobales">
-          <span>Días generales</span>
-          <input id="crDiasGlobales" class="cr-control" type="text"
-            placeholder="Ej: 22/09/2026, 23/09/2026" autocomplete="off"
-            data-cr-dias-globales />
-        </label>
-
-        <label class="cr-plan-field cr-plan-field--career" for="crDiasCarrera">
-          <span>Días por carrera</span>
-          <textarea id="crDiasCarrera" class="cr-control cr-textarea" rows="2"
-            placeholder="Ej: Ventas=24/09/2026 · Diseño Multimedia=22/09/2026"
-            data-cr-dias-carrera></textarea>
-        </label>
-
-        <div class="cr-plan-actions">
-          <span class="cr-plan-note">30 min por defecto · duración variable</span>
-          <div class="cr-plan-buttons">
-            <button type="button" class="cr-btn cr-btn--primary" data-cr-generar disabled>Generar cronograma</button>
-            <button type="button" class="cr-btn" data-cr-exportar disabled>Exportar</button>
-          </div>
-          <span class="cr-actions__hint" data-cr-actions-hint>Esperando conexión.</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="cr-summary-grid" aria-label="Resumen del cronograma">
-      <article class="cr-summary-card">
-        <span class="cr-summary-card__label">Aptos</span>
-        <strong data-cr-total-aptos>0</strong>
-      </article>
-      <article class="cr-summary-card">
-        <span class="cr-summary-card__label">Programadas</span>
-        <strong data-cr-total-programados>0</strong>
-      </article>
-      <article class="cr-summary-card cr-summary-card--warn">
-        <span class="cr-summary-card__label">Sin asignar</span>
-        <strong data-cr-total-sin-defensa>0</strong>
-      </article>
-      <article class="cr-summary-card cr-summary-card--danger">
-        <span class="cr-summary-card__label">Conflictos</span>
-        <strong data-cr-total-conflictos>0</strong>
-      </article>
+    <section class="cr-status-panel" data-cr-status-panel hidden aria-live="polite">
+      <article class="cr-alert cr-alert--warn" data-cr-alerta-principal></article>
     </section>
 
     <section class="cr-table-card">
       <div class="cr-table-card__head">
         <h2>Cronograma</h2>
-        <span class="cr-pill" data-cr-cache-status>Cache pendiente</span>
+        <span class="cr-pill" data-cr-cache-status>Preparando datos</span>
       </div>
 
       <div class="cr-table-wrap">
@@ -143,17 +92,18 @@ Función:
           </thead>
           <tbody data-cr-tabla-body>
             <tr class="cr-empty-row">
-              <td colspan="9">Selecciona un período. Cr-def cargará automáticamente los estudiantes aptos.</td>
+              <td colspan="9">Selecciona un período.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
+
+    <datalist id="crPeopleCatalog" data-cr-people-catalog></datalist>
   </main>
 
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/conexiones/cone.crdef.js"></script>
-
   <script src="cr-def.config.js"></script>
   <script src="cr-def.rules.js"></script>
   <script src="cr-def.templates.js"></script>
