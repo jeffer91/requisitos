@@ -178,3 +178,19 @@ Con qué se conecta:
     padding: 6px;
   }
 }
+
+
+.cr-career-row td{
+  background:#eef2ff;
+  color:#172554;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.02em;
+  padding:10px 12px;
+  border-top:2px solid #c7d2fe;
+  border-bottom:1px solid #c7d2fe;
+}
+
+.cr-table tbody tr[data-cr-row-key] td{
+  vertical-align:middle;
+}
