@@ -94,7 +94,7 @@ Función:
   }
   function calcularFirma(periodoId){periodoId=canonicalPeriodId(periodoId);return readPeriod(periodoId).then(function(data){return buildFirma(periodoId,data.students,data.requirements);});}
   function guardarCronograma(rows){
-    rows=(rows||[]).filter(function(row){return text(row.cedula)&&text(row.periodoId)&&text(row.dia)&&text(row.hora);});
+    rows=(rows||[]).filter(function(row){return text(row.cedula)&&text(row.periodoId);});
     if(!rows.length)return Promise.resolve([]);
     return ensureConnector().then(function(c){
       if(typeof c.saveSchedules!=="function")throw new Error("ConCrDef.saveSchedules no está disponible.");
@@ -111,7 +111,7 @@ Función:
           horaFin:row.cronograma&&row.cronograma.horaFin||"",
           updatedAt:new Date().toISOString()
         };
-      }),{source:"Cr-def.scheduler"});
+      }),{source:"Cr-def.manual"});
     });
   }
   window.CR_DEF_DATA=Object.freeze({
