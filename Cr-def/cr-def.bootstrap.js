@@ -61,10 +61,12 @@ Función:
     });
   }
   function showError(error){
+    var panel=document.querySelector("[data-cr-status-panel]");
     var box=document.querySelector("[data-cr-alerta-principal]");
+    if(panel){panel.hidden=false;}
     if(box){box.className="cr-alert cr-alert--danger";box.textContent=error&&error.message?error.message:String(error);}
-    var hint=document.querySelector("[data-cr-actions-hint]");
-    if(hint){hint.textContent="No se pudo conectar Cr-def con BDLocal.";}
+    var save=document.querySelector("[data-cr-save-status]");
+    if(save){save.textContent="Sin conexión";save.className="cr-save-status is-error";}
   }
   function boot(){
     connectorReady()
