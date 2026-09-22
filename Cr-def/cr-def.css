@@ -304,14 +304,36 @@ label{
 }
 
 input[type="time"].cr-inline-input{min-width:96px}
+..cr-table td:nth-child(5) .cr-inline-input,
 .cr-table td:nth-child(6) .cr-inline-input,
-.cr-table td:nth-child(7) .cr-inline-input,
-.cr-table td:nth-child(8) .cr-inline-input{min-width:140px}
-.cr-table td:nth-child(9) .cr-inline-input{min-width:62px}
+.cr-table td:nth-child(7) .cr-inline-input{min-width:140px}
+.cr-table td:nth-child(8) .cr-inline-input{min-width:62px}
 
-.cr-col-day{white-space:nowrap;min-width:82px}
-.cr-col-name{min-width:225px;font-weight:700}
-.cr-col-career{min-width:210px}
+.cr-col-name{min-width:230px;font-weight:700}
+.cr-col-cedula{min-width:108px;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+.cr-date-row td{
+  background:#e2e8f0;
+  color:#0f172a;
+  font-size:12px;
+  font-weight:900;
+  padding:8px 10px;
+  border-top:2px solid #94a3b8;
+  border-bottom:1px solid #cbd5e1;
+}
+
+.cr-section-head-row th{
+  position:static;
+  z-index:auto;
+  background:#f8fafc;
+  color:#475569;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.02em;
+  white-space:nowrap;
+  padding:5px 7px;
+  border-bottom:1px solid #dbe4ef;
+}
 
 .cr-row--pending{background:#fffaf0}
 .cr-row--conflicto{background:var(--cr-danger-bg)!important}
