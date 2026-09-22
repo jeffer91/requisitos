@@ -5,6 +5,8 @@ Función:
 - Leer exclusivamente desde ConCrDef.
 - Trabajar con estudiantes activos e IDs/períodos canónicos.
 - Hidratar requisitos, notas y cronogramas persistidos.
+- Mantener separados intento ordinario y supletorio.
+- Usar Investigador como campo real, conservando tribunal3 por compatibilidad.
 ========================================================= */
 (function(window){
   "use strict";
@@ -48,19 +50,42 @@ Función:
   function listarPeriodos(){return ensureConnector().then(function(c){return typeof c.listPeriods==="function"?c.listPeriods():(typeof c.getPeriods==="function"?c.getPeriods():[]);}).then(function(rows){var seen={};return (rows||[]).map(function(row){var id=canonicalPeriodId(row&&(row.id||row.periodoId||row.value||row.key));return {id:id,label:text(row&&(row.label||row.periodoLabel||row.nombre||id))};}).filter(function(row){if(!row.id||seen[row.id])return false;seen[row.id]=true;return true;});});}
   function readPeriod(periodoId){periodoId=canonicalPeriodId(periodoId);return ensureConnector().then(function(c){if(typeof c.read!=="function")throw new Error("ConCrDef.read no está disponible.");return c.read({periodoId:periodoId,periodId:periodoId,matricula:"ACTIVO"});}).then(function(response){if(!response||response.ok===false)throw new Error(response&&response.error||"ConCrDef no entregó datos.");var data=response.data||{};return {students:Array.isArray(data.students)?data.students:[],requirements:Array.isArray(data.requirements)?data.requirements:[],schedules:Array.isArray(data.schedules)?data.schedules:[]};});}
   function scheduleMap(rows){var map={};(rows||[]).forEach(function(row){var c=cedulaOf(row),p=periodoIdOf(row),i=Number(row.intento||1);if(c&&p)map[makeKey(p,c)+"__"+i]=row;});return map;}
-  function mergeSchedule(row,s){if(!s)return row;["aula","dia","hora","sede","tribunal1","tribunal2","tribunal3"].forEach(function(k){if(text(s[k])!=="")row[k]=s[k];});row.cronogramaEstado=text(s.estadoCronograma||s.cronogramaEstado||"BORRADOR").toUpperCase();row.cronograma={persisted:true,id:s.id||"",estado:row.cronogramaEstado,fechaISO:s.fechaISO||"",horaInicio:s.horaInicio||"",horaFin:s.horaFin||"",updatedAt:s.updatedAt||""};if(text(row.dia)&&text(row.hora)&&row.cronogramaEstado!=="ANULADO"){row.estadoClave="programado";row.estado="Defensa programada";}return row;}
+  function mergeSchedule(row,s){
+    if(!s)return row;
+    ["aula","dia","hora","sede","tribunal1","tribunal2"].forEach(function(k){if(text(s[k])!=="")row[k]=s[k];});
+    row.investigador=text(s.investigador||s.tribunal3||row.investigador||"");
+    row.tribunal3=row.investigador;
+    row.duracionMinutos=Number(s.duracionMinutos||row.duracionMinutos||0)||row.duracionMinutos||null;
+    row.cronogramaEstado=text(s.estadoCronograma||s.cronogramaEstado||"BORRADOR").toUpperCase();
+    row.cronograma={persisted:true,id:s.id||"",estado:row.cronogramaEstado,fechaISO:s.fechaISO||"",horaInicio:s.horaInicio||"",horaFin:s.horaFin||"",duracionMinutos:row.duracionMinutos||null,updatedAt:s.updatedAt||""};
+    if(text(row.dia)&&text(row.hora)&&row.cronogramaEstado!=="ANULADO"){row.estadoClave="programado";row.estado="Defensa programada";}
+    return row;
+  }
   function isActive(row){var v=text(readFirst(row,["estadoMatricula","EstadoMatricula","_estadoMatricula","estado","Estado"])).toUpperCase();return !v||v==="ACTIVO";}
   function cargarAptos(periodoId){
     periodoId=canonicalPeriodId(periodoId);if(!periodoId)return Promise.resolve({rows:[],firma:null,resumen:{aptos:0,bloqueados:0}});
     return readPeriod(periodoId).then(function(data){
       var students=data.students,requirements=data.requirements,byReq=groupByPeriodoCedula(requirements),saved=scheduleMap(data.schedules),rows=[],bloqueados=0,defensaAprobada=0,retirados=0;
       students.forEach(function(baseRow){
-        if(!isActive(baseRow)){retirados++;return;}var cedula=cedulaOf(baseRow);if(!cedula)return;var rowPeriod=periodoIdOf(baseRow)||periodoId;if(rowPeriod&&!samePeriod(rowPeriod,periodoId))return;
-        var key=makeKey(periodoId,cedula),record=Object.assign({},clone(baseRow));record.cedula=cedula;record.periodoId=periodoId;record.nombre=nombreOf(baseRow);record.carrera=carreraOf(baseRow);record.sede=sedeOf(baseRow);
-        var embedded=(Array.isArray(baseRow.requisitos)?baseRow.requisitos:[]).concat(Array.isArray(baseRow.requirements)?baseRow.requirements:[]);record.requisitos=embedded.concat(byReq[key]||[]);record.requirements=record.requisitos;record.requisitos.forEach(function(req){putRequirement(record,req);});putNotes(record,[baseRow,baseRow._bdlNotas]);
+        if(!isActive(baseRow)){retirados++;return;}
+        var cedula=cedulaOf(baseRow);if(!cedula)return;
+        var rowPeriod=periodoIdOf(baseRow)||periodoId;if(rowPeriod&&!samePeriod(rowPeriod,periodoId))return;
+        var key=makeKey(periodoId,cedula),record=Object.assign({},clone(baseRow));
+        record.cedula=cedula;record.periodoId=periodoId;record.nombre=nombreOf(baseRow);record.carrera=carreraOf(baseRow);record.sede=sedeOf(baseRow);
+        var embedded=(Array.isArray(baseRow.requisitos)?baseRow.requisitos:[]).concat(Array.isArray(baseRow.requirements)?baseRow.requirements:[]);
+        record.requisitos=embedded.concat(byReq[key]||[]);record.requirements=record.requisitos;
+        record.requisitos.forEach(function(req){putRequirement(record,req);});putNotes(record,[baseRow,baseRow._bdlNotas]);
         var ev=rules&&typeof rules.evaluarAptitud==="function"?rules.evaluarAptitud(record):{apto:false,estadoClave:"bloqueado",estado:"No apto",alertas:["Reglas Cr-def no disponibles."]};
-        if(ev.estadoClave==="defensa-aprobada"){defensaAprobada++;return;}if(!ev.apto){bloqueados++;return;}
-        var intento=Number(ev.intento||1),row={id:key,periodoId:periodoId,intento:intento,tipoDefensa:ev.tipoDefensa||(intento===2?"SUPLETORIO":"ORDINARIA"),aula:"",dia:"",hora:"",sede:record.sede,cedula:cedula,nombre:record.nombre,carrera:record.carrera,notaArticulo:ev.notaArticulo==null?"":ev.notaArticulo,notaDefensa:ev.notaDefensa,tribunal1:"",tribunal2:"",tribunal3:"",estadoClave:ev.estadoClave,estado:ev.estado,alertas:ev.alertas||[],raw:record};
+        if(ev.estadoClave==="defensa-aprobada"){defensaAprobada++;return;}
+        if(!ev.apto){bloqueados++;return;}
+        var intento=Number(ev.intento||1);
+        var row={
+          id:key+"__"+intento,periodoId:periodoId,intento:intento,tipoDefensa:ev.tipoDefensa||(intento===2?"SUPLETORIO":"ORDINARIA"),
+          aula:"",dia:"",hora:"",sede:record.sede,cedula:cedula,nombre:record.nombre,carrera:record.carrera,
+          notaArticulo:ev.notaArticulo==null?"":ev.notaArticulo,notaDefensa:ev.notaDefensa,
+          tribunal1:"",tribunal2:"",investigador:"",tribunal3:"",
+          estadoClave:ev.estadoClave,estado:ev.estado,alertas:ev.alertas||[],raw:record
+        };
         rows.push(mergeSchedule(row,saved[key+"__"+intento]));
       });
       rows.sort(function(a,b){return [a.carrera,a.sede,a.nombre].join("|").localeCompare([b.carrera,b.sede,b.nombre].join("|"),"es");});
@@ -68,6 +93,30 @@ Función:
     });
   }
   function calcularFirma(periodoId){periodoId=canonicalPeriodId(periodoId);return readPeriod(periodoId).then(function(data){return buildFirma(periodoId,data.students,data.requirements);});}
-  function guardarCronograma(rows){rows=(rows||[]).filter(function(row){return text(row.cedula)&&text(row.periodoId)&&text(row.dia)&&text(row.hora);});if(!rows.length)return Promise.resolve([]);return ensureConnector().then(function(c){if(typeof c.saveSchedules!=="function")throw new Error("ConCrDef.saveSchedules no está disponible.");return c.saveSchedules(rows.map(function(row){return {periodoId:canonicalPeriodId(row.periodoId),cedula:normalizeCedula(row.cedula),intento:Number(row.intento||1),tipoDefensa:row.tipoDefensa||"ORDINARIA",aula:row.aula||"",dia:row.dia||"",hora:row.hora||"",sede:row.sede||"",tribunal1:row.tribunal1||"",tribunal2:row.tribunal2||"",tribunal3:row.tribunal3||"",estadoCronograma:row.cronogramaEstado||"BORRADOR",fechaISO:row.cronograma&&row.cronograma.fechaISO||"",updatedAt:new Date().toISOString()};}),{source:"Cr-def.scheduler"});});}
-  window.CR_DEF_DATA=Object.freeze({dbAvailable:function(){return !!connector();},connectionAvailable:function(){return !!connector();},listarPeriodos:listarPeriodos,cargarAptos:cargarAptos,calcularFirma:calcularFirma,guardarCronograma:guardarCronograma,helpers:Object.freeze({text:text,norm:norm,cedulaOf:cedulaOf,readFirst:readFirst,canonicalPeriodId:canonicalPeriodId,samePeriod:samePeriod,studentPeriodId:studentPeriodId})});
+  function guardarCronograma(rows){
+    rows=(rows||[]).filter(function(row){return text(row.cedula)&&text(row.periodoId)&&text(row.dia)&&text(row.hora);});
+    if(!rows.length)return Promise.resolve([]);
+    return ensureConnector().then(function(c){
+      if(typeof c.saveSchedules!=="function")throw new Error("ConCrDef.saveSchedules no está disponible.");
+      return c.saveSchedules(rows.map(function(row){
+        var investigador=text(row.investigador||row.tribunal3||"");
+        return {
+          periodoId:canonicalPeriodId(row.periodoId),cedula:normalizeCedula(row.cedula),intento:Number(row.intento||1),
+          tipoDefensa:row.tipoDefensa||"ORDINARIA",aula:row.aula||"",dia:row.dia||"",hora:row.hora||"",sede:row.sede||"",
+          tribunal1:row.tribunal1||"",tribunal2:row.tribunal2||"",investigador:investigador,tribunal3:investigador,
+          duracionMinutos:Number(row.duracionMinutos||row.cronograma&&row.cronograma.duracionMinutos||0)||null,
+          estadoCronograma:row.cronogramaEstado||"BORRADOR",
+          fechaISO:row.cronograma&&row.cronograma.fechaISO||"",
+          horaInicio:row.cronograma&&row.cronograma.horaInicio||"",
+          horaFin:row.cronograma&&row.cronograma.horaFin||"",
+          updatedAt:new Date().toISOString()
+        };
+      }),{source:"Cr-def.scheduler"});
+    });
+  }
+  window.CR_DEF_DATA=Object.freeze({
+    dbAvailable:function(){return !!connector();},connectionAvailable:function(){return !!connector();},
+    listarPeriodos:listarPeriodos,cargarAptos:cargarAptos,calcularFirma:calcularFirma,guardarCronograma:guardarCronograma,
+    helpers:Object.freeze({text:text,norm:norm,cedulaOf:cedulaOf,readFirst:readFirst,canonicalPeriodId:canonicalPeriodId,samePeriod:samePeriod,studentPeriodId:studentPeriodId})
+  });
 })(window);
