@@ -43,11 +43,18 @@ Función:
     return true;
   }
 
+  function dateSortKey(value){
+    var raw=txt(value),m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/),iso=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if(iso)return iso[1]+"-"+String(iso[2]).padStart(2,"0")+"-"+String(iso[3]).padStart(2,"0");
+    if(m)return m[3]+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0");
+    return "9999-99-99|"+raw;
+  }
+
   function sortedRows(rows){
     return (rows||[]).slice().sort(function(a,b){
       var c=txt(a.carrera).localeCompare(txt(b.carrera),"es",{sensitivity:"base"});
       if(c!==0)return c;
-      return [txt(a.dia),txt(a.hora),txt(a.nombre)].join("|").localeCompare([txt(b.dia),txt(b.hora),txt(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
+      return [dateSortKey(a.dia),txt(a.hora),txt(a.nombre)].join("|").localeCompare([dateSortKey(b.dia),txt(b.hora),txt(b.nombre)].join("|"),"es",{numeric:true,sensitivity:"base"});
     });
   }
 
