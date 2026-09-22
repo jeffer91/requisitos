@@ -331,6 +331,26 @@ input[type="time"].cr-inline-input{
 .cr-col-name{min-width:220px;font-weight:700}
 .cr-col-cedula{min-width:105px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .cr-col-note{width:58px;min-width:58px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
+.cr-grade-input{
+  width:56px;
+  min-height:29px;
+  border:1px solid #cbd5e1;
+  border-radius:7px;
+  background:#fff;
+  color:#172033;
+  padding:4px 5px;
+  font-size:10px;
+  font-weight:800;
+  text-align:center;
+  outline:none;
+  font-variant-numeric:tabular-nums;
+}
+.cr-grade-input:focus{
+  border-color:var(--cr-primary);
+  box-shadow:0 0 0 2px rgba(63,81,245,.11);
+}
+.cr-grade-input::-webkit-inner-spin-button,
+.cr-grade-input::-webkit-outer-spin-button{opacity:.45}
 
 .cr-date-row td{
   background:#e2e8f0;
