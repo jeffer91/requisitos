@@ -413,7 +413,7 @@ Función:
 
   function applyRowField(key,field,value){
     var row=findRow(key);
-    if(!row)return;
+    if(!row||rowClosed(row))return;
     if(field==="hora"){
       row.duracionMinutos=durationForRow(row);
       row.hora=value?buildRange(value,row.duracionMinutos):"";
@@ -439,21 +439,38 @@ Función:
     state.rows.forEach(function(row){
       var rowIso=displayDateToISO(row.dia);
       var sameCurrent=currentIso?rowIso===currentIso:!rowIso;
-      if(norm(row.carrera)===norm(carrera)&&sameCurrent){
+      if(norm(row.carrera)===norm(carrera)&&sameCurrent&&!rowClosed(row)){
         row.dia=display;
         changed.push(row);
       }
     });
+    if(!currentIso&&newIso){assignAutomaticTimes(changed,true);}
+    else if(newIso){assignAutomaticTimes(changed,false);}
     normalizeScheduleStates();
     renderTable();
     persistRows(changed.map(function(row){return findRow(rowIdentity(row))||row;}));
+  }
+
+  function toggleCareerClosed(carrera,currentIso){
+    if(!currentIso)return;
+    var target=state.rows.filter(function(row){
+      return norm(row.carrera)===norm(carrera)&&displayDateToISO(row.dia)===currentIso;
+    });
+    if(!target.length)return;
+    var closing=!blockClosed(target);
+    target.forEach(function(row){
+      row.cronogramaEstado=closing?"CERRADO":"BORRADOR";
+      row.estadoCronograma=row.cronogramaEstado;
+    });
+    renderTable();
+    persistRows(target);
   }
 
   function emptyRow(message){
     var tr=document.createElement("tr");
     tr.className="cr-empty-row";
     var td=document.createElement("td");
-    td.colSpan=8;td.textContent=message;
+    td.colSpan=10;td.textContent=message;
     tr.appendChild(td);
     return tr;
   }
@@ -461,7 +478,7 @@ Función:
   function dateRow(label){
     var tr=document.createElement("tr");
     tr.className="cr-date-row";
-    var td=document.createElement("td");td.colSpan=8;
+    var td=document.createElement("td");td.colSpan=10;
     td.textContent=label||"SIN FECHA";
     tr.appendChild(td);
     return tr;
@@ -469,8 +486,9 @@ Función:
 
   function careerRow(carrera,rows,currentIso){
     var tr=document.createElement("tr");
-    tr.className="cr-career-row";
-    var td=document.createElement("td");td.colSpan=8;
+    var closed=blockClosed(rows);
+    tr.className="cr-career-row"+(closed?" is-closed":"");
+    var td=document.createElement("td");td.colSpan=10;
     var wrap=document.createElement("div");wrap.className="cr-career-bar";
     var title=document.createElement("strong");title.className="cr-career-name";title.textContent=carrera||"SIN CARRERA";
     var controls=document.createElement("div");controls.className="cr-career-date-controls";
@@ -482,13 +500,33 @@ Función:
     input.setAttribute("data-career-date",carrera);
     input.setAttribute("data-current-date",currentIso||"");
     input.title="Cambia la fecha de esta carrera dentro de este bloque";
+    input.disabled=closed;
     var today=document.createElement("button");
     today.type="button";
     today.className="cr-mini-btn";
     today.textContent="Hoy";
     today.setAttribute("data-career-today",carrera);
     today.setAttribute("data-current-date",currentIso||"");
+    today.disabled=closed;
+    var close=document.createElement("button");
+    close.type="button";
+    close.className="cr-mini-btn "+(closed?"is-closed":"");
+    close.textContent=closed?"Reabrir":"Cerrar";
+    close.setAttribute("data-career-close",carrera);
+    close.setAttribute("data-current-date",currentIso||"");
+    close.disabled=!currentIso;
+    var imageBtn=document.createElement("button");
+    imageBtn.type="button";imageBtn.className="cr-mini-btn";imageBtn.textContent="IMG";
+    imageBtn.setAttribute("data-cr-export-career-image",carrera);
+    imageBtn.setAttribute("data-current-date",currentIso||"");
+    imageBtn.disabled=!currentIso;
+    var pdfBtn=document.createElement("button");
+    pdfBtn.type="button";pdfBtn.className="cr-mini-btn";pdfBtn.textContent="PDF";
+    pdfBtn.setAttribute("data-cr-export-career-pdf",carrera);
+    pdfBtn.setAttribute("data-current-date",currentIso||"");
+    pdfBtn.disabled=!currentIso;
     controls.appendChild(label);controls.appendChild(input);controls.appendChild(today);
+    controls.appendChild(close);controls.appendChild(imageBtn);controls.appendChild(pdfBtn);
     wrap.appendChild(title);wrap.appendChild(controls);td.appendChild(wrap);tr.appendChild(td);
     return tr;
   }
@@ -496,7 +534,7 @@ Función:
   function columnHeaderRow(){
     var tr=document.createElement("tr");
     tr.className="cr-section-head-row";
-    ["Hora","Estudiante","Cédula","Sede","Tribunal 1","Tribunal 2","Tribunal 3","Aula"].forEach(function(label){
+    ["Hora","Estudiante","Cédula","N-ART","N-DEF","Sede","Tribunal 1","Tribunal 2","Tribunal 3","Aula"].forEach(function(label){
       var th=document.createElement("th");th.textContent=label;tr.appendChild(th);
     });
     return tr;
