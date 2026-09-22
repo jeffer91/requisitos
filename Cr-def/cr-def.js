@@ -160,6 +160,21 @@ Función:
     });
   }
 
+  function registerTeacher(){
+    var name=text(els.docenteNombre&&els.docenteNombre.value);
+    if(!name)return;
+    rememberPerson(name);
+    if(els.docenteNombre)els.docenteNombre.value="";
+    if(els.docentePanel)els.docentePanel.hidden=true;
+    setSaveStatus("Docente guardado","ok");
+  }
+
+  function toggleTeacherPanel(show){
+    if(!els.docentePanel)return;
+    els.docentePanel.hidden=show===undefined?!els.docentePanel.hidden:!show;
+    if(!els.docentePanel.hidden&&els.docenteNombre)els.docenteNombre.focus();
+  }
+
   function canonicalDateToDisplay(iso){
     var m=text(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m?m[3]+"/"+m[2]+"/"+m[1]:text(iso);
@@ -661,6 +676,13 @@ Función:
     if(els.filtroSede)els.filtroSede.addEventListener("change",function(){state.filtros.sede=text(els.filtroSede.value);renderTable();});
     if(els.filtroEstado)els.filtroEstado.addEventListener("change",function(){state.filtros.estado=text(els.filtroEstado.value);renderTable();});
     if(els.btnActualizar)els.btnActualizar.addEventListener("click",actualizarAptos);
+    if(els.docenteToggle)els.docenteToggle.addEventListener("click",function(){toggleTeacherPanel();});
+    if(els.docenteCerrar)els.docenteCerrar.addEventListener("click",function(){toggleTeacherPanel(false);});
+    if(els.docenteGuardar)els.docenteGuardar.addEventListener("click",registerTeacher);
+    if(els.docenteNombre)els.docenteNombre.addEventListener("keydown",function(event){
+      if(event.key==="Enter"){event.preventDefault();registerTeacher();}
+      if(event.key==="Escape"){toggleTeacherPanel(false);}
+    });
 
     if(els.tablaBody){
       els.tablaBody.addEventListener("change",function(event){
@@ -678,6 +700,14 @@ Función:
         }
       });
       els.tablaBody.addEventListener("click",function(event){
+        var closeButton=event.target.closest("[data-career-close]");
+        if(closeButton){
+          toggleCareerClosed(
+            closeButton.getAttribute("data-career-close"),
+            closeButton.getAttribute("data-current-date")||""
+          );
+          return;
+        }
         var button=event.target.closest("[data-career-today]");
         if(!button)return;
         applyCareerDate(
@@ -712,7 +742,9 @@ Función:
         updateButtons();
       },
       saveRows:persistRows,
-      rememberPerson:rememberPerson
+      rememberPerson:rememberPerson,
+      rowClosed:rowClosed,
+      blockClosed:blockClosed
     };
   }
 
