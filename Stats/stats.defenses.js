@@ -24,8 +24,20 @@ Función:
     article:{label:"Falta Art"},
     defense:{label:"Falta Def"},
     supplement:{label:"Supletorio"},
+    supplementArt:{label:"Supletorio Art"},
+    supplementDef:{label:"Supletorio Def"},
     complete:{label:"Completos"}
   };
+
+  var QUICK_MODES=[
+    "all",
+    "pending",
+    "requirements",
+    "article",
+    "defense",
+    "supplement",
+    "complete"
+  ];
 
   function text(value){return String(value==null?"":value).trim();}
   function el(id){return document.getElementById(id);}
@@ -191,6 +203,8 @@ Función:
     if(mode==="supplement"){
       return item.estado==="Supletorio Art"||item.estado==="Supletorio Def";
     }
+    if(mode==="supplementArt"){return item.estado==="Supletorio Art";}
+    if(mode==="supplementDef"){return item.estado==="Supletorio Def";}
     if(mode==="complete"){return item.estado==="Completo";}
     return true;
   }
@@ -273,9 +287,9 @@ Función:
           '<td><strong>'+g.total+'</strong></td>'+
           '<td>'+countButton(g.requirements,g.carrera,"requirements","is-req")+'</td>'+
           '<td>'+countButton(g.pendingArt,g.carrera,"article","is-pending")+'</td>'+
-          '<td>'+countButton(g.supArt,g.carrera,"supplement","is-sup")+'</td>'+
+          '<td>'+countButton(g.supArt,g.carrera,"supplementArt","is-sup")+'</td>'+
           '<td>'+countButton(g.pendingDef,g.carrera,"defense","is-pending")+'</td>'+
-          '<td>'+countButton(g.supDef,g.carrera,"supplement","is-sup")+'</td>'+
+          '<td>'+countButton(g.supDef,g.carrera,"supplementDef","is-sup")+'</td>'+
           '<td>'+countButton(g.complete,g.carrera,"complete","is-ok")+'</td>'+
         '</tr>';
       }).join("")+
@@ -283,7 +297,7 @@ Función:
   }
   function modeButtons(){
     return '<div class="stats-defense-modes">'+
-      Object.keys(MODES).map(function(key){
+      QUICK_MODES.map(function(key){
         var m=MODES[key];
         return '<button type="button" data-defense-filter="'+esc(key)+'" class="'+(state.mode===key?"is-active":"")+'">'+esc(m.label)+'</button>';
       }).join("")+
