@@ -267,3 +267,9 @@ Función:
     flex-direction:column;
   }
 }
+
+
+/* La comunicación diaria queda concentrada en el bloque "Comunicar". */
+.tabla-message-menu{
+  display:none !important;
+}
