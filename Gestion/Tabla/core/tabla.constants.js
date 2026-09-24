@@ -219,6 +219,7 @@ Función:
     },
 
     messageTypes: [
+      {value: "etapa", label: "Etapa actual"},
       {value: "requisitos", label: "Falta req."},
       {value: "urgente", label: "Urgente"},
       {value: "ultimo", label: "Último aviso"},
