@@ -1,0 +1,269 @@
+/* =========================================================
+Nombre completo: tabla.simple-tools.css
+Ruta: /Gestion/Tabla/css/tabla.simple-tools.css
+Función:
+- Mantener compactos los controles de etapa y comunicación masiva.
+- Dar prioridad visual a acciones frecuentes sin sobrecargar Tabla.
+========================================================= */
+
+.tabla-stage-panel,
+.tabla-communication-panel{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+}
+
+.tabla-stage-main,
+.tabla-communication-main{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.tabla-stage-title,
+.tabla-communication-title{
+  font-size:12px;
+  font-weight:800;
+  color:#0f172a;
+}
+
+.tabla-stage-copy,
+.tabla-communication-copy{
+  margin:0;
+  font-size:11px;
+  color:#64748b;
+  line-height:1.35;
+}
+
+.tabla-stage-copy strong{
+  color:#166534;
+}
+
+.tabla-stage-later{
+  color:#475569;
+}
+
+.tabla-stage-actions,
+.tabla-communication-actions{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+}
+
+.tabla-stage-btn,
+.tabla-communication-actions button,
+.tabla-communication-actions select{
+  min-height:32px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  background:#fff;
+  color:#0f172a;
+  font-size:12px;
+  font-weight:700;
+}
+
+.tabla-stage-btn,
+.tabla-communication-actions button{
+  cursor:pointer;
+  padding:0 10px;
+}
+
+.tabla-communication-actions select{
+  padding:0 28px 0 9px;
+}
+
+.tabla-stage-btn:hover,
+.tabla-communication-actions button:hover{
+  background:#f8fafc;
+}
+
+.tabla-stage-btn.is-active{
+  border-color:#2563eb;
+  background:#eff6ff;
+  color:#1d4ed8;
+  box-shadow:0 0 0 1px rgba(37,99,235,.08);
+}
+
+.tabla-stage-btn[data-stage-filter="out"].is-active{
+  border-color:#dc2626;
+  background:#fef2f2;
+  color:#b91c1c;
+}
+
+.tabla-stage-btn[data-stage-filter="ok"].is-active{
+  border-color:#16a34a;
+  background:#f0fdf4;
+  color:#15803d;
+}
+
+.tabla-communication-panel{
+  background:linear-gradient(90deg,#f8fbff 0%,#ffffff 100%);
+}
+
+.tabla-communication-stats{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+  font-size:11px;
+  color:#64748b;
+}
+
+.tabla-communication-stats strong{
+  color:#0f172a;
+}
+
+.tabla-communication-actions .tabla-action-wa{
+  border-color:#86efac;
+  background:#f0fdf4;
+  color:#166534;
+}
+
+.tabla-communication-actions .tabla-action-outlook{
+  border-color:#93c5fd;
+  background:#eff6ff;
+  color:#1d4ed8;
+}
+
+.tabla-communication-actions .tabla-action-telegram{
+  border-color:#7dd3fc;
+  background:#f0f9ff;
+  color:#0369a1;
+}
+
+.tabla-communication-actions .tabla-action-groups{
+  border-color:#c4b5fd;
+  background:#f5f3ff;
+  color:#6d28d9;
+}
+
+.tabla-message-counter{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  cursor:pointer;
+  user-select:none;
+}
+
+.tabla-message-counter small{
+  color:#64748b;
+  font-size:10px;
+  font-weight:700;
+}
+
+.tabla-message-counter:hover{
+  text-decoration:underline;
+}
+
+.tabla-telegram-groups-toolbar{
+  display:flex;
+  gap:8px;
+  margin-bottom:10px;
+}
+
+.tabla-telegram-groups-toolbar input{
+  width:100%;
+  min-height:36px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  padding:0 10px;
+  font-size:12px;
+}
+
+.tabla-telegram-groups-list{
+  display:grid;
+  gap:7px;
+  max-height:55vh;
+  overflow:auto;
+}
+
+.tabla-telegram-group{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 10px;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+}
+
+.tabla-telegram-group.is-featured{
+  border-color:#8b5cf6;
+  background:#faf5ff;
+  box-shadow:0 0 0 1px rgba(139,92,246,.08);
+}
+
+.tabla-telegram-group-main{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.tabla-telegram-group-main strong{
+  font-size:12px;
+  color:#0f172a;
+}
+
+.tabla-telegram-group-main small{
+  font-size:10px;
+  color:#64748b;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.tabla-telegram-group-actions{
+  display:flex;
+  gap:5px;
+  flex:0 0 auto;
+}
+
+.tabla-telegram-group-actions button{
+  min-height:30px;
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+  background:#fff;
+  padding:0 9px;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+@media (max-width: 980px){
+  .tabla-stage-panel,
+  .tabla-communication-panel{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .tabla-stage-actions,
+  .tabla-communication-actions{
+    width:100%;
+  }
+}
+
+@media (max-width: 640px){
+  .tabla-stage-actions,
+  .tabla-communication-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .tabla-stage-btn,
+  .tabla-communication-actions button,
+  .tabla-communication-actions select{
+    width:100%;
+  }
+
+  .tabla-telegram-group{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}
