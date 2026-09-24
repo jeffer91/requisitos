@@ -303,10 +303,36 @@ Función o funciones:
 
   function list(options){
     options = options || {};
+    var strict = options.strict === true;
+
+    function readSafe(storeNameValue){
+      return readStoreRows(storeNameValue,options).then(function(rows){
+        return {ok:true,rows:Array.isArray(rows)?rows:[],error:null};
+      }).catch(function(error){
+        return {ok:false,rows:[],error:error};
+      });
+    }
+
     return Promise.all([
-      readStoreRows(store(),options).catch(function(){ return []; }),
-      readStoreRows(legacyStore(),options).catch(function(){ return []; })
-    ]).then(function(results){ return combineRows(results[0],results[1],options); });
+      readSafe(store()),
+      readSafe(legacyStore())
+    ]).then(function(results){
+      var primary = results[0];
+      var legacy = results[1];
+
+      if(strict && !primary.ok && !legacy.ok){
+        var parts = [primary.error,legacy.error]
+          .filter(Boolean)
+          .map(function(error){return error&&error.message?error.message:String(error);});
+
+        throw new Error(
+          "No se pudieron leer las notas locales." +
+          (parts.length ? " " + parts.join(" | ") : "")
+        );
+      }
+
+      return combineRows(primary.rows,legacy.rows,options);
+    });
   }
 
   function getByPeriodoCedula(periodoId,cedula){
