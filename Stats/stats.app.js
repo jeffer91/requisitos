@@ -242,8 +242,8 @@ function invalidateDataCaches(reason){
     }
 
     box.innerHTML = [
-      bar("Aprobado", data.estados.cumple || 0, total, "ok"),
-      bar("No cumple", data.estados.no_cumple || 0, total, "bad")
+      bar("Req. completos", data.estados.cumple || 0, total, "ok"),
+      bar("Req. incompletos", data.estados.no_cumple || 0, total, "bad")
     ].join("");
 
     setText("stats-estados-meta", total + " estudiantes");
