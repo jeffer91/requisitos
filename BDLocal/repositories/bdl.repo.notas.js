@@ -12,7 +12,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "1.5.0-notes-update-signal";
+  var VERSION = "1.4.0-domain-preserving-save";
   var SIGNAL_KEY = "REQ_BDLOCAL_NOTES_SIGNAL_V1";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
