@@ -45,7 +45,7 @@ Función o funciones:
         <label>División<select id="stats-division"><option value="">Todas</option></select></label>
         <label>Matrícula<select id="stats-matricula"><option value="ACTIVO">Activos</option><option value="RETIRADO">Retirados</option><option value="">Todos</option></select></label>
         <label>Carrera<select id="stats-carrera"><option value="">Todas</option></select></label>
-        <label>Estado req.<select id="stats-estado"><option value="">Todos</option><option value="cumple">Cumple</option><option value="no_cumple">No cumple</option></select></label>
+        <label>Estado req.<select id="stats-estado"><option value="">Todos</option><option value="cumple">Completos</option><option value="no_cumple">Incompletos</option></select></label>
         <label>Requisito<select id="stats-requisito"><option value="">Todos los requisitos</option></select></label>
         <button id="stats-refresh" type="button">Actualizar</button>
       </section>
@@ -68,13 +68,13 @@ Función o funciones:
         </div>
         <section class="stats-kpis">
           <article><span id="stats-total-label">Total estudiantes</span><strong id="stats-total">0</strong></article>
-          <article><span id="stats-ok-label">Estudiantes aprobados</span><strong id="stats-ok">0</strong></article>
-          <article><span id="stats-no-label">Estudiantes no aprobados</span><strong id="stats-no">0</strong></article>
+          <article><span id="stats-ok-label">Req. completos</span><strong id="stats-ok">0</strong></article>
+          <article><span id="stats-no-label">Req. incompletos</span><strong id="stats-no">0</strong></article>
           <article><span id="stats-avance-label">Cumplimiento general</span><strong id="stats-avance">0%</strong></article>
           <article id="stats-period-approval-card" class="stats-period-card"><span id="stats-period-approval-label">Aprobación por período</span><strong id="stats-period-approval">—</strong></article>
         </section>
         <article class="stats-card stats-summary-chart-card">
-          <div class="stats-card-head"><h2 id="stats-summary-chart-title">Gráfico general</h2><span id="stats-summary-chart-meta">Cumple / No cumple</span></div>
+          <div class="stats-card-head"><h2 id="stats-summary-chart-title">Gráfico general</h2><span id="stats-summary-chart-meta">Req. completos / incompletos</span></div>
           <div id="stats-chart-summary" class="stats-chart-placeholder">Selecciona un período para ver el gráfico.</div>
         </article>
       </section>
