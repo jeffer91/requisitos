@@ -12,11 +12,42 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "1.4.0-domain-preserving-save";
+  var VERSION = "1.5.0-notes-update-signal";
+  var SIGNAL_KEY = "REQ_BDLOCAL_NOTES_SIGNAL_V1";
   var Repos = window.BDLRepositories;
   if(!Repos){ return; }
 
   function text(value){ return String(value == null ? "" : value).trim(); }
+  function emitUpdated(rows){
+    rows = Array.isArray(rows) ? rows.filter(Boolean) : (rows ? [rows] : []);
+    var periods = {};
+    var ids = [];
+
+    rows.forEach(function(row){
+      var periodoId = canonicalPeriodId(row && (row.periodoId || row.periodId || ""));
+      var cedula = normalizeCedula(row && (row.cedula || row.numeroIdentificacion || ""));
+      if(periodoId){ periods[periodoId] = true; }
+      if(periodoId && cedula){ ids.push(cedula + "__" + periodoId); }
+    });
+
+    var detail = {
+      ok:true,
+      source:"BDLRepoNotas",
+      periods:Object.keys(periods),
+      ids:ids,
+      total:rows.length,
+      at:new Date().toISOString()
+    };
+
+    try{ window.dispatchEvent(new CustomEvent("bdlocal:notas-updated",{detail:detail})); }catch(error){}
+    try{
+      if(window.top && window.top !== window){
+        window.top.dispatchEvent(new window.top.CustomEvent("bdlocal:notas-updated",{detail:detail}));
+      }
+    }catch(error2){}
+    try{ window.localStorage.setItem(SIGNAL_KEY,JSON.stringify(detail)); }catch(error3){}
+    return detail;
+  }
   function hasValue(value){ return value !== undefined && value !== null && text(value) !== ""; }
   function clone(value){ try{ return JSON.parse(JSON.stringify(value)); }catch(error){ return value; } }
 
@@ -308,6 +339,9 @@ Función o funciones:
     if(!identity.idEstudiantePeriodo){ return Promise.reject(new Error("Nota sin identificación y período.")); }
     return getByPeriodoCedula(identity.periodoId,identity.cedula).then(function(existing){
       return Repos.safePut(store(),mergeForSave(existing,row));
+    }).then(function(saved){
+      emitUpdated(saved || identity);
+      return saved;
     });
   }
 
@@ -336,7 +370,10 @@ Función o funciones:
         return mergeForSave(existing,patch);
       });
     })).then(function(items){
-      return Repos.bulkPut(store(),items);
+      return Repos.bulkPut(store(),items).then(function(savedRows){
+        emitUpdated(Array.isArray(savedRows) && savedRows.length ? savedRows : items);
+        return savedRows;
+      });
     });
   }
 
@@ -352,7 +389,9 @@ Función o funciones:
     mergeNoteRows:mergeNoteRows,
     mergeForSave:mergeForSave,
     mergeRows:mergeRows,
-    noteValues:noteValues
+    noteValues:noteValues,
+    emitUpdated:emitUpdated,
+    signalKey:SIGNAL_KEY
   };
 
   Repos.register("notas",api);
