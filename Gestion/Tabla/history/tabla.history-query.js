@@ -636,7 +636,8 @@ Con qué se conecta:
       omitidos: 0,
       pendientes: 0,
       countable: 0,
-      estudiantes: 0
+      estudiantes: 0,
+      contactados: 0
     };
 
     var students =
@@ -649,23 +650,6 @@ Con qué se conecta:
 
         var currentStatus =
           norm(item.estado);
-
-        if(
-          currentChannel ===
-          "whatsapp"
-        ){
-          result.whatsapp += 1;
-        }else if(
-          currentChannel ===
-          "telegram"
-        ){
-          result.telegram += 1;
-        }else if(
-          currentChannel ===
-          "mail"
-        ){
-          result.mail += 1;
-        }
 
         if(
           currentStatus ===
@@ -691,8 +675,27 @@ Con qué se conecta:
           result.pendientes += 1;
         }
 
-        if(isCountable(item)){
-          result.countable += 1;
+        if(!isCountable(item)){
+          return;
+        }
+
+        result.countable += 1;
+
+        if(
+          currentChannel ===
+          "whatsapp"
+        ){
+          result.whatsapp += 1;
+        }else if(
+          currentChannel ===
+          "telegram"
+        ){
+          result.telegram += 1;
+        }else if(
+          currentChannel ===
+          "mail"
+        ){
+          result.mail += 1;
         }
 
         students[
@@ -706,6 +709,9 @@ Con qué se conecta:
     result.estudiantes =
       Object.keys(students)
         .length;
+
+    result.contactados =
+      result.estudiantes;
 
     return result;
   }
