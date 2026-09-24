@@ -218,8 +218,60 @@ Función:
       .trim();
   }
 
+  function lostProcessWhatsApp(row, options){
+    row = row || {};
+    options = options || {};
+
+    var data = studentData(row);
+    var pending = typeof api.listarRequisitosPendientes === "function"
+      ? api.listarRequisitosPendientes(row)
+      : [];
+    var seen = Object.create(null);
+    var labels = [];
+
+    array(pending).forEach(function(item){
+      var label = requirementLabel(item);
+      var identity = typeKey(label);
+      if(!identity || seen[identity]){ return; }
+      seen[identity] = true;
+      labels.push(label);
+    });
+
+    var lines = [
+      "Saludos, " + (data.nombre || "estudiante") + ".",
+      "",
+      "Se informa que perdió su proceso de titulación correspondiente al período " +
+        (data.periodo || "—") +
+        " debido a requisitos pendientes."
+    ];
+
+    if(labels.length){
+      lines.push("", "Requisitos pendientes:");
+      labels.forEach(function(label){
+        lines.push("• " + label);
+      });
+    }
+
+    lines.push(
+      "",
+      "Para continuar, deberá matricularse nuevamente en el siguiente período académico.",
+      "",
+      "Para orientación sobre matrícula y facturación, comuníquese con Secretaría o Facturación del instituto.",
+      "",
+      "Número único del instituto: " + CONTACTO_GENERAL,
+      "",
+      text(options.firma) || DEFAULT_FIRMA
+    );
+
+    return lines.join("\n");
+  }
+
   function generarMensajeWhatsApp(row, tipo, payload, options){
     var type = typeKey(tipo || "requisitos");
+
+    if(type === "perdio"){
+      return lostProcessWhatsApp(row, options);
+    }
 
     if([
       "requisitos",
@@ -252,6 +304,7 @@ Función:
     version: VERSION,
     generarMensajeWhatsApp: generarMensajeWhatsApp,
     buildRequirementsWhatsApp: buildRequirementsWhatsApp,
-    removeEmails: removeEmails
+    removeEmails: removeEmails,
+    lostProcessWhatsApp: lostProcessWhatsApp
   };
 })(window);
