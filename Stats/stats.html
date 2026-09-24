@@ -17,6 +17,7 @@ Función o funciones:
   <title>Stats Requisitos</title>
   <link rel="stylesheet" href="stats.css" />
   <link rel="stylesheet" href="stats.closure.css" />
+  <link rel="stylesheet" href="stats.defenses.css" />
   <link rel="stylesheet" href="stats.notes.analytics.css" />
   <link rel="stylesheet" href="stats.notes.priorities.css" />
   <link rel="stylesheet" href="stats.overrides.css" />
@@ -28,6 +29,7 @@ Función o funciones:
       <a href="#stats-cierre-section">Cierre</a>
       <a href="#stats-resumen-section">Resumen</a>
       <a href="#stats-notas-section">Notas</a>
+      <a href="#stats-defensas-section">Defensas por carrera</a>
       <a href="#stats-requisitos-section">Requisitos</a>
       <a href="#stats-carreras-section">Carreras</a>
       <a href="#stats-final-section">Aprobación final</a>
@@ -80,6 +82,58 @@ Función o funciones:
       <section id="stats-notas-section" class="stats-section stats-card">
         <div class="stats-card-head"><h2>Notas</h2><span>Registro, promedios, pendientes y cobertura por carrera</span></div>
         <div id="stats-notes" class="stats-notes-wrap"><div class="empty">Cargando resumen de notas...</div></div>
+      </section>
+
+      <section id="stats-defensas-section" class="stats-section stats-card">
+        <div class="stats-card-head stats-defense-head">
+          <div>
+            <h2>Defensas por carrera</h2>
+            <span>Qué carrera está pendiente, cuántos faltan y quiénes son</span>
+          </div>
+          <div class="stats-defense-head-actions">
+            <span id="stats-defense-notes-status" class="stats-defense-notes-status is-loading">Preparando notas...</span>
+            <button id="stats-defense-retry" type="button" hidden>Reintentar</button>
+          </div>
+        </div>
+
+        <div class="stats-defense-kpis" aria-label="Resumen de defensas">
+          <article>
+            <span>Total</span>
+            <strong id="stats-defense-total">0</strong>
+          </article>
+          <article class="is-pending">
+            <span>Pendientes</span>
+            <strong id="stats-defense-pending">0</strong>
+          </article>
+          <article class="is-ok">
+            <span>Completos</span>
+            <strong id="stats-defense-complete">0</strong>
+          </article>
+        </div>
+
+        <article class="stats-defense-block">
+          <div class="stats-defense-block-head">
+            <h3>Resumen por carrera</h3>
+            <span>Pulse un número para ver los estudiantes</span>
+          </div>
+          <div id="stats-defense-careers">
+            <div class="empty">Cargando resumen por carrera...</div>
+          </div>
+        </article>
+
+        <article class="stats-defense-block">
+          <div class="stats-defense-block-head">
+            <div>
+              <h3 id="stats-defense-detail-title">Pendientes</h3>
+              <span id="stats-defense-detail-meta">0 estudiantes</span>
+            </div>
+            <button id="stats-defense-clear-career" type="button">Todas las carreras</button>
+          </div>
+          <div id="stats-defense-controls"></div>
+          <div id="stats-defense-students">
+            <div class="empty">Cargando estudiantes...</div>
+          </div>
+        </article>
       </section>
 
       <section id="stats-requisitos-section" class="stats-section stats-requirements-section">
