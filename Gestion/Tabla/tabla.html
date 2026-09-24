@@ -52,6 +52,11 @@
 
   <link
     rel="stylesheet"
+    href="css/tabla.simple-tools.css"
+  >
+
+  <link
+    rel="stylesheet"
     href="css/tabla.responsive.css"
   >
 </head>
@@ -126,6 +131,135 @@
     </section>
 
     <!-- ===================================================
+    ETAPA ACTUAL
+    ==================================================== -->
+
+    <section
+      class="tabla-panel tabla-stage-panel"
+      aria-label="Etapa actual del proceso"
+    >
+      <div class="tabla-stage-main">
+        <strong class="tabla-stage-title">Etapa actual</strong>
+        <p class="tabla-stage-copy">
+          <strong>Deben estar completos:</strong>
+          Doc · PP · Vinc · Ing · Grad · Datos
+          <span class="tabla-stage-later">· Posteriores: Aca · Fin · Tit</span>
+        </p>
+      </div>
+
+      <div class="tabla-stage-actions" aria-label="Filtro por etapa">
+        <button
+          id="tabla-stage-all"
+          class="tabla-stage-btn is-active"
+          type="button"
+          data-stage-filter="all"
+          aria-pressed="true"
+        >
+          Todos
+        </button>
+
+        <button
+          id="tabla-stage-out"
+          class="tabla-stage-btn"
+          type="button"
+          data-stage-filter="out"
+          aria-pressed="false"
+        >
+          Fuera de etapa
+        </button>
+
+        <button
+          id="tabla-stage-ok"
+          class="tabla-stage-btn"
+          type="button"
+          data-stage-filter="ok"
+          aria-pressed="false"
+        >
+          Cumplen etapa
+        </button>
+      </div>
+    </section>
+
+    <!-- ===================================================
+    COMUNICACIÓN SIMPLE
+    ==================================================== -->
+
+    <section
+      class="tabla-panel tabla-communication-panel"
+      aria-label="Comunicación con estudiantes filtrados"
+    >
+      <div class="tabla-communication-main">
+        <strong class="tabla-communication-title">Comunicar</strong>
+        <div class="tabla-communication-stats" aria-live="polite">
+          <span><strong id="tabla-bulk-total">0</strong> estudiantes</span>
+          <span>WA <strong id="tabla-bulk-wa">0</strong></span>
+          <span>Mail <strong id="tabla-bulk-mail">0</strong></span>
+          <span>TG <strong id="tabla-bulk-tg">0</strong></span>
+        </div>
+      </div>
+
+      <div class="tabla-communication-actions">
+        <select
+          id="tabla-global-message-type"
+          aria-label="Tipo de mensaje para estudiantes filtrados"
+        >
+          <option value="requisitos">Falta req.</option>
+          <option value="urgente">Urgente</option>
+          <option value="ultimo">Último aviso</option>
+          <option value="regularizar">Regularizar</option>
+          <option value="nota_articulo">Falta N-Art</option>
+          <option value="nota_defensa">Falta N-Def</option>
+          <option value="sin_articulo">Sin artículo</option>
+          <option value="no_aprueba">No aprueba</option>
+          <option value="perdio">Perdió</option>
+          <option value="alerta">Alerta</option>
+          <option value="cronograma">Cronograma</option>
+          <option value="libre">Personal</option>
+        </select>
+
+        <button
+          id="tabla-global-apply"
+          type="button"
+          title="Aplicar este tipo de mensaje a todos los estudiantes filtrados"
+        >
+          Aplicar
+        </button>
+
+        <button
+          id="tabla-bulk-whatsapp"
+          class="tabla-action-wa"
+          type="button"
+        >
+          WhatsApp
+        </button>
+
+        <button
+          id="tabla-bulk-outlook"
+          class="tabla-action-outlook"
+          type="button"
+        >
+          Outlook
+        </button>
+
+        <button
+          id="tabla-bulk-telegram"
+          class="tabla-action-telegram"
+          type="button"
+        >
+          Telegram
+        </button>
+
+        <button
+          id="tabla-telegram-groups-open"
+          class="tabla-action-groups"
+          type="button"
+        >
+          Grupos
+        </button>
+      </div>
+    </section>
+
+    <!-- ===================================================
     FILTROS RÁPIDOS DE REQUISITOS
     ==================================================== -->
 
@@ -166,9 +300,15 @@
 <span
   id="tabla-message-counter"
   class="tabla-message-counter"
-  title="Contador de mensajes/contactos del período seleccionado"
+  title="Contador de contactos del período seleccionado"
 >
-  Mensajes: <strong id="tabla-message-counter-value">0</strong>
+  Contactos <strong id="tabla-message-counter-value">0</strong>
+  <small>
+    WA <b id="tabla-message-counter-wa">0</b> ·
+    TG <b id="tabla-message-counter-tg">0</b> ·
+    Mail <b id="tabla-message-counter-mail">0</b> ·
+    Est. <b id="tabla-message-counter-students">0</b>
+  </small>
 </span>
 
 <div class="tabla-message-menu">
@@ -801,6 +941,73 @@
   </section>
 
   <!-- =====================================================
+  GRUPOS DE TELEGRAM
+  ====================================================== -->
+
+  <section
+    id="tabla-telegram-groups-modal"
+    class="tabla-modal"
+    hidden
+    aria-hidden="true"
+  >
+    <div
+      class="tabla-modal-card tabla-modal-card-wide"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tabla-telegram-groups-title"
+      aria-describedby="tabla-telegram-groups-meta"
+    >
+      <header class="tabla-modal-header">
+        <div>
+          <h2 id="tabla-telegram-groups-title">Grupos de Telegram</h2>
+          <p
+            id="tabla-telegram-groups-meta"
+            class="tabla-modal-meta"
+          >
+            Grupos configurados
+          </p>
+        </div>
+
+        <button
+          id="tabla-telegram-groups-close"
+          class="icon-btn"
+          type="button"
+          aria-label="Cerrar grupos de Telegram"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="tabla-modal-body">
+        <div class="tabla-telegram-groups-toolbar">
+          <input
+            id="tabla-telegram-groups-search"
+            type="search"
+            placeholder="Buscar carrera..."
+            autocomplete="off"
+          >
+        </div>
+
+        <div
+          id="tabla-telegram-groups-list"
+          class="tabla-telegram-groups-list"
+        >
+          <div class="empty">Cargando grupos...</div>
+        </div>
+      </div>
+
+      <footer class="tabla-modal-actions">
+        <button
+          id="tabla-telegram-groups-cancel"
+          type="button"
+        >
+          Cerrar
+        </button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- =====================================================
   HISTORIAL
   ====================================================== -->
 
@@ -912,6 +1119,7 @@
 
   <script src="data/tabla.data-normalizer.js"></script>
   <script src="core/tabla.regular-policy.js"></script>
+  <script src="core/tabla.stage-policy.js"></script>
   <script src="data/tabla.data-source.js"></script>
   <script src="data/tabla.data-guard.js"></script>
 
@@ -920,6 +1128,7 @@
   ====================================================== -->
 
   <script src="ui/tabla.filters.js"></script>
+  <script src="ui/tabla.stage.js"></script>
   <script src="ui/tabla.pagination.js"></script>
   <script src="ui/tabla.render-controls.js"></script>
   <script src="ui/tabla.render-summary.js"></script>
@@ -965,6 +1174,8 @@
   ====================================================== -->
 
   <script src="communication/tabla.actions.js"></script>
+  <script src="communication/tabla.telegram-groups.js"></script>
+  <script src="communication/tabla.bulk.js"></script>
   <script src="core/tabla.app.js"></script>
 </body>
 </html>
