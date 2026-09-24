@@ -308,3 +308,28 @@ Función:
     align-items:flex-start;
   }
 }
+
+
+.stats-notes-load-error strong{
+  display:block;
+  color:#b91c1c;
+  margin-bottom:4px;
+}
+
+.stats-notes-load-error small{
+  display:block;
+  color:#64748b;
+  margin-bottom:10px;
+}
+
+.stats-notes-load-error button{
+  min-height:32px;
+  border:1px solid #fecaca;
+  border-radius:9px;
+  background:#fff;
+  color:#b91c1c;
+  padding:0 11px;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+}
