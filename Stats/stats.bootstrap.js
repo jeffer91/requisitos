@@ -72,6 +72,7 @@ Función:
       .then(function(){return load("stats.data.connector-patch.js",function(){return window.StatsDataPatch;});})
       .then(function(patch){return patch&&typeof patch.ready==="function"?patch.ready():true;})
       .then(function(){return load("stats.rules.js",function(){return window.StatsRules;});})
+      .then(function(){return load("../BDLocal/rules/bdl.rules.defense-eligibility.js",function(){return window.BDLDefenseEligibility;});})
       .then(function(){return load("stats.notes.guard.js");})
       .then(function(){return load("stats.core.js",function(){return window.StatsCore;});})
       .then(function(){return load("stats.sede.filter.js",function(){return window.StatsSedeFilter;});})
@@ -82,6 +83,7 @@ Función:
       .then(function(){return load("stats.students.js",function(){return window.StatsStudents;});})
       .then(function(){return load("stats.students.export.js",function(){return window.StatsStudentsExport;});})
       .then(function(){return load("stats.notes.js",function(){return window.StatsNotes;});})
+      .then(function(){return load("stats.defenses.js",function(){return window.StatsDefenses;});})
       .then(function(){return load("stats.ui.patch.js",function(){return window.StatsUIPatch;});})
       .then(function(){return load("stats.app.js",function(){return window.StatsApp;});})
       .then(function(){return load("stats.closure.js",function(){return window.StatsClosure;});})
@@ -100,6 +102,6 @@ Función:
       });
   }
 
-  window.StatsBootstrap={version:"2.2.0-student-exports",boot:boot,connectorReady:connectorReady};
+  window.StatsBootstrap={version:"2.3.0-defense-tracking",boot:boot,connectorReady:connectorReady};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
 })(window,document);
