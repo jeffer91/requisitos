@@ -359,6 +359,16 @@ Función:
         requestSelectedPeriod(true);
       }
     });
+
+    window.addEventListener("requisitos:periodo-global-cambiado",function(){
+      window.setTimeout(function(){
+        requestSelectedPeriod(false);
+      },0);
+    });
+
+    window.addEventListener("stats:bootstrap-ready",function(){
+      requestSelectedPeriod(false);
+    });
   }
 
   function install(){
@@ -387,6 +397,13 @@ Función:
     if(!install()){
       return Promise.reject(new Error("ConStats no está disponible."));
     }
+
+    if(selectedPeriod()){
+      return requestSelectedPeriod(false).then(function(){
+        return status();
+      });
+    }
+
     return Promise.resolve(status());
   }
 
