@@ -585,7 +585,7 @@ Función:
     if(typeSelect){
       globalType = text(typeSelect.value) || "requisitos";
       typeSelect.addEventListener("change", function(){
-        globalType = text(typeSelect.value) || "requisitos";
+        applyGlobal();
       });
     }
 
