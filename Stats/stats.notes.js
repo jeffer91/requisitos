@@ -43,6 +43,42 @@ Función o funciones:
   function nameOf(row){return text(row&&row._nombres)||text(row&&row.Nombres)||text(row&&row.nombres)||text(row&&row.nombre)||"Sin nombre";}
   function idOf(row){return text(row&&row._cedula)||text(row&&row.cedula)||text(row&&row.numeroIdentificacion)||"";}
   function careerOf(row){return text(row&&row._carrera)||text(row&&row.NombreCarrera)||text(row&&row.carrera)||"SIN CARRERA";}
+  function notesReadiness(){
+    var periodId="";
+    try{
+      if(window.StatsApp&&typeof window.StatsApp.getState==="function"){
+        periodId=text(window.StatsApp.getState().periodId||"");
+      }
+    }catch(error){}
+
+    var info={phase:"idle",currentPeriod:"",error:""};
+    try{
+      if(window.StatsDataPatch&&typeof window.StatsDataPatch.status==="function"){
+        info=window.StatsDataPatch.status()||info;
+      }
+    }catch(error2){}
+
+    if(!periodId){return {ready:false,kind:"idle",message:"Selecciona un período para ver notas."};}
+    if(info.phase==="error"){
+      return {ready:false,kind:"error",message:"No se pudieron cargar las notas.",detail:text(info.error)};
+    }
+    if(info.phase==="loading"||text(info.currentPeriod)!==periodId||info.phase!=="ready"){
+      return {ready:false,kind:"loading",message:"Cargando notas del período..."};
+    }
+    return {ready:true,kind:"ready"};
+  }
+  function bindRetry(target){
+    var retry=target&&target.querySelector("[data-stats-notes-retry]");
+    if(!retry){return;}
+    retry.addEventListener("click",function(){
+      retry.disabled=true;
+      if(window.StatsDataPatch&&typeof window.StatsDataPatch.reload==="function"){
+        Promise.resolve(window.StatsDataPatch.reload()).finally(function(){retry.disabled=false;});
+      }else{
+        retry.disabled=false;
+      }
+    });
+  }
 
   function card(label,value,sub,type){
     return '<article class="'+esc(type||"")+'"><span>'+esc(label)+'</span><strong>'+fmt(value)+'</strong><small>'+esc(sub||"")+'</small></article>';
@@ -155,6 +191,20 @@ Función o funciones:
     var target=el(targetId||"stats-notes");
     if(!target){return;}
     if(data&&data._requiresPeriod){target.innerHTML='<div class="empty">Selecciona un período para ver notas.</div>';return;}
+
+    var readiness=notesReadiness();
+    if(!readiness.ready){
+      if(readiness.kind==="error"){
+        target.innerHTML='<div class="empty stats-notes-load-error"><strong>'+esc(readiness.message)+'</strong>'+
+          (readiness.detail?'<small>'+esc(readiness.detail)+'</small>':'')+
+          '<button type="button" data-stats-notes-retry>Reintentar</button></div>';
+        bindRetry(target);
+      }else{
+        target.innerHTML='<div class="empty">'+esc(readiness.message)+'</div>';
+      }
+      return;
+    }
+
     var result=build(rowsOf(data));
     target.innerHTML='<section class="stats-notes-dashboard">'
       + '<div class="stats-notes-summary-grid">'
