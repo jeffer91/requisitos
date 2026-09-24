@@ -382,6 +382,12 @@ function invalidateDataCaches(reason){
     }
   }
 
+  function renderDefenses(data){
+    if(window.StatsDefenses && typeof window.StatsDefenses.render === "function"){
+      window.StatsDefenses.render(data);
+    }
+  }
+
   function renderStudents(data){
     if(window.StatsStudents && typeof window.StatsStudents.render === "function"){
       window.StatsStudents.render(data, "stats-estudiantes", {
@@ -450,6 +456,7 @@ function invalidateDataCaches(reason){
       renderFinales(data);
       renderCharts(data);
       renderNotes(data);
+      renderDefenses(data);
       renderStudents(data);
       bindSortableTables();
 
