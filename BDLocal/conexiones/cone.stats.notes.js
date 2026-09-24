@@ -92,7 +92,7 @@ Función:
     state.reads+=1;
     return ensureRepo().then(function(current){
       if(typeof current.list!=="function"){throw new Error("El repositorio interno de notas no admite list().");}
-      return current.list(options);
+      return current.list(Object.assign({},options,{strict:true}));
     }).then(function(rows){
       state.error="";
       state.loadedAt=new Date().toISOString();
