@@ -47,3 +47,18 @@ ui/tabla.render-*.js
    │
    ▼
 communication / mass / history
+
+## Flujo simple de trabajo
+
+La pantalla incorpora una capa operativa pensada para uso diario:
+
+- **Etapa actual:** permite ver Todos, Fuera de etapa o Cumplen etapa.
+- **Regla de etapa vigente:** deben estar completos Documentación, Prácticas, Vinculación, Inglés, Seguimiento a graduados y Actualización de datos. Académico, Financiero y Titulación se consideran posteriores.
+- **Comunicación global:** un selector maestro aplica el tipo de mensaje a los estudiantes filtrados.
+- **WhatsApp masivo:** intenta abrir una pestaña por estudiante con teléfono válido y registra cada apertura preparada.
+- **Outlook global:** abre un solo correo en Outlook Web con destinatarios en CCO, usando preferentemente el correo institucional y como respaldo el personal.
+- **Telegram:** conserva el envío masivo existente y agrega un popup de grupos por carrera.
+- **Contador:** muestra contactos válidos por WhatsApp, Telegram y correo, además de estudiantes contactados.
+
+Todas estas acciones consumen `filteredRows` de Tabla para que filtros, comunicación e historial trabajen sobre el mismo conjunto de estudiantes.
+
