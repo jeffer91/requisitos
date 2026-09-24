@@ -52,7 +52,7 @@ Función o funciones:
       if(selected.cumple){return '<span class="student-status-ok">Cumple</span>';}
       return '<span class="student-status-bad">'+esc(selected.label||"No cumple")+'</span>';
     }
-    if(isComplete(row,data)){return '<span class="student-status-ok">Aprobado</span>';}
+    if(isComplete(row,data)){return '<span class="student-status-ok">Requisitos completos</span>';}
     var missing=missingFromRow(row);
     if(!missing.length){return '<span class="student-status-bad">No cumple</span>';}
     return '<div class="student-missing-list">'+missing.map(function(item){return '<span class="student-missing" data-key="'+esc(item.key)+'">'+esc(item.label)+'</span>';}).join(" ")+'</div>';
@@ -108,7 +108,7 @@ Función o funciones:
   }
   function controlsHtml(data){
     var telegram=selectedIsTelegram(data);
-    var completeLabel=telegram?"Con Telegram":"Completos";
+    var completeLabel=telegram?"Con Telegram":"Req. completos";
     var missingLabel=telegram?"Sin Telegram":"Con faltantes";
     return '<div class="stats-student-controls">'
       + '<div class="stats-student-mode">'
