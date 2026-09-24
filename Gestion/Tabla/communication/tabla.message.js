@@ -96,6 +96,7 @@ Función:
   ];
 
   var TYPE_LABELS = {
+    etapa: "Etapa actual",
     requisitos: "Falta req.",
     falta: "Falta req.",
     urgente: "Urgente",
@@ -643,6 +644,106 @@ Función:
     return lines.join("\n");
   }
 
+  function generarMensajeEtapa(row, options){
+    row = row || {};
+    options = options || {};
+
+    var data = datosEstudiante(row);
+    var policy = window.TablaStagePolicy || null;
+    var analysis = policy && typeof policy.analyze === "function"
+      ? policy.analyze(row)
+      : null;
+
+    var requiredKeys = policy && Array.isArray(policy.requiredKeys)
+      ? policy.requiredKeys
+      : [
+          "documentacion",
+          "practicasvinculacion",
+          "vinculacion",
+          "ingles",
+          "seguimientograduados",
+          "actualizaciondatos"
+        ];
+
+    var laterKeys = policy && Array.isArray(policy.laterKeys)
+      ? policy.laterKeys
+      : ["academico", "financiero", "titulacion"];
+
+    function labels(keys){
+      return (Array.isArray(keys) ? keys : []).map(function(id){
+        if(policy && typeof policy.labelFor === "function"){
+          return policy.labelFor(id);
+        }
+
+        var fallback = {
+          documentacion: "Documentación académica",
+          practicasvinculacion: "Prácticas preprofesionales",
+          vinculacion: "Vinculación con la sociedad",
+          ingles: "Segunda lengua / Inglés",
+          seguimientograduados: "Seguimiento a graduados",
+          actualizaciondatos: "Actualización de datos",
+          academico: "Académico",
+          financiero: "Financiero",
+          titulacion: "Titulación"
+        };
+
+        return fallback[id] || id;
+      });
+    }
+
+    var requiredLabels = labels(requiredKeys);
+    var laterLabels = labels(laterKeys);
+
+    var lines = [
+      "Saludos, " + data.nombre + ".",
+      "",
+      "Desde el área de Titulación se informa el estado de su proceso correspondiente al período " +
+        (data.periodo || "—") + ".",
+      "",
+      "En la etapa actual deben constar completos los siguientes requisitos:"
+    ];
+
+    requiredLabels.forEach(function(label){
+      lines.push("• " + label);
+    });
+
+    if(analysis){
+      if(!analysis.incomplete.length){
+        lines.push(
+          "",
+          "Su registro cumple con todos los requisitos de la etapa actual."
+        );
+      }else{
+        if(analysis.missing.length){
+          lines.push("", "Pendientes confirmados de esta etapa:");
+          labels(analysis.missing).forEach(function(label){
+            lines.push("• " + label);
+          });
+        }
+
+        if(analysis.pending.length){
+          lines.push("", "Pendientes de validación en esta etapa:");
+          labels(analysis.pending).forEach(function(label){
+            lines.push("• " + label);
+          });
+        }
+      }
+    }
+
+    lines.push(
+      "",
+      "En este corte, " + laterLabels.join(", ") +
+        " corresponden a etapas posteriores y pueden mantenerse pendientes sin considerarse atraso de la etapa actual.",
+      "",
+      "Para orientación general sobre el proceso de titulación, puede comunicarse al " +
+        CONTACTO_GENERAL + ".",
+      "",
+      firma(options)
+    );
+
+    return lines.join("\n");
+  }
+
   function generarMensajeRequisitos(row, options){
     return baseMensaje(row, "requisitos", options);
   }
@@ -698,6 +799,13 @@ Función:
     var type = canonicalType(tipo);
     payload = payload || {};
 
+    if(type === "etapa"){
+      return generarMensajeEtapa(
+        row,
+        options
+      );
+    }
+
     if(type === "cronograma"){
       return generarMensajeCronograma(
         row,
@@ -745,6 +853,7 @@ Función:
     listarRequisitosSinDato: listarRequisitosSinDato,
     contactosPorPendientes: contactosPorPendientes,
     aplicarVariables: aplicarVariables,
+    generarMensajeEtapa: generarMensajeEtapa,
     generarMensajeRequisitos: generarMensajeRequisitos,
     generarMensajeTipo: generarMensajeTipo,
     generarMensajeCronograma: generarMensajeCronograma,
