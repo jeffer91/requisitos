@@ -245,6 +245,13 @@ Con qué se conecta:
       currentChannel ===
         "mail"
     ){
+      if(
+        status === "fallido" ||
+        status === "omitido"
+      ){
+        return false;
+      }
+
       return (
         status === "preparado" ||
         status === "enviado" ||
