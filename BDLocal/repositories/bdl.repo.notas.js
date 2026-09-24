@@ -39,7 +39,7 @@ Función o funciones:
       at:new Date().toISOString()
     };
 
-    try{ window.dispatchEvent(new CustomEvent("bdlocal:notas-updated",{detail:detail})); }catch(error){}
+    try{ window.dispatchEvent(new window.CustomEvent("bdlocal:notas-updated",{detail:detail})); }catch(error){}
     try{
       if(window.top && window.top !== window){
         window.top.dispatchEvent(new window.top.CustomEvent("bdlocal:notas-updated",{detail:detail}));
