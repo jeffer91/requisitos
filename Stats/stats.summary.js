@@ -66,8 +66,8 @@ Con qué se conecta:
     setText("stats-summary-title", "Estadísticas de requisitos");
 
     setText("stats-total-label", "Total estudiantes");
-    setText("stats-ok-label", "Estudiantes aprobados");
-    setText("stats-no-label", "Estudiantes no aprobados");
+    setText("stats-ok-label", "Req. completos");
+    setText("stats-no-label", "Req. incompletos");
     setText("stats-avance-label", "Cumplimiento general");
     setText("stats-period-approval-label", "Aprobación por período");
 
@@ -77,7 +77,7 @@ Con qué se conecta:
     setText("stats-avance", (data.avanceGeneral || 0) + "%");
 
     setText("stats-summary-chart-title", "Gráfico general");
-    setText("stats-summary-chart-meta", "Aprobados / No aprobados");
+    setText("stats-summary-chart-meta", "Req. completos / incompletos");
 
     if(window.StatsCharts && typeof window.StatsCharts.renderGeneral === "function"){
       window.StatsCharts.renderGeneral(data, "stats-chart-summary");
