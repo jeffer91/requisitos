@@ -5,13 +5,13 @@ Función:
 - Centralizar acciones simples sobre todos los estudiantes filtrados.
 - Aplicar un tipo de mensaje global a las filas visibles.
 - Abrir WhatsApp para todos los filtrados con número válido.
-- Abrir un único correo global en Outlook Web usando CCO.
-- Reutilizar Telegram masivo e historial existentes.
+- Abrir una pestaña de Outlook Web por cada estudiante filtrado con correo válido.
+- Reutilizar Telegram masivo e historial existentes y mantener el tipo global seleccionado.
 ========================================================= */
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.0.0-simple-bulk-communications";
+  var VERSION = "1.1.0-reviewed-bulk-communications";
   var U = window.TablaUtils || {};
   var globalType = "requisitos";
   var rowOverrides = Object.create(null);
@@ -263,43 +263,40 @@ Función:
     return globalType;
   }
 
-  function recordMany(list, channel, type, message, destinationFor){
+  function recordPrepared(row, channel, type, message, destination){
     if(
       !window.TablaHistory ||
-      typeof window.TablaHistory.guardarVarios !== "function"
+      typeof window.TablaHistory.guardar !== "function"
     ){
-      return [];
+      return null;
     }
 
-    var records = list.map(function(row){
-      var data = studentData(row);
-      return {
-        canal: channel,
-        modo: "global",
-        accion: "abierto",
-        tipoMensaje: typeForRow(row) || type,
-        tipoLabel: typeLabel(typeForRow(row) || type),
-        cedula: data.cedula || row._cedula || "",
-        nombre: data.nombre || row._nombres || "",
-        carrera: data.carrera || row._carrera || "",
-        periodo: data.periodo || row._periodo || "",
-        periodoId: data.periodoId || row._periodoId || "",
-        correo: channel === "mail" ? preferredEmail(row) : "",
-        telefono: channel === "whatsapp"
-          ? (
-              window.TablaWhatsApp &&
-              typeof window.TablaWhatsApp.phoneOf === "function"
-                ? window.TablaWhatsApp.phoneOf(row)
-                : text(row._celular)
-            )
-          : "",
-        mensaje: message || "",
-        estado: "preparado",
-        destino: typeof destinationFor === "function" ? destinationFor(row) : ""
-      };
-    });
+    var data = studentData(row);
 
-    return window.TablaHistory.guardarVarios(records);
+    return window.TablaHistory.guardar({
+      canal: channel,
+      modo: "masivo",
+      accion: "abierto",
+      tipoMensaje: type,
+      tipoLabel: typeLabel(type),
+      cedula: data.cedula || row._cedula || "",
+      nombre: data.nombre || row._nombres || "",
+      carrera: data.carrera || row._carrera || "",
+      periodo: data.periodo || row._periodo || "",
+      periodoId: data.periodoId || row._periodoId || "",
+      correo: channel === "mail" ? preferredEmail(row) : "",
+      telefono: channel === "whatsapp"
+        ? (
+            window.TablaWhatsApp &&
+            typeof window.TablaWhatsApp.phoneOf === "function"
+              ? window.TablaWhatsApp.phoneOf(row)
+              : text(row._celular)
+          )
+        : "",
+      destino: text(destination),
+      mensaje: message || "",
+      estado: "preparado"
+    });
   }
 
   function openAllWhatsApp(){
@@ -331,29 +328,13 @@ Función:
 
         if(result && result.ok){
           openedRows.push(row);
-
-          if(
-            window.TablaHistory &&
-            typeof window.TablaHistory.guardar === "function"
-          ){
-            var data = studentData(row);
-            window.TablaHistory.guardar({
-              canal:"whatsapp",
-              modo:"masivo",
-              accion:"abierto",
-              tipoMensaje:type,
-              tipoLabel:typeLabel(type),
-              cedula:data.cedula || row._cedula || "",
-              nombre:data.nombre || row._nombres || "",
-              carrera:data.carrera || row._carrera || "",
-              periodo:data.periodo || row._periodo || "",
-              periodoId:data.periodoId || row._periodoId || "",
-              telefono:result.phone || "",
-              destino:result.phone || "",
-              mensaje:message,
-              estado:"preparado"
-            });
-          }
+          recordPrepared(
+            row,
+            "whatsapp",
+            type,
+            message,
+            result.phone || ""
+          );
         }else{
           blocked += 1;
         }
@@ -362,7 +343,10 @@ Función:
       }
     });
 
-    if(window.TablaMessageCounter && typeof window.TablaMessageCounter.render === "function"){
+    if(
+      window.TablaMessageCounter &&
+      typeof window.TablaMessageCounter.render === "function"
+    ){
       window.TablaMessageCounter.render();
     }
 
@@ -375,84 +359,39 @@ Función:
     return openedRows.length > 0;
   }
 
-  function unique(values){
-    var seen = Object.create(null);
-    var out = [];
+  function subjectFor(row, type){
+    if(
+      window.TablaEmail &&
+      typeof window.TablaEmail.subjectFor === "function"
+    ){
+      return window.TablaEmail.subjectFor(row, type);
+    }
 
-    (Array.isArray(values) ? values : []).forEach(function(value){
-      value = text(value).toLowerCase();
-      if(!value || seen[value]){ return; }
-      seen[value] = true;
-      out.push(value);
-    });
+    if(
+      window.TablaMessage &&
+      typeof window.TablaMessage.asunto === "function"
+    ){
+      return window.TablaMessage.asunto(row, type);
+    }
 
-    return out;
+    return typeLabel(type) + " - Proceso de titulación";
   }
 
-  function globalSubject(type, current){
-    var label = typeLabel(type);
-    var period = text(current.periodLabel || current.periodId);
+  function outlookUrlFor(row, type, message){
+    var address = preferredEmail(row);
 
-    if(type === "perdio"){
-      return "Proceso de titulación perdido" + (period ? " - " + period : "");
+    if(!address){
+      return "";
     }
 
-    if(type === "ultimo"){
-      return "Último aviso - proceso de titulación" + (period ? " - " + period : "");
-    }
-
-    if(type === "urgente"){
-      return "Aviso urgente - proceso de titulación" + (period ? " - " + period : "");
-    }
-
-    return label + " - proceso de titulación" + (period ? " - " + period : "");
-  }
-
-  function globalBody(type, current){
-    var period = text(current.periodLabel || current.periodId) || "el período seleccionado";
-    var career = text(current.career);
-    var intro;
-
-    if(type === "perdio"){
-      intro = "Se informa que, según la revisión registrada, su proceso de titulación consta como no aprobado o perdido en el período indicado. Debe comunicarse para recibir orientación sobre los siguientes pasos.";
-    }else if(type === "ultimo"){
-      intro = "Este mensaje corresponde a un último aviso de regularización. Revise de manera inmediata los requisitos pendientes registrados en su proceso.";
-    }else if(type === "urgente"){
-      intro = "Su proceso requiere atención urgente. Revise y regularice los requisitos pendientes para evitar afectar la continuidad del proceso de titulación.";
-    }else if(type === "regularizar" || type === "requisitos"){
-      intro = "En la etapa actual deben encontrarse completos Documentación académica, Prácticas preprofesionales, Vinculación con la sociedad, Segunda lengua/Inglés, Seguimiento a graduados y Actualización de datos. Académico, Financiero y Titulación corresponden a etapas posteriores.";
-    }else if(type === "no_aprueba" || type === "noaprueba"){
-      intro = "Se registra que actualmente no cumple con las condiciones mínimas de aprobación del proceso de titulación. Revise su situación de forma inmediata.";
-    }else{
-      intro = "Desde el área de Titulación se informa que existen novedades que requieren su revisión dentro del proceso.";
-    }
-
-    return [
-      "Estimado/a estudiante:",
-      "",
-      intro,
-      "",
-      "Período: " + period,
-      career ? "Carrera: " + career : "",
-      "",
-      "Por favor, revise su información y atienda las indicaciones correspondientes.",
-      "",
-      "Saludos cordiales,",
-      "Mgs. Jefferson Villarreal",
-      "Coordinador de Titulación"
-    ].filter(function(line, index, all){
-      return line !== "" || all[index - 1] !== "";
-    }).join("\n");
-  }
-
-  function outlookUrl(addresses, subject, body){
-    var query = [
-      "bcc=" + encodeURIComponent(addresses.join(";")),
-      "subject=" + encodeURIComponent(subject),
-      "body=" + encodeURIComponent(body)
-    ];
-
-    return "https://outlook.office.com/mail/deeplink/compose?" + query.join("&");
+    return (
+      "https://outlook.office.com/mail/deeplink/compose?to=" +
+      encodeURIComponent(address) +
+      "&subject=" +
+      encodeURIComponent(subjectFor(row, type)) +
+      "&body=" +
+      encodeURIComponent(text(message))
+    );
   }
 
   function openExternal(url){
@@ -462,9 +401,23 @@ Función:
         window.top.electronAPI &&
         typeof window.top.electronAPI.openExternal === "function"
       ){
-        return Promise.resolve(window.top.electronAPI.openExternal(url))
-          .then(function(){ return true; })
-          .catch(function(){ return false; });
+        return Promise.resolve(
+          window.top.electronAPI.openExternal(url)
+        )
+          .then(function(result){
+            if(result === true){
+              return true;
+            }
+
+            return !!(
+              result &&
+              result.ok === true &&
+              result.opened !== false
+            );
+          })
+          .catch(function(){
+            return false;
+          });
       }
     }catch(error){}
 
@@ -476,66 +429,137 @@ Función:
       anchor.style.display = "none";
       document.body.appendChild(anchor);
       anchor.click();
+
       window.setTimeout(function(){
         try{ anchor.remove(); }catch(error){}
       }, 0);
+
       return Promise.resolve(true);
     }catch(error){
       return Promise.resolve(false);
     }
   }
 
-  function openOutlookGlobal(){
-    var list = rows();
-    var validRows = list.filter(function(row){
+  function openAllOutlook(){
+    var list = rows().filter(function(row){
       return !!preferredEmail(row);
     });
 
-    var addresses = unique(validRows.map(preferredEmail));
-
-    if(!addresses.length){
-      status("No hay correos válidos en los estudiantes filtrados.", "warn");
-      return Promise.resolve(false);
-    }
-
-    var current = appState();
-    var type = globalType || "requisitos";
-    var subject = globalSubject(type, current);
-    var body = globalBody(type, current);
-    var url = outlookUrl(addresses, subject, body);
-
-    if(url.length > 120000){
+    if(!list.length){
       status(
-        "El correo global es demasiado grande para Outlook Web. Reduzca los filtros.",
+        "No hay estudiantes filtrados con correo válido.",
         "warn"
       );
+
       return Promise.resolve(false);
     }
 
-    return openExternal(url).then(function(opened){
-      if(!opened){
-        status("No se pudo abrir Outlook Web.", "warn");
-        return false;
+    if(
+      typeof window.confirm === "function" &&
+      !window.confirm(
+        "Se abrirán " + list.length +
+        " pestañas de Outlook, una por estudiante, con el mensaje preparado. ¿Continuar?"
+      )
+    ){
+      return Promise.resolve(false);
+    }
+
+    var openedCount = 0;
+    var blockedCount = 0;
+
+    var tasks = list.map(function(row){
+      var type = typeForRow(row);
+      var message = messageFor(row, type, "mail");
+      var url = outlookUrlFor(row, type, message);
+
+      if(!url || url.length > 120000){
+        blockedCount += 1;
+        return Promise.resolve(false);
       }
 
-      recordMany(validRows, "mail", type, body, preferredEmail);
+      return openExternal(url).then(function(opened){
+        if(opened){
+          openedCount += 1;
 
-      if(window.TablaMessageCounter && typeof window.TablaMessageCounter.render === "function"){
+          recordPrepared(
+            row,
+            "mail",
+            type,
+            message,
+            preferredEmail(row)
+          );
+
+          return true;
+        }
+
+        blockedCount += 1;
+        return false;
+      });
+    });
+
+    return Promise.all(tasks).then(function(){
+      if(
+        window.TablaMessageCounter &&
+        typeof window.TablaMessageCounter.render === "function"
+      ){
         window.TablaMessageCounter.render();
       }
 
       status(
-        "Outlook abierto con " + addresses.length + " destinatarios en CCO.",
-        "ok"
+        openedCount + " correos preparados en Outlook" +
+        (
+          blockedCount
+            ? " · " + blockedCount + " no disponibles/bloqueados."
+            : "."
+        ),
+        blockedCount ? "warn" : "ok"
       );
 
-      return true;
+      return openedCount > 0;
     });
   }
 
+  function syncTelegramMassType(){
+    var field = el("tabla-mass-tipo");
+    if(!field){ return false; }
+
+    var wanted = globalType || "requisitos";
+    field.value = wanted;
+
+    if(field.value !== wanted){
+      field.value = "requisitos";
+    }
+
+    try{
+      field.dispatchEvent(
+        new Event(
+          "change",
+          {bubbles:true}
+        )
+      );
+    }catch(error){
+      try{
+        var legacyEvent = document.createEvent("Event");
+        legacyEvent.initEvent("change", true, true);
+        field.dispatchEvent(legacyEvent);
+      }catch(legacyError){}
+    }
+
+    return true;
+  }
+
   function openTelegramMass(){
-    if(window.TablaApp && typeof window.TablaApp.openMass === "function"){
-      return window.TablaApp.openMass();
+    if(
+      window.TablaApp &&
+      typeof window.TablaApp.openMass === "function"
+    ){
+      var opened = window.TablaApp.openMass();
+
+      if(opened){
+        syncTelegramMassType();
+      }
+
+      return opened;
     }
 
     status("No está disponible Telegram masivo.", "warn");
@@ -577,7 +601,6 @@ Función:
     bound = true;
 
     var typeSelect = el("tabla-global-message-type");
-    var apply = el("tabla-global-apply");
     var wa = el("tabla-bulk-whatsapp");
     var mail = el("tabla-bulk-outlook");
     var tg = el("tabla-bulk-telegram");
@@ -589,9 +612,8 @@ Función:
       });
     }
 
-    if(apply){ apply.addEventListener("click", applyGlobal); }
     if(wa){ wa.addEventListener("click", openAllWhatsApp); }
-    if(mail){ mail.addEventListener("click", openOutlookGlobal); }
+    if(mail){ mail.addEventListener("click", openAllOutlook); }
     if(tg){ tg.addEventListener("click", openTelegramMass); }
 
     bindVisibleOverrides();
@@ -626,8 +648,10 @@ Función:
     rows: rows,
     applyGlobal: applyGlobal,
     openAllWhatsApp: openAllWhatsApp,
-    openOutlookGlobal: openOutlookGlobal,
+    openAllOutlook: openAllOutlook,
+    openOutlookGlobal: openAllOutlook,
     openTelegramMass: openTelegramMass,
+    syncTelegramMassType: syncTelegramMassType,
     getGlobalType: function(){ return globalType; },
     setGlobalType: function(type){
       globalType = text(type) || "requisitos";
