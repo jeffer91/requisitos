@@ -11,7 +11,7 @@ Función:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.1.0-reviewed-bulk-communications";
+  var VERSION = "1.2.0-dual-recipient-outlook";
   var U = window.TablaUtils || {};
   var globalType = "requisitos";
   var rowOverrides = Object.create(null);
@@ -136,36 +136,54 @@ Función:
     );
   }
 
-  function preferredEmail(row){
+  function emailAddresses(row){
     row = row || {};
+
+    if(
+      window.TablaEmail &&
+      typeof window.TablaEmail.addressesOf === "function"
+    ){
+      return window.TablaEmail.addressesOf(row);
+    }
+
     var candidates = [
+      row._correoPersonal,
+      row.CorreoPersonal,
+      row.correoPersonal,
       row._correoInstitucional,
       row.CorreoInstitucional,
       row.correoInstitucional,
       row.emailInstitucional,
       row.EmailInstitucional,
-      row._correoPersonal,
-      row.CorreoPersonal,
-      row.correoPersonal,
       row._correo,
       row.correo,
       row.email,
       row.Email
     ];
 
-    for(var i = 0; i < candidates.length; i += 1){
-      var address = text(candidates[i]).toLowerCase();
+    var seen = Object.create(null);
+    var addresses = [];
 
-      if(!address){ continue; }
+    candidates.forEach(function(value){
+      var address = text(value).toLowerCase();
+
+      if(!address){ return; }
 
       var valid = window.TablaEmail && typeof window.TablaEmail.isValid === "function"
         ? window.TablaEmail.isValid(address)
         : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
 
-      if(valid){ return address; }
-    }
+      if(!valid || seen[address]){ return; }
 
-    return "";
+      seen[address] = true;
+      addresses.push(address);
+    });
+
+    return addresses;
+  }
+
+  function emailAddressText(row){
+    return emailAddresses(row).join(", ");
   }
 
   function telegramAvailable(row){
@@ -195,7 +213,7 @@ Función:
 
     list.forEach(function(row){
       if(whatsappAvailable(row)){ wa += 1; }
-      if(preferredEmail(row)){ mail += 1; }
+      if(emailAddresses(row).length){ mail += 1; }
       if(telegramAvailable(row)){ tg += 1; }
     });
 
@@ -284,7 +302,7 @@ Función:
       carrera: data.carrera || row._carrera || "",
       periodo: data.periodo || row._periodo || "",
       periodoId: data.periodoId || row._periodoId || "",
-      correo: channel === "mail" ? preferredEmail(row) : "",
+      correo: channel === "mail" ? emailAddressText(row) : "",
       telefono: channel === "whatsapp"
         ? (
             window.TablaWhatsApp &&
@@ -378,15 +396,15 @@ Función:
   }
 
   function outlookUrlFor(row, type, message){
-    var address = preferredEmail(row);
+    var addresses = emailAddresses(row);
 
-    if(!address){
+    if(!addresses.length){
       return "";
     }
 
     return (
       "https://outlook.office.com/mail/deeplink/compose?to=" +
-      encodeURIComponent(address) +
+      encodeURIComponent(addresses.join(",")) +
       "&subject=" +
       encodeURIComponent(subjectFor(row, type)) +
       "&body=" +
@@ -442,7 +460,7 @@ Función:
 
   function openAllOutlook(){
     var list = rows().filter(function(row){
-      return !!preferredEmail(row);
+      return emailAddresses(row).length > 0;
     });
 
     if(!list.length){
@@ -486,7 +504,7 @@ Función:
             "mail",
             type,
             message,
-            preferredEmail(row)
+            emailAddressText(row)
           );
 
           return true;
@@ -651,6 +669,8 @@ Función:
     openAllOutlook: openAllOutlook,
     openOutlookGlobal: openAllOutlook,
     openTelegramMass: openTelegramMass,
+    emailAddresses: emailAddresses,
+    emailAddressText: emailAddressText,
     syncTelegramMassType: syncTelegramMassType,
     getGlobalType: function(){ return globalType; },
     setGlobalType: function(type){
