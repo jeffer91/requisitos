@@ -56,7 +56,7 @@ La pantalla incorpora una capa operativa pensada para uso diario:
 - **Regla de etapa vigente:** deben estar completos Documentación, Prácticas, Vinculación, Inglés, Seguimiento a graduados y Actualización de datos. Académico, Financiero y Titulación se consideran posteriores.
 - **Comunicación global:** un selector maestro aplica el tipo de mensaje a los estudiantes filtrados; incluye un mensaje específico de **Etapa actual**.
 - **WhatsApp masivo:** intenta abrir una pestaña por estudiante con teléfono válido y registra cada apertura preparada.
-- **Outlook masivo:** abre una pestaña de Outlook Web por estudiante filtrado con correo válido, priorizando el correo institucional y usando el personal como respaldo.
+- **Outlook masivo:** abre una pestaña de Outlook Web por estudiante filtrado con correo válido. Si existen correo personal e institucional, incluye ambos como destinatarios; si solo existe uno, utiliza el disponible.
 - **Telegram:** conserva el envío masivo existente y agrega un popup de grupos por carrera.
 - **Contador:** muestra contactos válidos por WhatsApp, Telegram y correo, además de estudiantes contactados.
 
