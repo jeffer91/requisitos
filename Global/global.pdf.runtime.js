@@ -300,19 +300,18 @@ Función:
   }
   function reportBody(model,logo){
     var periodBlock="";
-    if(model.section.id!=="periodos"&&model.periodTable&&model.periodTable.rows&&model.periodTable.rows.length){
-      periodBlock='<section class="section"><h2>Períodos incluidos</h2><p>Períodos académicos considerados y fecha de graduación calculada.</p>'+tableHtml(model.periodTable)+'</section>';
+    if(model.periodTable&&model.periodTable.rows&&model.periodTable.rows.length){
+      periodBlock='<section class="section"><h2>3. Resultados por período académico</h2><p>La distribución por período permite revisar estudiantes, graduados, mes de graduación y nivel de cumplimiento.</p>'+tableHtml(model.periodTable)+'</section>';
     }
+
     return '<div class="global-report-root">'+
-      '<section class="cover"><div class="logoBox"><img src="'+esc(logo)+'" alt="ITSQMET"></div><div class="gold"></div><div class="unit">'+esc(model.unit)+'</div><h1 class="title">'+esc(model.title)+'</h1><div class="date">Generado el '+esc(model.generatedAt)+'</div></section>'+
-      '<header class="header"><h1>'+esc(model.title)+'</h1><p>'+esc(model.unit)+' · '+esc(model.generatedAt)+'</p></header>'+
-      '<section class="section"><h2>Filtros aplicados</h2><div class="filters">'+model.filterRows.map(function(item){return '<div class="filter"><strong>'+esc(item.filtro)+'</strong>'+esc(item.valor)+'</div>';}).join("")+'</div></section>'+
-      '<section class="section"><h2>Resumen ejecutivo</h2><ul class="summary">'+model.summary.map(function(item){return '<li>'+esc(item)+'</li>';}).join("")+'</ul></section>'+
+      '<section class="cover"><div class="logoBox"><img src="'+esc(logo)+'" alt="ITSQMET"></div><div class="gold"></div><div class="unit">'+esc(model.unit)+'</div><h1 class="title">'+esc(model.title)+'</h1><p><strong>Carrera:</strong> '+esc(model.careerLabel)+'</p><p><strong>Períodos académicos analizados:</strong> '+esc(model.coverageLabel)+'</p><div class="date">Fecha de emisión: '+esc(model.generatedAt)+'</div></section>'+
+      '<header class="header"><h1>Informe de seguimiento de titulación</h1><p>'+esc(model.unit)+'</p></header>'+
+      '<section class="section"><h2>1. Alcance del informe</h2><p>El presente informe consolida la información académica y de titulación correspondiente al alcance definido en la portada.</p></section>'+
+      '<section class="section"><h2>2. Resultados generales</h2>'+model.summary.map(function(item){return '<p>'+esc(item)+'</p>';}).join("")+'</section>'+
       periodBlock+
-      '<section class="section"><h2>'+esc(model.table.title)+'</h2><p>'+esc(model.tableExplanation)+'</p>'+tableHtml(model.table)+'</section>'+
-      '<section class="section"><h2>Observaciones</h2><ul class="observations">'+model.observations.map(function(item){return '<li>'+esc(item)+'</li>';}).join("")+'</ul></section>'+
-      '<section class="signatures">'+model.signatures.map(function(item){return '<div class="signature"><small>'+esc(item.responsabilidad||"")+'</small><strong>'+esc(item.nombre||"")+'</strong><span>'+esc(item.cargo||"")+'</span></div>';}).join("")+'</section>'+
-      '<div class="footer">ITSQMET · Reporte institucional generado desde Global</div></div>';
+      '<section class="section"><h2>4. Consideraciones finales</h2>'+model.observations.map(function(item){return '<p>'+esc(item)+'</p>';}).join("")+'</section>'+
+      '<div class="footer">ITSQMET · Unidad de Titulación y Eficiencia Terminal</div></div>';
   }
   function reportHtml(model,logo){
     return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>'+esc(model.title)+'</title><style>'+reportCss()+'</style></head><body>'+reportBody(model,logo||absoluteUrl((config.branding||{}).logoPath||"assets/branding/logo-instituto.png"))+'</body></html>';
@@ -559,7 +558,17 @@ Función:
         var h=w*(props.height/props.width);
         if(h>27){h=27;w=h*(props.width/props.height);}
         doc.addImage(logo,"PNG",center-w/2,28,w,h);
-      }catch(error){}
+      }catch(error){
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(17);
+        pdfColor(doc,"navy");
+        doc.text("ITSQMET",center,48,{align:"center"});
+      }
+    }else{
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(17);
+      pdfColor(doc,"navy");
+      doc.text("ITSQMET",center,48,{align:"center"});
     }
 
     doc.setDrawColor(201,162,39);
