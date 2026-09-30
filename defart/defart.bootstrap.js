@@ -39,6 +39,7 @@ Función:
     {path:"defart.requirements-guard.js"},{path:"defart.periodo-normalizer.js"},
     {path:"defart.app.js",test:function(){return window.DefartApp;}},
     {path:"defart.bulk-import.js",test:function(){return window.DefartBulkImport;}},
+    {path:"defart.excel-import.js",test:function(){return window.DefartExcelImport;}},
     {path:"defart.ui-fix.js",test:function(){return window.DefartUIFix;}}
   ]);}
   function boot(){
