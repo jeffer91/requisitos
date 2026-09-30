@@ -1,0 +1,68 @@
+# =========================================================
+# Publicación del instalador Windows de Requisitos.
+# - workflow_dispatch: construye un instalador de prueba y lo deja como artefacto.
+# - tag vX.Y.Z: construye y publica GitHub Release para autoactualización.
+# =========================================================
+name: Requisitos Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    name: Windows NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate installer configuration
+        run: npm run test:installer
+
+      - name: Validate tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $expected = "v$version"
+          if ("${{ github.ref_name }}" -ne $expected) {
+            throw "El tag ${{ github.ref_name }} no coincide con package.json ($expected)."
+          }
+
+      - name: Build installer
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: npm run dist:win
+
+      - name: Build and publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release:win
+
+      - name: Upload Windows installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: requisitos-windows-${{ github.ref_name }}
+          path: |
+            dist/*.exe
+            dist/*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 30
