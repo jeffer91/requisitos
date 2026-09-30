@@ -15,7 +15,7 @@ Función:
       titulo: "Análisis Global de Titulación",
       subtitulo: "Análisis histórico y comparativo de información cargada en Base Local",
       unidad: "Unidad de Titulación y Eficiencia Terminal",
-      version: "1.4.0-reportes-graduacion",
+      version: "1.5.0-informes-formales",
       modo: "base-ui"
     }),
 
@@ -33,7 +33,7 @@ Función:
 
     firmas: Object.freeze([
       Object.freeze({
-        responsabilidad: "ELABORADO POR:",
+        responsabilidad: "Responsable del informe",
         nombre: "Mgtr. Jefferson Villarreal",
         cargo: "Coordinador de Titulación y Eficiencia Terminal"
       })
@@ -58,7 +58,7 @@ Función:
     }),
 
     secciones: Object.freeze([
-      { id: "resumen", label: "Resumen", titulo: "Resumen general", descripcion: "Vista ejecutiva del universo filtrado.", pdfTitulo: "Reporte global - Resumen general" },
+      { id: "resumen", label: "Resumen", titulo: "Resumen general", descripcion: "Vista ejecutiva del universo filtrado.", pdfTitulo: "Informe consolidado de seguimiento de titulación" },
       { id: "estudiantes", label: "Estudiantes", titulo: "Estudiantes", descripcion: "Cantidad, estado y detalle de estudiantes según filtros aplicados.", pdfTitulo: "Reporte global - Estudiantes" },
       { id: "carreras", label: "Carreras", titulo: "Carreras", descripcion: "Análisis comparativo de carreras dentro del rango seleccionado.", pdfTitulo: "Reporte global - Carreras" },
       { id: "requisitos", label: "Requisitos", titulo: "Requisitos", descripcion: "Cumplimiento, pendientes e incumplimientos por requisito.", pdfTitulo: "Reporte global - Requisitos" },
