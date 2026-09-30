@@ -11,7 +11,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="2.1.0-auto-download";
+  var VERSION="2.1.1-visible-render-host";
   var config=window.GlobalConfig||{};
   var html2pdfLoading=null;
   var HTML2PDF_PATHS=[
@@ -248,35 +248,67 @@ Función:
     return "Global_"+slug(model.section&&model.section.label||"Reporte")+"_"+slug(career)+"_"+todayISO()+".pdf";
   }
   function createHost(model,logo){
-    var host=document.createElement("div");
+    var host=document.createElement("article");
     host.setAttribute("data-global-pdf-export","true");
-    host.style.position="fixed";
-    host.style.left="-100000px";
-    host.style.top="0";
-    host.style.width="194mm";
-    host.style.background="#ffffff";
-    host.style.zIndex="-1";
+    host.setAttribute("aria-hidden","true");
+    host.style.cssText="position:absolute;left:0;top:0;width:760px;box-sizing:border-box;background:#ffffff;color:#172033;z-index:2147483647;opacity:1;visibility:visible;pointer-events:none;";
     host.innerHTML="<style>"+reportCss()+"</style>"+reportBody(model,logo);
     document.body.appendChild(host);
     return host;
   }
+
+  function waitForPaint(){
+    return new Promise(function(resolve){
+      var first=function(){
+        var second=function(){
+          window.setTimeout(resolve,100);
+        };
+        if(typeof window.requestAnimationFrame==="function"){
+          window.requestAnimationFrame(second);
+        }else{
+          window.setTimeout(second,16);
+        }
+      };
+      if(typeof window.requestAnimationFrame==="function"){
+        window.requestAnimationFrame(first);
+      }else{
+        window.setTimeout(first,16);
+      }
+    });
+  }
   function generate(options){
     var model=buildModel(options||{});
+    var host=null;
     return Promise.all([ensureHtml2Pdf(),loadLogoSource()]).then(function(values){
-      var engine=values[0],logo=values[1],host=createHost(model,logo);
-      var settings={
-        margin:[8,8,8,8],
-        filename:filename(model),
-        image:{type:"jpeg",quality:0.98},
-        html2canvas:{scale:1.5,useCORS:true,backgroundColor:"#ffffff",logging:false},
-        jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
-        pagebreak:{mode:["css","legacy"]}
-      };
-      return Promise.resolve(engine().set(settings).from(host).save()).then(function(){
+      var engine=values[0],logo=values[1];
+      host=createHost(model,logo);
+
+      return waitForPaint().then(function(){
+        var height=Math.max(1123,host.scrollHeight||1123);
+        var settings={
+          margin:[8,8,8,8],
+          filename:filename(model),
+          image:{type:"jpeg",quality:0.98},
+          html2canvas:{
+            scale:1.35,
+            useCORS:true,
+            allowTaint:false,
+            backgroundColor:"#ffffff",
+            logging:false,
+            scrollX:0,
+            scrollY:0,
+            windowWidth:800,
+            windowHeight:height
+          },
+          jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true},
+          pagebreak:{mode:["css","legacy"],avoid:["tr",".section",".signature"]}
+        };
+        return Promise.resolve(engine().set(settings).from(host).save());
+      }).then(function(){
         return true;
-      }).finally(function(){
-        if(host&&host.parentNode){host.parentNode.removeChild(host);}
       });
+    }).finally(function(){
+      if(host&&host.parentNode){host.parentNode.removeChild(host);}
     });
   }
 
