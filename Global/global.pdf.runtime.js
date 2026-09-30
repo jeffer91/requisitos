@@ -11,7 +11,8 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="3.1.0-executive-report";
+  var VERSION="3.2.0-formal-document";
+  var EMBEDDED_LOGO="data:image/png;base64,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";
   var config=window.GlobalConfig||{};
   var pdfEngineLoading=null;
   var JSPDF_PATHS=[
@@ -112,7 +113,6 @@ Función:
     var summary=data.resumen||{};
     var totalStudents=number(summary.totalEstudiantes||data.students&&data.students.length);
     var totalGraduates=number(summary.totalGraduados||data.graduados&&data.graduados.total);
-    var totalCareers=number(summary.totalCarreras||data.careers&&data.careers.length);
     var totalPeriods=number(summary.totalPeriodos||data.periods&&data.periods.length);
     var compliance=number(summary.porcentajeCumplimiento);
     var active=number(summary.activos);
@@ -120,10 +120,10 @@ Función:
     var graduateRate=totalStudents?Math.round((totalGraduates/totalStudents)*100):0;
 
     return [
-      "El presente reporte consolida la información de "+totalStudents+" estudiante(s), correspondiente(s) a "+totalCareers+" carrera(s) y "+totalPeriods+" período(s) académico(s), de acuerdo con los filtros seleccionados al momento de la generación.",
-      "Dentro del universo analizado, "+totalGraduates+" estudiante(s) constan como graduados, lo que representa aproximadamente el "+graduateRate+"% del total considerado en este corte institucional.",
-      "El cumplimiento general de requisitos alcanza el "+compliance+"%. Este indicador se calcula a partir de los requisitos que cuentan con información registrada en la Base Local y permite observar el nivel general de avance del grupo analizado.",
-      "En relación con el estado de matrícula, se registran "+active+" estudiante(s) activos y "+retired+" estudiante(s) retirados. Estos valores deben interpretarse conjuntamente con el período, la carrera y los demás filtros aplicados."
+      "El análisis comprende "+totalStudents+" estudiante(s) perteneciente(s) al ámbito académico definido para el presente informe y distribuidos en "+totalPeriods+" período(s) académico(s). La información consolidada permite observar de manera conjunta el avance del proceso de titulación y el estado general de cumplimiento.",
+      "Del total analizado, "+totalGraduates+" estudiante(s) registran la culminación satisfactoria del proceso de titulación, equivalente aproximadamente al "+graduateRate+"% del universo considerado. Este resultado constituye el principal indicador de eficiencia terminal dentro del alcance del informe.",
+      "El cumplimiento general de requisitos alcanza el "+compliance+"%. Este porcentaje resume el nivel de avance de los requisitos académicos y administrativos que cuentan con información registrada para los estudiantes incluidos.",
+      "En cuanto al estado de matrícula, se identifican "+active+" estudiante(s) activos y "+retired+" estudiante(s) retirados. Estos datos complementan el análisis de titulación y permiten contextualizar los resultados presentados por período académico."
     ];
   }
 
@@ -131,21 +131,22 @@ Función:
     data=data||{};
     var summary=data.resumen||{};
     var compliance=number(summary.porcentajeCumplimiento);
+    var totalStudents=number(summary.totalEstudiantes);
+    var totalGraduates=number(summary.totalGraduados);
 
     return [
-      "Las cifras presentadas corresponden al estado de la Base Local en el momento exacto de generación del reporte; cualquier actualización posterior de requisitos, matrícula o titulación modificará los resultados en una nueva emisión.",
-      "Para efectos de este informe, la fecha de graduación se expresa por mes y año y se calcula dos meses después del mes de finalización del período académico. Por ejemplo, un período que finaliza en octubre se reporta con graduación en diciembre.",
-      "El porcentaje de cumplimiento general ("+compliance+"%) debe utilizarse como un indicador de seguimiento y no como sustituto de la validación individual de cada expediente. La revisión específica por estudiante continúa siendo necesaria cuando se requiera sustento documental.",
-      "El reporte busca facilitar el seguimiento institucional de titulación, permitiendo identificar el volumen de estudiantes, graduados, períodos involucrados y nivel de cumplimiento bajo un mismo corte de información."
+      "Los resultados presentados corresponden al corte institucional disponible a la fecha de emisión del presente informe y reflejan el estado registrado de los procesos académicos, administrativos y de titulación de los estudiantes comprendidos en el análisis.",
+      "Para efectos del seguimiento institucional, el mes de graduación se determina dos meses después del mes de finalización del período académico. De este modo, un período que concluye en octubre se registra con graduación en diciembre.",
+      "El cumplimiento general del "+compliance+"% constituye un indicador agregado de seguimiento. Cuando se requiera sustento para decisiones individuales, deberá revisarse el expediente específico del estudiante y la documentación correspondiente.",
+      "En términos generales, el informe registra "+totalGraduates+" estudiante(s) graduados de un total de "+totalStudents+", junto con la evolución por período académico. Esta información permite orientar el seguimiento de eficiencia terminal y priorizar los casos que aún requieren cierre o validación."
     ];
   }
-
   function tableExplanation(title){
     var name=text(title||"Detalle");
     if(name==="Resumen general"){
-      return "La siguiente tabla presenta los principales indicadores cuantitativos del universo analizado y complementa el resumen ejecutivo con una descripción breve de cada resultado.";
+      return "Los indicadores complementarios presentan de manera sintética la composición del universo analizado y los principales resultados asociados al proceso de titulación.";
     }
-    return "La tabla «"+name+"» organiza los registros correspondientes a la sección seleccionada y permite revisar de forma estructurada los resultados obtenidos con los filtros activos.";
+    return "La tabla «"+name+"» organiza los resultados correspondientes al alcance del presente informe para facilitar su revisión institucional.";
   }
   function getSignatures(){
     if(Array.isArray(config.firmas)&&config.firmas.length){return config.firmas.slice(0,1);}
@@ -244,16 +245,14 @@ Función:
     var periodDisplay=displayPeriodRows(periods);
     var careerLabel=selectedLabel("#globalFiltroCarrera","Todas las carreras")||"Todas las carreras";
     var coverageLabel=periods.length
-      ?(
-        periods.length===1
-          ?periods[0].periodo
-          :"Desde "+periods[0].periodo+" hasta "+periods[periods.length-1].periodo
-      )
+      ?periods.map(function(item){return item.periodo;}).join(" | ")
       :"Sin períodos disponibles";
 
     return {
       section:section,data:data,filters:filters,
-      title:section.pdfTitulo||section.titulo||section.label||"Reporte Global",
+      title:section.id==="resumen"
+        ?"Informe consolidado de seguimiento de titulación"
+        :(section.pdfTitulo||section.titulo||section.label||"Informe institucional"),
       unit:config.app&&config.app.unidad||"Unidad de Titulación y Eficiencia Terminal",
       generatedAt:formatDate(),
       careerLabel:careerLabel,
@@ -359,62 +358,13 @@ Función:
   }
 
   function loadLogoSource(){
-    var url=absoluteUrl((config.branding||{}).logoPath||"assets/branding/logo-instituto.png");
-
-    if(typeof window.fetch!=="function"){
-      return Promise.resolve(null);
-    }
-
-    return window.fetch(url,{cache:"no-store"}).then(function(response){
-      if(!response.ok){throw new Error("No se pudo cargar el logo institucional.");}
-      return response.blob();
-    }).then(function(blob){
-      return new Promise(function(resolve,reject){
-        var objectUrl=null;
-        try{
-          objectUrl=window.URL.createObjectURL(blob);
-        }catch(error){
-          reject(error);
-          return;
-        }
-
-        var image=new window.Image();
-        image.onload=function(){
-          try{
-            var canvas=document.createElement("canvas");
-            var width=Math.max(1,image.naturalWidth||image.width||188);
-            var height=Math.max(1,image.naturalHeight||image.height||78);
-            canvas.width=width;
-            canvas.height=height;
-
-            var ctx=canvas.getContext("2d");
-            ctx.fillStyle="#ffffff";
-            ctx.fillRect(0,0,width,height);
-            ctx.drawImage(image,0,0,width,height);
-
-            var normalized=canvas.toDataURL("image/jpeg",0.95);
-            window.URL.revokeObjectURL(objectUrl);
-            resolve(normalized);
-          }catch(error){
-            try{window.URL.revokeObjectURL(objectUrl);}catch(innerError){}
-            reject(error);
-          }
-        };
-        image.onerror=function(){
-          try{window.URL.revokeObjectURL(objectUrl);}catch(innerError){}
-          reject(new Error("No se pudo normalizar el logo institucional."));
-        };
-        image.src=objectUrl;
-      });
-    }).catch(function(){
-      return null;
-    });
+    return Promise.resolve(EMBEDDED_LOGO);
   }
 
   function filename(model){
     var career=selectedLabel("#globalFiltroCarrera","");
     if(!career||career==="Todas las carreras"){career="Todas_las_carreras";}
-    return "Global_"+slug(model.section&&model.section.label||"Reporte")+"_"+slug(career)+"_"+todayISO()+".pdf";
+    return "Informe_Titulacion_"+slug(career)+"_"+todayISO()+".pdf";
   }
 
   function pdfColor(doc,name){
@@ -439,13 +389,13 @@ Función:
     doc.setLineWidth(0.8);
     doc.line(m.margin,13,m.width-m.margin,13);
     doc.setFont("helvetica","bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     pdfColor(doc,"navy");
-    doc.text(text(model.title),m.margin,9.5,{maxWidth:m.width-m.margin*2});
+    doc.text("INFORME DE SEGUIMIENTO DE TITULACIÓN",m.margin,9.5);
     doc.setFont("helvetica","normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.3);
     pdfColor(doc,"muted");
-    doc.text(text(model.unit),m.width-m.margin,9.5,{align:"right",maxWidth:80});
+    doc.text(text(model.unit),m.width-m.margin,9.5,{align:"right",maxWidth:82});
     return 20;
   }
 
@@ -605,50 +555,66 @@ Función:
     if(logo){
       try{
         var props=doc.getImageProperties(logo);
-        var w=60;
+        var w=62;
         var h=w*(props.height/props.width);
-        if(h>30){h=30;w=h*(props.width/props.height);}
-        doc.addImage(logo,"JPEG",center-w/2,42,w,h);
-      }catch(error){
-        logo=null;
-      }
-    }
-
-    if(!logo){
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(18);
-      pdfColor(doc,"navy");
-      doc.text(text((config.branding||{}).logoFallbackText||"ITSQMET"),center,58,{align:"center"});
+        if(h>27){h=27;w=h*(props.width/props.height);}
+        doc.addImage(logo,"PNG",center-w/2,28,w,h);
+      }catch(error){}
     }
 
     doc.setDrawColor(201,162,39);
-    doc.setLineWidth(1.6);
-    doc.line(center-18,84,center+18,84);
+    doc.setLineWidth(1.4);
+    doc.line(center-20,67,center+20,67);
 
     doc.setFont("helvetica","bold");
-    doc.setFontSize(12);
+    doc.setFontSize(11.5);
     pdfColor(doc,"navy");
-    doc.text(text(model.unit).toUpperCase(),center,99,{align:"center",maxWidth:m.width-36});
+    doc.text(text(model.unit).toUpperCase(),center,81,{align:"center",maxWidth:m.width-34});
 
-    doc.setFontSize(23);
-    var titleLines=doc.splitTextToSize(text(model.title),m.width-42);
-    doc.text(titleLines,center,121,{align:"center"});
+    doc.setFontSize(21);
+    var titleLines=doc.splitTextToSize(text(model.title).toUpperCase(),m.width-42);
+    doc.text(titleLines,center,104,{align:"center"});
 
     doc.setFont("helvetica","bold");
     doc.setFontSize(10);
     pdfColor(doc,"body");
+    doc.text("Carrera",center,137,{align:"center"});
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10.5);
     var careerLines=doc.splitTextToSize(text(model.careerLabel||"Todas las carreras"),m.width-50);
     doc.text(careerLines,center,145,{align:"center"});
 
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(9.2);
+    pdfColor(doc,"body");
+    doc.text("Períodos académicos analizados",center,169,{align:"center"});
     doc.setFont("helvetica","normal");
     doc.setFontSize(8.8);
     pdfColor(doc,"muted");
-    var coverageLines=doc.splitTextToSize("Cobertura académica: "+text(model.coverageLabel||"Sin períodos disponibles"),m.width-52);
-    doc.text(coverageLines,center,158,{align:"center"});
+    var coverageLines=doc.splitTextToSize(text(model.coverageLabel||"Sin períodos disponibles").replace(/ \| /g,"\n"),m.width-52);
+    doc.text(coverageLines,center,177,{align:"center"});
 
     doc.setFontSize(8.5);
-    doc.text("Documento de seguimiento institucional generado desde Global.",center,177,{align:"center"});
-    doc.text("Generado el "+text(model.generatedAt),center,184,{align:"center"});
+    doc.text("Fecha de emisión: "+text(model.generatedAt),center,201,{align:"center"});
+
+    var signature=(model.signatures||[])[0];
+    if(signature){
+      var y=241;
+      doc.setDrawColor(23,32,51);
+      doc.setLineWidth(0.4);
+      doc.line(center-28,y,center+28,y);
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(7.2);
+      pdfColor(doc,"muted");
+      doc.text("Responsable del informe",center,y+5,{align:"center"});
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(9.4);
+      pdfColor(doc,"body");
+      doc.text(text(signature.nombre||""),center,y+10,{align:"center"});
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(8);
+      doc.text(doc.splitTextToSize(text(signature.cargo||""),82),center,y+15,{align:"center"});
+    }
   }
 
   function drawKpis(doc,model,y){
@@ -698,7 +664,7 @@ Función:
       doc.setFont("helvetica","normal");
       doc.setFontSize(7);
       pdfColor(doc,"muted");
-      doc.text("ITSQMET · Reporte institucional Global",m.margin,m.height-6.5);
+      doc.text("ITSQMET · Unidad de Titulación y Eficiencia Terminal",m.margin,m.height-6.5);
       doc.text("Página "+page+" de "+count,m.width-m.margin,m.height-6.5,{align:"right"});
     }
   }
@@ -709,61 +675,43 @@ Función:
 
     var y=addRunningHeader(doc,model);
 
-    y=drawSectionTitle(doc,model,"Filtros aplicados",y);
-    y=drawFilters(doc,model,y);
+    y=drawSectionTitle(doc,model,"1. Alcance del informe",y);
+    y=drawParagraph(
+      doc,
+      model,
+      "El presente informe consolida la información correspondiente a la carrera "+text(model.careerLabel)+", considerando los períodos académicos señalados en la portada. Su propósito es presentar, en un único documento, los principales resultados relacionados con estudiantes, graduación y cumplimiento de requisitos para apoyar el seguimiento de eficiencia terminal.",
+      y,
+      {fontSize:8.7}
+    );
 
-    y=drawSectionTitle(doc,model,"Resumen ejecutivo",y+2);
+    y=drawSectionTitle(doc,model,"2. Resultados generales",y+2);
     y=drawKpis(doc,model,y);
     (model.summary||[]).forEach(function(item){
-      y=drawParagraph(doc,model,text(item),y,{fontSize:8.8});
+      y=drawParagraph(doc,model,text(item),y,{fontSize:8.5});
     });
 
-    if(
-      model.section.id!=="periodos" &&
-      model.periodTable &&
-      Array.isArray(model.periodTable.rows) &&
-      model.periodTable.rows.length
-    ){
-      y=drawSectionTitle(doc,model,"Períodos incluidos",y+2);
+    if(model.periodTable&&Array.isArray(model.periodTable.rows)&&model.periodTable.rows.length){
+      y=drawSectionTitle(doc,model,"3. Resultados por período académico",y+2);
       y=drawParagraph(
         doc,
         model,
-        "La tabla resume cada período académico considerado en el corte, el mes estimado de graduación, el número de estudiantes incluidos, los graduados registrados y el promedio de cumplimiento del período.",
+        "La distribución por período permite identificar la relación entre estudiantes incluidos, graduados registrados, mes de graduación y nivel promedio de cumplimiento.",
         y,
         {fontSize:8.2,color:"muted"}
       );
       y=drawTable(doc,model,model.periodTable,y);
     }
 
-    y=drawSectionTitle(doc,model,model.table.title||"Detalle",y+2);
-    y=drawParagraph(doc,model,model.tableExplanation||"",y,{fontSize:8,color:"muted"});
-    y=drawTable(doc,model,model.table,y);
-
-    y=drawSectionTitle(doc,model,"Observaciones",y+2);
-    (model.observations||[]).forEach(function(item){
-      y=drawParagraph(doc,model,"• "+text(item),y,{fontSize:8.5});
-    });
-
-    y=ensureSpace(doc,model,y+10,28);
-    var signature=(model.signatures||[])[0];
-    if(signature){
-      var m=pageMetrics(doc);
-      var center=m.width/2;
-      doc.setDrawColor(23,32,51);
-      doc.setLineWidth(0.4);
-      doc.line(center-28,y,center+28,y);
-      doc.setFont("helvetica","normal");
-      doc.setFontSize(7.2);
-      pdfColor(doc,"muted");
-      doc.text("Responsable del reporte",center,y+4.5,{align:"center"});
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(9.5);
-      pdfColor(doc,"body");
-      doc.text(text(signature.nombre||""),center,y+9.5,{align:"center"});
-      doc.setFont("helvetica","normal");
-      doc.setFontSize(8);
-      doc.text(doc.splitTextToSize(text(signature.cargo||""),80),center,y+14.5,{align:"center"});
+    if(model.section.id!=="resumen"){
+      y=drawSectionTitle(doc,model,"4. Detalle del análisis",y+2);
+      y=drawParagraph(doc,model,model.tableExplanation||"",y,{fontSize:8,color:"muted"});
+      y=drawTable(doc,model,model.table,y);
     }
+
+    y=drawSectionTitle(doc,model,model.section.id==="resumen"?"4. Consideraciones finales":"5. Consideraciones finales",y+2);
+    (model.observations||[]).forEach(function(item){
+      y=drawParagraph(doc,model,text(item),y,{fontSize:8.2});
+    });
 
     addFooterToAllPages(doc);
     return doc;
