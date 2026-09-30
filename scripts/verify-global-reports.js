@@ -97,9 +97,7 @@ const windowObject={
     app:{unidad:"Unidad de Titulación y Eficiencia Terminal"},
     branding:{logoPath:"assets/branding/logo-instituto.png"},
     firmas:[
-      {responsabilidad:"ELABORADO POR:",nombre:"Mgtr. Jefferson Villarreal",cargo:"Coordinador de Titulación y Eficiencia Terminal"},
-      {responsabilidad:"REVISADO POR:",nombre:"Mpde. Martha Tomalá",cargo:"Secretaria General"},
-      {responsabilidad:"APROBADO POR:",nombre:"Dr. Alex León T.",cargo:"Vicerrector"}
+      {responsabilidad:"ELABORADO POR:",nombre:"Mgtr. Jefferson Villarreal",cargo:"Coordinador de Titulación y Eficiencia Terminal"}
     ],
     secciones:[
       {id:"resumen",label:"Resumen",titulo:"Resumen general",pdfTitulo:"Reporte global - Resumen general"},
@@ -109,6 +107,10 @@ const windowObject={
   GlobalApp:{
     rows:{
       resumen(){return [{indicador:"Total estudiantes",valor:8,detalle:"Estudiantes filtrados"}];},
+      periodos(){return [
+        {periodo:"Febrero 2025 a Mayo 2025",graduacion:"Julio de 2025",estudiantes:3,carreras:1,cumplimiento:90},
+        {periodo:"Noviembre 2025 a Mayo 2026",graduacion:"Julio de 2026",estudiantes:5,carreras:1,cumplimiento:94}
+      ];},
       graduados(){return sampleData.graduados.porPeriodo.slice();},
       students(){return [{cedula:"0100000001",nombres:"ESTUDIANTE PRUEBA",carrera:"EDUCACIÓN",periodo:"2025",cumplimiento:100}];}
     }
@@ -140,7 +142,8 @@ try{
   check(pdfModel&&pdfModel.table&&pdfModel.table.rows.length===1,"El PDF construye la tabla institucional de la sección activa.");
   check(pdfModel&&pdfModel.filterRows.length===2,"El PDF conserva los filtros visibles.");
   check(pdfModel&&pdfModel.summary.length>=3,"El PDF construye el resumen ejecutivo.");
-  check(pdfModel&&pdfModel.signatures.length===3,"El PDF incorpora las firmas institucionales configuradas.");
+  check(pdfModel&&pdfModel.periodTable&&pdfModel.periodTable.rows.length===2,"El PDF incorpora los períodos y su fecha de graduación.");
+  check(pdfModel&&pdfModel.signatures.length===1,"El PDF incorpora únicamente la firma del coordinador.");
 
   if(wordImplementation){
     new vm.Script(wordImplementation,{filename:"Global/global.word.impl.gz::global.word.js"}).runInContext(context);
@@ -154,7 +157,7 @@ try{
     });
     check(wordModel&&wordModel.table&&wordModel.table.rows.length===2,"Word reutiliza correctamente la tabla construida por GlobalPDF.");
     check(wordModel&&wordModel.summary.length>=3,"Word reutiliza el resumen institucional de GlobalPDF.");
-    check(wordModel&&wordModel.signatures.length===3,"Word conserva las firmas institucionales.");
+    check(wordModel&&wordModel.signatures.length===1,"Word conserva únicamente la firma del coordinador.");
   }
 }catch(error){
   errors.push(`Ejecución del runtime Global: ${error.stack||error.message||error}`);
