@@ -15,7 +15,7 @@ Función:
       titulo: "Análisis Global de Titulación",
       subtitulo: "Análisis histórico y comparativo de información cargada en Base Local",
       unidad: "Unidad de Titulación y Eficiencia Terminal",
-      version: "1.5.0-informes-formales",
+      version: "1.6.0-logo-global",
       modo: "base-ui"
     }),
 
