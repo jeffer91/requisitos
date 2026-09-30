@@ -11,7 +11,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="3.2.0-formal-document";
+  var VERSION="3.3.0-formal-expanded";
   var EMBEDDED_LOGO="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALwAAABOCAMAAACtzYyLAAADAFBMVEUAAAAiJjAiJi8iJi8lJi4hJi8iJi8iJS8iJS5maG/nGyDmGyAeJS0bKC3Us3HnGyEXHCXUs3FRVFvnGyCGh4xGSVDVs3FZW2JzdHvVs3LVtnLlGyHoGyHVs3LUs3E3OkMcHTM3ODjTsnEeHh7lHB4cICp7fIKUlZrnGxvmFyXPq3KkpankGx7/AAAwMjswNDw9QUnrHCFeYGebnKHyIyMFChTkGh8RNzf///8AAFUNEhzaFSPRrm7WJyf//39+gIXOrW//Nze9vXvfHx/hvnj//wAAABzcGB7dGyDtunz++JMQFyYfJC9VVVW/n1/wynvlwXr70X/+/qAAABkAAiF/AAB/f3+foKSqAACqqlW1tbnMmWbUqlX/ISf/f3/hvXbgvXfixnETGicQFygRGSYfJC4AVQAAVVUrMTczM0Q3PEIyNUB/fwCZADO/AD+/Hx+/fz+/f3+ymWaqqqrDHiTQHSLMMwDRr3DawpHU1H//qlXgv3nhvnj/zJnzzYL70oH+4I4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD9qTkuAAABAHRSTlMA/TFuE06P1az/j3AsFTBQ/43/rv//Tv//8hMvznDQ/wwGrggs////DxUR/0oBWP//7v//Dv9tCAED/xQlBgL/RwQEEP0BRykyCRZ6QAMKMv9RGyYpAgP/AwP/BQb/AiuWCSdMhGkDAykPLlsCBQQIBAQKA43JBWQVBgNUqgX/URkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAi3US7AAADptJREFUeNrtmod34ziSh0GQYJRIiUGichgl29LK2R2ne0LvhJ10tzmHyznn+KfvrwBSImWr3e53c8/z1rAlgQjUh2KhUAWIsYf0kB7SQ3pID+khfX3JGL7zZmlo/B9/sYn0B5+Ox+P//PK7lL/7/U3rzZNgBjcMXsUXf4aMUR0alKgASei64KPstsI0bVOvbL+Hl9A4XlUN6Q8//eqrD//7975N+cqd4W2TVwupUk6FGoNbOjN0TTPxzVzTaDTqTdNxn4pl66aVAQhccK7bmjncCMkssls5/Hd+v9Vqfajg+d3h9X/41jb9xZ+XKr9VTGiKIk0jOet69erKEJppQPgmyg1NwtkSQNdEJn/NysVpa9XCl2pGEf6r/9kDf7A4OH89/J9qhWSWKq1ilYK36HsZz9hk8yGnrFQLThU8Z5f0w5x3e+uKVJGq9TrJf+BFXbeLFEXeZD88fzN4qwjPivBK2BvBPrasooz1za02LUyl35g0uNezTz/930esWi3Zg2XUjbxguQyWQYBRRMHXCl/K6gXt1iw5h4fWVvTcMunZAB1pyL73ve/+BrOeb6d0J+p6gA48z7vEO7Ld7uRrhB9uu9rF529k2sA1fI2xsRE0PsPUdNPWhxaspGabppUrm3fidTw36DyXV6tJ4D39OOi6790Kr5Vso/bG8MhrtpGN2CiNX6hqaJaZjcfgMqtrNF8MGpx8EtmYo+7EczslyKeuN3F3ym6CR5pOtalWm+6U3gJP9NK0GFoJ3t7A5xWmjRlrS/jHm+ezmeLnXfcj97qKBy5GdHA7/DRJ1sk6HNTuBk+2n1TkcdlsZPC6RfPUlKAcLyuT/DX4btRxlX6v5Fg2VtMNVtHT2+BrYezM8DcfTO8GT7aPDKO1Jdm2N638mUDwlFPLgdB5Gd6NPnIz4APvfEESz+/kBm53cRu8M2+ehk3nqFm7IzzRi1zAWRppym7aNlM1Vflc5F0I3hYl+ODkwF3k7N1ucBCdePmtnruTXbUvwtem+Ks1j+Zpms7nSW2Kq9od4FVBpaj0+YJlmcohGJHg6S48U5thEX5xEniS7+Apm3RPThYrz11u19vX6fy0GafpbObEs/T4BQ0AF3EyfRN4Q3kBVWnii4upZatPZfthcCy+MafXJ6wbBZ5S8K7HOjD27OAW32Yr+Th0jp0knqdQ+XjuhGHYTGc78IWFcmP88O16JmdCM6zNMpXPyYwOum5na6zIK0fb6oOTjlKSD0hbPpqw51upd1aT15vK+bzpnMZH81k4D+dnR6njOEdxrQQ/KtoSPUPJv93I5Dy0NemhcfgBuvJ5suHoWW+dFgVdwwqrD2V3WX0ZBZmRnASTVQlz4jG3+/Q18LXkJ/MjJz06A3MYn/3EiY+OjtYleOkSi2G+zGuWUPoCYdMauXURUGXbtuC2xOdw7kXhCTFh27owbRvl5A0Jm/xsBqW5UU2w3nai9zyve7Af/jh8kYapM5jFaQj8ZjMNofO5xZTwQ14d8soojy82gQguEIoUF6dh5qsQvqXzd4ZVLvSCV8xGVzQYdStD/i+6S+86+SRYuJcB/iPXu9wHX2s6Z+tQS8LaOkxqYahp4WA9aMZOUivq/FuEewhKLAtxlai+vmEQBcudovNVEHmu57peB8vuwp3sg3e0mjZLBoPkGC/10XRqFxjNFp6/RargJYS4vd0/el5Jq5+fw5+BaYe+QJ+CpRe50V74MDxNY2iLTPSJtdZJnOvwlQohgUf9y3xF4ilQlZfX1FTIYpmEeqvkg6rwiroBFf6TF2xn6XOI+tJdTSDz6KDzdAk3OYp2/fot/OkcwHNYmHSGt5gyVHJ2PC3AY36R8nCBf2EIYQrdEDqjjDAo/tdVIaq5LufoEHQGulUx3WUFWiJYF2Qr8cLwaUbTtdvBhHyPLOJ54EKHOp7HoiU5x9GSIqpdC1ScsDUQa+H0yZN1eFF70qRMkqS5ymfWxlQrfUUw2AfyVKq0bcBUhnximpT2H4MGuNJegnA4RJeh7G0KugV1IVspmP4ZmR55TTOiEwTusjOZQD8uo+UBdP0cVsYlvc+t/GJ1I3xznSazZpg4MyxPcZgkDjRpcDwtw18J3SR4YZE1MSu78AYbIS+lrpvSoHIMI4M3dG7YMEPoohP8SC4MtsHlNeZs4HrsEmFT9LSDOBDXUQShT5Y/yq1mx3t+s+TnzjwOz+IkCfFKjmZhHG+dyw28zkzToIduVffDS7MuTLUc8I3keQW2E2/CJHcSxlXBc24qHftriJgm6AGs4jLouF33JPIuC76kO5ncLHknvnCc06SZ1NawPKfHzaZzXDvahQcE6IVSCEZqXoYfsc/NKyV0BURjsOX6JDWGK7XhSm1sDH5ojrhekXHYisxJhKnKDj6+BHoX6lJSdC9w9+j8PJ3FsZbAt0lPZ3EtnMNROyvBc3skpyWysClcbdQQ6MiWozBoHhrIY25CF2gJIoPE9D8y0FoCQvKcuuhm1aQbVqBKND5BlSuXwm72Vx0v6p7Ao5zsOPDnnhftgV87taS5Tpzk4smT8FQLTwfrZJCUJM+xUuJLRgaZE4o7CYePKBaVRkg6Zp9RXgjlxsgx4p12aqhRFaaUVfiVNLuymm6BVVvu+Sw8rzM5J02P3Bs2DCakVnvUJk5J8mczJ0V+CsnjSZQk/5bJr3/5pk0XwTIK/hnkz29chCelPZCS2tTgSK5DRxukmuZozTQNtaNb4d+9XvTvO9eNX+5pvbn6RZ65hGK4H+wZ2fcvl9FqD/zZ4EXqzOfhOpkN1rA8zovTpAz/bFyX6V2fMoeMtXv4/JXPGi+VhBuM/bTX69V7hFxvHEp0FPRkzqcqdGvXe+1tX2RQ3Mi02l0uFqt93k/guvsWqdO4GcMpgJ2HZ4AXtCd1Snbebxw2Wm2/0f5xq9EGmj9utNtAYb0PAcEejX3WHvfa7/vj8SP265YE6tXbf9eut55hFGP/C1ShZb8OZNW3Tjf59aFPRTIQuUGVzperzFCeHOyDT9IaVtiLNU3YJmWOB1izdtTG78t+fYJ9NZZ4h5B8v0WyrfusriBaPfZItmmo9uM+a/el+NsQ+hiNxvR02N/6TN3kWcuXIVOZG9Cd7y+iE0kfLHc8s5LaYL7CpYHkHbjCTjNFNHtN5/3+Iwnf+KSNfK60//Ky3vqC4H+qGFi9z15J+LEajN9q98abb0VhW45W1ryvxIGG7tIrBXs/WsA3YIAnl23idsqCL8A/SedYpLTTJjz5eIAZe3yc0iJVuxke+ppLlXSjB9n+DPCHGVOjlT2dvhQwWNt1Ce//hy/h/RyeWsrhjmnro+MutoYHeffnJ+5i8TFdIpzat/VRW0PQ8WxA/Gdn80RLkwSmc+Zo0xvh/Vc+iXML/5f9voR/ppD6ObySPAbV6ytBNzL4dg7/sw08AtXOZldv1f15ZxWddAO5C4VIJIr2eJXT9XztDJKzZpzOfjhrxkcOuOfrJEzi2s3wkkiJ9ROCZ3+Pp+HnsHguv5Bt6q18ML4c1yFpPuB/3FIN32+3Xiq1kaofRZ18a+nci56uJktlX6Azbve9PfC1ZH7UvAgHF82L5tngIpyvtZAuZ/N4R20UTP8Ze7cNqdE3thsSHmOBNF/KIp8QSf2ftSVkm9Dqcj7QEGgiqL6H6CsVKJsRq2708WYVfUq0Uo2W7kdu94ZNJ0PBH8+Pm3GcNONB/MNBLTlykjjBGpuEsxL8q17Lf0RDqPcgZgh03OuNfejzoURsU1G9Iev81rgBK/qMmigzXu+jF9q0++N23pcG1e816vVPWL7FTbvzZa+A4qnob64fZZrDXPLAdUCfzjBJw6M0TU7TdJbMNpKXu/+v/C8Jvv1Lv9EgU/MDfPrs33xfavAhDeELKqGh+P7LBhX7DT/T7zaq3pc1ssDPW2afmefYdeXhghL0ogMfv+Od3HSyo9ssg8fCNHdeDJI0lfBOOgjJxRk4Ct5mFmf/P2kSdd0goFMdmehYJ7rxWEdY+eFNOD9O0mMwz84Af+Ycz8Jkpjn5bqU5otMlg1cMeYZB50mfU+gM/5LLnaeR3LhDJa/K8qF0E6u8MqQyeVQInx/dWaVqUMzNjMdyv2Ykb1mSTMcFvbcMKLn7D9S4RYdzUvYD50Vz2nRqSvLh1Blozow2RGQSdPJbRahv8iqF4ciMKsLkcNQrMuqgUMOgAJs2CPCGIBs+tKhw00DQrT9GV12Gvgi/6C5cRTMCsZlRQTBvvrOj51FXHmW6wf7dVovnq9S0hpX11Gk6TRjO01N8UiiVb7TKzWkK3oQ5NCnGoK07xJ5cbgzTnhfUCrF0xcwGghjEVB10RF80EoplZfhHAxhhpDqpLXoNKcAxxTW2DxaLW358YLLtBn2WaCAqbU5HbDlfSW4IpSR8RcGrIJDLDb8RBIwYqipjPWEiDKHosCLjbvl0KJfBG4hD8CYQD4pKtqNw5yS0XG9emwSXhxmCICV8NYOXMSn9xkCA3tANuZcq4UnYJE6hV/XHMho3TFaApw5MIBLUh/ZwE/HeLVnCKJzDGsVkFQ515C8fqoj/5cYG7TqZikjXVfRHswCPoEIxKjf/hEl00m2oNEW5uKBHISrv4Dk9Ng1D7YUgHrSZnCNXbwGvWwXR7ztEFiO1s35Fk1HAnJAJGcGW5FaE7I98u6JLqqPTEk5mhGzJlWwnA17+GNZlhGCY7I4BWyQ3ifnb2eHPiWwH/tEOvK1OxLJzMwEVHt2T3zpB60UJ3j982W6X4A2uGex+JkjVLMC3/XF/7B8W4AXT9HvKzkZAswvw49aHLYqQc3i9qDT3LtFpqb2B98etVovcwgweVkMb3V946LxQmiMlXwd8YyN5qjEYu9f0Oh3hSfhPfLjf5PcSPBZ+27rf7KQ59mhzKtz+r39VphIuAbfs+85Oe7uavvnBzubnjyPz/tqZHdfe0ssTk5vqKPubgW9rFvwW4xH7gQE3wPoGoauDbHvzCzNb/Bn7xqWRPFwdsYf0kB7SQ/qdT78FXCRG3awCaCQAAAAASUVORK5CYII=";
   var config=window.GlobalConfig||{};
   var pdfEngineLoading=null;
@@ -23,6 +23,21 @@ Función:
   ];
 
   function text(value){return String(value==null?"":value).trim();}
+  function cleanInstitutionalText(value){
+    return text(value)
+      .replace(/\bP\.?\s*V\.?\s*C\.?\b/gi," ")
+      .replace(/\bONLINE\b/gi," ")
+      .replace(/\s{2,}/g," ")
+      .replace(/\s+([,.;:])/g,"$1")
+      .trim();
+  }
+  function countPhrase(value,singular,plural){
+    var n=number(value);
+    return n+" "+(n===1?singular:plural);
+  }
+  function percent(value){
+    return Math.max(0,Math.min(100,Math.round(number(value))));
+  }
   function number(value){var parsed=Number(value);return Number.isFinite(parsed)?parsed:0;}
   function esc(value){return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
   function absoluteUrl(value){try{return new URL(value,window.location.href).href;}catch(error){return text(value);}}
@@ -114,32 +129,97 @@ Función:
     var totalStudents=number(summary.totalEstudiantes||data.students&&data.students.length);
     var totalGraduates=number(summary.totalGraduados||data.graduados&&data.graduados.total);
     var totalPeriods=number(summary.totalPeriodos||data.periods&&data.periods.length);
-    var compliance=number(summary.porcentajeCumplimiento);
+    var compliance=percent(summary.porcentajeCumplimiento);
     var active=number(summary.activos);
     var retired=number(summary.retirados);
+    var pending=Math.max(0,totalStudents-totalGraduates);
     var graduateRate=totalStudents?Math.round((totalGraduates/totalStudents)*100):0;
 
     return [
-      "El análisis comprende "+totalStudents+" estudiante(s) perteneciente(s) al ámbito académico definido para el presente informe y distribuidos en "+totalPeriods+" período(s) académico(s). La información consolidada permite observar de manera conjunta el avance del proceso de titulación y el estado general de cumplimiento.",
-      "Del total analizado, "+totalGraduates+" estudiante(s) registran la culminación satisfactoria del proceso de titulación, equivalente aproximadamente al "+graduateRate+"% del universo considerado. Este resultado constituye el principal indicador de eficiencia terminal dentro del alcance del informe.",
-      "El cumplimiento general de requisitos alcanza el "+compliance+"%. Este porcentaje resume el nivel de avance de los requisitos académicos y administrativos que cuentan con información registrada para los estudiantes incluidos.",
-      "En cuanto al estado de matrícula, se identifican "+active+" estudiante(s) activos y "+retired+" estudiante(s) retirados. Estos datos complementan el análisis de titulación y permiten contextualizar los resultados presentados por período académico."
+      "El universo analizado está conformado por "+countPhrase(totalStudents,"estudiante","estudiantes")+" distribuidos en "+countPhrase(totalPeriods,"período académico","períodos académicos")+". La consolidación de estos datos permite observar de manera integral el avance del proceso de titulación y su comportamiento dentro del período de estudio.",
+      "Del total de estudiantes considerados, "+countPhrase(totalGraduates,"registra","registran")+" la culminación satisfactoria del proceso de titulación, lo que representa el "+graduateRate+"% del universo analizado. En consecuencia, "+countPhrase(pending,"estudiante permanece","estudiantes permanecen")+" sin registro de graduación dentro del alcance temporal del presente informe.",
+      "El nivel general de cumplimiento de requisitos alcanza el "+compliance+"%. Este indicador resume el avance conjunto de los componentes académicos y administrativos considerados para el seguimiento institucional y permite identificar el grado de consolidación del proceso.",
+      "Respecto del estado de matrícula, se identifican "+countPhrase(active,"estudiante activo","estudiantes activos")+" y "+countPhrase(retired,"estudiante retirado","estudiantes retirados")+". Esta distribución aporta contexto para interpretar la evolución del grupo y diferenciar los casos que continúan vinculados al proceso de aquellos que presentan una condición de retiro."
     ];
   }
-
   function observations(section,data){
     data=data||{};
     var summary=data.resumen||{};
-    var compliance=number(summary.porcentajeCumplimiento);
+    var compliance=percent(summary.porcentajeCumplimiento);
     var totalStudents=number(summary.totalEstudiantes);
     var totalGraduates=number(summary.totalGraduados);
+    var pending=Math.max(0,totalStudents-totalGraduates);
+    var graduateRate=totalStudents?Math.round((totalGraduates/totalStudents)*100):0;
 
     return [
-      "Los resultados presentados corresponden al corte institucional disponible a la fecha de emisión del presente informe y reflejan el estado registrado de los procesos académicos, administrativos y de titulación de los estudiantes comprendidos en el análisis.",
-      "Para efectos del seguimiento institucional, el mes de graduación se determina dos meses después del mes de finalización del período académico. De este modo, un período que concluye en octubre se registra con graduación en diciembre.",
-      "El cumplimiento general del "+compliance+"% constituye un indicador agregado de seguimiento. Cuando se requiera sustento para decisiones individuales, deberá revisarse el expediente específico del estudiante y la documentación correspondiente.",
-      "En términos generales, el informe registra "+totalGraduates+" estudiante(s) graduados de un total de "+totalStudents+", junto con la evolución por período académico. Esta información permite orientar el seguimiento de eficiencia terminal y priorizar los casos que aún requieren cierre o validación."
+      "A la fecha de emisión, el proceso registra una tasa de graduación del "+graduateRate+"%, correspondiente a "+totalGraduates+" graduados de un total de "+totalStudents+" estudiantes incluidos en el alcance del informe.",
+      "Se mantienen "+countPhrase(pending,"caso sin registro de graduación","casos sin registro de graduación")+". Estos casos constituyen el principal grupo de seguimiento para el cierre progresivo del proceso de titulación.",
+      "El cumplimiento general del "+compliance+"% evidencia el nivel agregado de avance de los requisitos considerados. Para decisiones o certificaciones individuales, el resultado global debe complementarse con la revisión del expediente específico de cada estudiante.",
+      "La información presentada corresponde al corte institucional disponible a la fecha de emisión. Una actualización posterior de los registros académicos, administrativos o de titulación puede modificar los indicadores contenidos en una nueva versión del informe."
     ];
+  }
+
+  function periodNarrative(rows){
+    rows=Array.isArray(rows)?rows:[];
+    return rows.map(function(item,index){
+      var students=number(item.estudiantes);
+      var graduates=number(item.graduados);
+      var pending=Math.max(0,students-graduates);
+      var rate=students?Math.round((graduates/students)*100):0;
+      var compliance=percent(item.cumplimiento);
+      return "En el período "+cleanInstitutionalText(item.periodo)+
+        " se registran "+countPhrase(students,"estudiante","estudiantes")+
+        ", de los cuales "+graduates+" constan como graduados, equivalente al "+rate+
+        "% del grupo. El cumplimiento promedio del período alcanza el "+compliance+
+        "% y se mantienen "+countPhrase(pending,"caso sin graduación registrada","casos sin graduación registrada")+
+        ". El mes de graduación asociado al período corresponde a "+cleanInstitutionalText(item.graduacion||"sin fecha calculable")+".";
+    });
+  }
+
+  function comparativeAnalysis(rows){
+    rows=Array.isArray(rows)?rows:[];
+    if(!rows.length){return [];}
+
+    var strongest=rows[0];
+    var weakest=rows[0];
+
+    rows.forEach(function(item){
+      var currentStudents=number(item.estudiantes);
+      var currentGraduates=number(item.graduados);
+      var currentRate=currentStudents?currentGraduates/currentStudents:0;
+
+      var strongStudents=number(strongest.estudiantes);
+      var strongGraduates=number(strongest.graduados);
+      var strongRate=strongStudents?strongGraduates/strongStudents:0;
+
+      var weakStudents=number(weakest.estudiantes);
+      var weakGraduates=number(weakest.graduados);
+      var weakRate=weakStudents?weakGraduates/weakStudents:0;
+
+      if(currentRate>strongRate){strongest=item;}
+      if(currentRate<weakRate){weakest=item;}
+    });
+
+    var strongRatePct=number(strongest.estudiantes)
+      ?Math.round(number(strongest.graduados)/number(strongest.estudiantes)*100)
+      :0;
+    var weakRatePct=number(weakest.estudiantes)
+      ?Math.round(number(weakest.graduados)/number(weakest.estudiantes)*100)
+      :0;
+
+    var output=[
+      "El comportamiento por período permite observar diferencias en la proporción de estudiantes que alcanzan la graduación. El período "+cleanInstitutionalText(strongest.periodo)+" presenta la mayor proporción registrada, con un "+strongRatePct+"% de graduación dentro de su grupo."
+    ];
+
+    if(rows.length>1 && cleanInstitutionalText(weakest.periodo)!==cleanInstitutionalText(strongest.periodo)){
+      output.push(
+        "En contraste, el período "+cleanInstitutionalText(weakest.periodo)+
+        " registra una proporción de graduación del "+weakRatePct+
+        "%. Esta diferencia justifica mantener un seguimiento diferenciado de los casos pendientes y de los requisitos que aún se encuentren en proceso de cierre."
+      );
+    }
+
+    return output;
   }
   function tableExplanation(title){
     var name=text(title||"Detalle");
@@ -243,7 +323,9 @@ Función:
     var table=tableForSection(section.id,data);
     var periods=periodRows(data);
     var periodDisplay=displayPeriodRows(periods);
-    var careerLabel=selectedLabel("#globalFiltroCarrera","Todas las carreras")||"Todas las carreras";
+    var careerLabel=cleanInstitutionalText(
+      selectedLabel("#globalFiltroCarrera","Todas las carreras")||"Todas las carreras"
+    );
     var coverageLabel=periods.length
       ?periods.map(function(item){return item.periodo;}).join(" | ")
       :"Sin períodos disponibles";
@@ -260,6 +342,8 @@ Función:
       filterRows:filterRows(filters),
       summary:summaryText(section,data),
       observations:observations(section,data),
+      periodNarrative:periodNarrative(periods),
+      comparativeAnalysis:comparativeAnalysis(periods),
       table:table,
       tableExplanation:tableExplanation(table.title),
       periodTable:{
@@ -357,11 +441,43 @@ Función:
   }
 
   function loadLogoSource(){
-    return Promise.resolve(EMBEDDED_LOGO);
+    return new Promise(function(resolve){
+      if(typeof window.Image!=="function"){
+        resolve(null);
+        return;
+      }
+
+      var image=new window.Image();
+
+      image.onload=function(){
+        try{
+          var canvas=document.createElement("canvas");
+          var width=Math.max(1,image.naturalWidth||image.width||188);
+          var height=Math.max(1,image.naturalHeight||image.height||78);
+          canvas.width=width;
+          canvas.height=height;
+
+          var ctx=canvas.getContext("2d");
+          ctx.fillStyle="#ffffff";
+          ctx.fillRect(0,0,width,height);
+          ctx.drawImage(image,0,0,width,height);
+
+          resolve(canvas.toDataURL("image/jpeg",0.96));
+        }catch(error){
+          resolve(null);
+        }
+      };
+
+      image.onerror=function(){
+        resolve(null);
+      };
+
+      image.src=EMBEDDED_LOGO;
+    });
   }
 
   function filename(model){
-    var career=selectedLabel("#globalFiltroCarrera","");
+    var career=cleanInstitutionalText(selectedLabel("#globalFiltroCarrera",""));
     if(!career||career==="Todas las carreras"){career="Todas_las_carreras";}
     return "Informe_Titulacion_"+slug(career)+"_"+todayISO()+".pdf";
   }
@@ -458,7 +574,7 @@ Función:
     return y;
   }
 
-  function normalizeCell(value){
+  function normalizeCell(value,columnKey){
     if(value==null){return "";}
     if(typeof value==="number"){return String(value);}
     if(typeof value==="boolean"){return value?"Sí":"No";}
@@ -466,7 +582,12 @@ Función:
       try{return JSON.stringify(value);}
       catch(error){return String(value);}
     }
-    return String(value);
+
+    var output=String(value);
+    if(columnKey==="carrera"||columnKey==="tipo"||columnKey==="division"){
+      output=cleanInstitutionalText(output);
+    }
+    return output;
   }
 
   function tableFontSize(columnCount){
@@ -515,7 +636,7 @@ Función:
 
     rows.forEach(function(row,rowIndex){
       var cells=columns.map(function(column){
-        return doc.splitTextToSize(normalizeCell(row&&row[column.key]),Math.max(8,colWidth-2));
+        return doc.splitTextToSize(normalizeCell(row&&row[column.key],column.key),Math.max(8,colWidth-2));
       });
       var maxLines=1;
       cells.forEach(function(lines){maxLines=Math.max(maxLines,Math.min(lines.length,6));});
@@ -557,7 +678,7 @@ Función:
         var w=62;
         var h=w*(props.height/props.width);
         if(h>27){h=27;w=h*(props.width/props.height);}
-        doc.addImage(logo,"PNG",center-w/2,28,w,h);
+        doc.addImage(logo,"JPEG",center-w/2,28,w,h);
       }catch(error){
         doc.setFont("helvetica","bold");
         doc.setFontSize(17);
@@ -684,43 +805,99 @@ Función:
 
     var y=addRunningHeader(doc,model);
 
-    y=drawSectionTitle(doc,model,"1. Alcance del informe",y);
+    y=drawSectionTitle(doc,model,"1. Antecedentes y objeto del informe",y);
     y=drawParagraph(
       doc,
       model,
-      "El presente informe consolida la información correspondiente a la carrera "+text(model.careerLabel)+", considerando los períodos académicos señalados en la portada. Su propósito es presentar, en un único documento, los principales resultados relacionados con estudiantes, graduación y cumplimiento de requisitos para apoyar el seguimiento de eficiencia terminal.",
+      "La Unidad de Titulación y Eficiencia Terminal realiza el seguimiento de los procesos de culminación académica con el propósito de disponer de información consolidada que facilite la toma de decisiones, la identificación de casos pendientes y el análisis de la eficiencia terminal. En este contexto, el presente informe organiza los principales resultados correspondientes a la carrera "+text(model.careerLabel)+".",
       y,
-      {fontSize:8.7}
+      {fontSize:8.8}
+    );
+    y=drawParagraph(
+      doc,
+      model,
+      "El documento tiene como objeto presentar el comportamiento de los estudiantes incluidos en los períodos académicos analizados, considerando la condición de graduación, el avance general de requisitos y el estado de matrícula. La información se expone de forma agregada para facilitar su lectura institucional.",
+      y,
+      {fontSize:8.8}
     );
 
-    y=drawSectionTitle(doc,model,"2. Resultados generales",y+2);
+    y=drawSectionTitle(doc,model,"2. Alcance y criterios de análisis",y+2);
+    y=drawParagraph(
+      doc,
+      model,
+      "El alcance comprende la carrera "+text(model.careerLabel)+" y los períodos académicos detallados en la portada. Los indicadores corresponden al corte disponible a la fecha de emisión del informe y reflejan el estado registrado de los procesos incluidos.",
+      y,
+      {fontSize:8.6}
+    );
+    y=drawParagraph(
+      doc,
+      model,
+      "Para la lectura del documento se consideran cuatro indicadores centrales: número de estudiantes, número de graduados, períodos académicos y porcentaje general de cumplimiento. La fecha de graduación se expresa por mes y año y se determina dos meses después del mes de finalización del período académico; por ejemplo, un período que concluye en octubre se registra con graduación en diciembre.",
+      y,
+      {fontSize:8.6}
+    );
+
+    y=drawSectionTitle(doc,model,"3. Resultados generales",y+2);
     y=drawKpis(doc,model,y);
     (model.summary||[]).forEach(function(item){
       y=drawParagraph(doc,model,text(item),y,{fontSize:8.5});
     });
 
     if(model.periodTable&&Array.isArray(model.periodTable.rows)&&model.periodTable.rows.length){
-      y=drawSectionTitle(doc,model,"3. Resultados por período académico",y+2);
+      y=drawSectionTitle(doc,model,"4. Resultados por período académico",y+2);
       y=drawParagraph(
         doc,
         model,
-        "La distribución por período permite identificar la relación entre estudiantes incluidos, graduados registrados, mes de graduación y nivel promedio de cumplimiento.",
+        "La distribución por período permite revisar la relación entre estudiantes incluidos, graduados registrados, mes de graduación y nivel promedio de cumplimiento. Esta desagregación facilita la identificación de diferencias entre cohortes y de los casos que requieren continuidad en el seguimiento.",
         y,
-        {fontSize:8.2,color:"muted"}
+        {fontSize:8.3}
       );
       y=drawTable(doc,model,model.periodTable,y);
+
+      (model.periodNarrative||[]).forEach(function(item){
+        y=drawParagraph(doc,model,text(item),y,{fontSize:8.3});
+      });
     }
 
-    if(model.section.id!=="resumen"){
-      y=drawSectionTitle(doc,model,"4. Detalle del análisis",y+2);
-      y=drawParagraph(doc,model,model.tableExplanation||"",y,{fontSize:8,color:"muted"});
-      y=drawTable(doc,model,model.table,y);
-    }
-
-    y=drawSectionTitle(doc,model,model.section.id==="resumen"?"4. Consideraciones finales":"5. Consideraciones finales",y+2);
-    (model.observations||[]).forEach(function(item){
-      y=drawParagraph(doc,model,text(item),y,{fontSize:8.2});
+    y=drawSectionTitle(doc,model,"5. Análisis de eficiencia terminal",y+2);
+    (model.comparativeAnalysis||[]).forEach(function(item){
+      y=drawParagraph(doc,model,text(item),y,{fontSize:8.4});
     });
+    y=drawParagraph(
+      doc,
+      model,
+      "El análisis conjunto de graduación y cumplimiento permite diferenciar el avance del proceso académico de su cierre efectivo. Un porcentaje elevado de cumplimiento constituye una señal favorable de avance; sin embargo, la culminación del proceso se confirma mediante el registro de graduación de cada estudiante.",
+      y,
+      {fontSize:8.4}
+    );
+
+    y=drawSectionTitle(doc,model,"6. Conclusiones",y+2);
+    (model.observations||[]).slice(0,3).forEach(function(item){
+      y=drawParagraph(doc,model,text(item),y,{fontSize:8.3});
+    });
+
+    y=drawSectionTitle(doc,model,"7. Recomendaciones de seguimiento",y+2);
+    y=drawParagraph(
+      doc,
+      model,
+      "Mantener el seguimiento periódico de los estudiantes que aún no registran graduación, priorizando la identificación del requisito o etapa pendiente que impide el cierre de su proceso.",
+      y,
+      {fontSize:8.3}
+    );
+    y=drawParagraph(
+      doc,
+      model,
+      "Revisar de forma periódica la evolución del cumplimiento por período académico, de manera que las variaciones puedan ser identificadas oportunamente y se establezcan acciones de acompañamiento cuando corresponda.",
+      y,
+      {fontSize:8.3}
+    );
+    y=drawParagraph(
+      doc,
+      model,
+      "Actualizar el presente informe cuando se produzcan cambios relevantes en la condición de los estudiantes, con el fin de conservar una lectura institucional vigente de la eficiencia terminal.",
+      y,
+      {fontSize:8.3}
+    );
 
     addFooterToAllPages(doc);
     return doc;
