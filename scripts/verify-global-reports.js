@@ -54,6 +54,9 @@ check(bootstrap.indexOf("global.pdf.runtime.js")<bootstrap.indexOf("global.word.
 check(bootstrap.indexOf("global.word.js")<bootstrap.indexOf("global.app.js"),"Los reportes quedan listos antes de habilitar los botones de Global.");
 check(!pdfRuntime.includes("DecompressionStream"),"El runtime PDF no depende de DecompressionStream.");
 check(!pdfRuntime.includes("eval)(source"),"El runtime PDF no ejecuta código mediante eval.");
+check(!pdfRuntime.includes('left="-100000px"')&&!pdfRuntime.includes('left="-100000"')&&!pdfRuntime.includes('left="-100000px;'),"El host PDF no se renderiza fuera de pantalla.");
+check(pdfRuntime.includes("waitForPaint"),"El PDF espera a que el DOM esté pintado antes de capturarlo.");
+check(pdfRuntime.includes("windowHeight:height"),"El PDF ajusta el alto de captura al contenido real.");
 
 class FakeCustomEvent{
   constructor(type,options){this.type=type;this.detail=options&&options.detail||{};}
