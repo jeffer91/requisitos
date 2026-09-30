@@ -59,6 +59,10 @@ check(!pdfRuntime.includes("html2canvas"),"Global PDF ya no depende de html2canv
 check(pdfRuntime.includes("ensurePdfEngine"),"Global PDF carga jsPDF directamente.");
 check(pdfRuntime.includes("new JsPDF"),"Global PDF construye el documento con jsPDF.");
 check(pdfRuntime.includes("doc.save(filename(model))"),"Global PDF descarga directamente el archivo generado.");
+check(pdfRuntime.includes("1. Alcance del informe"),"El PDF utiliza una estructura formal de informe.");
+check(pdfRuntime.includes("Responsable del informe"),"La firma se identifica formalmente en la portada.");
+check(!pdfRuntime.includes("Filtros aplicados"),"El PDF no expone lenguaje de interfaz.");
+check(!pdfRuntime.includes("Base Local"),"El PDF no expone referencias técnicas a la fuente interna.");
 
 class FakeCustomEvent{
   constructor(type,options){this.type=type;this.detail=options&&options.detail||{};}
