@@ -63,7 +63,8 @@ check(pdfRuntime.includes("1. Alcance del informe"),"El PDF utiliza una estructu
 check(pdfRuntime.includes("Responsable del informe"),"La firma se identifica formalmente en la portada.");
 check(!pdfRuntime.includes("Filtros aplicados"),"El PDF no expone lenguaje de interfaz.");
 check(!pdfRuntime.includes("Base Local"),"El PDF no expone referencias técnicas a la fuente interna.");
-check(pdfRuntime.includes('toDataURL("image/jpeg",0.96)'),"El logo se normaliza a JPEG antes de insertarse en jsPDF.");
+check(pdfRuntime.includes('data:image/jpeg;base64,'),"El logo oficial queda incrustado como JPEG dentro del generador PDF.");
+check(pdfRuntime.includes('doc.addImage(logo,"JPEG"'),"jsPDF inserta el logo oficial como JPEG.");
 check(pdfRuntime.includes("7. Recomendaciones de seguimiento"),"El informe incluye un desarrollo institucional ampliado.");
 check(pdfRuntime.includes("periodNarrative"),"El informe desarrolla un análisis narrativo por período.");
 
