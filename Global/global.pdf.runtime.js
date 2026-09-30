@@ -2,16 +2,16 @@
 Nombre completo: global.pdf.runtime.js
 Ruta o ubicación: /Global/global.pdf.runtime.js
 Función:
-- Generar el PDF institucional de Global como archivo descargable.
-- Descargar automáticamente el PDF mediante html2pdf.js.
-- Incrustar el logo institucional para evitar imágenes rotas.
-- Mostrar períodos académicos y fecha de graduación.
+- Generar el PDF institucional de Global directamente con jsPDF.
+- Descargar automáticamente el archivo sin capturar el DOM.
+- Incrustar el logo institucional mediante una imagen normalizada para PDF.
+- Mostrar períodos, graduados, cumplimiento y fecha estimada de graduación.
 - Compartir con GlobalWord el mismo modelo institucional.
 ========================================================= */
 (function(window,document){
   "use strict";
 
-  var VERSION="3.0.0-direct-jspdf";
+  var VERSION="3.1.0-executive-report";
   var config=window.GlobalConfig||{};
   var pdfEngineLoading=null;
   var JSPDF_PATHS=[
@@ -106,25 +106,47 @@ Función:
     return rows;
   }
   function summaryText(section,data){
-    section=section||sectionById("resumen");data=data||{};
+    section=section||sectionById("resumen");
+    data=data||{};
+
     var summary=data.resumen||{};
-    var rows=[
-      "La sección «"+text(section.titulo||section.label)+"» incluye "+number(summary.totalEstudiantes||data.students&&data.students.length)+" estudiante(s).",
-      "Se identifican "+number(summary.totalCarreras||data.careers&&data.careers.length)+" carrera(s) y "+number(summary.totalPeriodos||data.periods&&data.periods.length)+" período(s) en el universo filtrado.",
-      "El cumplimiento general registrado es "+number(summary.porcentajeCumplimiento)+"%."
+    var totalStudents=number(summary.totalEstudiantes||data.students&&data.students.length);
+    var totalGraduates=number(summary.totalGraduados||data.graduados&&data.graduados.total);
+    var totalCareers=number(summary.totalCarreras||data.careers&&data.careers.length);
+    var totalPeriods=number(summary.totalPeriodos||data.periods&&data.periods.length);
+    var compliance=number(summary.porcentajeCumplimiento);
+    var active=number(summary.activos);
+    var retired=number(summary.retirados);
+    var graduateRate=totalStudents?Math.round((totalGraduates/totalStudents)*100):0;
+
+    return [
+      "El presente reporte consolida la información de "+totalStudents+" estudiante(s), correspondiente(s) a "+totalCareers+" carrera(s) y "+totalPeriods+" período(s) académico(s), de acuerdo con los filtros seleccionados al momento de la generación.",
+      "Dentro del universo analizado, "+totalGraduates+" estudiante(s) constan como graduados, lo que representa aproximadamente el "+graduateRate+"% del total considerado en este corte institucional.",
+      "El cumplimiento general de requisitos alcanza el "+compliance+"%. Este indicador se calcula a partir de los requisitos que cuentan con información registrada en la Base Local y permite observar el nivel general de avance del grupo analizado.",
+      "En relación con el estado de matrícula, se registran "+active+" estudiante(s) activos y "+retired+" estudiante(s) retirados. Estos valores deben interpretarse conjuntamente con el período, la carrera y los demás filtros aplicados."
     ];
-    if(section.id==="graduados"){rows.push("El total de graduados identificado es "+number(summary.totalGraduados||data.graduados&&data.graduados.total)+".");}
-    return rows;
   }
+
   function observations(section,data){
-    var table=tableForSection(section&&section.id||"resumen",data||{});
-    var rows=[];
-    rows.push(table.rows.length?"El reporte contiene "+table.rows.length+" registro(s) de detalle.":"No se encontraron registros para los filtros seleccionados.");
-    rows.push("La fecha de graduación se calcula dos meses después del mes de finalización del período académico.");
-    rows.push("La información corresponde a la Base Local y a los filtros visibles al momento de generar el informe.");
-    return rows;
+    data=data||{};
+    var summary=data.resumen||{};
+    var compliance=number(summary.porcentajeCumplimiento);
+
+    return [
+      "Las cifras presentadas corresponden al estado de la Base Local en el momento exacto de generación del reporte; cualquier actualización posterior de requisitos, matrícula o titulación modificará los resultados en una nueva emisión.",
+      "Para efectos de este informe, la fecha de graduación se expresa por mes y año y se calcula dos meses después del mes de finalización del período académico. Por ejemplo, un período que finaliza en octubre se reporta con graduación en diciembre.",
+      "El porcentaje de cumplimiento general ("+compliance+"%) debe utilizarse como un indicador de seguimiento y no como sustituto de la validación individual de cada expediente. La revisión específica por estudiante continúa siendo necesaria cuando se requiera sustento documental.",
+      "El reporte busca facilitar el seguimiento institucional de titulación, permitiendo identificar el volumen de estudiantes, graduados, períodos involucrados y nivel de cumplimiento bajo un mismo corte de información."
+    ];
   }
-  function tableExplanation(title){return "La tabla «"+text(title||"Detalle")+"» presenta los registros considerados en el análisis institucional.";}
+
+  function tableExplanation(title){
+    var name=text(title||"Detalle");
+    if(name==="Resumen general"){
+      return "La siguiente tabla presenta los principales indicadores cuantitativos del universo analizado y complementa el resumen ejecutivo con una descripción breve de cada resultado.";
+    }
+    return "La tabla «"+name+"» organiza los registros correspondientes a la sección seleccionada y permite revisar de forma estructurada los resultados obtenidos con los filtros activos.";
+  }
   function getSignatures(){
     if(Array.isArray(config.firmas)&&config.firmas.length){return config.firmas.slice(0,1);}
     return [
@@ -132,22 +154,86 @@ Función:
     ];
   }
   function graduateRows(data){return rowSource("graduados",data||{});}
-  function periodRows(data){
-    var rows=appRows("periodos",data||{});
-    if(rows.length){return rows;}
+  function sortPeriodRows(rows){
     var helpers=window.GlobalCore&&window.GlobalCore.helpers;
-    return (Array.isArray(data&&data.periods)?data.periods:[]).map(function(item){
-      var period=text(item&&(
-        item.periodoLabel||item.label||item.nombre||item.periodoId||item.id
-      ));
+    return (rows||[]).slice().sort(function(a,b){
+      if(helpers&&typeof helpers.comparePeriods==="function"){
+        return helpers.comparePeriods(a.periodo,b.periodo);
+      }
+      return text(a.periodo).localeCompare(text(b.periodo),"es",{sensitivity:"base"});
+    });
+  }
+
+  function periodRows(data){
+    data=data||{};
+    var rows=appRows("periodos",data);
+
+    if(!rows.length){
+      var helpers=window.GlobalCore&&window.GlobalCore.helpers;
+      var map=Object.create(null);
+
+      (Array.isArray(data.students)?data.students:[]).forEach(function(row){
+        var period=text(row&&(
+          row._globalPeriodoLabel||
+          row._globalPeriodoId
+        ))||"SIN PERÍODO";
+
+        if(!map[period]){
+          map[period]={
+            periodo:period,
+            graduacion:helpers&&typeof helpers.graduationLabelForPeriod==="function"
+              ?helpers.graduationLabelForPeriod(period)
+              :"",
+            estudiantes:0,
+            graduados:0,
+            cumplimientoTotal:0
+          };
+        }
+
+        map[period].estudiantes+=1;
+        if(row&&row._globalEsGraduado===true){map[period].graduados+=1;}
+        map[period].cumplimientoTotal+=number(
+          row&&row._globalCumplimiento&&row._globalCumplimiento.porcentaje
+        );
+      });
+
+      rows=Object.keys(map).map(function(period){
+        var item=map[period];
+        return {
+          periodo:item.periodo,
+          graduacion:item.graduacion,
+          estudiantes:item.estudiantes,
+          graduados:item.graduados,
+          cumplimiento:item.estudiantes
+            ?Math.round(item.cumplimientoTotal/item.estudiantes)
+            :0
+        };
+      });
+    }
+
+    return sortPeriodRows(rows).map(function(item){
       return {
-        periodo:period,
-        graduacion:helpers&&typeof helpers.graduationLabelForPeriod==="function"
-          ?helpers.graduationLabelForPeriod(period)
-          :""
+        periodo:text(item.periodo),
+        graduacion:text(item.graduacion),
+        estudiantes:number(item.estudiantes),
+        graduados:number(item.graduados),
+        cumplimiento:number(item.cumplimiento)
       };
     });
   }
+
+  function displayPeriodRows(rows){
+    return (rows||[]).map(function(item){
+      return {
+        periodo:item.periodo,
+        graduacion:item.graduacion||"Sin fecha calculable",
+        estudiantes:item.estudiantes,
+        graduados:item.graduados,
+        cumplimiento:item.cumplimiento+"%"
+      };
+    });
+  }
+
   function buildModel(options){
     options=options||{};
     var section=sectionById(options.section||"resumen");
@@ -155,14 +241,42 @@ Función:
     var filters=options.filters||data.filters||{};
     var table=tableForSection(section.id,data);
     var periods=periodRows(data);
+    var periodDisplay=displayPeriodRows(periods);
+    var careerLabel=selectedLabel("#globalFiltroCarrera","Todas las carreras")||"Todas las carreras";
+    var coverageLabel=periods.length
+      ?(
+        periods.length===1
+          ?periods[0].periodo
+          :"Desde "+periods[0].periodo+" hasta "+periods[periods.length-1].periodo
+      )
+      :"Sin períodos disponibles";
+
     return {
       section:section,data:data,filters:filters,
       title:section.pdfTitulo||section.titulo||section.label||"Reporte Global",
       unit:config.app&&config.app.unidad||"Unidad de Titulación y Eficiencia Terminal",
-      generatedAt:formatDate(),filterRows:filterRows(filters),summary:summaryText(section,data),
-      observations:observations(section,data),table:table,tableExplanation:tableExplanation(table.title),
-      periodTable:{title:"Períodos incluidos",columns:columnsFor(periods),rows:periods},
-      signatures:getSignatures(),graduateRows:graduateRows(data),label:label
+      generatedAt:formatDate(),
+      careerLabel:careerLabel,
+      coverageLabel:coverageLabel,
+      filterRows:filterRows(filters),
+      summary:summaryText(section,data),
+      observations:observations(section,data),
+      table:table,
+      tableExplanation:tableExplanation(table.title),
+      periodTable:{
+        title:"Períodos incluidos",
+        columns:[
+          {key:"periodo",label:"Período"},
+          {key:"graduacion",label:"Fecha de graduación"},
+          {key:"estudiantes",label:"Estudiantes"},
+          {key:"graduados",label:"Graduados"},
+          {key:"cumplimiento",label:"Cumplimiento"}
+        ],
+        rows:periodDisplay
+      },
+      signatures:getSignatures(),
+      graduateRows:graduateRows(data),
+      label:label
     };
   }
   function tableHtml(table){
@@ -246,7 +360,8 @@ Función:
 
   function loadLogoSource(){
     var url=absoluteUrl((config.branding||{}).logoPath||"assets/branding/logo-instituto.png");
-    if(typeof window.fetch!=="function"||typeof window.FileReader!=="function"){
+
+    if(typeof window.fetch!=="function"){
       return Promise.resolve(null);
     }
 
@@ -255,10 +370,41 @@ Función:
       return response.blob();
     }).then(function(blob){
       return new Promise(function(resolve,reject){
-        var reader=new window.FileReader();
-        reader.onload=function(){resolve(reader.result);};
-        reader.onerror=function(){reject(reader.error||new Error("No se pudo leer el logo."));};
-        reader.readAsDataURL(blob);
+        var objectUrl=null;
+        try{
+          objectUrl=window.URL.createObjectURL(blob);
+        }catch(error){
+          reject(error);
+          return;
+        }
+
+        var image=new window.Image();
+        image.onload=function(){
+          try{
+            var canvas=document.createElement("canvas");
+            var width=Math.max(1,image.naturalWidth||image.width||188);
+            var height=Math.max(1,image.naturalHeight||image.height||78);
+            canvas.width=width;
+            canvas.height=height;
+
+            var ctx=canvas.getContext("2d");
+            ctx.fillStyle="#ffffff";
+            ctx.fillRect(0,0,width,height);
+            ctx.drawImage(image,0,0,width,height);
+
+            var normalized=canvas.toDataURL("image/jpeg",0.95);
+            window.URL.revokeObjectURL(objectUrl);
+            resolve(normalized);
+          }catch(error){
+            try{window.URL.revokeObjectURL(objectUrl);}catch(innerError){}
+            reject(error);
+          }
+        };
+        image.onerror=function(){
+          try{window.URL.revokeObjectURL(objectUrl);}catch(innerError){}
+          reject(new Error("No se pudo normalizar el logo institucional."));
+        };
+        image.src=objectUrl;
       });
     }).catch(function(){
       return null;
@@ -455,33 +601,90 @@ Función:
   function drawCover(doc,model,logo){
     var m=pageMetrics(doc);
     var center=m.width/2;
+
     if(logo){
       try{
         var props=doc.getImageProperties(logo);
-        var w=54;
+        var w=60;
         var h=w*(props.height/props.width);
-        if(h>28){h=28;w=h*(props.width/props.height);}
-        doc.addImage(logo,props.fileType||"PNG",center-w/2,56,w,h);
-      }catch(error){}
+        if(h>30){h=30;w=h*(props.width/props.height);}
+        doc.addImage(logo,"JPEG",center-w/2,42,w,h);
+      }catch(error){
+        logo=null;
+      }
+    }
+
+    if(!logo){
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(18);
+      pdfColor(doc,"navy");
+      doc.text(text((config.branding||{}).logoFallbackText||"ITSQMET"),center,58,{align:"center"});
     }
 
     doc.setDrawColor(201,162,39);
     doc.setLineWidth(1.6);
-    doc.line(center-18,94,center+18,94);
+    doc.line(center-18,84,center+18,84);
 
     doc.setFont("helvetica","bold");
     doc.setFontSize(12);
     pdfColor(doc,"navy");
-    doc.text(text(model.unit).toUpperCase(),center,108,{align:"center",maxWidth:m.width-36});
+    doc.text(text(model.unit).toUpperCase(),center,99,{align:"center",maxWidth:m.width-36});
 
     doc.setFontSize(23);
     var titleLines=doc.splitTextToSize(text(model.title),m.width-42);
-    doc.text(titleLines,center,128,{align:"center"});
+    doc.text(titleLines,center,121,{align:"center"});
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    pdfColor(doc,"body");
+    var careerLines=doc.splitTextToSize(text(model.careerLabel||"Todas las carreras"),m.width-50);
+    doc.text(careerLines,center,145,{align:"center"});
 
     doc.setFont("helvetica","normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8.8);
     pdfColor(doc,"muted");
-    doc.text("Generado el "+text(model.generatedAt),center,157,{align:"center"});
+    var coverageLines=doc.splitTextToSize("Cobertura académica: "+text(model.coverageLabel||"Sin períodos disponibles"),m.width-52);
+    doc.text(coverageLines,center,158,{align:"center"});
+
+    doc.setFontSize(8.5);
+    doc.text("Documento de seguimiento institucional generado desde Global.",center,177,{align:"center"});
+    doc.text("Generado el "+text(model.generatedAt),center,184,{align:"center"});
+  }
+
+  function drawKpis(doc,model,y){
+    var summary=model.data&&model.data.resumen||{};
+    var cards=[
+      {label:"Estudiantes",value:number(summary.totalEstudiantes)},
+      {label:"Graduados",value:number(summary.totalGraduados)},
+      {label:"Períodos",value:number(summary.totalPeriodos)},
+      {label:"Cumplimiento",value:number(summary.porcentajeCumplimiento)+"%"}
+    ];
+
+    var m=pageMetrics(doc);
+    var gap=3;
+    var width=(m.width-m.margin*2-gap*3)/4;
+    var height=18;
+
+    y=ensureSpace(doc,model,y,height+3);
+
+    cards.forEach(function(card,index){
+      var x=m.margin+index*(width+gap);
+      doc.setFillColor(248,250,252);
+      doc.setDrawColor(216,222,233);
+      doc.roundedRect(x,y,width,height,1.8,1.8,"FD");
+
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(13);
+      pdfColor(doc,"navy");
+      doc.text(String(card.value),x+width/2,y+8,{align:"center"});
+
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(7);
+      pdfColor(doc,"muted");
+      doc.text(card.label,x+width/2,y+13.5,{align:"center"});
+    });
+
+    return y+height+5;
   }
 
   function addFooterToAllPages(doc){
@@ -510,8 +713,9 @@ Función:
     y=drawFilters(doc,model,y);
 
     y=drawSectionTitle(doc,model,"Resumen ejecutivo",y+2);
+    y=drawKpis(doc,model,y);
     (model.summary||[]).forEach(function(item){
-      y=drawParagraph(doc,model,"• "+text(item),y,{fontSize:9});
+      y=drawParagraph(doc,model,text(item),y,{fontSize:8.8});
     });
 
     if(
@@ -524,9 +728,9 @@ Función:
       y=drawParagraph(
         doc,
         model,
-        "La fecha de graduación se calcula dos meses después del mes de finalización del período académico.",
+        "La tabla resume cada período académico considerado en el corte, el mes estimado de graduación, el número de estudiantes incluidos, los graduados registrados y el promedio de cumplimiento del período.",
         y,
-        {fontSize:8,color:"muted"}
+        {fontSize:8.2,color:"muted"}
       );
       y=drawTable(doc,model,model.periodTable,y);
     }
@@ -547,16 +751,18 @@ Función:
       var center=m.width/2;
       doc.setDrawColor(23,32,51);
       doc.setLineWidth(0.4);
-      doc.line(center-35,y,center+35,y);
+      doc.line(center-28,y,center+28,y);
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(7.2);
+      pdfColor(doc,"muted");
+      doc.text("Responsable del reporte",center,y+4.5,{align:"center"});
       doc.setFont("helvetica","bold");
-      doc.setFontSize(8.5);
-      pdfColor(doc,"body");
-      doc.text(text(signature.responsabilidad||"ELABORADO POR:"),center,y+5,{align:"center"});
       doc.setFontSize(9.5);
-      doc.text(text(signature.nombre||""),center,y+10,{align:"center"});
+      pdfColor(doc,"body");
+      doc.text(text(signature.nombre||""),center,y+9.5,{align:"center"});
       doc.setFont("helvetica","normal");
       doc.setFontSize(8);
-      doc.text(doc.splitTextToSize(text(signature.cargo||""),80),center,y+15,{align:"center"});
+      doc.text(doc.splitTextToSize(text(signature.cargo||""),80),center,y+14.5,{align:"center"});
     }
 
     addFooterToAllPages(doc);
