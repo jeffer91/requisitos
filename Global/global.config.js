@@ -15,7 +15,7 @@ Función:
       titulo: "Análisis Global de Titulación",
       subtitulo: "Análisis histórico y comparativo de información cargada en Base Local",
       unidad: "Unidad de Titulación y Eficiencia Terminal",
-      version: "1.3.0-reportes-institucionales",
+      version: "1.4.0-reportes-graduacion",
       modo: "base-ui"
     }),
 
@@ -36,16 +36,6 @@ Función:
         responsabilidad: "ELABORADO POR:",
         nombre: "Mgtr. Jefferson Villarreal",
         cargo: "Coordinador de Titulación y Eficiencia Terminal"
-      }),
-      Object.freeze({
-        responsabilidad: "REVISADO POR:",
-        nombre: "Mpde. Martha Tomalá",
-        cargo: "Secretaria General"
-      }),
-      Object.freeze({
-        responsabilidad: "APROBADO POR:",
-        nombre: "Dr. Alex León T.",
-        cargo: "Vicerrector"
       })
     ]),
 
@@ -63,7 +53,8 @@ Función:
     }),
 
     periodos: Object.freeze({
-      mesesEsperaTitulacion: 1
+      mesesEsperaTitulacion: 1,
+      mesesHastaGraduacion: 2
     }),
 
     secciones: Object.freeze([
