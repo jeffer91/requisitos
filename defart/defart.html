@@ -38,7 +38,7 @@ Función o funciones:
         <label class="def-search-box"><span>Buscar estudiante</span><input id="def-filter-search" type="search" placeholder="Cédula, nombre, carrera o división..." /></label>
         <div class="def-mini-summary" aria-label="Resumen de pantalla"><span id="def-visible-count">Cargando...</span><span id="def-save-state">Preparando...</span></div>
         <div class="def-toolbar-actions">
-          <button id="def-btn-bulk-import" class="def-btn-bulk" type="button">Carga masiva N-ART</button>
+          <button id="def-btn-bulk-import" class="def-btn-bulk" type="button">Cargar notas</button>
           <button id="def-btn-export" class="def-btn-export" type="button">Descargar Excel</button>
         </div>
       </div>
@@ -84,41 +84,93 @@ Función o funciones:
     <div class="def-bulk-dialog">
       <header class="def-bulk-head">
         <div>
-          <h2 id="def-bulk-title">Carga masiva de notas de artículo</h2>
-          <p>Pegue la tabla completa de Moodle. El sistema identifica estudiante, correo y calificación, y propone coincidencias antes de guardar.</p>
+          <h2 id="def-bulk-title">Carga masiva de notas</h2>
+          <p>Elija el método de carga. Moodle conserva la carga rápida de N-ART y Excel permite cargar N-ART y N-DEF con análisis previo.</p>
           <div class="def-bulk-meta">
-            <span class="def-bulk-chip">Destino: N-ART</span>
             <span class="def-bulk-chip">Período: <strong id="def-bulk-period">Sin período seleccionado</strong></span>
-            <span class="def-bulk-chip">Escala automática: X/Y → 0–10</span>
+            <span class="def-bulk-chip">Guardado: ruta oficial de Defensas</span>
           </div>
         </div>
         <button class="def-bulk-close" type="button" data-def-bulk-close aria-label="Cerrar">×</button>
       </header>
 
-      <div class="def-bulk-input-panel">
-        <label class="def-bulk-paste-wrap">
-          <span>Contenido copiado desde Moodle</span>
-          <textarea id="def-bulk-paste" placeholder="Pegue aquí todo el contenido de la tabla de Moodle, sin limpiarlo. Puede incluir enlaces, comentarios, archivos, fechas y demás texto."></textarea>
-        </label>
-        <div class="def-bulk-input-actions">
-          <button id="def-bulk-analyze" class="def-bulk-primary" type="button">Analizar y cruzar</button>
-          <button id="def-bulk-clear" type="button">Limpiar</button>
-        </div>
-      </div>
+      <nav class="def-import-tabs" aria-label="Método de carga de notas">
+        <button type="button" class="def-import-tab is-active" data-def-import-mode="moodle">
+          <strong>Moodle</strong><span>N-ART · pegar y analizar</span>
+        </button>
+        <button type="button" class="def-import-tab" data-def-import-mode="excel">
+          <strong>Excel</strong><span>N-ART + N-DEF · plantilla y archivo</span>
+        </button>
+      </nav>
 
-      <div class="def-bulk-content">
-        <div id="def-bulk-summary" class="def-bulk-summary"></div>
-        <div id="def-bulk-message" class="def-bulk-message">Pegue el contenido completo copiado desde Moodle.</div>
-        <div id="def-bulk-results" class="def-bulk-results"><div class="def-bulk-empty">Todavía no se han analizado datos.</div></div>
-      </div>
+      <div class="def-import-panels">
+        <section id="def-import-moodle-panel" class="def-import-panel">
+          <div class="def-bulk-input-panel">
+            <label class="def-bulk-paste-wrap">
+              <span>Contenido copiado desde Moodle</span>
+              <textarea id="def-bulk-paste" placeholder="Pegue aquí todo el contenido de la tabla de Moodle, sin limpiarlo. Puede incluir enlaces, comentarios, archivos, fechas y demás texto."></textarea>
+            </label>
+            <div class="def-bulk-input-actions">
+              <button id="def-bulk-analyze" class="def-bulk-primary" type="button">Analizar y cruzar</button>
+              <button id="def-bulk-clear" type="button">Limpiar</button>
+            </div>
+          </div>
 
-      <footer class="def-bulk-footer">
-        <div class="def-bulk-footer-copy">Esta carga modifica únicamente N-ART. Las coincidencias dudosas y las notas de artículo existentes no se sobrescriben automáticamente.</div>
-        <div class="def-bulk-footer-actions">
-          <button type="button" data-def-bulk-close>Cancelar</button>
-          <button id="def-bulk-apply" class="def-bulk-primary" type="button" disabled>Guardar notas confirmadas</button>
-        </div>
-      </footer>
+          <div class="def-bulk-content">
+            <div id="def-bulk-summary" class="def-bulk-summary"></div>
+            <div id="def-bulk-message" class="def-bulk-message">Pegue el contenido completo copiado desde Moodle.</div>
+            <div id="def-bulk-results" class="def-bulk-results"><div class="def-bulk-empty">Todavía no se han analizado datos.</div></div>
+          </div>
+
+          <footer class="def-bulk-footer">
+            <div class="def-bulk-footer-copy">Moodle modifica únicamente N-ART. Las coincidencias dudosas y las notas existentes no se sobrescriben automáticamente.</div>
+            <div class="def-bulk-footer-actions">
+              <button type="button" data-def-bulk-close>Cancelar</button>
+              <button id="def-bulk-apply" class="def-bulk-primary" type="button" disabled>Guardar notas confirmadas</button>
+            </div>
+          </footer>
+        </section>
+
+        <section id="def-import-excel-panel" class="def-import-panel" hidden>
+          <div class="def-excel-flow" aria-label="Flujo de carga Excel">
+            <article class="def-excel-step">
+              <span class="def-excel-step-number">1</span>
+              <div><strong>Descargar plantilla</strong><small>Genera el Excel con los estudiantes del período.</small></div>
+              <button id="def-excel-template" type="button">Descargar plantilla</button>
+            </article>
+            <article class="def-excel-step">
+              <span class="def-excel-step-number">2</span>
+              <div><strong>Cargar Excel</strong><small>Seleccione o arrastre el archivo completado.</small></div>
+              <button id="def-excel-pick" type="button">Seleccionar Excel</button>
+              <input id="def-excel-file" type="file" accept=".xlsx,.xls" hidden />
+            </article>
+            <article class="def-excel-step">
+              <span class="def-excel-step-number">3</span>
+              <div><strong>Analizar</strong><small>Compara nombres y notas antes de guardar.</small></div>
+              <button id="def-excel-analyze" class="def-bulk-primary" type="button" disabled>Analizar archivo</button>
+            </article>
+          </div>
+
+          <div id="def-excel-dropzone" class="def-excel-dropzone" tabindex="0">
+            <strong id="def-excel-file-name">Ningún archivo seleccionado</strong>
+            <span>Formato esperado: Nombre · Nota Artículo · Nota Defensa · Nota final</span>
+          </div>
+
+          <div class="def-excel-content">
+            <div id="def-excel-summary" class="def-excel-summary"></div>
+            <div id="def-excel-message" class="def-bulk-message">Descargue la plantilla, complétela y vuelva a cargarla.</div>
+            <div id="def-excel-results" class="def-bulk-results"><div class="def-bulk-empty">Todavía no se ha analizado un archivo.</div></div>
+          </div>
+
+          <footer class="def-bulk-footer">
+            <div class="def-bulk-footer-copy">Excel puede actualizar N-ART y N-DEF. N-FIN se recalcula en Defensas; la columna “Nota final” del archivo se usa solo como control.</div>
+            <div class="def-bulk-footer-actions">
+              <button type="button" data-def-bulk-close>Cancelar</button>
+              <button id="def-excel-apply" class="def-bulk-primary" type="button" disabled>Guardar notas analizadas</button>
+            </div>
+          </footer>
+        </section>
+      </div>
     </div>
   </section>
 
