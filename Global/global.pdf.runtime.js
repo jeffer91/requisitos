@@ -34,7 +34,7 @@ Función:
   function sections(){return Array.isArray(config.secciones)?config.secciones:[];}
   function sectionById(id){
     var found=sections().filter(function(item){return item.id===id;})[0];
-    return found||{id:id||"resumen",label:"Global",titulo:"Reporte Global",pdfTitulo:"Reporte Global"};
+    return found||{id:id||"resumen",label:"Informe",titulo:"Informe institucional",pdfTitulo:"Informe institucional"};
   }
   function appRows(name,data){
     try{
@@ -280,7 +280,7 @@ Función:
   }
   function tableHtml(table){
     var columns=table.columns||[],rows=table.rows||[];
-    if(!rows.length){return '<div class="empty">Sin registros para los filtros seleccionados.</div>';}
+    if(!rows.length){return '<div class="empty">No existen registros para el alcance definido.</div>';}
     return '<table><thead><tr>'+columns.map(function(column){return '<th>'+esc(column.label)+'</th>';}).join("")+'</tr></thead><tbody>'+rows.map(function(row){return '<tr>'+columns.map(function(column){return '<td>'+esc(row&&row[column.key])+'</td>';}).join("")+'</tr>';}).join("")+'</tbody></table>';
   }
   function reportCss(){
@@ -486,7 +486,7 @@ Función:
       return drawParagraph(doc,model,"Sin columnas disponibles.",y,{color:"muted"});
     }
     if(!rows.length){
-      return drawParagraph(doc,model,"Sin registros para los filtros seleccionados.",y,{color:"muted"});
+      return drawParagraph(doc,model,"No existen registros para el alcance definido.",y,{color:"muted"});
     }
 
     var usable=m.width-m.margin*2;
