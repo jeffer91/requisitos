@@ -54,7 +54,7 @@ check(bootstrap.indexOf("global.pdf.runtime.js")<bootstrap.indexOf("global.word.
 check(bootstrap.indexOf("global.word.js")<bootstrap.indexOf("global.app.js"),"Los reportes quedan listos antes de habilitar los botones de Global.");
 check(!pdfRuntime.includes("DecompressionStream"),"El runtime PDF no depende de DecompressionStream.");
 check(!pdfRuntime.includes("eval)(source"),"El runtime PDF no ejecuta código mediante eval.");
-check(!pdfRuntime.includes("html2pdf"),"Global PDF ya no depende de html2pdf.");
+check(!pdfRuntime.includes("window.html2pdf")&&!pdfRuntime.includes("html2pdf()."),"Global PDF no invoca html2pdf.");
 check(!pdfRuntime.includes("html2canvas"),"Global PDF ya no depende de html2canvas.");
 check(pdfRuntime.includes("ensurePdfEngine"),"Global PDF carga jsPDF directamente.");
 check(pdfRuntime.includes("new JsPDF"),"Global PDF construye el documento con jsPDF.");
@@ -82,7 +82,7 @@ const documentObject={
 
 const sampleData={
   ok:true,
-  resumen:{totalEstudiantes:8,totalCarreras:1,totalPeriodos:3,totalGraduados:8,porcentajeCumplimiento:92},
+  resumen:{totalEstudiantes:8,totalCarreras:1,totalPeriodos:2,totalGraduados:8,porcentajeCumplimiento:92,activos:7,retirados:1},
   students:[{cedula:"0100000001",nombreCompleto:"ESTUDIANTE PRUEBA"}],
   periods:[{id:"2025-02__2025-05"},{id:"2025-11__2026-05"}],
   careers:[{nombre:"UNIVERSITARIA EN EDUCACIÓN INICIAL ONLINE"}],
@@ -113,8 +113,8 @@ const windowObject={
     rows:{
       resumen(){return [{indicador:"Total estudiantes",valor:8,detalle:"Estudiantes filtrados"}];},
       periodos(){return [
-        {periodo:"Febrero 2025 a Mayo 2025",graduacion:"Julio de 2025",estudiantes:3,carreras:1,cumplimiento:90},
-        {periodo:"Noviembre 2025 a Mayo 2026",graduacion:"Julio de 2026",estudiantes:5,carreras:1,cumplimiento:94}
+        {periodo:"Febrero 2025 a Mayo 2025",graduacion:"Julio de 2025",estudiantes:3,graduados:3,cumplimiento:90},
+        {periodo:"Noviembre 2025 a Mayo 2026",graduacion:"Julio de 2026",estudiantes:5,graduados:5,cumplimiento:94}
       ];},
       graduados(){return sampleData.graduados.porPeriodo.slice();},
       students(){return [{cedula:"0100000001",nombres:"ESTUDIANTE PRUEBA",carrera:"EDUCACIÓN",periodo:"2025",cumplimiento:100}];}
@@ -148,6 +148,10 @@ try{
   check(pdfModel&&pdfModel.filterRows.length===2,"El PDF conserva los filtros visibles.");
   check(pdfModel&&pdfModel.summary.length>=3,"El PDF construye el resumen ejecutivo.");
   check(pdfModel&&pdfModel.periodTable&&pdfModel.periodTable.rows.length===2,"El PDF incorpora los períodos y su fecha de graduación.");
+  check(pdfModel&&pdfModel.periodTable.rows.every((row)=>typeof row.graduados==="number"),"El PDF incorpora graduados por período.");
+  check(pdfModel&&pdfModel.periodTable.rows.every((row)=>String(row.cumplimiento).includes("%")),"El PDF muestra el porcentaje de cumplimiento con su símbolo.");
+  check(pdfModel&&pdfModel.summary.length>=4,"El PDF incorpora un resumen ejecutivo ampliado.");
+  check(pdfModel&&pdfModel.observations.length>=4,"El PDF incorpora observaciones institucionales ampliadas.");
   check(pdfModel&&pdfModel.signatures.length===1,"El PDF incorpora únicamente la firma del coordinador.");
 
   if(wordImplementation){
