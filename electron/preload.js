@@ -50,6 +50,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getAppInfo: () => ipcRenderer.invoke('requisitos:get-app-info'),
   openExternal: (url) => ipcRenderer.invoke('requisitos:open-external', String(url || '')),
+  updates: {
+    status: () => ipcRenderer.invoke('requisitos:update-status'),
+    check: () => ipcRenderer.invoke('requisitos:update-check'),
+    install: () => ipcRenderer.invoke('requisitos:update-install')
+  },
   baseLocalSync: {
     status: () => ipcRenderer.invoke('requisitos:sync-status'),
     installConfirmationGuard: () => ipcRenderer.invoke('requisitos:sync-install-guard'),
