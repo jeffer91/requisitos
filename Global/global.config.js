@@ -23,7 +23,7 @@ Función:
       logoPath: "assets/branding/logo-instituto.png",
       globalLogoPath: "assets/branding/logo-global.jpg",
       globalLogoWidthMm: 54,
-      logoFallbackText: "ITSQMET",
+      logoFallbackText: "",
       azulMarino: "#071A33",
       azulMarino2: "#0B2447",
       dorado: "#C9A227",
