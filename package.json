@@ -68,7 +68,11 @@
     "audit:repo": "node scripts/audit-repository.js",
     "verify": "npm test",
     "test:cr-def": "node scripts/verify-cr-def.js",
-    "test:defart-bulk": "node scripts/verify-defart-bulk-import.js"
+    "test:defart-bulk": "node scripts/verify-defart-bulk-import.js",
+    "test:installer": "node scripts/verify-installer-config.js",
+    "pack:win": "electron-builder --win dir --x64",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "release:win": "electron-builder --win nsis --x64 --publish always"
   },
   "testCommandSignatures": {
     "test:electron": "electron electron/smoke-main.js",
@@ -77,9 +81,73 @@
   "dependencies": {
     "html2pdf.js": "0.14.0",
     "jszip": "3.10.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "electron-updater": "6.8.9"
   },
   "devDependencies": {
-    "electron": "43.1.0"
+    "electron": "43.1.0",
+    "electron-builder": "26.17.0"
+  },
+  "productName": "Requisitos",
+  "author": "ITSQMET",
+  "build": {
+    "appId": "ec.itsqmet.requisitos",
+    "productName": "Requisitos",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist{,/**/*}",
+      "!artifacts{,/**/*}",
+      "!coverage{,/**/*}",
+      "!.github{,/**/*}",
+      "!docs{,/**/*}",
+      "!scripts{,/**/*}",
+      "!AppsScript{,/**/*}",
+      "!supabase{,/**/*}",
+      "!tools{,/**/*}",
+      "!*.md",
+      "!diagnostico*.txt",
+      "!subir-main.bat",
+      "!netlify.toml",
+      "!firebase.json",
+      "!firestore.indexes.json",
+      "!firestore.rules",
+      "!**/*.bak*",
+      "!**/*.backup"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.svg",
+      "artifactName": "Requisitos-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Requisitos",
+      "uninstallDisplayName": "Requisitos",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jeffer91",
+        "repo": "requisitos",
+        "releaseType": "release"
+      }
+    ]
   }
 }
