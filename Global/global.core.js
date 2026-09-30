@@ -12,7 +12,7 @@ Función:
 (function(window, document){
   "use strict";
 
-  var VERSION = "2.0.0-stable-cache-core";
+  var VERSION = "2.1.0-graduation-date-core";
   var config = window.GlobalConfig || {};
   var state = {
     ready: false,
@@ -712,6 +712,17 @@ Función:
       : 1;
   }
 
+  function configuredGraduationMonths(){
+    var value = Number(
+      config.periodos &&
+      config.periodos.mesesHastaGraduacion
+    );
+
+    return Number.isFinite(value) && value >= 0
+      ? Math.floor(value)
+      : configuredWaitMonths() + 1;
+  }
+
   function minimumGraduates(){
     var value = Number(
       config.graduados &&
@@ -807,15 +818,42 @@ Función:
     );
   }
 
-  function periodAvailabilityDate(period){
+  function graduationDateForPeriod(period){
     var end = periodEnd(period);
     if(!end){ return null; }
 
     return new Date(
       end.year,
-      end.month + configuredWaitMonths() + 1,
+      end.month + configuredGraduationMonths(),
       1
     );
+  }
+
+  function graduationLabelForPeriod(period){
+    var date = graduationDateForPeriod(period);
+    if(!date || !Number.isFinite(date.getTime())){ return ""; }
+
+    var label = "";
+    try{
+      label = new Intl.DateTimeFormat("es-EC", {
+        month: "long",
+        year: "numeric"
+      }).format(date);
+    }catch(error){
+      label = date.toLocaleDateString("es-EC", {
+        month: "long",
+        year: "numeric"
+      });
+    }
+
+    label = text(label);
+    return label
+      ? label.charAt(0).toUpperCase() + label.slice(1)
+      : "";
+  }
+
+  function periodAvailabilityDate(period){
+    return graduationDateForPeriod(period);
   }
 
   function isPeriodAvailable(period, referenceDate){
@@ -1433,6 +1471,8 @@ Función:
       periodEnd: periodEnd,
       periodOrderValue: periodOrderValue,
       periodAvailabilityDate: periodAvailabilityDate,
+      graduationDateForPeriod: graduationDateForPeriod,
+      graduationLabelForPeriod: graduationLabelForPeriod,
       isPeriodAvailable: isPeriodAvailable,
       availablePeriodList: availablePeriodList,
       comparePeriods: comparePeriods
