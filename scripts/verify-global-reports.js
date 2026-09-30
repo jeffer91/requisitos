@@ -63,6 +63,9 @@ check(pdfRuntime.includes("1. Alcance del informe"),"El PDF utiliza una estructu
 check(pdfRuntime.includes("Responsable del informe"),"La firma se identifica formalmente en la portada.");
 check(!pdfRuntime.includes("Filtros aplicados"),"El PDF no expone lenguaje de interfaz.");
 check(!pdfRuntime.includes("Base Local"),"El PDF no expone referencias técnicas a la fuente interna.");
+check(pdfRuntime.includes('toDataURL("image/jpeg",0.96)'),"El logo se normaliza a JPEG antes de insertarse en jsPDF.");
+check(pdfRuntime.includes("7. Recomendaciones de seguimiento"),"El informe incluye un desarrollo institucional ampliado.");
+check(pdfRuntime.includes("periodNarrative"),"El informe desarrolla un análisis narrativo por período.");
 
 class FakeCustomEvent{
   constructor(type,options){this.type=type;this.detail=options&&options.detail||{};}
@@ -71,7 +74,7 @@ class FakeCustomEvent{
 const selectValues={
   "#globalFiltroDesde":{text:"Febrero 2025 a Mayo 2025"},
   "#globalFiltroHasta":{text:"Noviembre 2025 a Mayo 2026"},
-  "#globalFiltroCarrera":{text:"UNIVERSITARIA EN EDUCACIÓN INICIAL ONLINE"},
+  "#globalFiltroCarrera":{text:"PVC UNIVERSITARIA EN EDUCACIÓN INICIAL ONLINE"},
   "#globalFiltroDivision":{text:"Todas las divisiones"},
   "#globalFiltroRequisito":{text:"Todos los requisitos"},
   "#globalFiltroTipo":{text:"Universitaria"}
@@ -152,6 +155,7 @@ try{
   check(pdfModel&&pdfModel.filterRows.length===2,"El PDF conserva los filtros visibles.");
   check(pdfModel&&pdfModel.summary.length>=3,"El PDF construye el resumen ejecutivo.");
   check(pdfModel&&pdfModel.periodTable&&pdfModel.periodTable.rows.length===2,"El PDF incorpora los períodos y su fecha de graduación.");
+  check(pdfModel&&pdfModel.careerLabel.indexOf("ONLINE")<0&&pdfModel.careerLabel.indexOf("PVC")<0,"El informe elimina PVC y ONLINE del nombre público de carrera.");
   check(pdfModel&&pdfModel.periodTable.rows.every((row)=>typeof row.graduados==="number"),"El PDF incorpora graduados por período.");
   check(pdfModel&&pdfModel.periodTable.rows.every((row)=>String(row.cumplimiento).includes("%")),"El PDF muestra el porcentaje de cumplimiento con su símbolo.");
   check(pdfModel&&pdfModel.summary.length>=4,"El PDF incorpora un resumen ejecutivo ampliado.");
