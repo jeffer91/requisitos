@@ -11,7 +11,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="3.5.0-global-logo-jpeg";
+  var VERSION="3.6.0-global-logo-robust";
   var config=window.GlobalConfig||{};
   var GLOBAL_LOGO_PATH=
     config.branding &&
@@ -413,7 +413,7 @@ Función:
     }
 
     return '<div class="global-report-root">'+
-      '<section class="cover"><div class="logoBox"><img src="'+esc(logoForHtml(logo))+'" alt="ITSQMET"></div><div class="gold"></div><div class="unit">'+esc(model.unit)+'</div><h1 class="title">'+esc(model.title)+'</h1><p><strong>Carrera:</strong> '+esc(model.careerLabel)+'</p><p><strong>Períodos académicos analizados:</strong> '+esc(model.coverageLabel)+'</p><div class="date">Fecha de emisión: '+esc(model.generatedAt)+'</div></section>'+
+      '<section class="cover"><div class="logoBox"><img src="'+esc(logoForHtml(logo))+'" alt="Logo institucional"></div><div class="gold"></div><div class="unit">'+esc(model.unit)+'</div><h1 class="title">'+esc(model.title)+'</h1><p><strong>Carrera:</strong> '+esc(model.careerLabel)+'</p><p><strong>Períodos académicos analizados:</strong> '+esc(model.coverageLabel)+'</p><div class="date">Fecha de emisión: '+esc(model.generatedAt)+'</div></section>'+
       '<header class="header"><h1>Informe de seguimiento de titulación</h1><p>'+esc(model.unit)+'</p></header>'+
       '<section class="section"><h2>1. Alcance del informe</h2><p>El presente informe consolida la información académica y de titulación correspondiente al alcance definido en la portada.</p></section>'+
       '<section class="section"><h2>2. Resultados generales</h2>'+model.summary.map(function(item){return '<p>'+esc(item)+'</p>';}).join("")+'</section>'+
@@ -716,16 +716,22 @@ Función:
       }catch(error){}
     }
 
-    if(!logoRendered){
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(17);
-      pdfColor(doc,"navy");
-      doc.text(
-        text((config.branding||{}).logoFallbackText||"ITSQMET"),
-        center,
-        48,
-        {align:"center"}
-      );
+    if(!logoRendered&&logo&&logo.dataUrl){
+      try{
+        var fallbackW=Math.max(42,Math.min(58,GLOBAL_LOGO_WIDTH_MM));
+        var fallbackH=fallbackW*(358/952);
+        doc.addImage(
+          logo.dataUrl,
+          logo.format||"JPEG",
+          center-fallbackW/2,
+          29,
+          fallbackW,
+          fallbackH,
+          "globalInstitutionalLogoDataUrl",
+          "FAST"
+        );
+        logoRendered=true;
+      }catch(error){}
     }
 
     doc.setDrawColor(201,162,39);
