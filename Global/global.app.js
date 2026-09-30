@@ -19,7 +19,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.2.0-pdf-word";
+  var VERSION = "1.3.0-periodos-graduacion";
   var config = window.GlobalConfig || {};
   var activeSection = "resumen";
   var booted = false;
@@ -459,10 +459,29 @@ Con qué se conecta:
       : 0;
   }
 
+  function graduationLabel(period){
+    var helpers =
+      window.GlobalCore &&
+      window.GlobalCore.helpers;
+
+    if(
+      helpers &&
+      typeof helpers.graduationLabelForPeriod === "function"
+    ){
+      return helpers.graduationLabelForPeriod(period) || "";
+    }
+
+    return "";
+  }
+
   function studentRows(data){
     return (data.students || []).map(function(row){
       var compliance =
         row._globalCumplimiento || {};
+
+      var period =
+        row._globalPeriodoLabel ||
+        row._globalPeriodoId;
 
       return {
         cedula:
@@ -478,8 +497,12 @@ Con qué se conecta:
           row._globalTipoCarrera,
 
         periodo:
-          row._globalPeriodoLabel ||
-          row._globalPeriodoId,
+          period,
+
+        graduacion:
+          row._globalEsGraduado
+            ? graduationLabel(period)
+            : "",
 
         division:
           row._globalDivision,
@@ -497,7 +520,7 @@ Con qué se conecta:
     var summary =
       data.resumen || {};
 
-    return [
+    var rows = [
       {
         indicador: "Total estudiantes",
         valor: summary.totalEstudiantes || 0,
@@ -542,6 +565,24 @@ Con qué se conecta:
         detalle: "Estudiantes marcados como retirados."
       }
     ];
+
+    periodoRows(data).forEach(function(item, index){
+      rows.push({
+        indicador:
+          "Período académico " + (index + 1),
+
+        valor:
+          item.periodo,
+
+        detalle:
+          "Estudiantes: " +
+          item.estudiantes +
+          " · Graduación: " +
+          (item.graduacion || "Sin fecha calculable")
+      });
+    });
+
+    return rows;
   }
 
   function carreraRows(data){
@@ -610,6 +651,7 @@ Con qué se conecta:
       if(!map[period]){
         map[period] = {
           periodo: period,
+          graduacion: graduationLabel(period),
           estudiantes: 0,
           carreras: Object.create(null),
           suma: 0
@@ -633,6 +675,9 @@ Con qué se conecta:
       return {
         periodo:
           item.periodo,
+
+        graduacion:
+          item.graduacion,
 
         estudiantes:
           item.estudiantes,
@@ -863,18 +908,26 @@ Con qué se conecta:
         );
 
     return rows.map(function(item){
+      var period =
+        item.periodo ||
+        item.label ||
+        item.periodoId ||
+        "SIN PERÍODO";
+
       return {
         periodo:
-          item.periodo ||
-          item.label ||
-          item.periodoId ||
-          "SIN PERÍODO",
+          period,
+
+        graduacion:
+          graduationLabel(period),
 
         cantidadGraduados:
           number(
             item.cantidadGraduados != null
               ? item.cantidadGraduados
-              : item.total
+              : item.total != null
+                ? item.total
+                : item.graduados
           )
       };
     });
@@ -978,6 +1031,10 @@ Con qué se conecta:
         label: "Período"
       },
       {
+        key: "graduacion",
+        label: "Fecha de graduación"
+      },
+      {
         key: "division",
         label: "División"
       },
@@ -999,6 +1056,10 @@ Con qué se conecta:
       {
         key: "periodo",
         label: "Período"
+      },
+      {
+        key: "graduacion",
+        label: "Fecha de graduación"
       },
       {
         key: "estudiantes",
@@ -1180,6 +1241,10 @@ Con qué se conecta:
         {
           key: "periodo",
           label: "Período"
+        },
+        {
+          key: "graduacion",
+          label: "Fecha de graduación"
         },
         {
           key: "cantidadGraduados",
@@ -1631,7 +1696,7 @@ Con qué se conecta:
       "loading"
     );
 
-    loadData().then(function(data){
+    return loadData().then(function(data){
       data =
         data ||
         lastData;
@@ -1644,37 +1709,40 @@ Con qué se conecta:
       });
 
       if(
-        window.GlobalPDF &&
-        typeof window.GlobalPDF.generate === "function"
+        !window.GlobalPDF ||
+        typeof window.GlobalPDF.generate !== "function"
       ){
-        var result =
-          window.GlobalPDF.generate({
-            section: activeSection,
-            filters: filters,
-            data: data
-          });
+        setState(
+          "PDF no disponible",
+          "warning"
+        );
 
+        window.alert(
+          "GlobalPDF no está disponible. Revisa que global.pdf.runtime.js esté cargado."
+        );
+
+        return false;
+      }
+
+      return Promise.resolve(
+        window.GlobalPDF.generate({
+          section: activeSection,
+          filters: filters,
+          data: data
+        })
+      ).then(function(result){
         setState(
           result === false
-            ? "PDF bloqueado"
-            : "PDF enviado",
+            ? "PDF no generado"
+            : "PDF descargado",
 
           result === false
             ? "warning"
             : "success"
         );
 
-        return;
-      }
-
-      setState(
-        "PDF no disponible",
-        "warning"
-      );
-
-      window.alert(
-        "GlobalPDF no está disponible. Revisa que global.pdf.js esté cargado."
-      );
+        return result;
+      });
     }).catch(function(error){
       setState(
         "Error PDF",
@@ -1689,6 +1757,8 @@ Con qué se conecta:
             : error
         )
       );
+
+      return false;
     });
   }
 
