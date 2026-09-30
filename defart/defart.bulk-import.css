@@ -161,3 +161,5 @@ Carga masiva por métodos: Moodle + Excel
   .def-excel-summary{grid-template-columns:repeat(4,1fr)}
   .def-excel-dropzone{align-items:flex-start;flex-direction:column}
 }
+
+#def-import-excel-panel{grid-template-rows:auto auto 1fr auto}
