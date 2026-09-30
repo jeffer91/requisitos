@@ -11,13 +11,13 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="3.4.0-global-logo-asset";
+  var VERSION="3.5.0-global-logo-jpeg";
   var config=window.GlobalConfig||{};
   var GLOBAL_LOGO_PATH=
     config.branding &&
     config.branding.globalLogoPath
       ? config.branding.globalLogoPath
-      : "assets/branding/logo-global.png";
+      : "assets/branding/logo-global.jpg";
   var GLOBAL_LOGO_WIDTH_MM=
     config.branding &&
     Number(config.branding.globalLogoWidthMm)
@@ -478,6 +478,9 @@ Función:
 
   function loadLogoSource(){
     var url=absoluteUrl(GLOBAL_LOGO_PATH);
+    var isJpeg=/\.jpe?g(?:$|[?#])/i.test(url);
+    var format=isJpeg?"JPEG":"PNG";
+    var mime=isJpeg?"image/jpeg":"image/png";
 
     if(typeof window.fetch!=="function"){
       return Promise.resolve(null);
@@ -492,8 +495,8 @@ Función:
       var bytes=new Uint8Array(buffer);
       return {
         bytes:bytes,
-        format:"PNG",
-        dataUrl:bytesToDataUrl(bytes,"image/png")
+        format:format,
+        dataUrl:bytesToDataUrl(bytes,mime)
       };
     }).catch(function(){
       return null;
@@ -696,10 +699,12 @@ Función:
     if(logo&&logo.bytes){
       try{
         var w=Math.max(42,Math.min(58,GLOBAL_LOGO_WIDTH_MM));
-        var h=w*(78/188);
+        var maxH=w*(78/188);
+        var sourceRatio=358/952;
+        var h=Math.min(maxH,w*sourceRatio);
         doc.addImage(
           logo.bytes,
-          "PNG",
+          logo.format||"JPEG",
           center-w/2,
           29,
           w,
