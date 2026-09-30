@@ -18,6 +18,7 @@ const { app, BrowserWindow, Menu, shell, ipcMain } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const snSisacadAutomation = require("./sn-sisacad-automation");
+const updater = require("./updater");
 
 const APP_ROOT = path.resolve(__dirname,"..");
 const PRELOAD_FILE = path.join(__dirname,"preload.js");
@@ -161,6 +162,20 @@ function installApplicationMenu(){
       submenu:[
         {role:"minimize",label:"Minimizar"},
         {role:"close",label:"Cerrar"}
+      ]
+    },
+    {
+      label:"Ayuda",
+      submenu:[
+        {
+          label:"Buscar actualizaciones",
+          click:()=>updater.checkForUpdates({manual:true})
+        },
+        {type:"separator"},
+        {
+          label:`Versión ${app.getVersion()}`,
+          enabled:false
+        }
       ]
     }
   ];
@@ -449,6 +464,7 @@ function registerIpc(){
   secureHandle("requisitos:get-app-info",()=>({
     appName:"Requisitos",
     appVersion:app.getVersion(),
+    packaged:app.isPackaged,
     runtime:"electron",
     electron:process.versions.electron,
     chrome:process.versions.chrome,
