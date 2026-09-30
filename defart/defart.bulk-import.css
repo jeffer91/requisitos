@@ -97,3 +97,67 @@ body.def-bulk-open{overflow:hidden}
   .def-bulk-dialog{height:96vh}.def-bulk-input-panel{grid-template-columns:1fr}
   .def-bulk-summary{grid-template-columns:repeat(3,1fr)}
 }
+
+
+/* =========================================================
+Carga masiva por métodos: Moodle + Excel
+========================================================= */
+.def-bulk-dialog{grid-template-rows:auto auto 1fr}
+.def-import-tabs{
+  display:flex;gap:8px;padding:9px 18px;border-bottom:1px solid #dbe3ef;background:#f8fafc
+}
+.def-import-tab{
+  min-width:220px;display:grid;gap:2px;text-align:left;padding:8px 11px;border:1px solid #d7e0ee;
+  border-radius:10px;background:#fff;color:#334155
+}
+.def-import-tab strong{font-size:11px}.def-import-tab span{font-size:9.5px;color:#64748b}
+.def-import-tab.is-active{background:#eef4ff;border-color:#7c9bc8;color:#172554}
+.def-import-panels{min-height:0;overflow:hidden}
+.def-import-panel{height:100%;min-height:0;display:grid;grid-template-rows:auto 1fr auto}
+.def-import-panel[hidden]{display:none!important}
+
+.def-excel-flow{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px 18px 8px;
+  border-bottom:1px solid #e2e8f0;background:#fbfdff
+}
+.def-excel-step{
+  min-width:0;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;
+  padding:8px 9px;border:1px solid #dbe3ef;border-radius:10px;background:#fff
+}
+.def-excel-step-number{
+  width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  background:#1e3a8a;color:#fff;font-size:11px;font-weight:900
+}
+.def-excel-step div{display:grid;gap:2px;min-width:0}
+.def-excel-step strong{font-size:10.5px;color:#172554}
+.def-excel-step small{font-size:9px;color:#64748b;line-height:1.25}
+.def-excel-step button{min-height:30px;border-radius:8px;white-space:nowrap}
+
+.def-excel-dropzone{
+  margin:8px 18px 0;padding:9px 12px;border:1px dashed #94a3b8;border-radius:9px;background:#f8fafc;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer
+}
+.def-excel-dropzone strong{font-size:10.5px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.def-excel-dropzone span{font-size:9px;color:#64748b;white-space:nowrap}
+.def-excel-dropzone.is-dragging{background:#eef4ff;border-color:#5276b9}
+
+.def-excel-content{min-height:0;display:grid;grid-template-rows:auto auto 1fr}
+.def-excel-summary{
+  display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));gap:7px;padding:8px 18px 7px;background:#fff
+}
+.def-excel-stat{
+  min-height:43px;padding:6px 8px;border:1px solid #dbe3ef;border-radius:9px;background:#f8fafc;
+  display:flex;align-items:center;justify-content:space-between;gap:8px
+}
+.def-excel-stat span{font-size:9px;font-weight:850;color:#475569}
+.def-excel-stat strong{font-size:17px;color:#172554}
+.def-excel-table .def-bulk-note{min-width:115px}
+.def-excel-note-pair{display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.def-excel-note-pair small{margin:0!important;color:#94a3b8!important}
+.def-excel-note-pair strong{font-size:10.5px!important;color:#172554}
+
+@media(max-width:1100px){
+  .def-excel-flow{grid-template-columns:1fr}
+  .def-excel-summary{grid-template-columns:repeat(4,1fr)}
+  .def-excel-dropzone{align-items:flex-start;flex-direction:column}
+}
