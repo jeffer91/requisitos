@@ -19,7 +19,7 @@ Con qué se conecta:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.3.0-periodos-graduacion";
+  var VERSION = "1.4.0-reporte-ejecutivo";
   var config = window.GlobalConfig || {};
   var activeSection = "resumen";
   var booted = false;
@@ -520,31 +520,31 @@ Con qué se conecta:
     var summary =
       data.resumen || {};
 
-    var rows = [
+    return [
       {
         indicador: "Total estudiantes",
         valor: summary.totalEstudiantes || 0,
-        detalle: "Estudiantes incluidos según los filtros."
+        detalle: "Estudiantes incluidos en el universo definido por los filtros activos."
       },
       {
         indicador: "Total graduados",
         valor: summary.totalGraduados || 0,
-        detalle: "Estudiantes con AprobacionTitulacion en CUMPLE."
+        detalle: "Estudiantes con aprobación de titulación registrada como cumplida."
       },
       {
         indicador: "Total carreras",
         valor: summary.totalCarreras || 0,
-        detalle: "Carreras únicas detectadas."
+        detalle: "Carreras únicas incluidas en el corte analizado."
       },
       {
         indicador: "Total períodos",
         valor: summary.totalPeriodos || 0,
-        detalle: "Períodos académicos incluidos."
+        detalle: "Períodos académicos que forman parte del reporte."
       },
       {
         indicador: "Total requisitos",
         valor: summary.totalRequisitos || 0,
-        detalle: "Requisitos detectados o filtrados."
+        detalle: "Requisitos académicos y administrativos considerados en el análisis."
       },
       {
         indicador: "Cumplimiento general",
@@ -552,37 +552,19 @@ Con qué se conecta:
           (
             summary.porcentajeCumplimiento || 0
           ) + "%",
-        detalle: "Promedio de cumplimiento de requisitos."
+        detalle: "Promedio general de cumplimiento sobre los requisitos con información registrada."
       },
       {
         indicador: "Activos",
         valor: summary.activos || 0,
-        detalle: "Estudiantes activos."
+        detalle: "Estudiantes que permanecen activos dentro del universo analizado."
       },
       {
         indicador: "Retirados",
         valor: summary.retirados || 0,
-        detalle: "Estudiantes marcados como retirados."
+        detalle: "Estudiantes identificados con estado de matrícula retirado."
       }
     ];
-
-    periodoRows(data).forEach(function(item, index){
-      rows.push({
-        indicador:
-          "Período académico " + (index + 1),
-
-        valor:
-          item.periodo,
-
-        detalle:
-          "Estudiantes: " +
-          item.estudiantes +
-          " · Graduación: " +
-          (item.graduacion || "Sin fecha calculable")
-      });
-    });
-
-    return rows;
   }
 
   function carreraRows(data){
@@ -653,17 +635,16 @@ Con qué se conecta:
           periodo: period,
           graduacion: graduationLabel(period),
           estudiantes: 0,
-          carreras: Object.create(null),
+          graduados: 0,
           suma: 0
         };
       }
 
       map[period].estudiantes += 1;
 
-      map[period].carreras[
-        row._globalCarrera ||
-        "SIN CARRERA"
-      ] = true;
+      if(row._globalEsGraduado === true){
+        map[period].graduados += 1;
+      }
 
       map[period].suma +=
         number(compliance.porcentaje);
@@ -682,10 +663,8 @@ Con qué se conecta:
         estudiantes:
           item.estudiantes,
 
-        carreras:
-          Object.keys(
-            item.carreras
-          ).length,
+        graduados:
+          item.graduados,
 
         cumplimiento:
           item.estudiantes
@@ -1067,8 +1046,8 @@ Con qué se conecta:
         type: "number"
       },
       {
-        key: "carreras",
-        label: "Carreras",
+        key: "graduados",
+        label: "Graduados",
         type: "number"
       },
       {
