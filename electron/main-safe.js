@@ -18,6 +18,7 @@ Con qué se conecta:
 
 const path=require("node:path");
 const {app,BrowserWindow,dialog,ipcMain,powerMonitor}=require("electron");
+const updater=require("./updater");
 
 const RENDERER_CLOSE_TIMEOUT_MS=6*60*1000;
 const BRIDGE_REQUEST_TIMEOUT_MS=150000;
@@ -27,6 +28,18 @@ const originalLoadFile=BrowserWindow.prototype.loadFile;
 const guardedWindows=new WeakSet();
 const closeState=new WeakMap();
 let mainWindow=null;
+
+const STABLE_USER_DATA_NAME="requisitos-desktop";
+try{
+  if(!app.isReady()){
+    const stableUserData=path.join(app.getPath("appData"),STABLE_USER_DATA_NAME);
+    if(path.resolve(app.getPath("userData"))!==path.resolve(stableUserData)){
+      app.setPath("userData",stableUserData);
+    }
+  }
+}catch(error){
+  console.warn("[Requisitos] No se pudo fijar la ruta histórica de datos locales:",error&&error.message?error.message:error);
+}
 
 function isMainEntry(filePath){
   try{
@@ -365,6 +378,43 @@ function registerSyncBridge(){
   }));
 }
 
+async function prepareUpdaterInstall(){
+  if(!mainWindow||mainWindow.isDestroyed()){
+    return {ok:false,canInstall:false,message:"La ventana principal no está disponible."};
+  }
+
+  const result=await requestProtectedClose(mainWindow);
+  if(!result||result.canClose!==true){
+    return {
+      ok:false,
+      canInstall:false,
+      message:result&&result.message
+        ?String(result.message)
+        :"La sincronización no confirmó que sea seguro cerrar Requisitos."
+    };
+  }
+
+  const state=closeState.get(mainWindow)||{allowClose:false,checking:false};
+  state.allowClose=true;
+  state.checking=false;
+  closeState.set(mainWindow,state);
+  return {ok:true,canInstall:true,message:"Sincronización confirmada. Puede instalarse la actualización."};
+}
+
+function registerUpdaterBridge(){
+  const secure=(channel,handler)=>{
+    ipcMain.removeHandler(channel);
+    ipcMain.handle(channel,async(event,...args)=>{
+      if(!trustedSyncSender(event)){throw new Error("Solicitud de actualización rechazada por origen no autorizado.");}
+      return handler(...args);
+    });
+  };
+
+  secure("requisitos:update-status",()=>updater.getStatus());
+  secure("requisitos:update-check",()=>updater.checkForUpdates({manual:true}));
+  secure("requisitos:update-install",()=>updater.installDownloadedUpdate());
+}
+
 async function requestProtectedClose(browserWindow){
   if(!browserWindow||browserWindow.isDestroyed()){
     return {ok:false,canClose:false,message:"La ventana principal ya no está disponible."};
@@ -456,6 +506,7 @@ BrowserWindow.prototype.loadFile=function(filePath,...args){
   if(isMainEntry(filePath)){
     mainWindow=this;
     installCloseGuard(this);
+    updater.attachWindow(this);
   }
   return result;
 };
@@ -465,7 +516,9 @@ const hasSingleInstanceLock=app.requestSingleInstanceLock();
 if(!hasSingleInstanceLock){
   app.quit();
 }else{
+  updater.configure({prepareInstall:prepareUpdaterInstall});
   registerSyncBridge();
+  registerUpdaterBridge();
   app.on("second-instance",()=>focusMainWindow());
   require("./main");
 }
