@@ -112,12 +112,12 @@ Función:
   function filterRows(filters){
     filters=filters||{};
     var rows=[];
-    if(filters.periodoDesde){rows.push({filtro:"Período desde",valor:selectedLabel("#globalFiltroDesde",filters.periodoDesde)});}
-    if(filters.periodoHasta){rows.push({filtro:"Período hasta",valor:selectedLabel("#globalFiltroHasta",filters.periodoHasta)});}
-    if(filters.carrera){rows.push({filtro:"Carrera",valor:selectedLabel("#globalFiltroCarrera",filters.carrera)});}
-    if(filters.division){rows.push({filtro:"División",valor:selectedLabel("#globalFiltroDivision",filters.division)});}
-    if(filters.requisito){rows.push({filtro:"Requisito",valor:selectedLabel("#globalFiltroRequisito",filters.requisito)});}
-    if(filters.tipoCarrera){rows.push({filtro:"Tipo de carrera",valor:selectedLabel("#globalFiltroTipo",filters.tipoCarrera)});}
+    if(filters.periodoDesde){rows.push({filtro:"Período desde",valor:cleanInstitutionalText(selectedLabel("#globalFiltroDesde",filters.periodoDesde))});}
+    if(filters.periodoHasta){rows.push({filtro:"Período hasta",valor:cleanInstitutionalText(selectedLabel("#globalFiltroHasta",filters.periodoHasta))});}
+    if(filters.carrera){rows.push({filtro:"Carrera",valor:cleanInstitutionalText(selectedLabel("#globalFiltroCarrera",filters.carrera))});}
+    if(filters.division){rows.push({filtro:"División",valor:cleanInstitutionalText(selectedLabel("#globalFiltroDivision",filters.division))});}
+    if(filters.requisito){rows.push({filtro:"Requisito",valor:cleanInstitutionalText(selectedLabel("#globalFiltroRequisito",filters.requisito))});}
+    if(filters.tipoCarrera){rows.push({filtro:"Tipo de carrera",valor:cleanInstitutionalText(selectedLabel("#globalFiltroTipo",filters.tipoCarrera))});}
     if(!rows.length){rows.push({filtro:"Alcance",valor:"Todos los registros disponibles"});}
     return rows;
   }
@@ -321,6 +321,15 @@ Función:
     var data=options.data||{};
     var filters=options.filters||data.filters||{};
     var table=tableForSection(section.id,data);
+    table.rows=(table.rows||[]).map(function(row){
+      var copy={};
+      Object.keys(row||{}).forEach(function(key){
+        copy[key]=typeof row[key]==="string"
+          ?cleanInstitutionalText(row[key])
+          :row[key];
+      });
+      return copy;
+    });
     var periods=periodRows(data);
     var periodDisplay=displayPeriodRows(periods);
     var careerLabel=cleanInstitutionalText(
@@ -583,11 +592,7 @@ Función:
       catch(error){return String(value);}
     }
 
-    var output=String(value);
-    if(columnKey==="carrera"||columnKey==="tipo"||columnKey==="division"){
-      output=cleanInstitutionalText(output);
-    }
-    return output;
+    return cleanInstitutionalText(String(value));
   }
 
   function tableFontSize(columnCount){
