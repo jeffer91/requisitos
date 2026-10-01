@@ -70,7 +70,7 @@ check(pdfRuntime.includes('logo-global.jpg'),"El PDF tiene una ruta propia de lo
 check(pdfRuntime.includes('response.arrayBuffer()'),"El logo se carga como bytes binarios sin depender de canvas.");
 check(pdfRuntime.includes('doc.addImage(')&&pdfRuntime.includes('"JPEG"'),"jsPDF inserta el logo exclusivo como JPEG.");
 check(pdfRuntime.includes('GLOBAL_LOGO_WIDTH_MM'),"El tamaño del logo se controla específicamente para el informe.");
-check(globalConfig.includes('globalLogoPath: "assets/branding/logo-global.jpg"'),"La configuración apunta al logo institucional exclusivo de Global.");
+check(globalConfig.includes('globalLogoPath: "assets/branding/logo-global.jpg?v=20261001-2"'),"La configuración apunta al logo institucional exclusivo de Global.");
 check(globalConfig.includes("globalLogoWidthMm: 54"),"El ancho institucional del logo permanece en 54 mm.");
 check(globalConfig.includes('logoFallbackText: ""'),"La portada no vuelve a ITSQMET como texto si falla la imagen.");
 check(globalHtml.includes("global.bootstrap.js?v=1.5.0-global-logo-native-ratio"),"GitHub Pages fuerza la versión actual del bootstrap de Global.");
