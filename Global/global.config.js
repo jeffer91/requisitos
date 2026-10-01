@@ -21,7 +21,7 @@ Función:
 
     branding: Object.freeze({
       logoPath: "assets/branding/logo-instituto.png",
-      globalLogoPath: "assets/branding/logo-global.jpg",
+      globalLogoPath: "assets/branding/logo-global.jpg?v=20261001-2",
       globalLogoWidthMm: 54,
       logoFallbackText: "",
       azulMarino: "#071A33",
