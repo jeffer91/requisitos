@@ -73,7 +73,7 @@ check(pdfRuntime.includes('GLOBAL_LOGO_WIDTH_MM'),"El tamaño del logo se contro
 check(globalConfig.includes('globalLogoPath: "assets/branding/logo-global.jpg"'),"La configuración apunta al logo institucional exclusivo de Global.");
 check(globalConfig.includes("globalLogoWidthMm: 54"),"El ancho institucional del logo permanece en 54 mm.");
 check(globalConfig.includes('logoFallbackText: ""'),"La portada no vuelve a ITSQMET como texto si falla la imagen.");
-check(globalHtml.includes("global.bootstrap.js?v=1.4.0-global-logo-cache-bust"),"GitHub Pages fuerza la versión actual del bootstrap de Global.");
+check(globalHtml.includes("global.bootstrap.js?v=1.5.0-global-logo-native-ratio"),"GitHub Pages fuerza la versión actual del bootstrap de Global.");
 check(bootstrap.includes('target.searchParams.set("v",VERSION)'),"El bootstrap invalida caché para los módulos dinámicos de Global.");
 const globalLogo=fs.readFileSync(path.join(ROOT,"Global/assets/branding/logo-global.jpg"));
 check(globalLogo.length>1000&&globalLogo[0]===0xFF&&globalLogo[1]===0xD8,"El asset logo-global.jpg existe y tiene cabecera JPEG válida.");
