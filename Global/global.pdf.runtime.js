@@ -11,7 +11,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="3.6.0-global-logo-robust";
+  var VERSION="3.7.0-global-logo-native-ratio";
   var config=window.GlobalConfig||{};
   var GLOBAL_LOGO_PATH=
     config.branding &&
@@ -699,9 +699,9 @@ Función:
     if(logo&&logo.bytes){
       try{
         var w=Math.max(42,Math.min(58,GLOBAL_LOGO_WIDTH_MM));
-        var maxH=w*(78/188);
-        var sourceRatio=358/952;
-        var h=Math.min(maxH,w*sourceRatio);
+        var props=doc.getImageProperties(logo.bytes);
+        var sourceRatio=props&&props.width?props.height/props.width:(132/350);
+        var h=w*sourceRatio;
         doc.addImage(
           logo.bytes,
           logo.format||"JPEG",
@@ -719,7 +719,9 @@ Función:
     if(!logoRendered&&logo&&logo.dataUrl){
       try{
         var fallbackW=Math.max(42,Math.min(58,GLOBAL_LOGO_WIDTH_MM));
-        var fallbackH=fallbackW*(358/952);
+        var fallbackProps=doc.getImageProperties(logo.dataUrl);
+        var fallbackRatio=fallbackProps&&fallbackProps.width?fallbackProps.height/fallbackProps.width:(132/350);
+        var fallbackH=fallbackW*fallbackRatio;
         doc.addImage(
           logo.dataUrl,
           logo.format||"JPEG",
