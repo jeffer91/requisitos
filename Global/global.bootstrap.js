@@ -11,12 +11,12 @@ Función o funciones:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.3.0-direct-report-runtime";
+  var VERSION="1.4.0-global-logo-cache-bust";
   var loading={};
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var adapterWarmup=null;
 
-  function url(relative){try{return new URL(relative,base).href;}catch(error){return relative;}}
+  function url(relative){try{var target=new URL(relative,base);target.searchParams.set("v",VERSION);return target.href;}catch(error){return relative;}}
   function existing(src){return Array.prototype.slice.call(document.scripts||[]).some(function(script){return script.src===src||script.getAttribute("data-global-bootstrap-src")===src;});}
   function waitFor(test,label,timeout){
     timeout=Math.max(500,Number(timeout||15000));
