@@ -30,6 +30,8 @@ function syntax(source,file){
   catch(error){errors.push(`${file}: ${error.message}`);console.error("[verify-global-reports] ERROR:",file,error.message);return false;}
 }
 
+const globalHtml=read("Global/global.html");
+const globalConfig=read("Global/global.config.js");
 const bootstrap=read("Global/global.bootstrap.js");
 const pdfRuntime=read("Global/global.pdf.runtime.js");
 const wordLoader=read("Global/global.word.js");
@@ -64,10 +66,17 @@ check(pdfRuntime.includes("Responsable del informe"),"La firma se identifica for
 check(!pdfRuntime.includes("Filtros aplicados"),"El PDF no expone lenguaje de interfaz.");
 check(!pdfRuntime.includes("Base Local"),"El PDF no expone referencias técnicas a la fuente interna.");
 check(pdfRuntime.includes('globalLogoPath'),"Global usa un campo exclusivo para su logo institucional.");
-check(pdfRuntime.includes('logo-global.png'),"El PDF tiene una ruta propia de logo para Global.");
+check(pdfRuntime.includes('logo-global.jpg'),"El PDF tiene una ruta propia de logo JPEG para Global.");
 check(pdfRuntime.includes('response.arrayBuffer()'),"El logo se carga como bytes binarios sin depender de canvas.");
-check(pdfRuntime.includes('doc.addImage(')&&pdfRuntime.includes('"PNG"'),"jsPDF inserta el logo exclusivo como PNG.");
+check(pdfRuntime.includes('doc.addImage(')&&pdfRuntime.includes('"JPEG"'),"jsPDF inserta el logo exclusivo como JPEG.");
 check(pdfRuntime.includes('GLOBAL_LOGO_WIDTH_MM'),"El tamaño del logo se controla específicamente para el informe.");
+check(globalConfig.includes('globalLogoPath: "assets/branding/logo-global.jpg"'),"La configuración apunta al logo institucional exclusivo de Global.");
+check(globalConfig.includes("globalLogoWidthMm: 54"),"El ancho institucional del logo permanece en 54 mm.");
+check(globalConfig.includes('logoFallbackText: ""'),"La portada no vuelve a ITSQMET como texto si falla la imagen.");
+check(globalHtml.includes("global.bootstrap.js?v=1.4.0-global-logo-cache-bust"),"GitHub Pages fuerza la versión actual del bootstrap de Global.");
+check(bootstrap.includes('target.searchParams.set("v",VERSION)'),"El bootstrap invalida caché para los módulos dinámicos de Global.");
+const globalLogo=fs.readFileSync(path.join(ROOT,"Global/assets/branding/logo-global.jpg"));
+check(globalLogo.length>1000&&globalLogo[0]===0xFF&&globalLogo[1]===0xD8,"El asset logo-global.jpg existe y tiene cabecera JPEG válida.");
 check(pdfRuntime.includes("7. Recomendaciones de seguimiento"),"El informe incluye un desarrollo institucional ampliado.");
 check(pdfRuntime.includes("periodNarrative"),"El informe desarrolla un análisis narrativo por período.");
 
