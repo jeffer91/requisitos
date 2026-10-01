@@ -11,7 +11,7 @@ Función o funciones:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.4.0-global-logo-cache-bust";
+  var VERSION="1.5.0-global-logo-native-ratio";
   var loading={};
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
   var adapterWarmup=null;
