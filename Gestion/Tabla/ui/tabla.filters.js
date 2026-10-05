@@ -4,6 +4,7 @@ Ruta: /Gestion/Tabla/ui/tabla.filters.js
 Función:
 - Aplicar filtros por período, división, matrícula, carrera, estado y búsqueda.
 - Filtrar requisitos únicamente cuando existe un no_cumple real.
+- Filtrar pendientes de Núcleos con su política de ocho requisitos, sin Titulación.
 - No tratar sin_dato, pendiente o no_aplica como deuda.
 - Excluir Titulación para PVC y excluir campos finales en todos los períodos.
 - Construir opciones y resúmenes sin acceder directamente a Base Local.
@@ -11,7 +12,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.1.0-regular-titulation-gate";
+  var VERSION = "3.2.0-nucleos-pending-filter";
   var C = window.TablaConstants || {};
   var U = window.TablaUtils || {};
   var N = window.TablaDataNormalizer || {};
@@ -280,6 +281,19 @@ Función:
     if(!wantedKey){ return true; }
     if(wantedKey === "falta"){
       return missingFor(row).length > 0;
+    }
+
+    if(wantedKey === "nucleos"){
+      try{
+        if(
+          window.TablaNucleosPolicy &&
+          typeof window.TablaNucleosPolicy.analyze === "function"
+        ){
+          return window.TablaNucleosPolicy.analyze(row).apto !== true;
+        }
+      }catch(error){}
+
+      return false;
     }
 
     return requirementsFor(row).some(function(item){
