@@ -554,7 +554,13 @@ Con qué se conecta:
 
     change(
       "tabla-carrera",
+      
       "career"
+    );
+
+    change(
+      "tabla-nucleos",
+      "nucleos"
     );
 
     change(
