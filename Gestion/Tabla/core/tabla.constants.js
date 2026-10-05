@@ -9,8 +9,7 @@ Función:
 (function(window){
   "use strict";
 
-  
-  var VERSION = "3.2.0-nucleos-filter";
+  var VERSION = "3.2.0-nucleos-message";
 
   function deepFreeze(value){
     if(!value || typeof value !== "object" || Object.isFrozen(value)){
@@ -200,8 +199,6 @@ Función:
       career: "",
       status: "",
       search: "",
-      
-      nucleos: "",
       requirementOrder: "",
       requirements: ["falta"],
       page: 1,
@@ -223,6 +220,7 @@ Función:
 
     messageTypes: [
       {value: "etapa", label: "Etapa actual"},
+      {value: "nucleos", label: "Núcleos"},
       {value: "requisitos", label: "Falta req."},
       {value: "urgente", label: "Urgente"},
       {value: "ultimo", label: "Último aviso"},
