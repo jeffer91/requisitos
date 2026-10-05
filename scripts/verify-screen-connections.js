@@ -54,7 +54,7 @@ const registry = read("BDLocal/conexiones/cone.registry.js");
   ["tabla", "ConTabla", "cone.tabla.js"], ["ficha", "ConFicha", "cone.ficha.js"],
   ["stats", "ConStats", "cone.stats.js"], ["coordi", "ConCoordi", "cone.coordi.js"],
   ["global", "ConGlobal", "cone.global.js"], ["reportes", "ConReportes", "cone.reportes.js"],
-  ["defart", "ConDefart", "cone.defart.js"], ["ncomplex", "ConNcomplex", "cone.ncomplex.js"],
+  ["defart", "ConDefart", "cone.defart.js"], ["stat_not", "ConStatNot", "cone.statnot.js"], ["ncomplex", "ConNcomplex", "cone.ncomplex.js"],
   ["cr_def", "ConCrDef", "cone.crdef.js"], ["inpvc", "ConInPVC", "cone.inpvc.js"]
 ].forEach(([id, globalName, connectorFile]) => {
   ok(registry.includes(`id:"${id}"`) && registry.includes(`global:"${globalName}"`) && registry.includes(`file:"${connectorFile}"`), `Registro incompleto para ${id} → ${globalName}`);
@@ -138,6 +138,13 @@ contains("defart/defart.save-service-bridge.js", 'source:"ConDefart"');
 excludes("defart/defart.service-bridge.js", ["originalSummary", "ExcelLocalRepo", "BL2DataEngine"]);
 excludes("defart/defart.save-service-bridge.js", ["originalSave", "BL2Core", "BDLRepo"]);
 
+// Stat Not.
+contains("StatNot/stat-not.html", "stat-not.bootstrap.js");
+contains("StatNot/stat-not.bootstrap.js", "cone.statnot.js");
+contains("BDLocal/conexiones/cone.statnot.js", "canWrite:false");
+excludes("StatNot/stat-not.bootstrap.js", ["repositories/", "services/", "migrations/", "bl2.db.js", "bdl.screen-deps.js"]);
+excludes("StatNot/stat-not.app.js", forbiddenScreenAccess.concat(["saveNota", ".save(", ".update("]));
+
 // Ncomplex.
 contains("Ncomplex/ncomplex.html", "ncomplex.bootstrap.js");
 excludes("Ncomplex/ncomplex.html", forbiddenInfrastructurePaths.concat(["cone.ncomplex.js"]));
@@ -168,14 +175,14 @@ excludes("InPVC/frontend/inpvc.app.js", forbiddenScreenAccess);
 
 // Sintaxis de archivos críticos.
 [
-  "BDLocal/conexiones/cone.registry.js", "BDLocal/conexiones/cone.defart.js",
+  "BDLocal/conexiones/cone.registry.js", "BDLocal/conexiones/cone.defart.js", "BDLocal/conexiones/cone.statnot.js",
   "BDLocal/conexiones/cone.ncomplex.js", "BDLocal/conexiones/cone.ncomplex.api.js",
   "BDLocal/conexiones/cone.stats.notes.js", "BDLocal/conexiones/cone.ficha.enrollment-lock.js",
   "Carga/process/carga.save.js", "Ficha/ficha.bootstrap.js", "Stats/stats.bootstrap.js",
   "Stats/stats.data.connector-patch.js", "Coordi/coordi.bootstrap.js", "Coordi/coo.data.js",
   "Global/global.bootstrap.js", "Global/global.connection-guard.js", "Reportes/repo.bootstrap.js",
   "Reportes/repo.core.js", "Reportes/repo.app.js", "defart/defart.bootstrap.js",
-  "defart/defart.service-bridge.js", "defart/defart.save-service-bridge.js",
+  "defart/defart.service-bridge.js", "defart/defart.save-service-bridge.js", "StatNot/stat-not.bootstrap.js", "StatNot/stat-not.model.js", "StatNot/stat-not.app.js",
   "Ncomplex/ncomplex.bootstrap.js", "Ncomplex/ncomplex.save.js", "Cr-def/cr-def.bootstrap.js",
   "Cr-def/cr-def.data.js", "BDLocal/conexiones/cone.inpvc.js",
   "InPVC/frontend/inpvc.bootstrap.js", "InPVC/frontend/inpvc.app.js",

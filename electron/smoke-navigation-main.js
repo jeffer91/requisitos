@@ -38,6 +38,7 @@ const MODULES=[
   {id:"global",label:"Global",url:"/Global/global.html"},
   {id:"modulo_reporte",label:"Reportes",url:"/Reportes/repo.html"},
   {id:"defart",label:"Defensas",url:"/defart/defart.html",connector:"ConDefart",expectedStudents:EXPECTED_STUDENTS,periodSelector:"def-filter-periodo"},
+  {id:"stat_not",label:"Stat Not",url:"/StatNot/stat-not.html",connector:"ConStatNot",expectedStudents:EXPECTED_STUDENTS,periodSelector:"statnot-period"},
   {id:"ncomplex",label:"Ncomplex",url:"/Ncomplex/ncomplex.html",connector:"ConNcomplex",expectedStudents:EXPECTED_STUDENTS},
   {id:"cr_def",label:"Cr-def",url:"/Cr-def/cr-def.html",connector:"ConCrDef",expectedStudents:EXPECTED_STUDENTS},
   {id:"titulacion",label:"InPVC",url:"/InPVC/inpvc.html",connector:"ConInPVC",expectedStudents:EXPECTED_STUDENTS}

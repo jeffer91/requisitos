@@ -19,9 +19,9 @@ Función o funciones:
     {tipo:"modulo",moduloId:"coordi",etiqueta:"Coordi"},
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
+    {tipo:"modulo",moduloId:"stat_not",etiqueta:"Stat Not"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
-    {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"},
-    {tipo:"modulo",moduloId:"titulacion",etiqueta:"InPVC"}
+    {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"}
   ];
   function clone(value){return JSON.parse(JSON.stringify(value));}
   function obtenerConfigEfectiva(){return Promise.resolve({itemsMenuCalculados:clone(ORDER),moduloInicial:"carga_excel"});}

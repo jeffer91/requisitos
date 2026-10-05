@@ -19,6 +19,7 @@ Función o funciones:
     {id:"global",label:"Global",global:"ConGlobal",file:"cone.global.js",pathHints:["/global/","global.html"]},
     {id:"reportes",label:"Reportes",global:"ConReportes",file:"cone.reportes.js",pathHints:["/reportes/","repo.html"]},
     {id:"defart",label:"Defensas",global:"ConDefart",file:"cone.defart.js",pathHints:["/defart/","defart.html"],canWrite:true},
+    {id:"stat_not",label:"Stat Not",global:"ConStatNot",file:"cone.statnot.js",pathHints:["/statnot/","stat-not.html"]},
     {id:"ncomplex",label:"Ncomplex",global:"ConNcomplex",file:"cone.ncomplex.js",pathHints:["/ncomplex/","ncomplex.html"],canWrite:true},
     {id:"cr_def",label:"Cr-def",global:"ConCrDef",file:"cone.crdef.js",pathHints:["/cr-def/","cr-def.html"]},
     {id:"inpvc",label:"InPVC",global:"ConInPVC",file:"cone.inpvc.js",pathHints:["/inpvc/","inpvc.html"]}
@@ -33,6 +34,7 @@ Función o funciones:
     global:["contactos_estudiante","notas_titulacion","divisiones_estudiante"],
     reportes:["contactos_estudiante","notas_titulacion","divisiones_estudiante"],
     defart:["notas_titulacion","divisiones_estudiante","cambios_pendientes"],
+    stat_not:["notas_titulacion","divisiones_estudiante"],
     ncomplex:["evaluaciones_titulacion","importaciones","cambios_pendientes"],
     cr_def:["notas_titulacion","divisiones_estudiante"],inpvc:["notas_titulacion","evaluaciones_titulacion"]
   };
