@@ -4,6 +4,7 @@ Ruta: /Gestion/Tabla/communication/tabla.bulk.js
 Función:
 - Centralizar acciones simples sobre todos los estudiantes filtrados.
 - Aplicar un tipo de mensaje global a las filas visibles.
+- Al comunicar Núcleos, trabajar solo con estudiantes pendientes de los ocho requisitos.
 - Abrir WhatsApp para todos los filtrados con número válido.
 - Abrir una pestaña de Outlook Web por cada estudiante filtrado con correo válido.
 - Reutilizar Telegram masivo e historial existentes y mantener el tipo global seleccionado.
@@ -11,7 +12,7 @@ Función:
 (function(window, document){
   "use strict";
 
-  var VERSION = "1.2.0-dual-recipient-outlook";
+  var VERSION = "1.3.0-nucleos-recipient-guard";
   var U = window.TablaUtils || {};
   var globalType = "requisitos";
   var rowOverrides = Object.create(null);
@@ -67,6 +68,41 @@ Función:
     return Array.isArray(current.filteredRows)
       ? current.filteredRows.slice()
       : [];
+  }
+
+  function isNucleosPending(row){
+    try{
+      if(
+        window.TablaNucleosPolicy &&
+        typeof window.TablaNucleosPolicy.analyze === "function"
+      ){
+        return window.TablaNucleosPolicy.analyze(row || {}).apto !== true;
+      }
+    }catch(error){}
+
+    return false;
+  }
+
+  function recipientRows(){
+    var list = rows();
+
+    if(key(globalType) === "nucleos"){
+      return list.filter(isNucleosPending);
+    }
+
+    return list;
+  }
+
+  function activateNucleosFilter(){
+    if(
+      window.TablaApp &&
+      typeof window.TablaApp.setFilters === "function"
+    ){
+      window.TablaApp.setFilters({requirements:["nucleos"]});
+      return true;
+    }
+
+    return false;
   }
 
   function rowId(row){
@@ -206,7 +242,7 @@ Función:
   }
 
   function metrics(){
-    var list = rows();
+    var list = recipientRows();
     var wa = 0;
     var mail = 0;
     var tg = 0;
@@ -271,10 +307,15 @@ Función:
     var select = el("tabla-global-message-type");
     globalType = text(select && select.value) || "requisitos";
     rowOverrides = Object.create(null);
+
+    if(key(globalType) === "nucleos"){
+      activateNucleosFilter();
+    }
+
     syncVisibleSelects();
 
     status(
-      "Mensaje «" + typeLabel(globalType) + "» aplicado a " + rows().length + " estudiantes filtrados.",
+      "Mensaje «" + typeLabel(globalType) + "» aplicado a " + recipientRows().length + " estudiantes filtrados.",
       "ok"
     );
 
@@ -318,7 +359,7 @@ Función:
   }
 
   function openAllWhatsApp(){
-    var list = rows().filter(whatsappAvailable);
+    var list = recipientRows().filter(whatsappAvailable);
 
     if(!list.length){
       status("No hay estudiantes filtrados con WhatsApp válido.", "warn");
@@ -459,7 +500,7 @@ Función:
   }
 
   function openAllOutlook(){
-    var list = rows().filter(function(row){
+    var list = recipientRows().filter(function(row){
       return emailAddresses(row).length > 0;
     });
 
@@ -664,6 +705,7 @@ Función:
     metrics: metrics,
     render: renderMetrics,
     rows: rows,
+    recipientRows: recipientRows,
     applyGlobal: applyGlobal,
     openAllWhatsApp: openAllWhatsApp,
     openAllOutlook: openAllOutlook,
