@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stat Not · Estadísticas de notas</title>
+  <link rel="stylesheet" href="stat-not.css" />
+</head>
+<body>
+  <main class="statnot-app statnot-shell">
+    <aside class="statnot-side" aria-label="Navegación Stat Not">
+      <div class="statnot-brand"><strong>Stat Not</strong><span>Notas y defensas</span></div>
+      <button class="is-active" data-statnot-section="resumen" type="button">Resumen</button>
+      <button data-statnot-section="carreras" type="button">Carreras</button>
+      <button data-statnot-section="cobertura" type="button">Cobertura de notas</button>
+      <button data-statnot-section="aprobacion" type="button">Aprobación</button>
+      <button data-statnot-section="pendientes" type="button">Pendientes</button>
+      <button data-statnot-section="supletorios" type="button">Supletorios</button>
+      <button data-statnot-section="estudiantes" type="button">Estudiantes</button>
+      <div class="statnot-rule-note"><strong>Regla N-DEF</strong><span>Req. completos + N-ART ≥ 7</span></div>
+    </aside>
+
+    <section class="statnot-main">
+      <section id="statnot-status" class="statnot-status is-info">Preparando estadísticas de notas...</section>
+
+      <section class="statnot-tools" aria-label="Filtros de Stat Not">
+        <label>Período<select id="statnot-period"><option value="">Cargando...</option></select></label>
+        <label>Sede<select id="statnot-sede"><option value="">Todas</option></select></label>
+        <label>División<select id="statnot-division"><option value="">Todas</option></select></label>
+        <label>Matrícula<select id="statnot-matricula"><option value="ACTIVO">Activos</option><option value="RETIRADO">Retirados</option><option value="">Todos</option></select></label>
+        <label class="is-wide">Carrera<select id="statnot-carrera"><option value="">Todas</option></select></label>
+        <label>Estado<select id="statnot-estado"><option value="">Todos</option><option value="eligible">Habilitados N-DEF</option><option value="approved">Aprobados</option><option value="failed">Reprobados</option><option value="pending">Faltan notas</option><option value="supplement">Supletorios</option><option value="blocked">Req. pendientes</option><option value="complete">Completos</option></select></label>
+        <button id="statnot-refresh" type="button">Actualizar</button>
+      </section>
+
+      <section class="statnot-section is-active" data-statnot-panel="resumen">
+        <div class="statnot-head"><div><p>Vista ejecutiva</p><h1>Resumen de notas</h1></div><span id="statnot-scope" class="statnot-chip">—</span></div>
+        <div id="statnot-summary-kpis" class="statnot-kpis"></div>
+        <div class="statnot-grid-2">
+          <article class="statnot-card"><header><h2>Estado general</h2><span>Aprobación, reprobación y pendientes</span></header><div id="statnot-general-bars" class="statnot-bars"></div></article>
+          <article class="statnot-card"><header><h2>Cobertura de notas</h2><span>N-ART, N-DEF y N-FIN registrados</span></header><div id="statnot-coverage-bars" class="statnot-bars"></div></article>
+        </div>
+        <article class="statnot-card"><header><h2>Carreras con más pendientes</h2><span>Faltan N-ART o N-DEF habilitada</span></header><div id="statnot-top-pending"></div></article>
+      </section>
+
+      <section class="statnot-section" data-statnot-panel="carreras" hidden>
+        <div class="statnot-head"><div><p>Control por carrera</p><h1>Carreras</h1></div><span>Pulse una cifra para ver estudiantes</span></div>
+        <div class="statnot-kpis" id="statnot-career-kpis"></div>
+        <article class="statnot-card statnot-table-card"><header><h2>Avance por carrera</h2><span>Habilitación, notas, resultados y avance</span></header><div id="statnot-careers-table"></div></article>
+      </section>
+
+      <section class="statnot-section" data-statnot-panel="cobertura" hidden>
+        <div class="statnot-head"><div><p>Registro de calificaciones</p><h1>Cobertura de notas</h1></div><span>Falta N-DEF solo si ya está habilitada</span></div>
+        <div id="statnot-coverage-kpis" class="statnot-kpis"></div>
+        <article class="statnot-card"><header><h2>Cobertura general</h2><span>Porcentaje sobre el universo filtrado</span></header><div id="statnot-coverage-detail-bars" class="statnot-bars"></div></article>
+        <article class="statnot-card statnot-table-card"><header><h2>Cobertura por carrera</h2></header><div id="statnot-coverage-table"></div></article>
+      </section>
+
+      <section class="statnot-section" data-statnot-panel="aprobacion" hidden>
+        <div class="statnot-head"><div><p>Resultados</p><h1>Aprobación</h1></div><span>Aprobados / estudiantes evaluados</span></div>
+        <div id="statnot-approval-kpis" class="statnot-kpis"></div>
+        <article class="statnot-card"><header><h2>Aprobación por carrera</h2><span>Ordenado por porcentaje de aprobación</span></header><div id="statnot-approval-bars" class="statnot-bars"></div></article>
+      </section>
+
+      <section class="statnot-section" data-statnot-panel="pendientes" hidden>
+        <div class="statnot-head"><div><p>Qué falta</p><h1>Pendientes</h1></div><span>Sin mezclar bloqueados con habilitados para N-DEF</span></div>
+        <div id="statnot-pending-kpis" class="statnot-kpis"></div>
+        <article class="statnot-card statnot-table-card"><header><h2>Pendientes por carrera</h2><span>Cifras clicables</span></header><div id="statnot-pending-table"></div></article>
+      </section>
+
+      <section class="statnot-section" data-statnot-panel="supletorios" hidden>
+        <div class="statnot-head"><div><p>Recuperación</p><h1>Supletorios</h1></div><span>N-ART &lt; 7 o N-DEF &lt; 7</span></div>
+        <div id="statnot-supp-kpis" class="statnot-kpis"></div>
+        <article class="statnot-card statnot-table-card"><header><h2>Supletorios por carrera</h2><span>Separados por componente</span></header><div id="statnot-supp-table"></div></article>
+      </section>
+
+      <section class="statnot-section" data-statnot-panel="estudiantes" hidden>
+        <div class="statnot-head"><div><p>Detalle</p><h1>Estudiantes</h1></div><span id="statnot-student-count">0 estudiantes</span></div>
+        <article class="statnot-card statnot-student-tools">
+          <input id="statnot-search" type="search" placeholder="Cédula, nombre, carrera, división o sede..." />
+          <div id="statnot-quick-filters" class="statnot-quick">
+            <button type="button" class="is-active" data-quick="">Todos</button><button type="button" data-quick="eligible">Habilitados</button><button type="button" data-quick="approved">Aprobados</button><button type="button" data-quick="failed">Reprobados</button><button type="button" data-quick="missingArt">Falta Art</button><button type="button" data-quick="missingDef">Falta Def</button><button type="button" data-quick="supplement">Supletorios</button><button type="button" data-quick="blocked">Bloqueados</button>
+          </div>
+        </article>
+        <article class="statnot-card statnot-table-card"><div id="statnot-students-table"></div></article>
+      </section>
+    </section>
+  </main>
+
+  <div id="statnot-modal" class="statnot-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="statnot-modal-title">
+    <div class="statnot-dialog"><header><div><p id="statnot-modal-eyebrow">Detalle</p><h2 id="statnot-modal-title">Estudiantes</h2></div><button type="button" data-close-modal aria-label="Cerrar">×</button></header><div id="statnot-modal-body"></div></div>
+  </div>
+  <script src="stat-not.bootstrap.js"></script>
+</body>
+</html>
