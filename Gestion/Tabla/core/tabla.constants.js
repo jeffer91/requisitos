@@ -9,7 +9,8 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.1.0-regular-requirement-order";
+  
+  var VERSION = "3.2.0-nucleos-filter";
 
   function deepFreeze(value){
     if(!value || typeof value !== "object" || Object.isFrozen(value)){
@@ -199,6 +200,8 @@ Función:
       career: "",
       status: "",
       search: "",
+      
+      nucleos: "",
       requirementOrder: "",
       requirements: ["falta"],
       page: 1,
