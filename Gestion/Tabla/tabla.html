@@ -116,17 +116,6 @@
           </select>
         </label>
 
-        
-        <label>
-          Núcleos
-
-          <select id="tabla-nucleos" aria-label="Filtro de aptitud para Núcleos">
-            <option value="">Todos</option>
-            <option value="apto">Aptos</option>
-            <option value="no_apto">No aptos</option>
-          </select>
-        </label>
-
         <label class="tabla-search-field">
           Buscar estudiante
 
@@ -215,6 +204,7 @@
           aria-label="Tipo de mensaje para estudiantes filtrados"
         >
           <option value="etapa">Etapa actual</option>
+          <option value="nucleos">Núcleos</option>
           <option value="requisitos">Falta req.</option>
           <option value="urgente">Urgente</option>
           <option value="ultimo">Último aviso</option>
@@ -676,6 +666,7 @@
 
           <select id="tabla-tg-tipo">
             <option value="etapa">Etapa actual</option>
+            <option value="nucleos">Núcleos</option>
             <option value="requisitos">Falta req.</option>
             <option value="urgente">Urgente</option>
             <option value="ultimo">Último aviso</option>
@@ -813,6 +804,7 @@
 
               <select id="tabla-mass-tipo">
                 <option value="etapa">Etapa actual</option>
+                <option value="nucleos">Núcleos</option>
                 <option value="requisitos">Falta req.</option>
                 <option value="urgente">Urgente</option>
                 <option value="ultimo">Último aviso</option>
@@ -1123,7 +1115,6 @@
 
   <script src="data/tabla.data-normalizer.js"></script>
   <script src="core/tabla.regular-policy.js"></script>
-  
   <script src="core/tabla.stage-policy.js"></script>
   <script src="core/tabla.nucleos-policy.js"></script>
   <script src="data/tabla.data-source.js"></script>
