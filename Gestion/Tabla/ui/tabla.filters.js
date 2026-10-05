@@ -11,7 +11,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION = "3.1.0-regular-titulation-gate";
+  var VERSION = "3.2.0-nucleos-filter";
   var C = window.TablaConstants || {};
   var U = window.TablaUtils || {};
   var N = window.TablaDataNormalizer || {};
@@ -333,7 +333,9 @@ Función:
       matricula: text(filters.matricula),
       career: text(filters.career || filters.carrera),
       status: normalizeStatus(rawStatus),
+      
       hasStatus: !!rawStatus,
+      nucleos: text(filters.nucleos),
       search: text(filters.search || filters.query).toLowerCase(),
       requirements: array(
         filters.requirements || filters.requisitos
@@ -364,12 +366,24 @@ Función:
       return false;
     }
 
+    
+    if(
+      filters.nucleos &&
+      window.TablaNucleosPolicy &&
+      typeof window.TablaNucleosPolicy.matches === "function" &&
+      !window.TablaNucleosPolicy.matches(row, filters.nucleos)
+    ){
+      return false;
+    }
+
     if(filters.search && searchableText(row).indexOf(filters.search) < 0){
       return false;
     }
 
     if(
+      
       filters.requirements.length &&
+      !(filters.nucleos && filters.requirements.length === 1 && filters.requirements[0] === "falta") &&
       !filters.requirements.some(function(requirement){
         return hasRequirementMissing(row, requirement);
       })
