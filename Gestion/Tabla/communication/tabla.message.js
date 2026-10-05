@@ -97,6 +97,7 @@ Función:
 
   var TYPE_LABELS = {
     etapa: "Etapa actual",
+    nucleos: "Núcleos",
     requisitos: "Falta req.",
     falta: "Falta req.",
     urgente: "Urgente",
@@ -748,6 +749,95 @@ Función:
     return baseMensaje(row, "requisitos", options);
   }
 
+  function generarMensajeNucleos(row, options){
+    row = row || {};
+    options = options || {};
+
+    var data = datosEstudiante(row);
+    var policy = window.TablaNucleosPolicy || null;
+    var analysis = policy && typeof policy.analyze === "function"
+      ? policy.analyze(row)
+      : null;
+
+    var requiredKeys = policy && Array.isArray(policy.requiredKeys)
+      ? policy.requiredKeys
+      : [
+          "academico",
+          "documentacion",
+          "practicasvinculacion",
+          "vinculacion",
+          "seguimientograduados",
+          "ingles",
+          "actualizaciondatos",
+          "financiero"
+        ];
+
+    var fallbackLabels = {
+      academico: "Académico",
+      documentacion: "Documentación",
+      practicasvinculacion: "Prácticas preprofesionales",
+      vinculacion: "Vinculación",
+      seguimientograduados: "Seguimiento a graduados",
+      ingles: "Inglés",
+      actualizaciondatos: "Actualización de datos",
+      financiero: "Financiero"
+    };
+
+    function labelFor(id){
+      return policy && policy.labelsMap && policy.labelsMap[id]
+        ? policy.labelsMap[id]
+        : (fallbackLabels[id] || id);
+    }
+
+    var lines = [
+      "Saludos, " + data.nombre + ".",
+      "",
+      "Desde el área de Titulación se informa su estado para el ingreso a Núcleos correspondiente al período " +
+        (data.periodo || "—") + ".",
+      "",
+      "Para ingresar a Núcleos deben constar completos los siguientes requisitos:"
+    ];
+
+    requiredKeys.forEach(function(id){
+      lines.push("• " + labelFor(id));
+    });
+
+    if(analysis && analysis.apto){
+      lines.push(
+        "",
+        "Su registro cumple con los ocho requisitos. Está habilitado para ingresar a Núcleos."
+      );
+    }else if(analysis){
+      lines.push(
+        "",
+        "Su registro aún no cumple todos los requisitos para ingresar a Núcleos.",
+        "",
+        "Requisitos pendientes o por validar:"
+      );
+
+      analysis.incomplete.forEach(function(id){
+        lines.push("• " + labelFor(id));
+      });
+    }else{
+      lines.push(
+        "",
+        "No fue posible determinar automáticamente su habilitación para Núcleos. Su registro requiere revisión."
+      );
+    }
+
+    lines.push(
+      "",
+      "Titulación no forma parte de los requisitos de ingreso a Núcleos.",
+      "",
+      "Para orientación general sobre el proceso de titulación, puede comunicarse al " +
+        CONTACTO_GENERAL + ".",
+      "",
+      firma(options)
+    );
+
+    return lines.join("\n");
+  }
+
   function generarMensajeTipo(row, tipo, options){
     return baseMensaje(row, tipo || "requisitos", options);
   }
@@ -806,6 +896,13 @@ Función:
       );
     }
 
+    if(type === "nucleos"){
+      return generarMensajeNucleos(
+        row,
+        options
+      );
+    }
+
     if(type === "cronograma"){
       return generarMensajeCronograma(
         row,
@@ -854,6 +951,7 @@ Función:
     contactosPorPendientes: contactosPorPendientes,
     aplicarVariables: aplicarVariables,
     generarMensajeEtapa: generarMensajeEtapa,
+    generarMensajeNucleos: generarMensajeNucleos,
     generarMensajeRequisitos: generarMensajeRequisitos,
     generarMensajeTipo: generarMensajeTipo,
     generarMensajeCronograma: generarMensajeCronograma,
