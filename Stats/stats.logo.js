@@ -3,7 +3,7 @@
 "use strict";
 var KEY="itsqmet:requisitos:stats:report-logo:v1";
 var DEFAULT_LOGO="../Global/assets/branding/logo-instituto.png";
-var MAX_FILE=5*1024*1024,MAX_DATA=900000,pending=null,bound=false;
+var MAX_FILE=5*1024*1024,MAX_DATA=900000,pending=null,bound=false,selectionRevision=0;
 function el(id){return document.getElementById(id);}
 function stored(){
   try{
@@ -23,13 +23,14 @@ function preview(src){
 function refreshButton(){var button=el("stats-logo-button");if(button){var has=!!getDataUrl();button.classList.toggle("is-set",has);button.title=has?"Cambiar logo guardado para los PDF":"Cargar logo para los PDF de Estadísticas";}}
 function open(){
   var dialog=el("stats-logo-dialog");if(!dialog){return;}
+  selectionRevision+=1;
   pending=null;var file=el("stats-logo-file"),save=el("stats-logo-save");
   if(file){file.value="";}if(save){save.disabled=true;}
   preview(getDataUrl());
   status(getDataUrl()?"Logo guardado en este equipo. Puedes reemplazarlo.":"Selecciona un PNG, JPG o WEBP (máximo 5 MB).",false);
   if(!dialog.open){dialog.showModal();}
 }
-function close(){var dialog=el("stats-logo-dialog");if(dialog&&dialog.open){dialog.close();}}
+function close(){selectionRevision+=1;pending=null;var dialog=el("stats-logo-dialog");if(dialog&&dialog.open){dialog.close();}}
 function convert(file){
   return new Promise(function(resolve,reject){
     if(!file||["image/png","image/jpeg","image/webp"].indexOf(file.type)<0){reject(new Error("Selecciona un archivo PNG, JPG o WEBP."));return;}
@@ -38,7 +39,7 @@ function convert(file){
     function cleanup(){if(!done){done=true;URL.revokeObjectURL(url);}}
     image.onload=function(){
       try{
-        var w=image.naturalWidth,h=image.naturalHeight;if(!w||!h){throw new Error("Imagen sin dimensiones válidas.");}
+        var w=image.naturalWidth,h=image.naturalHeight;if(!w||!h||w*h>50000000){throw new Error("La imagen no tiene dimensiones compatibles.");}
         var scale=Math.min(1,1400/w,650/h),canvas=document.createElement("canvas");
         canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
         var ctx=canvas.getContext("2d");if(!ctx){throw new Error("No se pudo procesar la imagen.");}
@@ -55,13 +56,15 @@ function convert(file){
 }
 function onChoose(event){
   var file=event.target.files&&event.target.files[0],save=el("stats-logo-save");
+  var revision=++selectionRevision;
   pending=null;if(save){save.disabled=true;}if(!file){return;}
   status("Preparando vista previa...",false);
   convert(file).then(function(value){
+    if(revision!==selectionRevision){return;}
     pending=value;preview(value.dataUrl);
     status("Imagen lista: "+value.filename+". Haz clic en Guardar logo.",false);
     if(save){save.disabled=false;}
-  }).catch(function(error){status(error.message||String(error),true);});
+  }).catch(function(error){if(revision===selectionRevision){status(error.message||String(error),true);}});
 }
 function save(){
   if(!pending){status("Selecciona una imagen antes de guardar.",true);return;}

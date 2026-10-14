@@ -277,7 +277,26 @@ Función o funciones:
   function waitForImages(container){
     var images=Array.prototype.slice.call(container.querySelectorAll("img"));
     if(!images.length){return Promise.resolve();}
-    return Promise.all(images.map(function(image){if(image.complete){return Promise.resolve();}return new Promise(function(resolve){image.onload=resolve;image.onerror=resolve;setTimeout(resolve,1800);});}));
+    return Promise.all(images.map(function(image){
+      return new Promise(function(resolve,reject){
+        var finished=false,timer=null;
+        function settle(error){
+          if(finished){return;}
+          finished=true;
+          if(timer!==null){clearTimeout(timer);}
+          image.removeEventListener("load",onLoad);
+          image.removeEventListener("error",onError);
+          if(error){reject(error);}else{resolve();}
+        }
+        function failed(){return new Error("No se pudo cargar el logo institucional para el PDF de estudiantes. En Estadísticas > Cierre, pulsa Logo y selecciona la imagen.");}
+        function onLoad(){settle(image.naturalWidth>0?null:failed());}
+        function onError(){settle(failed());}
+        if(image.complete){onLoad();return;}
+        image.addEventListener("load",onLoad);
+        image.addEventListener("error",onError);
+        timer=setTimeout(function(){settle(failed());},4000);
+      });
+    }));
   }
 
   function exportPdf(){

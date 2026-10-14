@@ -26,6 +26,8 @@ check(html.includes("stats.logo.js")&&html.includes('id="stats-logo-button"')&&h
 check(logoController.includes("localStorage.setItem")&&logoController.includes("getPdfSource")&&logoController.includes("getDataUrl"),"El logo debe persistir localmente");
 check(pdf.includes("window.StatsLogo.getDataUrl"),"El PDF de cierre debe leer el logo cargado");
 check(studentsExport.includes("window.StatsLogo.getPdfSource"),"El PDF de estudiantes debe leer el logo cargado");
+check(studentsExport.includes("image.naturalWidth>0")&&studentsExport.includes("reject(error)")&&studentsExport.includes("En Estadísticas > Cierre, pulsa Logo"),"El PDF de estudiantes debe detenerse cuando no se carga el logo");
+check(logoController.includes("selectionRevision")&&logoController.includes("revision!==selectionRevision"),"La carga anterior de un logo no debe sobrescribir una selección nueva");
 check(!html.includes("node_modules/jspdf"),"Stats no debe depender de jsPDF instalado en node_modules");
 check(!html.includes("html2pdf.bundle"),"Stats no debe cargar html2pdf para el cierre");
 check(!pdf.includes("window.jspdf")&&!pdf.includes("new JsPDF")&&!pdf.includes("node_modules/jspdf"),"El generador PDF no debe depender de jsPDF");

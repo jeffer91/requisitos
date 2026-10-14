@@ -36,6 +36,9 @@ jobs:
       - name: Validate installer configuration
         run: npm run test:installer
 
+      - name: Validate Stats PDF and logo
+        run: node scripts/verify-stats-closure-pdf.js
+
       - name: Validate tag matches package version
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
