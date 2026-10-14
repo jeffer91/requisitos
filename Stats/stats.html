@@ -55,6 +55,7 @@ Función o funciones:
           <div><p class="stats-eyebrow">Reporte de cierre</p><h1>Cierre del período</h1></div>
           <div class="stats-closure-head-actions">
             <span id="stats-closure-scope" class="stats-period-chip">Selecciona un período</span>
+            <button id="stats-logo-button" class="stats-logo-trigger" type="button" title="Cargar logo para los PDF de Estadísticas">Logo</button>
             <button id="stats-closure-pdf" type="button" title="Descargar reporte de cierre en PDF" disabled>PDF</button>
           </div>
         </div>
@@ -198,8 +199,26 @@ Función o funciones:
     </section>
   </main>
 
+  <dialog id="stats-logo-dialog" class="stats-logo-dialog" aria-labelledby="stats-logo-title">
+    <div class="stats-logo-dialog-head">
+      <div><h2 id="stats-logo-title">Logo de los reportes</h2><p>Selecciona el logo institucional de los PDF de Estadísticas. Se guarda solamente en este equipo.</p></div>
+      <button id="stats-logo-close" class="stats-logo-close" type="button" aria-label="Cerrar">×</button>
+    </div>
+    <div class="stats-logo-preview-wrap">
+      <img id="stats-logo-preview" alt="Vista previa del logo seleccionado" hidden>
+      <p id="stats-logo-hint">Todavía no has seleccionado un logo personalizado.</p>
+    </div>
+    <input id="stats-logo-file" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" hidden>
+    <p id="stats-logo-message" class="stats-logo-message" role="status" aria-live="polite"></p>
+    <div class="stats-logo-dialog-actions">
+      <button id="stats-logo-select" type="button">Seleccionar imagen</button>
+      <button id="stats-logo-cancel" type="button">Cancelar</button>
+      <button id="stats-logo-save" type="button" disabled>Guardar logo</button>
+    </div>
+  </dialog>
   <script src="../BDLocal/adapters/bdl.screen-deps.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+  <script src="stats.logo.js"></script>
   <script src="stats.bootstrap.js"></script>
   <script src="stats.numeric-tables.js"></script>
   <script src="stats.closure.pdf.vector.js"></script>

@@ -139,11 +139,12 @@ Función:
 
   function loadInstitutionalLogo(){
     return new Promise(function(resolve,reject){
+      var customUrl=window.StatsLogo&&window.StatsLogo.getDataUrl&&window.StatsLogo.getDataUrl();
       var image=new Image();
       image.onload=function(){
         try{
-          var scale=2,canvas=document.createElement("canvas"),w=Math.max(1,image.naturalWidth||image.width),h=Math.max(1,image.naturalHeight||image.height);
-          canvas.width=w*scale;canvas.height=h*scale;
+          var w=Math.max(1,image.naturalWidth||image.width),h=Math.max(1,image.naturalHeight||image.height),scale=Math.min(2,1600/w,900/h),canvas=document.createElement("canvas");
+          canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
           var ctx=canvas.getContext("2d");if(!ctx){throw new Error("Canvas no está disponible para preparar el logo.");}
           ctx.fillStyle="#071A33";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
           var dataUrl=canvas.toDataURL("image/jpeg",0.94),base64=dataUrl.split(",")[1];
@@ -151,8 +152,8 @@ Función:
           resolve({bytes:base64Bytes(base64),width:canvas.width,height:canvas.height,name:"ImLogo"});
         }catch(error){reject(error);}
       };
-      image.onerror=function(){reject(new Error("No se pudo cargar el logo institucional: "+LOGO_PATH));};
-      try{image.src=new URL(LOGO_PATH,document.baseURI).href;}catch(error){reject(error);}
+      image.onerror=function(){reject(new Error("No se pudo cargar el logo institucional. Haz clic en Logo y selecciona una imagen antes de generar el PDF."));};
+      try{image.src=customUrl||new URL(LOGO_PATH,document.baseURI).href;}catch(error){reject(error);}
     });
   }
 
@@ -162,7 +163,7 @@ Función:
   PdfBuilder.prototype.line=function(x1,y1,x2,y2,color,width){this.page.push(rgb(color||[203,213,225])+" RG "+fmt(width||0.5)+" w "+fmt(x1)+" "+fmt(y1)+" m "+fmt(x2)+" "+fmt(y2)+" l S");};
   PdfBuilder.prototype.rect=function(x,y,w,h,fill,stroke){var commands=[];if(fill){commands.push(rgb(fill)+" rg");}if(stroke){commands.push(rgb(stroke)+" RG");}commands.push(fmt(x)+" "+fmt(y)+" "+fmt(w)+" "+fmt(h)+" re "+(fill&&stroke?"B":fill?"f":"S"));this.page.push(commands.join(" "));};
   PdfBuilder.prototype.text=function(x,y,value,size,bold,color){this.page.push("BT /"+(bold?"F2":"F1")+" "+fmt(size||9)+" Tf "+rgb(color||[23,32,51])+" rg 1 0 0 1 "+fmt(x)+" "+fmt(y)+" Tm ("+pdfString(value)+") Tj ET");};
-  PdfBuilder.prototype.image=function(x,y,w,h){if(!this.logo){return;}this.page.push("q "+fmt(w)+" 0 0 "+fmt(h)+" "+fmt(x)+" "+fmt(y)+" cm /ImLogo Do Q");};
+  PdfBuilder.prototype.image=function(x,y,w,h){if(!this.logo){return;}var iw=Math.max(1,this.logo.width),ih=Math.max(1,this.logo.height),scale=Math.min(w/iw,h/ih),rw=iw*scale,rh=ih*scale;this.page.push("q "+fmt(rw)+" 0 0 "+fmt(rh)+" "+fmt(x+(w-rw)/2)+" "+fmt(y+(h-rh)/2)+" cm /ImLogo Do Q");};
   PdfBuilder.prototype.textWidth=function(value,size,bold){var s=cleanPdfText(value),units=0;for(var i=0;i<s.length;i+=1){var ch=s[i];if(ch===" "){units+=0.28;}else if(/[A-ZÁÉÍÓÚÜÑ0-9]/.test(ch)){units+=0.58;}else if(/[.,:;!|ilI'`]/.test(ch)){units+=0.26;}else{units+=0.5;}}return units*(Number(size)||9)*(bold?1.04:1);};
   PdfBuilder.prototype.wrap=function(value,width,size,bold){var words=cleanPdfText(value).split(/\s+/).filter(Boolean);if(!words.length){return [""];}var lines=[],line="";for(var i=0;i<words.length;i+=1){var candidate=line?line+" "+words[i]:words[i];if(this.textWidth(candidate,size,bold)<=width){line=candidate;continue;}if(line){lines.push(line);line="";}if(this.textWidth(words[i],size,bold)<=width){line=words[i];continue;}var part="";for(var j=0;j<words[i].length;j+=1){var next=part+words[i][j];if(part&&this.textWidth(next,size,bold)>width){lines.push(part);part=words[i][j];}else{part=next;}}line=part;}if(line){lines.push(line);}return lines;};
   PdfBuilder.prototype.paragraph=function(value,size,leading,indent,color){size=size||9;leading=leading||13;indent=indent||0;var lines=this.wrap(value,this.W-(this.M*2)-indent,size,false);this.ensure(lines.length*leading+8);for(var i=0;i<lines.length;i+=1){this.text(this.M+indent,this.y,lines[i],size,false,color||[23,32,51]);this.y-=leading;}this.y-=8;};

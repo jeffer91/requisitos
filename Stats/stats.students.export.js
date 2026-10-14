@@ -241,8 +241,9 @@ Función o funciones:
       var number=(pageIndex*ROWS_PER_PAGE)+index+1;
       return '<tr><td class="num">'+number+'</td><td class="name">'+escapeHtml(studentName(row))+'</td><td class="id">'+escapeHtml(studentId(row))+'</td><td>'+escapeHtml(studentCareer(row))+'</td><td>'+escapeHtml(statusText(row,dataset))+'</td></tr>';
     }).join("");
+    var reportLogo=window.StatsLogo&&window.StatsLogo.getPdfSource?window.StatsLogo.getPdfSource():LOGO_PATH;
     return '<section class="stats-export-page">'
-      +'<header class="stats-export-header"><img src="'+escapeHtml(LOGO_PATH)+'" alt="Logo institucional"><div><div class="eyebrow">Unidad de Titulación y Eficiencia Terminal</div><h1>Reporte de estudiantes</h1><p>Requisitos · vista filtrada de estadísticas</p></div><div class="count"><strong>'+meta.total+'</strong><span>estudiantes</span></div></header>'
+      +'<header class="stats-export-header"><img src="'+escapeHtml(reportLogo)+'" alt="Logo institucional"><div><div class="eyebrow">Unidad de Titulación y Eficiencia Terminal</div><h1>Reporte de estudiantes</h1><p>Requisitos · vista filtrada de estadísticas</p></div><div class="count"><strong>'+meta.total+'</strong><span>estudiantes</span></div></header>'
       +'<div class="stats-export-meta">'
       +'<div><span>Período</span><strong>'+escapeHtml(meta.periodo)+'</strong></div><div><span>Sede</span><strong>'+escapeHtml(meta.sede)+'</strong></div><div><span>División</span><strong>'+escapeHtml(meta.division)+'</strong></div><div><span>Matrícula</span><strong>'+escapeHtml(meta.matricula)+'</strong></div>'
       +'<div><span>Carrera</span><strong>'+escapeHtml(meta.carrera)+'</strong></div><div><span>Requisito</span><strong>'+escapeHtml(meta.requisito)+'</strong></div><div><span>Estado</span><strong>'+escapeHtml(meta.estado)+'</strong></div><div><span>Vista</span><strong>'+escapeHtml(meta.vista)+'</strong></div>'

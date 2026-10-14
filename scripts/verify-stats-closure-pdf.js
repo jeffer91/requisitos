@@ -14,12 +14,18 @@ function ascii(bytes,start,end){let out="";const from=Math.max(0,Number(start||0
 const htmlFile="Stats/stats.html";
 const pdfFile="Stats/stats.closure.pdf.vector.js";
 const closureFile="Stats/stats.closure.js";
+const logoControllerFile="Stats/stats.logo.js";
+const studentsExportFile="Stats/stats.students.export.js";
 const logoFile="Global/assets/branding/logo-instituto.png";
-[closureFile,pdfFile].forEach(syntax);
+[closureFile,pdfFile,logoControllerFile,studentsExportFile].forEach(syntax);
 
-const html=read(htmlFile),pdf=read(pdfFile),closure=read(closureFile);
+const html=read(htmlFile),pdf=read(pdfFile),closure=read(closureFile),logoController=read(logoControllerFile),studentsExport=read(studentsExportFile);
 check(fs.existsSync(path.join(ROOT,logoFile)),"Debe existir el logo institucional usado por el PDF");
 check(html.includes("stats.closure.pdf.vector.js"),"Stats debe cargar el generador PDF de cierre");
+check(html.includes("stats.logo.js")&&html.includes('id="stats-logo-button"')&&html.includes('id="stats-logo-dialog"'),"Debe existir un botón y una ventana para cargar el logo");
+check(logoController.includes("localStorage.setItem")&&logoController.includes("getPdfSource")&&logoController.includes("getDataUrl"),"El logo debe persistir localmente");
+check(pdf.includes("window.StatsLogo.getDataUrl"),"El PDF de cierre debe leer el logo cargado");
+check(studentsExport.includes("window.StatsLogo.getPdfSource"),"El PDF de estudiantes debe leer el logo cargado");
 check(!html.includes("node_modules/jspdf"),"Stats no debe depender de jsPDF instalado en node_modules");
 check(!html.includes("html2pdf.bundle"),"Stats no debe cargar html2pdf para el cierre");
 check(!pdf.includes("window.jspdf")&&!pdf.includes("new JsPDF")&&!pdf.includes("node_modules/jspdf"),"El generador PDF no debe depender de jsPDF");
@@ -86,6 +92,9 @@ try{
     check(raw.includes("No aprobaron art"),"El PDF debe contener la categoría de artículo o defensa");
     check(!raw.includes("Detalle de quienes no llegaron"),"El PDF generado no debe contener el detalle nominal excluido");
     check(validation&&validation.ok===true&&validation.pages>=7,"La validación interna debe aprobar portada y seis secciones");
+    const logo={width:800,height:200,bytes:new Uint8Array([255,216,255,217])};
+    const branded=api.buildPdfBytes(report,rows,meta,logo),rawBranded=ascii(branded,0,branded.length);
+    check(rawBranded.includes("/Subtype /Image")&&rawBranded.includes("/ImLogo Do"),"El PDF debe integrar el logo elegido");
   }
 }catch(error){errors.push(`No se pudo ejecutar el generador PDF nativo: ${error.message}`);}
 
