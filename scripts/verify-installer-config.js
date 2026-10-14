@@ -35,7 +35,12 @@ check(!!(pkg.devDependencies && pkg.devDependencies["electron-builder"]), "Falta
 check(build.appId === "ec.itsqmet.requisitos", "appId debe permanecer estable: ec.itsqmet.requisitos.");
 check(build.productName === "Requisitos", "build.productName debe ser Requisitos.");
 check(build.asar === true, "ASAR debe estar habilitado.");
-check(win.icon === "electron/assets/icon.svg", "El icono de Windows debe ser electron/assets/icon.svg.");
+check(win.icon === "electron/assets/icon.ico", "El icono de Windows debe ser electron/assets/icon.ico.");
+check(exists("electron/assets/icon.ico"), "Falta el icono de Windows en formato ICO.");
+if(exists("electron/assets/icon.ico")){
+  const ico = fs.readFileSync(path.join(root, "electron/assets/icon.ico"));
+  check(ico.length >= 22 && ico[0] === 0 && ico[1] === 0 && ico[2] === 1 && ico[3] === 0, "El archivo icon.ico no es un icono Windows válido.");
+}
 check(Array.isArray(win.target) && win.target.some((item)=>item && item.target === "nsis"), "Windows debe generar un destino NSIS.");
 check(nsis.deleteAppDataOnUninstall === false, "El desinstalador no debe borrar los datos locales.");
 check(nsis.createDesktopShortcut === true, "Debe crearse acceso directo de escritorio.");
@@ -48,6 +53,7 @@ check(publish.owner === "jeffer91" && publish.repo === "requisitos", "GitHub pub
   "electron/main.js",
   "electron/preload.js",
   "electron/assets/icon.svg",
+  "electron/assets/icon.ico",
   ".github/workflows/release-windows.yml"
 ].forEach((file)=>check(exists(file), `Falta ${file}.`));
 

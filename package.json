@@ -128,7 +128,7 @@
           ]
         }
       ],
-      "icon": "electron/assets/icon.svg",
+      "icon": "electron/assets/icon.ico",
       "artifactName": "Requisitos-Setup-${version}.${ext}"
     },
     "nsis": {

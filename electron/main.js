@@ -257,6 +257,7 @@ async function openSisacadWindow(){
   }
 
   snSisacadWindow=new BrowserWindow({
+    icon:path.join(__dirname,"assets","icon.ico"),
     width:1280,
     height:850,
     minWidth:1000,
@@ -419,6 +420,7 @@ async function runPruebaVisible(estudiantes){
 function createMainWindow(){
   const entryFile=findEntryFile();
   mainWindow=new BrowserWindow({
+    icon:path.join(__dirname,"assets","icon.ico"),
     width:1380,
     height:860,
     minWidth:1100,
