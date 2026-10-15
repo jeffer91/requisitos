@@ -350,6 +350,12 @@ Con qué se conecta:
   cursor: help;
 }
 
+.def-requirement-mini.is-not-loaded {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
 /* =========================================================
    Alerta minimalista y prioritaria de requisitos en Defensas
 ========================================================= */
