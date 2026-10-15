@@ -309,14 +309,6 @@ Con qué se conecta:
   font-size: 11.5px;
 }
 
-.def-floating-save{
-  min-height: 44px;
-  padding: 0 24px;
-  border-radius: 999px;
-  font-size: 13px;
-  box-shadow: 0 16px 36px rgba(37,99,235,.30);
-}
-
 @media (max-width: 900px){
   .def-table{
     min-width: 1060px;
@@ -333,6 +325,30 @@ Con qué se conecta:
   }
 }
 
+
+/* Estado académico visible y aviso independiente de requisitos */
+.def-state-wrap{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.def-requirement-mini{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #fca5a5;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: help;
+}
 
 /* =========================================================
    Alerta minimalista y prioritaria de requisitos en Defensas

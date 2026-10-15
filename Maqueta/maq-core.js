@@ -196,9 +196,9 @@ Función:
     if(!module){console.error("[MAQ_CORE] Módulo no registrado:",moduleId);status("Módulo no registrado: "+moduleId);return false;}
     if(shouldPrepareBaseLocal(canonical)){ensureBaseLocalReady();}
     var item=ensureFrame(canonical,{preload:false});if(!item||!item.iframe){status("No se pudo abrir: "+(module.nombre||canonical));return false;}
-    if(state.moduloActivoId===canonical){hideAll();setFrameVisible(item,true);label(module.nombre);syncPeriodGlobal(item.iframe);emit("modulo:reabierto",{moduloId:canonical,modulo:module});enforceFrameLimit();return true;}
+    if(state.moduloActivoId===canonical){hideAll();setFrameVisible(item,true);label(module.nombre);status("Pantalla activa: "+module.nombre);syncPeriodGlobal(item.iframe);emit("modulo:reabierto",{moduloId:canonical,modulo:module});enforceFrameLimit();return true;}
     state.moduloAnteriorId=state.moduloActivoId;state.moduloActivoId=canonical;saveNav(state.moduloActivoId,state.moduloAnteriorId);
-    hideAll();setFrameVisible(item,true);label(module.nombre);syncPeriodGlobal(item.iframe);enforceFrameLimit();
+    hideAll();setFrameVisible(item,true);label(module.nombre);status("Pantalla activa: "+module.nombre);syncPeriodGlobal(item.iframe);enforceFrameLimit();
     emit("modulo:cambiado",{moduloId:canonical,modulo:module,anteriorModuloId:state.moduloAnteriorId});schedulePreload();return true;
   }
   function previous(){if(state.moduloAnteriorId){var previousId=state.moduloAnteriorId;state.moduloAnteriorId=state.moduloActivoId;return navigate(previousId);}return navigate(state.moduloInicialId);}

@@ -16,7 +16,8 @@ const eligibilityFile="BDLocal/rules/bdl.rules.defense-eligibility.js";
 const coreFile="defart/defart.core.js";
 const tableFile="defart/defart.table.js";
 const guardFile="defart/defart.requirements-guard.js";
-[connectorFile,bridgeFile,bootstrapFile,eligibilityFile,coreFile,tableFile,guardFile].forEach(syntax);
+const serviceFile="BDLocal/services/bdl.service.defensas.js";
+[connectorFile,bridgeFile,bootstrapFile,eligibilityFile,coreFile,tableFile,guardFile,serviceFile].forEach(syntax);
 
 const connector=read(connectorFile);
 const bootstrap=read(bootstrapFile);
@@ -24,6 +25,10 @@ const bridgeSource=read(bridgeFile);
 const coreSource=read(coreFile);
 const tableSource=read(tableFile);
 const guardSource=read(guardFile);
+const serviceSource=read(serviceFile);
+const defartHtml=read("defart/defart.html");
+const compactCss=read("defart/defart.compact.css");
+const maquetaCore=read("Maqueta/maq-core.js");
 check(connector.includes('return {periodoId:periodoId,cedula:cedula,localId:cedula&&periodoId?cedula+"__"+periodoId'),"ConDefart debe construir la clave local cédula__período");
 check(connector.includes('baseChange("notas_titulacion"'),"ConDefart debe crear cambios específicos de notas");
 check(connector.includes('baseChange("historial"'),"ConDefart debe crear cambios de historial");
@@ -35,6 +40,31 @@ check(!bridgeSource.includes("N-ART bloqueada por requisitos"),"El guardado no d
 check(!coreSource.includes("N-ART bloqueada por requisitos"),"El núcleo no debe bloquear N-ART por requisitos.");
 check(tableSource.includes('var enabled = isArt ? true : shown._canDef;'),"La tabla debe mantener N-ART siempre habilitada.");
 check(guardSource.includes("_canArt: true"),"El guard de requisitos no debe deshabilitar N-ART.");
+check(serviceSource.includes("function firstRecordedNote(")&&!serviceSource.includes("row.Notart ||"),"El estado de notas debe conservar ceros sin usar OR lógico.");
+check((defartHtml.match(/id="def-btn-save"/g)||[]).length===1&&defartHtml.includes('class="def-inline-save"'),"El botón de guardado debe aparecer una sola vez.");
+check(!compactCss.includes(".def-floating-save")&&compactCss.includes(".def-inline-save"),"No debe quedar el botón flotante superpuesto.");
+check((maquetaCore.match(/status\("Pantalla activa: "\+module.nombre\);syncPeriodGlobal\(item.iframe\)/g)||[]).length===2,"La navegación debe indicar la pantalla activa en ambos recorridos.");
+
+const tableSandbox={console,document:{}};
+tableSandbox.window=tableSandbox;
+new vm.Script(read(tableFile),{filename:tableFile}).runInContext(vm.createContext(tableSandbox));
+const supletorioWithPending=tableSandbox.DefartTable.statePill({
+  _estadoDefensa:"Supletorio Art",_requirementsLoaded:true,_requirementsOk:false,_missingRequirements:["Financiero"]
+});
+check(supletorioWithPending.includes("Supletorio Art")&&supletorioWithPending.includes("def-requirement-mini"),"Supletorio Art debe ser visible aunque falten requisitos.");
+const incomplete=tableSandbox.DefartTable.statePill({
+  _estadoDefensa:"Sin requisitos",_requirementsLoaded:true,_requirementsOk:false
+});
+check(incomplete.includes("Req. incompletos"),"El estado real de requisitos incompletos se conserva.");
+const noteHelpers=serviceSource.slice(serviceSource.indexOf("  function firstRecordedNote("),serviceSource.indexOf("  function estadoLabel(estado){"));
+const noteStatus=new Function("text","numberOrNull",noteHelpers+"return notaEstado;")(
+  value=>String(value==null?"":value).trim(),
+  value=>value==null||String(value).trim()===""?null:Number(value)
+);
+check(noteStatus({Notart:0})==="ARTICULO_NO_APROBADO","N-ART 0 no es ausencia de nota.");
+check(noteStatus({Notart:0,Nart:9})==="ARTICULO_NO_APROBADO","N-ART 0 prevalece sobre alias.");
+check(noteStatus({Notart:8,Notdef:0})==="DEFENSA_NO_APROBADA","N-DEF 0 es defensa reprobada.");
+check(noteStatus({Notart:null})==="SIN_ARTICULO","La falta de nota sigue siendo pendiente.");
 
 
 const eligibilitySandbox={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Set};
@@ -57,6 +87,8 @@ const failedArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate({
   Notart:6.5
 });
 check(failedArticle.canArt===true&&failedArticle.stateLabel==="Supletorio Art","N-ART <7 debe quedar como Supletorio Art sin depender de requisitos.");
+const zeroArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate({tipoPeriodo:"PVC",Notart:0,Documentacion:"PENDIENTE"});
+check(zeroArticle.stateLabel==="Supletorio Art","N-ART 0 y requisitos pendientes debe conservar Supletorio Art.");
 
 const calls=[];
 const sandbox={

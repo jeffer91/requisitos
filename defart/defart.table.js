@@ -106,11 +106,16 @@ Con qué se conecta:
   }
   function statePill(row){
     row = row || {};
+    var estado = text(row._estadoDefensa || "Pendiente");
     var requirementState = requirementsVisualState(row);
-    if(requirementState){
+    var isRequirementState = estado === "Sin requisitos" || estado === "Requisitos no cargados";
+    if(isRequirementState && requirementState){
       return '<span class="def-pill def-requirement-alert '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'"><span class="def-requirement-alert-icon" aria-hidden="true"></span><span>'+esc(requirementState.label)+'</span></span>';
     }
-    return '<span class="def-pill '+esc(stateClass(row))+'">'+esc(row._estadoDefensa || "Pendiente")+'</span>';
+    var warning = requirementState
+      ? '<span class="def-requirement-mini" role="img" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'">!</span>'
+      : "";
+    return '<span class="def-state-wrap"><span class="def-pill '+esc(stateClass(row))+'">'+esc(estado)+'</span>'+warning+'</span>';
   }
   function sortIcon(key, options){
     if(!options || options.sortKey !== key){ return '<span class="def-sort-icon">↕</span>'; }

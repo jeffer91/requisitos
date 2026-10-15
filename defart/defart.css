@@ -604,31 +604,6 @@ pre {
   overflow: auto;
 }
 
-.def-floating-save {
-  position: fixed;
-  right: 18px;
-  bottom: 14px;
-  z-index: 100;
-  min-height: 40px;
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-  box-shadow: 0 12px 28px rgba(37, 99, 235, .25);
-  padding: 0 20px;
-}
-
-.def-floating-save:hover:not(:disabled) {
-  background: var(--primary-dark);
-  border-color: var(--primary-dark);
-}
-
-.def-floating-save:disabled {
-  background: #cbd5e1;
-  border-color: #cbd5e1;
-  color: #475569;
-  box-shadow: none;
-}
-
 .nowrap {
   white-space: nowrap;
 }
@@ -678,9 +653,5 @@ pre {
     min-width: 180px;
   }
 
-  .def-floating-save {
-    left: 12px;
-    right: 12px;
-    width: calc(100% - 24px);
-  }
+
 }

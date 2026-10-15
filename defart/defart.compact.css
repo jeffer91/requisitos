@@ -229,11 +229,32 @@ input:focus {
   background: #f7faff;
 }
 
-.def-floating-save {
-  border-radius: 9px;
+.def-progress-info {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.def-inline-save {
+  position: static;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
+  margin-left: auto;
+  border-radius: 7px;
+  border: 1px solid var(--primary);
   background: var(--primary);
-  border-color: var(--primary);
-  box-shadow: 0 10px 24px rgba(30, 58, 138, .22);
+  color: #fff;
+  font-size: 10.5px;
+  box-shadow: 0 4px 10px rgba(30, 58, 138, .14);
+}
+.def-inline-save:hover:not(:disabled) {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+.def-inline-save:disabled {
+  background: #edf2f8;
+  border-color: #d1dbe9;
+  color: #64748b;
+  box-shadow: none;
 }
 
 .def-diagnostics-card {

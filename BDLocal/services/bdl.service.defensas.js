@@ -171,62 +171,35 @@ Función:
       );
   }
 
+  // El cero es una calificación válida; no usar OR lógico para elegir notas.
+  function firstRecordedNote(row, keys){
+    row = row || {};
+    for(var i = 0; i < keys.length; i += 1){
+      var value = row[keys[i]];
+      if(value !== null && value !== undefined && text(value) !== ""){
+        return value;
+      }
+    }
+    return null;
+  }
+
   function notaEstado(row){
     row = row || {};
-
-    var nart =
-      numberOrNull(
-        row.Notart ||
-        row.Nart ||
-        row.nart ||
-        row.notart ||
-        row.notaArticulo ||
-        row.articulo
-      );
-
-    var ndef =
-      numberOrNull(
-        row.Notdef ||
-        row.Ndef ||
-        row.ndef ||
-        row.notdef ||
-        row.notaDefensa ||
-        row.defensa
-      );
-
-    var nfin =
-      numberOrNull(
-        row.Notafinal ||
-        row.Nfinal ||
-        row.nfin ||
-        row.notafinal ||
-        row.notaFinal ||
-        row.final
-      );
-
-    if (nart == null){
-      return "SIN_ARTICULO";
-    }
-
-    if (nart < 7){
-      return "ARTICULO_NO_APROBADO";
-    }
-
-    if (ndef == null){
-      return "PENDIENTE_DEFENSA";
-    }
-
-    if (ndef < 7){
-      return "DEFENSA_NO_APROBADA";
-    }
-
-    if (nfin == null){
-      return "PENDIENTE_FINAL";
-    }
-
-    return nfin >= 7
-      ? "APROBADO"
-      : "NO_APROBADO";
+    var nart = numberOrNull(firstRecordedNote(row, [
+      "Notart","Nart","nart","notart","notaArticulo","articulo"
+    ]));
+    var ndef = numberOrNull(firstRecordedNote(row, [
+      "Notdef","Ndef","ndef","notdef","notaDefensa","defensa"
+    ]));
+    var nfin = numberOrNull(firstRecordedNote(row, [
+      "Notafinal","Nfinal","nfin","notafinal","notaFinal","final"
+    ]));
+    if(nart == null){ return "SIN_ARTICULO"; }
+    if(nart < 7){ return "ARTICULO_NO_APROBADO"; }
+    if(ndef == null){ return "PENDIENTE_DEFENSA"; }
+    if(ndef < 7){ return "DEFENSA_NO_APROBADA"; }
+    if(nfin == null){ return "PENDIENTE_FINAL"; }
+    return nfin >= 7 ? "APROBADO" : "NO_APROBADO";
   }
 
   function estadoLabel(estado){
