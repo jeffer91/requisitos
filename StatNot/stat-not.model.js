@@ -6,9 +6,42 @@
   function pick(row,names){for(var i=0;i<names.length;i++){if(text(row&&row[names[i]])){return text(row[names[i]]);}}return "";}
   function pct(a,b){return b?Math.round((a/b)*1000)/10:0;}
   function avg(values){values=(values||[]).filter(function(v){return Number.isFinite(v);});return values.length?Math.round(values.reduce(function(a,b){return a+b;},0)/values.length*100)/100:null;}
+  // Fase final = requisitos previos aplicables completos, sin Titulación.
+  function prerequisiteAssessment(row,rule){
+    rule=rule||window.BDLDefenseEligibility;
+    if(!rule||typeof rule.requirementsForStudent!=="function"||
+       typeof rule.valueOf!=="function"||typeof rule.isApproved!=="function"){
+      return {loaded:false,complete:false,applicable:0,missing:[]};
+    }
+    if(row&&row._bdlRequirementsLoaded===false){
+      return {loaded:false,complete:false,applicable:0,missing:[]};
+    }
+    var requirements=rule.requirementsForStudent(row||{});
+    if(!Array.isArray(requirements)||!requirements.length){
+      return {loaded:false,complete:false,applicable:0,missing:[]};
+    }
+    var missing=[],applicable=0;
+    requirements.forEach(function(req){
+      var name=text(req&&((req.key||req.label)||req));
+      var key=norm(name).replace(/[^a-z0-9]+/g,"");
+      if(key==="titulacion"||key==="aprobaciontitulacion"||
+         key==="aprobacioncomplexivoproyecto"){return;}
+      var engine=window.BL2RequirementsEngine||window.StatsRules;
+      if(engine&&typeof engine.requirementStatus==="function"){
+        try{
+          var status=engine.requirementStatus(row||{},name);
+          if(status&&status.applies===false){return;}
+        }catch(error){}
+      }
+      applicable++;
+      if(!rule.isApproved(rule.valueOf(row,req))){missing.push(text(req.label||name));}
+    });
+    return {loaded:true,complete:applicable>0&&missing.length===0,applicable:applicable,missing:missing};
+  }
   function decorate(row){
     row=row||{};var rule=window.BDLDefenseEligibility;if(!rule||typeof rule.evaluate!=="function"){throw new Error("BDLDefenseEligibility no está disponible.");}
     var e=rule.evaluate(row),rawNotes=typeof rule.notes==="function"?rule.notes(row):{};
+    var prior=prerequisiteAssessment(row,rule);
     var failedArt=e.nart!==null&&e.nart<7;
     var failedDef=e.nart!==null&&e.nart>=7&&e.ndef!==null&&e.ndef<7;
     var approved=e.noteState==="APROBADO";
@@ -25,6 +58,8 @@
       _snSede:pick(row,["sede","Sede","_sede"])||"Sin sede",
       _snNart:e.nart,_snNdef:e.ndef,_snNfin:e.nfin,
       _snRequirementsLoaded:e.requirementsLoaded,_snRequirementsOk:e.requirementsOk,
+      _snPrerequisitesLoaded:prior.loaded,_snReached:prior.complete,
+      _snPrerequisitesMissing:prior.missing,
       _snEligible:e.canDef===true,_snApproved:approved,_snFailed:failed,
       _snFailedArt:failedArt,_snFailedDef:failedDef,_snSupplement:failedArt||failedDef,
       _snMissingArt:missingArt,_snMissingDef:missingDef,_snMissingFinal:missingFinal,
@@ -39,8 +74,16 @@
     function count(key){return items.filter(function(x){return !!x[key];}).length;}
     var evaluated=items.filter(function(x){return x._snApproved||x._snFailed;}).length;
     var approved=count("_snApproved");
+    var reached=items.filter(function(x){return x._snReached===true;});
+    var approvedReached=reached.filter(function(x){return x._snApproved===true;}).length;
+    var failedReached=reached.filter(function(x){return x._snFailed===true;}).length;
+    var pendingReached=reached.length-approvedReached-failedReached;
     return {
-      total:items.length,requirementsComplete:items.filter(function(x){return x._snRequirementsLoaded&&x._snRequirementsOk;}).length,
+      total:items.length,reached:reached.length,notReached:items.length-reached.length,
+      approvedReached:approvedReached,failedReached:failedReached,
+      pendingReached:pendingReached,reachPct:pct(reached.length,items.length),
+      approvalReachedPct:pct(approvedReached,reached.length),
+      requirementsComplete:items.filter(function(x){return x._snRequirementsLoaded&&x._snRequirementsOk;}).length,
       requirementsIncomplete:items.filter(function(x){return x._snRequirementsLoaded&&!x._snRequirementsOk;}).length,
       requirementsNotLoaded:items.filter(function(x){return !x._snRequirementsLoaded;}).length,
       eligible:count("_snEligible"),approved:approved,failed:count("_snFailed"),failedArt:count("_snFailedArt"),failedDef:count("_snFailedDef"),
@@ -58,6 +101,7 @@
   function matchState(item,state){
     if(!state)return true;
     if(state==="eligible")return item._snEligible;
+    if(state==="reached")return item._snReached;
     if(state==="approved")return item._snApproved;
     if(state==="failed")return item._snFailed;
     if(state==="pending")return item._snMissingNotes;
@@ -68,5 +112,5 @@
     if(state==="missingDef")return item._snMissingDef;
     return true;
   }
-  window.StatNotModel={version:"1.0.0",text:text,norm:norm,pct:pct,decorate:decorate,summarize:summarize,groups:groups,matchState:matchState};
+  window.StatNotModel={version:"1.1.0-prerequisite-cohort",text:text,norm:norm,pct:pct,decorate:decorate,summarize:summarize,groups:groups,matchState:matchState,prerequisiteAssessment:prerequisiteAssessment};
 })(window);

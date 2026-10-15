@@ -29,7 +29,7 @@
         <label>División<select id="statnot-division"><option value="">Todas</option></select></label>
         <label>Matrícula<select id="statnot-matricula"><option value="ACTIVO">Activos</option><option value="RETIRADO">Retirados</option><option value="">Todos</option></select></label>
         <label class="is-wide">Carrera<select id="statnot-carrera"><option value="">Todas</option></select></label>
-        <label>Estado<select id="statnot-estado"><option value="">Todos</option><option value="eligible">Habilitados N-DEF</option><option value="approved">Aprobados</option><option value="failed">Reprobados</option><option value="pending">Faltan notas</option><option value="supplement">Supletorios</option><option value="blocked">Req. pendientes</option><option value="complete">Completos</option></select></label>
+        <label>Estado<select id="statnot-estado"><option value="">Todos</option><option value="reached">Llegaron fase final</option><option value="eligible">Habilitados N-DEF</option><option value="approved">Aprobados</option><option value="failed">Reprobados</option><option value="pending">Faltan notas</option><option value="supplement">Supletorios</option><option value="blocked">Req. pendientes</option><option value="complete">Completos</option></select></label>
         <button id="statnot-refresh" type="button">Actualizar</button>
       </section>
 
@@ -57,7 +57,7 @@
       </section>
 
       <section class="statnot-section" data-statnot-panel="aprobacion" hidden>
-        <div class="statnot-head"><div><p>Resultados</p><h1>Aprobación</h1></div><span>Aprobados / estudiantes evaluados</span></div>
+        <div class="statnot-head"><div><p>Resultados</p><h1>Aprobación</h1></div><span>Aprobados / estudiantes con requisitos previos completos (sin Titulación)</span></div>
         <div id="statnot-approval-kpis" class="statnot-kpis"></div>
         <article class="statnot-card"><header><h2>Aprobación por carrera</h2><span>Ordenado por porcentaje de aprobación</span></header><div id="statnot-approval-bars" class="statnot-bars"></div></article>
       </section>
@@ -79,7 +79,7 @@
         <article class="statnot-card statnot-student-tools">
           <input id="statnot-search" type="search" placeholder="Cédula, nombre, carrera, división o sede..." />
           <div id="statnot-quick-filters" class="statnot-quick">
-            <button type="button" class="is-active" data-quick="">Todos</button><button type="button" data-quick="eligible">Habilitados</button><button type="button" data-quick="approved">Aprobados</button><button type="button" data-quick="failed">Reprobados</button><button type="button" data-quick="missingArt">Falta Art</button><button type="button" data-quick="missingDef">Falta Def</button><button type="button" data-quick="supplement">Supletorios</button><button type="button" data-quick="blocked">Bloqueados</button>
+            <button type="button" class="is-active" data-quick="">Todos</button><button type="button" data-quick="reached">Llegaron</button><button type="button" data-quick="eligible">Habilitados</button><button type="button" data-quick="approved">Aprobados</button><button type="button" data-quick="failed">Reprobados</button><button type="button" data-quick="missingArt">Falta Art</button><button type="button" data-quick="missingDef">Falta Def</button><button type="button" data-quick="supplement">Supletorios</button><button type="button" data-quick="blocked">Bloqueados</button>
           </div>
         </article>
         <article class="statnot-card statnot-table-card"><div id="statnot-students-table"></div></article>

@@ -61,6 +61,38 @@ vm.runInNewContext(read("BDLocal/conexiones/cone.statnot.js"),{window:win,docume
   assert.strictEqual(summary.eligible,1,"Habilitados N-DEF");
   assert.strictEqual(summary.approved,1,"Conservar aprobado por notas");
   assert.strictEqual(summary.failed,1,"Conservar supletorio por artículo");
+  // La cohorte que llegó se determina por los ocho requisitos previos, no por Titulación.
+  assert.strictEqual(summary.reached,1,"Solo el estudiante con los ocho requisitos previos completos llegó");
+  assert.strictEqual(summary.approvedReached,1,"Aprobó un estudiante de quienes llegaron");
+  assert.strictEqual(summary.failedReached,0,"El reprobado con requisito pendiente no integra los que llegaron");
+  assert.strictEqual(summary.reachPct,50,"Llegada: 1/2");
+  assert.strictEqual(summary.approvalReachedPct,100,"Aprobación entre los que llegaron: 1/1");
+  const rowWithRegularPendingTit=Object.assign({},rows[0],{
+    tipoPeriodo:"REGULAR",Titulacion:"NO CUMPLE"
+  });
+  const regularDecorated=modelWindow.StatNotModel.decorate(rowWithRegularPendingTit);
+  assert.strictEqual(regularDecorated._snReached,true,"Titulación pendiente NO excluye al que completó requisitos previos");
+  assert.strictEqual(regularDecorated._snEligible,false,"Titulación sí puede bloquear la habilitación ordinaria");
+  const approvedWithoutBase=Object.assign({},rows[1],{Notart:8,Notdef:9});
+  const failedButReached=Object.assign({},rows[0],{Notart:5,Notdef:null});
+  const controlled=[
+    modelWindow.StatNotModel.decorate(rows[0]),
+    modelWindow.StatNotModel.decorate(approvedWithoutBase),
+    modelWindow.StatNotModel.decorate(failedButReached)
+  ];
+  const cohort=modelWindow.StatNotModel.summarize(controlled);
+  assert.strictEqual(cohort.total,3);
+  assert.strictEqual(cohort.reached,2);
+  assert.strictEqual(cohort.approved,2,"Aprobados generales incluyen resultados fuera de la cohorte previa");
+  assert.strictEqual(cohort.approvedReached,1,"No usar aprobados globales en el numerador de fase final");
+  assert.strictEqual(cohort.failedReached,1);
+  assert.strictEqual(cohort.approvalReachedPct,50,"Aprobación de fase final: 1/2");
+  assert.strictEqual(cohort.reachPct,66.7,"Llegada del período: 2/3");
+  const noReached=modelWindow.StatNotModel.summarize([controlled[1]]);
+  assert.strictEqual(noReached.reached,0);
+  assert.strictEqual(noReached.approvedReached,0);
+  assert.strictEqual(noReached.approvalReachedPct,0);
+
   const closureWindow={
     StatsApp:{getState:()=>({periodId:PERIOD,sede:"",division:"",career:""})},
     StatsRules:{

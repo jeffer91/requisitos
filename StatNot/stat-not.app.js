@@ -50,10 +50,25 @@
   function renderSummary(){
     var s=model().summarize(state.filtered),total=s.total;
     renderKpis("statnot-summary-kpis",[
-      kpi("Total estudiantes",s.total,"Universo filtrado"),kpi("Req. completos",s.requirementsComplete,"Listos por requisitos","is-blue"),kpi("Habilitados N-DEF",s.eligible,"Req. completos + N-ART ≥ 7","is-blue"),kpi("Aprobados",s.approved,"Proceso aprobado","is-good"),
-      kpi("Reprobados",s.failed,"Requieren supletorio","is-bad"),kpi("Faltan notas",s.missingNotes,"N-ART o N-DEF habilitada","is-warn"),kpi("Completos",s.complete,"Defensa aprobada","is-good"),kpi("Avance",percent(s.advancePct),s.complete+" de "+s.total,"is-blue")
+      kpi("Total estudiantes",s.total,"Universo filtrado"),
+      kpi("Llegaron a fase final",s.reached,"Requisitos previos completos; sin Titulación","is-blue"),
+      kpi("Aprobados de los que llegaron",s.approvedReached,s.approvedReached+" de "+s.reached,"is-good"),
+      kpi("% aprobación fase final",s.reached?percent(s.approvalReachedPct):"—",s.reached?s.approvedReached+" / "+s.reached+" que llegaron":"Sin estudiantes con requisitos previos completos","is-good"),
+      kpi("No llegaron",s.notReached,"Requisitos previos pendientes","is-warn"),
+      kpi("% llegaron",s.total?percent(s.reachPct):"—",s.reached+" de "+s.total+" estudiantes","is-blue"),
+      kpi("Req. completos",s.requirementsComplete,"Incluye Titulación cuando aplica","is-blue"),
+      kpi("Habilitados N-DEF",s.eligible,"Req. completos + N-ART ≥ 7","is-blue"),
+      kpi("Aprobados totales",s.approved,"Todos los estudiantes con notas aprobadas","is-good"),
+      kpi("Reprobados totales",s.failed,"Todos los estudiantes con notas reprobadas","is-bad"),
+      kpi("Faltan notas",s.missingNotes,"N-ART o N-DEF habilitada","is-warn"),
+      kpi("Avance de cohorte",s.total?percent(s.advancePct):"—",s.complete+" de "+s.total+" estudiantes","is-blue")
     ]);
-    el("statnot-general-bars").innerHTML=[bar("Aprobados",s.approved,total,"is-good"),bar("Reprobados",s.failed,total,"is-bad"),bar("Faltan notas",s.missingNotes,total,"is-warn"),bar("Req. pendientes",s.requirementsIncomplete+s.requirementsNotLoaded,total,"")].join("");
+    el("statnot-general-bars").innerHTML=[
+      bar("Llegaron a fase final",s.reached,total,"is-blue",s.reached+" / "+total),
+      bar("Aprobaron de los que llegaron",s.approvedReached,s.reached,"is-good",s.reached?percent(s.approvalReachedPct)+" · "+s.approvedReached+"/"+s.reached:"Sin grupo de fase final"),
+      bar("Reprobaron de los que llegaron",s.failedReached,s.reached,"is-bad",s.failedReached+" / "+s.reached),
+      bar("Pendientes de los que llegaron",s.pendingReached,s.reached,"is-warn",s.pendingReached+" / "+s.reached)
+    ].join("");
     el("statnot-coverage-bars").innerHTML=[bar("N-ART",s.withArt,total,"is-good"),bar("N-DEF",s.withDef,total,"is-good"),bar("N-FIN",s.withFinal,total,"is-good")].join("");
     var top=model().groups(state.filtered,"_snCarrera").sort(function(a,b){return b.summary.missingNotes-a.summary.missingNotes;}).slice(0,8);
     el("statnot-top-pending").innerHTML=top.length?'<div class="statnot-bars">'+top.map(function(g){return bar(g.label,g.summary.missingNotes,Math.max(1,g.summary.total),"is-warn",g.summary.missingNotes+" / "+g.summary.total);}).join("")+'</div>':'<div class="statnot-empty">Sin carreras para mostrar.</div>';
@@ -61,9 +76,9 @@
   }
   function renderCareers(){
     var groups=model().groups(state.filtered,"_snCarrera"),s=model().summarize(state.filtered);
-    renderKpis("statnot-career-kpis",[kpi("Carreras",groups.length,"Con estudiantes"),kpi("Habilitados N-DEF",s.eligible,"En todas las carreras","is-blue"),kpi("Faltan notas",s.missingNotes,"Pendientes reales","is-warn"),kpi("Avance general",percent(s.advancePct),s.complete+" completos","is-good")]);
-    var head=[{label:"Carrera"},{label:"Total",num:1},{label:"Hab. N-DEF",num:1},{label:"Falta N-ART",num:1},{label:"Falta N-DEF",num:1},{label:"Aprobados",num:1},{label:"Reprob./Sup.",num:1},{label:"Completos",num:1},{label:"Avance"}];
-    var rows=groups.map(function(g){var x=g.summary,c=g.label;return '<tr><td class="statnot-name">'+esc(c)+'</td><td class="num">'+detailButton(x.total,"all",c)+'</td><td class="num">'+detailButton(x.eligible,"eligible",c)+'</td><td class="num">'+detailButton(x.missingArt,"missingArt",c)+'</td><td class="num">'+detailButton(x.missingDef,"missingDef",c)+'</td><td class="num">'+detailButton(x.approved,"approved",c)+'</td><td class="num">'+detailButton(x.failed,"failed",c)+'</td><td class="num">'+detailButton(x.complete,"complete",c)+'</td><td>'+progress(x.advancePct)+'</td></tr>';});
+    renderKpis("statnot-career-kpis",[kpi("Carreras",groups.length,"Con estudiantes"),kpi("Llegaron fase final",s.reached,"Requisitos previos sin Titulación","is-blue"),kpi("Aprobados que llegaron",s.approvedReached,s.approvedReached+" / "+s.reached,"is-good"),kpi("% aprobación fase final",s.reached?percent(s.approvalReachedPct):"—","Sobre quienes llegaron","is-good")]);
+    var head=[{label:"Carrera"},{label:"Total",num:1},{label:"Llegaron",num:1},{label:"Hab. N-DEF",num:1},{label:"Falta N-ART",num:1},{label:"Falta N-DEF",num:1},{label:"Aprobados que llegaron",num:1},{label:"Reprob./Sup.",num:1},{label:"Completos",num:1},{label:"% aprob. llegados"}];
+    var rows=groups.map(function(g){var x=g.summary,c=g.label;return '<tr><td class="statnot-name">'+esc(c)+'</td><td class="num">'+detailButton(x.total,"all",c)+'</td><td class="num">'+detailButton(x.reached,"reached",c)+'</td><td class="num">'+detailButton(x.eligible,"eligible",c)+'</td><td class="num">'+detailButton(x.missingArt,"missingArt",c)+'</td><td class="num">'+detailButton(x.missingDef,"missingDef",c)+'</td><td class="num">'+x.approvedReached+'</td><td class="num">'+detailButton(x.failed,"failed",c)+'</td><td class="num">'+detailButton(x.complete,"complete",c)+'</td><td>'+(x.reached?progress(x.approvalReachedPct):"—")+'</td></tr>';});
     el("statnot-careers-table").innerHTML=wrapTable(head,rows);
   }
   function renderCoverage(){
@@ -76,9 +91,9 @@
   }
   function renderApproval(){
     var s=model().summarize(state.filtered);
-    renderKpis("statnot-approval-kpis",[kpi("Evaluados",s.evaluated,"Con resultado"),kpi("Aprobados",s.approved,percent(s.approvalPct),"is-good"),kpi("Reprob. N-ART",s.failedArt,"N-ART < 7","is-bad"),kpi("Reprob. N-DEF",s.failedDef,"N-DEF < 7","is-bad"),kpi("% aprobación",percent(s.approvalPct),"Sobre evaluados","is-blue"),kpi("Promedio N-FIN",num(s.avgFinal),"Final disponible","is-blue")]);
-    var groups=model().groups(state.filtered,"_snCarrera").filter(function(g){return g.summary.evaluated>0;}).sort(function(a,b){return b.summary.approvalPct-a.summary.approvalPct;});
-    el("statnot-approval-bars").innerHTML=groups.length?groups.map(function(g){return bar(g.label,g.summary.approved,g.summary.evaluated,g.summary.approvalPct>=70?"is-good":"is-warn",percent(g.summary.approvalPct)+" · "+g.summary.approved+"/"+g.summary.evaluated);}).join(""):'<div class="statnot-empty">Todavía no hay estudiantes evaluados.</div>';
+    renderKpis("statnot-approval-kpis",[kpi("Llegaron fase final",s.reached,"Requisitos previos sin Titulación","is-blue"),kpi("Aprobados que llegaron",s.approvedReached,s.approvedReached+" / "+s.reached,"is-good"),kpi("% aprobación llegados",s.reached?percent(s.approvalReachedPct):"—","Sobre quienes llegaron","is-blue"),kpi("Evaluados",s.evaluated,"Con resultado"),kpi("% aprobación evaluados",s.evaluated?percent(s.approvalPct):"—","Indicador histórico sobre evaluados","is-blue"),kpi("Promedio N-FIN",num(s.avgFinal),"Final disponible","is-blue")]);
+    var groups=model().groups(state.filtered,"_snCarrera").filter(function(g){return g.summary.reached>0;}).sort(function(a,b){return b.summary.approvalReachedPct-a.summary.approvalReachedPct;});
+    el("statnot-approval-bars").innerHTML=groups.length?groups.map(function(g){return bar(g.label,g.summary.approvedReached,g.summary.reached,g.summary.approvalReachedPct>=70?"is-good":"is-warn",percent(g.summary.approvalReachedPct)+" · "+g.summary.approvedReached+"/"+g.summary.reached);}).join(""):'<div class="statnot-empty">Ningún estudiante ha completado los requisitos previos con estos filtros.</div>';
   }
   function renderPending(){
     var s=model().summarize(state.filtered),groups=model().groups(state.filtered,"_snCarrera");
@@ -110,11 +125,11 @@
     if(kind==="all")return function(){return true;};
     if(kind==="reqIncomplete")return function(x){return x._snRequirementsLoaded&&!x._snRequirementsOk;};
     if(kind==="reqNotLoaded")return function(x){return !x._snRequirementsLoaded;};
-    var map={eligible:"eligible",approved:"approved",failed:"failed",missingArt:"missingArt",missingDef:"missingDef",pending:"pending",complete:"complete",supplement:"supplement"};
+    var map={reached:"reached",eligible:"eligible",approved:"approved",failed:"failed",missingArt:"missingArt",missingDef:"missingDef",pending:"pending",complete:"complete",supplement:"supplement"};
     if(kind==="failedArt")return function(x){return x._snFailedArt;};if(kind==="failedDef")return function(x){return x._snFailedDef;};
     return function(x){return model().matchState(x,map[kind]||"");};
   }
-  function detailLabel(kind){return {all:"Todos",eligible:"Habilitados N-DEF",approved:"Aprobados",failed:"Reprobados",missingArt:"Falta N-ART",missingDef:"Falta N-DEF habilitada",pending:"Faltan notas",complete:"Completos",supplement:"Supletorios",failedArt:"Supletorio N-ART",failedDef:"Supletorio N-DEF",reqIncomplete:"Requisitos incompletos",reqNotLoaded:"Requisitos no cargados"}[kind]||"Detalle";}
+  function detailLabel(kind){return {all:"Todos",reached:"Llegaron a fase final",eligible:"Habilitados N-DEF",approved:"Aprobados",failed:"Reprobados",missingArt:"Falta N-ART",missingDef:"Falta N-DEF habilitada",pending:"Faltan notas",complete:"Completos",supplement:"Supletorios",failedArt:"Supletorio N-ART",failedDef:"Supletorio N-DEF",reqIncomplete:"Requisitos incompletos",reqNotLoaded:"Requisitos no cargados"}[kind]||"Detalle";}
   function openDetail(kind,career){var items=state.filtered.filter(function(x){return (!career||x._snCarrera===career)&&detailPredicate(kind)(x);});el("statnot-modal-eyebrow").textContent=career||"Vista filtrada";el("statnot-modal-title").textContent=detailLabel(kind);el("statnot-modal-body").innerHTML='<div class="statnot-modal-summary">'+items.length+' estudiantes</div>'+studentTable(items);el("statnot-modal").hidden=false;el("statnot-modal").setAttribute("aria-hidden","false");}
   function closeModal(){el("statnot-modal").hidden=true;el("statnot-modal").setAttribute("aria-hidden","true");}
   function showSection(name){document.querySelectorAll("[data-statnot-panel]").forEach(function(n){var active=n.getAttribute("data-statnot-panel")===name;n.classList.toggle("is-active",active);n.hidden=!active;});document.querySelectorAll("[data-statnot-section]").forEach(function(n){n.classList.toggle("is-active",n.getAttribute("data-statnot-section")===name);});}
