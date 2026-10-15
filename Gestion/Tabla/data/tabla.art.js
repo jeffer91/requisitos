@@ -153,7 +153,7 @@
     if(!isRow&&id!=="tabla-tg-tipo"&&id!=="tabla-mass-tipo"){return;}
     var app=window.TablaApp;
     var s=app&&typeof app.getState==="function"?app.getState():{};
-    if(!s.periodId){return;}
+    if(!s.periodId || isLoaded(s.periodId)){return;}
     load(s.periodId).then(function(){
       if((id==="tabla-tg-tipo"||id==="tabla-mass-tipo")&&
          node.value==="art"){
