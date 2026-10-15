@@ -106,6 +106,7 @@ Función:
     regularizar: "Regularizar",
     notaarticulo: "Falta N-Art",
     notadefensa: "Falta N-Def",
+    art: "Art — nota inferior a 7",
     sinarticulo: "Sin artículo",
     noaprueba: "No aprueba",
     perdio: "Perdió",
@@ -645,6 +646,47 @@ Función:
     return lines.join("\n");
   }
 
+  function generarMensajeArt(row, options){
+    row = row || {};
+    var Notes = window.TablaArtNotes;
+    var grades = Notes && typeof Notes.detail === "function"
+      ? Notes.detail(row) : null;
+    // Una nota pendiente o no cargada nunca equivale a reprobación.
+    if(!grades || !grades.failed){ return ""; }
+    var data = datosEstudiante(row);
+    function format(value){ return Number(value).toLocaleString("es-EC",{maximumFractionDigits:2}); }
+    var lines = [
+      "Estimado/a " + (data.nombre || "estudiante") + ":",
+      "",
+      "Desde el área de Titulación del ITSQMET se informa que, para el período " +
+        (data.periodo || "seleccionado") + ", se ha identificado una calificación inferior a 7/10.",
+      "",
+      "Cédula: " + (data.cedula || "—"),
+      "Carrera: " + (data.carrera || "—"),
+      ""
+    ];
+    if(grades.articleFailed){
+      lines.push("Artículo académico: " + format(grades.nart) + "/10 (inferior a 7).");
+      lines.push("Debe revisar el procedimiento de recuperación del artículo académico.");
+    }
+    if(grades.defenseFailed){
+      lines.push("Defensa: " + format(grades.ndef) + "/10 (inferior a 7).");
+      lines.push("Debe revisar el procedimiento de recuperación de la defensa.");
+    }
+    lines.push(
+      "",
+      "Recuerde: la entrega del artículo puede realizarse aun con requisitos pendientes. " +
+      "Para presentarse a la defensa debe tener los requisitos completos y una nota de artículo de al menos 7/10.",
+      "",
+      "Consulte el cronograma y las indicaciones oficiales para regularizar su situación.",
+      "",
+      "Para orientación sobre titulación, puede comunicarse al " + CONTACTO_GENERAL + ".",
+      "",
+      firma(options)
+    );
+    return lines.join("\n");
+  }
+
   function generarMensajeEtapa(row, options){
     row = row || {};
     options = options || {};
@@ -889,6 +931,10 @@ Función:
     var type = canonicalType(tipo);
     payload = payload || {};
 
+    if(type === "art"){
+      return generarMensajeArt(row, options);
+    }
+
     if(type === "etapa"){
       return generarMensajeEtapa(
         row,
@@ -924,7 +970,9 @@ Función:
 
   function asunto(row, tipo){
     var data = datosEstudiante(row || {});
-    var subject = tipoLabel(tipo || "requisitos") + " - Proceso de titulación";
+    var subject = canonicalType(tipo) === "art"
+      ? "Calificación inferior a 7 en artículo o defensa - Proceso de titulación"
+      : tipoLabel(tipo || "requisitos") + " - Proceso de titulación";
 
     if(data.periodo){
       subject += " - " + data.periodo;
@@ -951,6 +999,7 @@ Función:
     contactosPorPendientes: contactosPorPendientes,
     aplicarVariables: aplicarVariables,
     generarMensajeEtapa: generarMensajeEtapa,
+    generarMensajeArt: generarMensajeArt,
     generarMensajeNucleos: generarMensajeNucleos,
     generarMensajeRequisitos: generarMensajeRequisitos,
     generarMensajeTipo: generarMensajeTipo,
