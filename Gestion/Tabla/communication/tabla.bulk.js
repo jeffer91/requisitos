@@ -89,6 +89,10 @@ Función:
     if(key(globalType) === "nucleos"){
       return list.filter(isNucleosPending);
     }
+    if(key(globalType) === "art"){
+      var notes = window.TablaArtNotes;
+      return list.filter(function(row){ return !!(notes && notes.hasFailure(row)); });
+    }
 
     return list;
   }
@@ -310,6 +314,10 @@ Función:
 
     if(key(globalType) === "nucleos"){
       activateNucleosFilter();
+    }else if(key(globalType) === "art"){
+      if(window.TablaApp && typeof window.TablaApp.setFilters === "function"){
+        window.TablaApp.setFilters({requirements:["art"]});
+      }
     }
 
     syncVisibleSelects();
@@ -359,7 +367,11 @@ Función:
   }
 
   function openAllWhatsApp(){
-    var list = recipientRows().filter(whatsappAvailable);
+    var list = recipientRows().filter(function(row){
+      var type = typeForRow(row);
+      return whatsappAvailable(row) &&
+        (key(type) !== "art" || !!(window.TablaArtNotes && window.TablaArtNotes.hasFailure(row)));
+    });
 
     if(!list.length){
       status("No hay estudiantes filtrados con WhatsApp válido.", "warn");
@@ -501,7 +513,9 @@ Función:
 
   function openAllOutlook(){
     var list = recipientRows().filter(function(row){
-      return emailAddresses(row).length > 0;
+      var type = typeForRow(row);
+      return emailAddresses(row).length > 0 &&
+        (key(type) !== "art" || !!(window.TablaArtNotes && window.TablaArtNotes.hasFailure(row)));
     });
 
     if(!list.length){
