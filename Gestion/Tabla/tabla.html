@@ -211,6 +211,7 @@
           <option value="regularizar">Regularizar</option>
           <option value="nota_articulo">Falta N-Art</option>
           <option value="nota_defensa">Falta N-Def</option>
+          <option value="art">Art — nota inferior a 7</option>
           <option value="sin_articulo">Sin artículo</option>
           <option value="no_aprueba">No aprueba</option>
           <option value="perdio">Perdió</option>
@@ -375,6 +376,14 @@
         >
           Núcleos
         </button>
+
+        <button
+          type="button"
+          class="tabla-req-chip"
+          data-req-filter="art"
+          aria-pressed="false"
+          title="Notas de artículo o defensa registradas inferiores a 7"
+        >Art</button>
 
         <button
           type="button"
@@ -683,6 +692,7 @@
             <option value="regularizar">Regularizar</option>
             <option value="nota_articulo">Falta N-Art</option>
             <option value="nota_defensa">Falta N-Def</option>
+            <option value="art">Art — nota inferior a 7</option>
             <option value="sin_articulo">Sin artículo</option>
             <option value="no_aprueba">No aprueba</option>
             <option value="perdio">Perdió</option>
@@ -821,6 +831,7 @@
                 <option value="regularizar">Regularizar</option>
                 <option value="nota_articulo">Falta N-Art</option>
                 <option value="nota_defensa">Falta N-Def</option>
+                <option value="art">Art — nota inferior a 7</option>
                 <option value="sin_articulo">Sin artículo</option>
                 <option value="no_aprueba">No aprueba</option>
                 <option value="perdio">Perdió</option>
@@ -1129,6 +1140,7 @@
   <script src="core/tabla.nucleos-policy.js"></script>
   <script src="data/tabla.data-source.js"></script>
   <script src="data/tabla.data-guard.js"></script>
+  <script src="data/tabla.art.js"></script>
 
   <!-- =====================================================
   INTERFAZ
