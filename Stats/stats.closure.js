@@ -26,7 +26,12 @@ Función:
 
   function currentState(){return window.StatsApp&&typeof window.StatsApp.getState==="function"?window.StatsApp.getState()||{}:{};}
   function rules(){return window.StatsRules||{};}
-  function isRetired(row){var value=text(row&&(row._estadoMatricula||row.estadoMatricula||row.EstadoMatricula||"ACTIVO")).toUpperCase();return value==="RETIRADO"||!!(row&&row.retirado===true);}
+  // Priorizar el estado oficial de matrícula, no banderas históricas de importación.
+  function isRetired(row){
+    row=row||{};
+    var value=text(row._bl2EstadoMatricula||row.estadoMatricula||row.EstadoMatricula||row._estadoMatricula||"ACTIVO").toUpperCase();
+    return value==="RETIRADO";
+  }
   function nameOf(row){return text(row&&(row._nombres||row.nombres||row.Nombres||row.nombre||row.Nombre))||"Sin nombre";}
   function idOf(row){return text(row&&(row._cedula||row.cedula||row.Cedula||row.numeroIdentificacion||row.NumeroIdentificacion||row.identificacion));}
   function careerOf(row){return text(row&&(row._carrera||row.nombreCarrera||row.NombreCarrera||row.carrera||row.Carrera))||"SIN CARRERA";}
