@@ -283,6 +283,10 @@ Función:
       return missingFor(row).length > 0;
     }
 
+    if(wantedKey === "art"){
+      return !!(window.TablaArtNotes && window.TablaArtNotes.hasFailure(row));
+    }
+
     if(wantedKey === "nucleos"){
       try{
         if(
