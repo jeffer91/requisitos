@@ -940,6 +940,24 @@ Función o funciones:
     var type =
       typeFor(button);
 
+    if(type === "art"){
+      var notes = window.TablaArtNotes;
+      if(!notes || !notes.hasFailure(row)){
+        var periodId = row._periodoId || row.periodoId;
+        if(notes && !notes.isLoaded(periodId)){
+          notes.load(periodId).then(function(){
+            status(notes.hasFailure(row)
+              ? "Notas verificadas. Puede preparar el mensaje Art."
+              : "No se registran calificaciones inferiores a 7 para este estudiante.", "warn");
+          }).catch(function(error){
+            status("No fue posible consultar Defensas: " + (error.message || String(error)), "warn");
+          });
+        }
+        status("No se puede preparar Art sin confirmar una nota inferior a 7.", "warn");
+        return;
+      }
+    }
+
     var message =
       messageFor(
         row,
