@@ -227,6 +227,7 @@ Función:
       {value: "regularizar", label: "Regularizar"},
       {value: "nota_articulo", label: "Falta N-Art"},
       {value: "nota_defensa", label: "Falta N-Def"},
+      {value: "art", label: "Art — nota inferior a 7"},
       {value: "sin_articulo", label: "Sin artículo"},
       {value: "no_aprueba", label: "No aprueba"},
       {value: "perdio", label: "Perdió"},
