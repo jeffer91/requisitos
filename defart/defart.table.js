@@ -112,8 +112,9 @@ Con qué se conecta:
     if(isRequirementState && requirementState){
       return '<span class="def-pill def-requirement-alert '+esc(requirementState.pillClass)+'" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'"><span class="def-requirement-alert-icon" aria-hidden="true"></span><span>'+esc(requirementState.label)+'</span></span>';
     }
+    var warningTone = requirementState && requirementState.pillClass === "estado-requisitos-no-cargados" ? " is-not-loaded" : " is-incomplete";
     var warning = requirementState
-      ? '<span class="def-requirement-mini" role="img" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'">!</span>'
+      ? '<span class="def-requirement-mini'+warningTone+'" role="img" title="'+esc(requirementState.title)+'" aria-label="'+esc(requirementState.label)+': '+esc(requirementState.title)+'">!</span>'
       : "";
     return '<span class="def-state-wrap"><span class="def-pill '+esc(stateClass(row))+'">'+esc(estado)+'</span>'+warning+'</span>';
   }
