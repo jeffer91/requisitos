@@ -9,7 +9,7 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-read-only-defense-stats";
+  var VERSION="1.1.0-hydrated-requirements-official-matricula";
   var SCREEN="stat_not";
   var SOURCE="BDLocal/StatNot";
   var base=document.currentScript&&document.currentScript.src||document.baseURI;
@@ -45,6 +45,95 @@ Función:
       .then(function(runtime){return runtime.ensure("defensas");})
       .then(function(){if(!defensas()||!periodos()||!window.BDLDefenseEligibility){throw new Error("Los servicios de notas no quedaron disponibles.");}return true;});
   }
+
+  // Unión de solo lectura con requisitos_estudiante por cédula + período.
+  function canonicalPeriod(value){
+    var raw=text(value),m=raw.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);
+    return m?m[1]+"-"+m[2]+"__"+m[3]+"-"+m[4]:raw.replace(/_+/g,"__");
+  }
+  function canonicalCedula(value){
+    var raw=text(value).replace(/[^0-9A-Za-z]/g,"").toUpperCase();
+    return /^\d{9}$/.test(raw)?"0"+raw:raw;
+  }
+  function studentKey(row){
+    row=row||{};
+    var cedula=canonicalCedula(row.cedula||row._cedula||row.numeroIdentificacion||row.NumeroIdentificacion||row.Cedula||row["Cédula"]);
+    var period=canonicalPeriod(row.periodoId||row.periodId||row.periodoCanonicoId||row._periodoId||row._bl2PeriodoId);
+    return cedula&&period?cedula+"__"+period:"";
+  }
+  function compactKey(value){return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"");}
+  function requirementName(item){return text(item.requisitoKey||item.requirementKey||item.key||item.campo||item.field||item.nombre||item.requisitoLabel||item.requisitoNombre);}
+  function requirementValue(item){
+    for(var i=0,fields=["valor","value","estado","cumple","aprobado","resultado"];i<fields.length;i++){
+      var value=item[fields[i]];
+      if(value!==undefined&&value!==null&&text(value)!==""){
+        if(value&&typeof value==="object"){return value.id||value.value||value.label||"";}
+        return value;
+      }
+    }
+    return "";
+  }
+  var officialFields={
+    academico:"Academico",documentacion:"Documentacion",financiero:"Financiero",
+    titulacion:"Titulacion",practicasvinculacion:"PrácticasVinculacion",
+    practicas:"PrácticasVinculacion",vinculacion:"Vinculacion",
+    seguimientograduados:"SeguimientoGraduados",
+    seguimientoagraduados:"SeguimientoGraduados",
+    ingles:"Ingles",actualizaciondatos:"ActualizaciónDatos"
+  };
+  function joinLoadedRequirements(rows,requirements){
+    var byStudent=Object.create(null);
+    (Array.isArray(requirements)?requirements:[]).forEach(function(item){
+      var id=studentKey(item),name=requirementName(item);
+      if(!id||!name){return;}
+      (byStudent[id]||(byStudent[id]=[])).push(item);
+    });
+    return rows.map(function(original){
+      var student=Object.assign({},original||{});
+      var matched=byStudent[studentKey(student)]||[];
+      matched.forEach(function(item){
+        var name=requirementName(item),compact=compactKey(name),value=requirementValue(item);
+        student[name]=value;
+        student[compact]=value;
+        if(officialFields[compact]){student[officialFields[compact]]=value;}
+      });
+      student.requisitos=matched.map(function(item){return Object.assign({},item);});
+      student.requirements=student.requisitos.map(function(item){return Object.assign({},item);});
+      student._bdlRequirementsLoaded=true;
+      student._bdlRequirementsHydrated=true;
+      student._bdlRequirementsCount=matched.length;
+      return student;
+    });
+  }
+  function requirementsRepo(){
+    if(window.BDLRepoRequisitos&&typeof window.BDLRepoRequisitos.list==="function"){return window.BDLRepoRequisitos;}
+    return window.BDLRepositories&&typeof window.BDLRepositories.get==="function"
+      ?window.BDLRepositories.get("requisitos"):null;
+  }
+  function joinRequirements(rows,options){
+    rows=Array.isArray(rows)?rows:[];
+    if(!rows.length){return Promise.resolve([]);}
+    var repo=requirementsRepo();
+    if(!repo||typeof repo.list!=="function"){
+      return Promise.reject(new Error("No se pudo leer requisitos_estudiante; no se calculará habilitación con datos incompletos."));
+    }
+    options=options||{};
+    var selected=canonicalPeriod(options.periodoId||options.periodId||"");
+    var periods=Object.create(null);
+    rows.forEach(function(row){
+      var p=canonicalPeriod(row.periodoId||row.periodId||row._periodoId||selected);
+      if(p){periods[p]=true;}
+    });
+    var ids=Object.keys(periods);
+    if(!ids.length){return Promise.reject(new Error("Sin período canónico para vincular requisitos."));}
+    return Promise.all(ids.map(function(periodoId){return repo.list({periodoId:periodoId});}))
+      .then(function(groups){
+        var all=[];
+        groups.forEach(function(group){if(Array.isArray(group)){all=all.concat(group);}});
+        return joinLoadedRequirements(rows,all);
+      });
+  }
+
   function status(){return {ok:state.ready&&!state.error,version:VERSION,screen:SCREEN,source:SOURCE,ready:state.ready,loading:state.loading,error:state.error,loadedAt:state.loadedAt,reads:state.reads,canRead:true,canWrite:false};}
   function ready(options){
     options=options||{};if(state.ready&&!options.force){return Promise.resolve(status());}if(state.promise){return state.promise;}
@@ -54,7 +143,7 @@ Función:
   }
   function requireReady(){return ready().then(function(result){if(!result.ok){throw new Error(result.error||"Stat Not no está listo.");}return result;});}
   function listPeriods(){return requireReady().then(function(){var current=periodos();return current&&typeof current.list==="function"?current.list():[];});}
-  function listStudents(options){return requireReady().then(function(){var current=defensas();return current&&typeof current.getFiltered==="function"?current.getFiltered(options||{}):[];});}
+  function listStudents(options){return requireReady().then(function(){var current=defensas();if(!current||typeof current.getFiltered!=="function"){throw new Error("Servicio Defensas no disponible.");}return current.getFiltered(options||{});}).then(function(rows){return joinRequirements(rows,options||{});});}
   function read(options){state.reads+=1;return Promise.all([listPeriods(),listStudents(options||{})]).then(function(values){return {ok:true,source:SOURCE,screen:SCREEN,data:{periods:values[0]||[],students:values[1]||[]},meta:{generatedAt:now(),version:VERSION,readOnly:true}};});}
   function refresh(){state.ready=false;return ready({force:true});}
   function diagnose(){return Promise.resolve(status());}
