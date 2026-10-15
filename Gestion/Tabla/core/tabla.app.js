@@ -793,13 +793,19 @@ function sortRowsByRequirements(rows, order){
 
     return readData(current)
       .then(function(data){
-        completeRender(
-          data,
-          started,
-          revision
-        );
+        var artSelected = Array.isArray(current.requirements) &&
+          current.requirements.indexOf("art") >= 0;
+        var artNotes = window.TablaArtNotes;
+        var notesReady = artSelected
+          ? (artNotes && typeof artNotes.load === "function"
+              ? artNotes.load(current.periodId)
+              : Promise.reject(new Error("No está disponible la consulta de notas de Defensas.")))
+          : Promise.resolve();
 
-        return state();
+        return notesReady.then(function(){
+          completeRender(data, started, revision);
+          return state();
+        });
       })
       .catch(function(error){
         var message =
@@ -907,6 +913,9 @@ function sortRowsByRequirements(rows, order){
       if(!refreshError){
         dataCache = null;
         invalidateVisuals();
+        if(window.TablaArtNotes && typeof window.TablaArtNotes.invalidate === "function"){
+          window.TablaArtNotes.invalidate();
+        }
       }
 
       return render().then(function(){
