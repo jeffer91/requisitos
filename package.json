@@ -1,6 +1,6 @@
 {
   "name": "requisitos-desktop",
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "Aplicación local de Requisitos con auditoría integral de BDLocal.",
   "private": true,
   "main": "electron/main-safe.js",
