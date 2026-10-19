@@ -180,7 +180,8 @@ Con qué se conecta:
       sortDir:state.sortDir,
       onSort:onSort,
       onInput:onNoteInput,
-      onSaveRow:saveRow
+      onSaveRow:saveRow,
+      onWhatsapp:openStudentWhatsapp
     };
   }
   function updateVisibleCount(){
@@ -235,6 +236,15 @@ Con qué se conecta:
   function getRowById(id){
     var rows = state.data && Array.isArray(state.data.rows) ? state.data.rows : [];
     return rows.find(function(row){ return row._defId === id; }) || null;
+  }
+  function openStudentWhatsapp(id,button){
+    var current=getRowById(id);
+    if(!current){ window.alert("No se encontró al estudiante en los filtros actuales."); return; }
+    var api=window.DefartWhatsapp;
+    if(!api||typeof api.openForStudent!=="function"){
+      window.alert("No está disponible WhatsApp en Defensas.");return;
+    }
+    api.openForStudent(current,button);
   }
   function rowInputs(id){
     return Array.prototype.slice.call(document.querySelectorAll('.def-note-input[data-id="'+cssEscape(id)+'"]'));

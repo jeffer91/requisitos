@@ -145,7 +145,7 @@ Con qué se conecta:
   function actionButton(id, label, className, title, disabled){
     return '<button class="def-row-save '+esc(className || "")+'" type="button" data-save-row="'+esc(id)+'" title="'+esc(title || label)+'" '+(disabled ? "disabled" : "")+'><span class="def-row-save-icon">💾</span><span>'+esc(label)+'</span></button>';
   }
-  function actionHtml(original, options){
+  function saveActionHtml(original, options){
     var id = original && original._defId;
     var pending = !!pendingPatch(original, options);
     var feedback = feedbackFor(id, options);
@@ -163,6 +163,16 @@ Con qué se conecta:
       return actionButton(id, "Guardar", "is-pending", "Guardar solo esta fila", false);
     }
     return '<button class="def-row-save is-clean" type="button" disabled title="Sin cambios pendientes"><span class="def-row-save-icon">✓</span><span>Listo</span></button>';
+  }
+  function actionHtml(original, options){
+    var row=withPending(original,options);
+    var allowed=window.DefartWhatsapp&&typeof window.DefartWhatsapp.eligible==="function"
+      ?window.DefartWhatsapp.eligible(row)
+      :["Requisitos no cargados","Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def"].indexOf(text(row._estadoDefensa))>=0;
+    var btn=allowed
+      ?'<button class="def-row-whatsapp" type="button" data-whatsapp-row="'+esc(original._defId)+'" title="Abrir WhatsApp de '+esc(original._nombre)+'" aria-label="WhatsApp de '+esc(original._nombre)+'">WA</button>'
+      :"";
+    return '<div class="def-row-actions">'+saveActionHtml(original,options)+btn+'</div>';
   }
   function cellHtml(original, header, options){
     var row = withPending(original, options);
@@ -210,6 +220,14 @@ Con qué se conecta:
       if(sortButton && target.contains(sortButton)){
         var key = sortButton.getAttribute("data-sort");
         if(options && typeof options.onSort === "function"){ options.onSort(key); }
+        return;
+      }
+
+      var whatsButton = event.target.closest ? event.target.closest("[data-whatsapp-row]") : null;
+      if(whatsButton && target.contains(whatsButton) && !whatsButton.disabled){
+        if(options && typeof options.onWhatsapp === "function"){
+          options.onWhatsapp(whatsButton.getAttribute("data-whatsapp-row"),whatsButton);
+        }
         return;
       }
 

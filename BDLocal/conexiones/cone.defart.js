@@ -140,8 +140,37 @@ Función:
   }
   function save(payload,context){payload=payload||{};return saveMany([payload],context||{}).then(function(rows){return rows[0]||payload;});}
   function update(payload,context){return save(payload,context);}
+  function getStudentContact(options){
+    options=options||{};
+    var cedula=text(options.cedula||options.numeroIdentificacion).replace(/[^0-9A-Za-z]/g,"");
+    var periodoId=text(options.periodoId||options.periodId);
+    if(!cedula||!periodoId)return Promise.reject(new Error("Se requiere cédula y período para consultar el contacto."));
+    return requireReady().then(function(){
+      var runtime=window.BDLocalRuntimeDeps;
+      if(!runtime||typeof runtime.load!=="function"){throw new Error("No está disponible Base Local para consultar contactos.");}
+      return runtime.load("../repositories/bdl.repo.contactos.js",function(){
+        return window.BDLRepoContactos||(repositories()&&repositories().get("contactos"));
+      });
+    }).then(function(){
+      var contacto=repo("contactos",window.BDLRepoContactos);
+      var persona=repo("personas",window.BDLRepoPersonas);
+      var estudiante=repo("estudiantes",window.BDLRepoEstudiantesV2||window.BDLRepoEstudiantes);
+      function read(r,method,args){
+        if(!r||typeof r[method]!=="function")return Promise.resolve(null);
+        return Promise.resolve().then(function(){return r[method].apply(r,args);}).catch(function(){return null;});
+      }
+      return Promise.all([
+        read(contacto,"getByCedula",[cedula,periodoId]),
+        read(persona,"getByCedula",[cedula]),
+        read(estudiante,"getByPeriodoCedula",[periodoId,cedula])
+      ]).then(function(result){
+        return {cedula:cedula,periodoId:periodoId,
+          contacto:result[0]||null,persona:result[1]||null,estudiante:result[2]||null};
+      });
+    });
+  }
   function refresh(options){options=options||{};return requireReady().then(function(){var current=legacy();return current&&typeof current.refresh==="function"?current.refresh(options):null;}).then(function(){return ready({force:true});});}
 
-  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,read:read,refresh:refresh,reload:refresh,status:status,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,getFiltered:listStudents,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,save:save,saveNota:save,saveMany:saveMany,saveNotas:saveMany,update:update};
+  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,read:read,refresh:refresh,reload:refresh,status:status,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,getFiltered:listStudents,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,getStudentContact:getStudentContact,getContact:getStudentContact,save:save,saveNota:save,saveMany:saveMany,saveNotas:saveMany,update:update};
   window.ConDefart=api;window.BDLocalConeDefart=api;register();var currentHub=hub();if(currentHub&&typeof currentHub.register==="function"){currentHub.register(SCREEN,api);}
 })(window,document);
