@@ -27,7 +27,7 @@
       "Le informo que su proceso de titulación aún no puede finalizar debido a la siguiente situación:","",
       issue(row),"",
       "Por favor, regularice su situación para continuar con el proceso.","",
-      "Mgs. Jefferson Villarreal",
+      "Mgts Jefferson Villarreal",
       "Coordinador de Titulación y Eficiencia Terminal","ITSQMET"
     ].join("\n");
   }
