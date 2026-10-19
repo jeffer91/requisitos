@@ -167,15 +167,23 @@ Función:
       ]).then(function(result){
         // Si el contacto actual está vacío, conservar alternativas de otros períodos
         // como última fuente de respaldo; nunca cruzar con otra cédula.
-        var otros=(Array.isArray(result[3])?result[3]:[]).filter(function(item){
-          return text(item&&item.cedula||item&&item.numeroIdentificacion)===cedula
-            &&text(item&&item.periodoId||item&&item.periodId)!==periodoId;
-        }).sort(function(a,b){
-          return text(b.updatedAt).localeCompare(text(a.updatedAt));
+        var samePeriod=function(value){return text(value).replace(/_+/g,"__")===periodoId.replace(/_+/g,"__");};
+        var contactos=(Array.isArray(result[3])?result[3]:[]).filter(function(item){
+          return text(item&&item.cedula||item&&item.numeroIdentificacion)===cedula;
         });
+        var newestFirst=function(a,b){return text(b.updatedAt).localeCompare(text(a.updatedAt));};
+        // No perder números válidos si existen varias fichas de contacto
+        // para el mismo estudiante y período.
+        var delPeriodo=contactos.filter(function(item){
+          return samePeriod(item&&item.periodoId||item&&item.periodId);
+        }).sort(newestFirst);
+        var otros=contactos.filter(function(item){
+          return !samePeriod(item&&item.periodoId||item&&item.periodId);
+        }).sort(newestFirst);
         return {cedula:cedula,periodoId:periodoId,
-          contacto:result[0]||null,persona:result[1]||null,
-          estudiante:result[2]||null,contactosOtrosPeriodos:otros};
+          contacto:result[0]||null,contactosMismoPeriodo:delPeriodo,
+          persona:result[1]||null,estudiante:result[2]||null,
+          contactosOtrosPeriodos:otros};
       });
     });
   }

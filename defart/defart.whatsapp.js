@@ -26,7 +26,7 @@
       "Buen día, "+name+".","",
       "Le informo que su proceso de titulación aún no puede finalizar debido a la siguiente situación:","",
       issue(row),"",
-      "Por favor, regularice su situación para continuar con el proceso.","",
+      "Por favor, consulte su situación con la coordinación correspondiente para continuar con el proceso.","",
       "Mgts Jefferson Villarreal",
       "Coordinador de Titulación y Eficiencia Terminal","ITSQMET"
     ].join("\n");
@@ -45,7 +45,8 @@
   }
   function phoneOf(record){
     // Dar prioridad a contactos oficiales; usar la fila visible solo al final.
-    var sources=[record&&record.contacto,record&&record.persona,record&&record.estudiante]
+    var sources=(record&&Array.isArray(record.contactosMismoPeriodo)?record.contactosMismoPeriodo:[])
+      .concat([record&&record.contacto,record&&record.persona,record&&record.estudiante])
       .concat(record&&Array.isArray(record.contactosOtrosPeriodos)?record.contactosOtrosPeriodos:[])
       .concat([record&&record.fila])
       .filter(function(r){return r&&typeof r==="object";});
