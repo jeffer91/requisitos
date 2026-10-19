@@ -36,14 +36,19 @@
     if(/^09\d{8}$/.test(d))return "593"+d.slice(1);
     if(/^9\d{8}$/.test(d))return "593"+d;
     if(/^5939\d{8}$/.test(d))return d;
+    if(/^59309\d{8}$/.test(d))return "593"+d.slice(4);
     if(/^005939\d{8}$/.test(d))return d.slice(2);
+    // Un fijo ecuatoriano (+593 2...) no debe abrirse como celular.
+    if(/^593/.test(d))return "";
     if(/^\d{11,15}$/.test(d)&&!/^0/.test(d))return d;
     return "";
   }
   function phoneOf(record){
-    var sources=[record&&record.contacto,record&&record.persona,record&&record.estudiante,
-      record&&record.fila].concat(record&&Array.isArray(record.contactosOtrosPeriodos)
-      ?record.contactosOtrosPeriodos:[]).filter(function(r){return r&&typeof r==="object";});
+    // Dar prioridad a contactos oficiales; usar la fila visible solo al final.
+    var sources=[record&&record.contacto,record&&record.persona,record&&record.estudiante]
+      .concat(record&&Array.isArray(record.contactosOtrosPeriodos)?record.contactosOtrosPeriodos:[])
+      .concat([record&&record.fila])
+      .filter(function(r){return r&&typeof r==="object";});
     var aliases=["celular","Celular","_celular","_bl2Celular","telefonoMovil",
       "telefono","Telefono","Teléfono","whatsapp","WhatsApp","numeroCelular"];
     for(var i=0;i<sources.length;i++)for(var j=0;j<aliases.length;j++){
@@ -53,8 +58,18 @@
     return "";
   }
   function studentIdentity(row){
-    return {cedula:txt(row&&row._cedula||row&&row.cedula||row&&row.numeroIdentificacion),
-      periodoId:txt(row&&row._periodoId||row&&row.periodoId||row&&row.periodId)};
+    row=row||{};
+    // _bl2Id y _cedula pueden contener identificadores internos compuestos.
+    // Nunca consultar contactos con un ID de matrícula en lugar de la cédula.
+    var candidates=[row.cedula,row.numeroIdentificacion,row.NumeroIdentificacion,
+      row._cedula,row._bl2Id],cedula="";
+    for(var i=0;i<candidates.length;i++){
+      var value=txt(candidates[i]).replace(/[ .-]/g,"");
+      if(/^\d{10}$/.test(value)){cedula=value;break;}
+      if(/^\d{9}$/.test(value)){cedula="0"+value;break;}
+      if(/^[A-Za-z][A-Za-z0-9]{5,14}$/.test(value)){cedula=value;break;}
+    }
+    return {cedula:cedula,periodoId:txt(row.periodoId||row._periodoId||row.periodId)};
   }
   function waUrl(number,message){return "https://wa.me/"+number+"?text="+encodeURIComponent(message);}
   function openForStudent(row,button){
