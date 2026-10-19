@@ -135,6 +135,87 @@ Función:
       return summary(decorated,key,labelOf(core,key),"final");
     }).filter(function(item){return item.label;}).concat([]).slice(0,(Array.isArray(current)&&current.length)||2);
   }
+  // Núcleos: 8 requisitos previos aprobados; Titulación pendiente.
+  // Nunca se confunde habilitación con graduación ni con asistencia a núcleos.
+  function isNucleo(row){
+    row=row||{};
+    var rules=window.StatsRules||{};
+    var matricula=text(row._estadoMatricula||row._bl2EstadoMatricula||row.estadoMatricula||row.EstadoMatricula||"ACTIVO").toUpperCase();
+    if(matricula!=="ACTIVO"||typeof rules.requirementStatus!=="function"){return false;}
+    var period=null;
+    try{period=typeof rules.classifyStudent==="function"?rules.classifyStudent(row):null;}catch(error){}
+    if(!period||period.id!=="REGULAR"){return false;}
+    var prev=Array.isArray(rules.BASE_REQUIREMENTS)?rules.BASE_REQUIREMENTS:[];
+    if(prev.length!==8){return false;}
+    try{
+      for(var i=0;i<prev.length;i++){
+        var status=rules.requirementStatus(row,prev[i].key);
+        if(!status||status.applies===false||status.cumple!==true){return false;}
+      }
+      var tit=rules.requirementStatus(row,"titulacion");
+      return !!(tit&&tit.applies!==false&&tit.cumple!==true);
+    }catch(error){return false;}
+  }
+  function countByNucleos(rows,eligible){
+    var allowed=new Set(eligible),map=Object.create(null);
+    (rows||[]).forEach(function(row){
+      var key=text(row&&row._carrera||row&&row.nombreCarrera||row&&row.carrera)||"SIN CARRERA";
+      if(!map[key])map[key]={key:key,label:key,total:0,cumple:0,no_cumple:0,pendiente:0,avance:0};
+      map[key].total++;
+      if(allowed.has(row)){map[key].cumple++;}else{map[key].no_cumple++;}
+    });
+    return Object.keys(map).map(function(key){
+      var item=map[key];item.avance=pct(item.cumple,item.total);return item;
+    }).sort(function(a,b){return b.total-a.total||a.key.localeCompare(b.key,"es");});
+  }
+  function summariesFor(rows,items){
+    var rules=window.StatsRules||{};
+    return (Array.isArray(items)?items:[]).map(function(item){
+      var summary={key:item.key,label:item.label,group:item.group||"requisito",
+        total:rows.length,aplica:0,no_aplica:0,cumple:0,pendiente:0,no_cumple:0,avance:0};
+      rows.forEach(function(row){
+        var st=rules.requirementStatus(row,item.key);
+        if(!st||st.applies===false||st.status==="no_aplica"){summary.no_aplica++;return;}
+        summary.aplica++;
+        if(st.cumple===true){summary.cumple++;}else{summary.no_cumple++;}
+      });
+      summary.avance=pct(summary.cumple,summary.aplica);
+      return summary;
+    });
+  }
+  function nucleosResult(core,data,selectedKey){
+    var all=Array.isArray(data.rows)?data.rows:(Array.isArray(data.estudiantes)?data.estudiantes:[]);
+    var active=all.filter(function(row){
+      return text(row._estadoMatricula||row._bl2EstadoMatricula||row.estadoMatricula||row.EstadoMatricula||"ACTIVO").toUpperCase()==="ACTIVO";
+    });
+    var qualified=active.filter(isNucleo);
+    var rows=qualified.map(function(row){return Object.assign({},row,{_statsNucleos:true});});
+    var other=active.length-qualified.length,ratio=pct(qualified.length,active.length);
+    data.nucleosMode=true;
+    data.nucleos={universe:active.length,eligible:qualified.length,notEligible:other,percentage:ratio};
+    data.rows=rows;data.estudiantes=rows;
+    data.total=active.length;
+    data.estados={cumple:qualified.length,pendiente:0,no_cumple:other};
+    data.avanceGeneral=ratio;
+    data.carreras=countByNucleos(active,qualified);
+    data.notasResumen=typeof core.notasResumen==="function"?core.notasResumen(rows):data.notasResumen;
+    var catalog=data.requisitosFiltro||{};
+    data.requisitos=summariesFor(rows,catalog.requisitos||[]);
+    data.requisitosFinales=summariesFor(rows,catalog.finales||[]);
+    data.periodApproval={visible:true,type:"NUCLEOS",label:"Núcleos",pattern:"",
+      total:active.length,approved:qualified.length,rejected:other,avance:ratio};
+    if(selectedKey){
+      var selectedRows=decorateRows(core,rows,selectedKey);
+      var selected=summary(selectedRows,selectedKey,labelOf(core,selectedKey),groupOf(selectedKey));
+      data.selectedRequirement={key:selectedKey,label:selected.label,group:selected.group,
+        stats:selected,rows:selectedRows};
+      data.rows=selectedRows;data.estudiantes=selectedRows;
+    }else{data.selectedRequirement=null;}
+    data.diagnostics=Object.assign({},data.diagnostics||{},{
+      nucleos:true,nucleosEligible:qualified.length,nucleosActiveUniverse:active.length
+    });
+    return data;
+  }
   function install(){
     var core=window.StatsCore;
     if(!core||typeof core.resumen!=="function"||core.__connectedFiltersInstalled){return false;}
@@ -143,8 +224,10 @@ Función:
       options=Object.assign({},options||{});
       var selectedKey=text(options.requirementKey||options.requisito||"");
       var requestedStatus=text(options.status||options.estado||"");
-      var baseOptions=selectedKey?Object.assign({},options,{status:"",estado:""}):options;
+      var wantsNucleos=requestedStatus==="nucleos";
+      var baseOptions=(selectedKey||wantsNucleos)?Object.assign({},options,{status:"",estado:""}):options;
       var data=appendTelegramFilter(original.call(core,baseOptions)||{});
+      if(wantsNucleos&&!data._requiresPeriod){return nucleosResult(core,data,selectedKey);}
       if(!selectedKey||data._requiresPeriod){return data;}
 
       var sourceRows=Array.isArray(data.rows)?data.rows:(Array.isArray(data.estudiantes)?data.estudiantes:[]);
@@ -183,6 +266,7 @@ Función:
     return true;
   }
 
-  window.StatsFiltersPatch={version:VERSION,install:install,telegramStatus:telegramStatus,hasTelegram:function(row){return telegramFields(row).has;}};
+  window.StatsFiltersPatch={version:"1.1.0-nucleos",install:install,isNucleo:isNucleo,
+    telegramStatus:telegramStatus,hasTelegram:function(row){return telegramFields(row).has;}};
   install();
 })(window);

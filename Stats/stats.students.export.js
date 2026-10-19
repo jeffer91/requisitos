@@ -67,6 +67,7 @@ Función o funciones:
   }
 
   function isComplete(row,dataset){
+    if(dataset&&dataset.nucleosMode){return !!(row&&row._statsNucleos);}
     if(selectedIsTelegram(dataset)){
       return typeof helpers().hasTelegram==="function"?helpers().hasTelegram(row):false;
     }
@@ -80,6 +81,7 @@ Función o funciones:
   function studentCareer(row){return typeof helpers().studentCareer==="function"?helpers().studentCareer(row):text(row&&row._carrera||row&&row.carrera||row&&row.NombreCarrera)||"SIN CARRERA";}
 
   function statusText(row,dataset){
+    if(dataset&&dataset.nucleosMode){return "Habilitado para núcleos";}
     if(selectedIsTelegram(dataset)){return isComplete(row,dataset)?"Con Telegram":"Sin Telegram";}
     var selected=row&&row._selectedRequirementStatus;
     if(selected){

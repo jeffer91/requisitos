@@ -38,11 +38,13 @@ Función o funciones:
     return [];
   }
   function isComplete(row,data){
+    if(data&&data.nucleosMode){return !!(row&&row._statsNucleos);}
     if(selectedIsTelegram(data)){return hasTelegram(row);}
     if(row&&row._selectedRequirementStatus){return !!row._selectedRequirementStatus.cumple;}
     return !!(row&&row._estado&&row._estado.id==="cumple");
   }
   function statusHtml(row,data){
+    if(data&&data.nucleosMode){return '<span class="student-status-ok">Habilitado para núcleos</span>';}
     if(selectedIsTelegram(data)){
       return hasTelegram(row)?'<span class="student-status-ok">Con Telegram</span>':'<span class="student-status-bad">Sin Telegram</span>';
     }
@@ -77,6 +79,7 @@ Función o funciones:
     return (rows||[]).filter(function(row){return lower(studentName(row)).indexOf(search)>=0||lower(studentId(row)).indexOf(search)>=0||lower(studentCareer(row)).indexOf(search)>=0;});
   }
   function filterMode(rows,data){
+    if(data&&data.nucleosMode){return rows;}
     if(state.mode==="complete"){return rows.filter(function(row){return isComplete(row,data);});}
     if(state.mode==="missing"){return rows.filter(function(row){return !isComplete(row,data);});}
     return rows;
@@ -109,6 +112,9 @@ Función o funciones:
   function controlsHtml(data){
     var telegram=selectedIsTelegram(data);
     var completeLabel=telegram?"Con Telegram":"Req. completos";
+    if(data&&data.nucleosMode){
+      return '<div class="stats-student-controls"><strong>Solo estudiantes habilitados para núcleos (Titulación pendiente)</strong></div>';
+    }
     var missingLabel=telegram?"Sin Telegram":"Con faltantes";
     return '<div class="stats-student-controls">'
       + '<div class="stats-student-mode">'

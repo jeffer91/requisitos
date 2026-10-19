@@ -84,6 +84,32 @@ Con qué se conecta:
     }
   }
 
+  function renderNucleos(data){
+    var result=data.nucleos||{},all=num(result.universe),yes=num(result.eligible),
+      no=num(result.notEligible),percent=pct(yes,all);
+    setText("stats-summary-eyebrow","Habilitación académica");
+    setText("stats-summary-title","Estudiantes habilitados para núcleos");
+    setText("stats-total-label","Activos evaluados");
+    setText("stats-ok-label","Habilitados para núcleos");
+    setText("stats-no-label","No habilitados");
+    setText("stats-avance-label","Porcentaje habilitado");
+    setText("stats-period-approval-label","Requisitos previos completos");
+    setText("stats-total",all);setText("stats-ok",yes);
+    setText("stats-no",no);setText("stats-avance",percent+"%");
+    setText("stats-period-type","Núcleos · Titulación pendiente");
+    setText("stats-period-approval",yes+" / "+all+" · "+percent+"%");
+    setText("stats-summary-chart-title","Habilitación para núcleos");
+    setText("stats-summary-chart-meta","Habilitados / no habilitados");
+    var target=el("stats-chart-summary");
+    if(!target){return;}
+    if(!all){target.innerHTML=empty("No hay estudiantes activos con los filtros seleccionados.");return;}
+    target.innerHTML='<div class="stats-chart-bars">'
+      +'<div class="stats-chart-bar"><div class="stats-chart-bar-head"><strong>Habilitados para núcleos</strong><span>'
+      +yes+' / '+all+' · '+percent+'%</span></div><div class="stats-chart-track"><i style="width:'+percent+'%"></i></div></div>'
+      +'<div class="stats-chart-bar"><div class="stats-chart-bar-head"><strong>No habilitados</strong><span>'
+      +no+' / '+all+' · '+pct(no,all)+'%</span></div><div class="stats-chart-track"><i style="width:'+pct(no,all)+'%"></i></div></div></div>';
+  }
+
   function renderSelected(data, selected){
     var stats = selected.stats || {};
     var total = num(stats.aplica || stats.total || 0);
@@ -136,7 +162,9 @@ Con qué se conecta:
       return;
     }
 
-    if(data.selectedRequirement){
+    if(data.nucleosMode){
+      renderNucleos(data);
+    }else if(data.selectedRequirement){
       renderSelected(data, data.selectedRequirement);
     }else{
       renderGeneral(data);

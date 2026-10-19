@@ -242,8 +242,8 @@ function invalidateDataCaches(reason){
     }
 
     box.innerHTML = [
-      bar("Req. completos", data.estados.cumple || 0, total, "ok"),
-      bar("Req. incompletos", data.estados.no_cumple || 0, total, "bad")
+      bar(data.nucleosMode?"Habilitados para núcleos":"Req. completos", data.estados.cumple || 0, total, "ok"),
+      bar(data.nucleosMode?"No habilitados":"Req. incompletos", data.estados.no_cumple || 0, total, "bad")
     ].join("");
 
     setText("stats-estados-meta", total + " estudiantes");
@@ -282,8 +282,8 @@ function invalidateDataCaches(reason){
     var html = '<table class="stats-sortable-table" data-sortable="true"><thead><tr>' +
       '<th data-sort-type="text">Nombre</th>' +
       '<th data-sort-type="number">Total</th>' +
-      '<th data-sort-type="number">Cumple</th>' +
-      '<th data-sort-type="number">No cumple</th>';
+      '<th data-sort-type="number">' + (kind==="nucleos"?"Núcleos":"Cumple") + '</th>' +
+      '<th data-sort-type="number">' + (kind==="nucleos"?"No habilitados":"No cumple") + '</th>';
 
     if(kind === "requirements" || kind === "final"){
       html += '<th data-sort-type="number">No aplica</th>';
@@ -313,9 +313,10 @@ function invalidateDataCaches(reason){
   }
 
   function renderTables(data){
-    setHtml("stats-carreras", data._requiresPeriod ? emptyHtml("Selecciona un período.") : table(data.carreras, "general"));
+    setHtml("stats-carreras", data._requiresPeriod ? emptyHtml("Selecciona un período.") : table(data.carreras, data.nucleosMode?"nucleos":"general"));
     setHtml("stats-periodos", data._requiresPeriod ? emptyHtml("Selecciona un período.") : table(data.periodos, "general"));
-    setText("stats-carreras-meta", (data.carreras || []).length + " carreras");
+    setText("stats-carreras-meta", (data.carreras || []).length + " carreras" +
+      (data.nucleosMode&&data.nucleos?" · "+data.nucleos.eligible+" habilitados de "+data.nucleos.universe+" activos":""));
     setText("stats-periodos-meta", (data.periodos || []).length + " períodos");
   }
 
