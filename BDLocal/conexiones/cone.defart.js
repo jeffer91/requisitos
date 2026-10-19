@@ -162,10 +162,20 @@ Función:
       return Promise.all([
         read(contacto,"getByCedula",[cedula,periodoId]),
         read(persona,"getByCedula",[cedula]),
-        read(estudiante,"getByPeriodoCedula",[periodoId,cedula])
+        read(estudiante,"getByPeriodoCedula",[periodoId,cedula]),
+        read(contacto,"list",[{cedula:cedula}])
       ]).then(function(result){
+        // Si el contacto actual está vacío, conservar alternativas de otros períodos
+        // como última fuente de respaldo; nunca cruzar con otra cédula.
+        var otros=(Array.isArray(result[3])?result[3]:[]).filter(function(item){
+          return text(item&&item.cedula||item&&item.numeroIdentificacion)===cedula
+            &&text(item&&item.periodoId||item&&item.periodId)!==periodoId;
+        }).sort(function(a,b){
+          return text(b.updatedAt).localeCompare(text(a.updatedAt));
+        });
         return {cedula:cedula,periodoId:periodoId,
-          contacto:result[0]||null,persona:result[1]||null,estudiante:result[2]||null};
+          contacto:result[0]||null,persona:result[1]||null,
+          estudiante:result[2]||null,contactosOtrosPeriodos:otros};
       });
     });
   }

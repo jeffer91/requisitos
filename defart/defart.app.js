@@ -240,6 +240,10 @@ Con qué se conecta:
   function openStudentWhatsapp(id,button){
     var current=getRowById(id);
     if(!current){ window.alert("No se encontró al estudiante en los filtros actuales."); return; }
+    if(state.changes[id]){
+      window.alert("Guarde primero las calificaciones pendientes de este estudiante antes de avisarle.");
+      return;
+    }
     var api=window.DefartWhatsapp;
     if(!api||typeof api.openForStudent!=="function"){
       window.alert("No está disponible WhatsApp en Defensas.");return;

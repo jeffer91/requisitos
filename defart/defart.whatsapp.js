@@ -42,7 +42,8 @@
   }
   function phoneOf(record){
     var sources=[record&&record.contacto,record&&record.persona,record&&record.estudiante,
-      record&&record.fila].filter(function(r){return r&&typeof r==="object";});
+      record&&record.fila].concat(record&&Array.isArray(record.contactosOtrosPeriodos)
+      ?record.contactosOtrosPeriodos:[]).filter(function(r){return r&&typeof r==="object";});
     var aliases=["celular","Celular","_celular","_bl2Celular","telefonoMovil",
       "telefono","Telefono","Teléfono","whatsapp","WhatsApp","numeroCelular"];
     for(var i=0;i<sources.length;i++)for(var j=0;j<aliases.length;j++){
