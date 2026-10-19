@@ -17,6 +17,7 @@ Función o funciones:
   <link rel="stylesheet" href="defart.table.visual.css" />
   <link rel="stylesheet" href="defart.pagination.css" />
   <link rel="stylesheet" href="defart.compact.css" />
+  <link rel="stylesheet" href="defart.whatsapp.css" />
   <link rel="stylesheet" href="defart.bulk-import.css" />
   <link rel="stylesheet" href="defart.firebase-sync.css" />
   <script src="../node_modules/xlsx/dist/xlsx.full.min.js" data-requisitos-dependency="sheetjs@0.20.3"></script>
@@ -40,6 +41,7 @@ Función o funciones:
         <div class="def-toolbar-actions">
           <button id="def-btn-bulk-import" class="def-btn-bulk" type="button">Cargar notas</button>
           <button id="def-btn-export" class="def-btn-export" type="button">Descargar Excel</button>
+          <button id="def-btn-whatsapp" type="button" title="Avisos según filtros">WhatsApp</button>
         </div>
       </div>
     </section>
@@ -169,6 +171,31 @@ Función o funciones:
             </div>
           </footer>
         </section>
+      </div>
+    </div>
+  </section>
+
+  <section id="def-wa-modal" class="def-wa-modal" role="dialog" aria-modal="true"
+    aria-hidden="true" aria-labelledby="def-wa-title" hidden>
+    <div class="def-wa-dialog">
+      <header class="def-wa-head">
+        <div><h2 id="def-wa-title">Avisos por WhatsApp</h2>
+          <p>Mensajes individuales según los filtros actuales. Revise antes de enviarlos.</p></div>
+        <button id="def-wa-close" class="def-wa-close" type="button" aria-label="Cerrar">&times;</button>
+      </header>
+      <p id="def-wa-summary" class="def-wa-summary"></p>
+      <div class="def-wa-layout">
+        <div id="def-wa-list" class="def-wa-list" role="listbox" aria-label="Estudiantes filtrados"></div>
+        <div class="def-wa-preview">
+          <div class="def-wa-preview-head"><strong id="def-wa-selected"></strong>
+            <span id="def-wa-selected-state"></span></div>
+          <textarea id="def-wa-message" readonly aria-label="Mensaje institucional personalizado"></textarea>
+          <div class="def-wa-actions">
+            <button id="def-wa-copy" type="button">Copiar mensaje</button>
+            <a id="def-wa-open" href="#" target="_blank" rel="noopener noreferrer">Abrir WhatsApp</a>
+          </div>
+          <small id="def-wa-notice" class="def-wa-notice"></small>
+        </div>
       </div>
     </div>
   </section>
