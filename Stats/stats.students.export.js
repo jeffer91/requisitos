@@ -137,7 +137,7 @@ Función o funciones:
     var rows=typeof api.normalizeRows==="function"?api.normalizeRows(dataset).slice():[];
     var search=text(appState().studentSearch||dataset.studentSearch);
     if(typeof api.filterRows==="function"){rows=api.filterRows(rows,search);}
-    rows=filterMode(rows,dataset,currentMode());
+    rows=dataset.nucleosMode?rows:filterMode(rows,dataset,currentMode());
     return sortRows(rows,dataset,currentOrder());
   }
 
@@ -148,6 +148,7 @@ Función o funciones:
   }
 
   function modeLabel(mode,dataset){
+    if(dataset&&dataset.nucleosMode){return "Habilitados para núcleos";}
     var telegram=selectedIsTelegram(dataset);
     if(mode==="complete"){return telegram?"Con Telegram":"Completos";}
     if(mode==="missing"){return telegram?"Sin Telegram":"Con faltantes";}
@@ -180,7 +181,7 @@ Función o funciones:
   }
 
   function dateStamp(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
-  function fileBase(meta){var req=meta.requisito&&meta.requisito!=="Todos los requisitos"?meta.requisito:"Todos";return "Estudiantes_"+safeFile(req)+"_"+safeFile(meta.periodo)+"_"+dateStamp();}
+  function fileBase(meta){var req=meta.requisito&&meta.requisito!=="Todos los requisitos"?meta.requisito:"Todos";var estado=meta.estado==="Núcleos"?"_Nucleos":"";return "Estudiantes_"+safeFile(req)+"_"+safeFile(meta.periodo)+estado+"_"+dateStamp();}
   function rowsForExport(rows,dataset){return rows.map(function(row,index){return [index+1,studentName(row),studentId(row),studentCareer(row),statusText(row,dataset)];});}
   function ensureRows(){var rows=currentRows();if(!rows.length){throw new Error("No hay estudiantes para exportar con los filtros actuales.");}return rows;}
 

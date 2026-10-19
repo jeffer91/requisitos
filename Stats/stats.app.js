@@ -314,7 +314,7 @@ function invalidateDataCaches(reason){
 
   function renderTables(data){
     setHtml("stats-carreras", data._requiresPeriod ? emptyHtml("Selecciona un período.") : table(data.carreras, data.nucleosMode?"nucleos":"general"));
-    setHtml("stats-periodos", data._requiresPeriod ? emptyHtml("Selecciona un período.") : table(data.periodos, "general"));
+    setHtml("stats-periodos", data._requiresPeriod ? emptyHtml("Selecciona un período.") : table(data.periodos, data.nucleosMode?"nucleos":"general"));
     setText("stats-carreras-meta", (data.carreras || []).length + " carreras" +
       (data.nucleosMode&&data.nucleos?" · "+data.nucleos.eligible+" habilitados de "+data.nucleos.universe+" activos":""));
     setText("stats-periodos-meta", (data.periodos || []).length + " períodos");

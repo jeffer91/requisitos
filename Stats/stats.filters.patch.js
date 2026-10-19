@@ -156,10 +156,14 @@ Función:
       return !!(tit&&tit.applies!==false&&tit.cumple!==true);
     }catch(error){return false;}
   }
-  function countByNucleos(rows,eligible){
+  function countByNucleos(rows,eligible,dimension){
     var allowed=new Set(eligible),map=Object.create(null);
     (rows||[]).forEach(function(row){
-      var key=text(row&&row._carrera||row&&row.nombreCarrera||row&&row.carrera)||"SIN CARRERA";
+      var key=dimension==="periodo"
+        ?text(row&&row._periodo||row&&row.periodoLabel||row&&row.periodoId)||"SIN PERÍODO"
+        :dimension==="division"
+        ?text(row&&row._division||row&&row.division)||"Sin división"
+        :text(row&&row._carrera||row&&row.nombreCarrera||row&&row.carrera)||"SIN CARRERA";
       if(!map[key])map[key]={key:key,label:key,total:0,cumple:0,no_cumple:0,pendiente:0,avance:0};
       map[key].total++;
       if(allowed.has(row)){map[key].cumple++;}else{map[key].no_cumple++;}
@@ -197,7 +201,9 @@ Función:
     data.total=active.length;
     data.estados={cumple:qualified.length,pendiente:0,no_cumple:other};
     data.avanceGeneral=ratio;
-    data.carreras=countByNucleos(active,qualified);
+    data.carreras=countByNucleos(active,qualified,"carrera");
+    data.periodos=countByNucleos(active,qualified,"periodo");
+    data.divisiones=countByNucleos(active,qualified,"division");
     data.notasResumen=typeof core.notasResumen==="function"?core.notasResumen(rows):data.notasResumen;
     var catalog=data.requisitosFiltro||{};
     data.requisitos=summariesFor(rows,catalog.requisitos||[]);
