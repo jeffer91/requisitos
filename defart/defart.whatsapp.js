@@ -1,7 +1,7 @@
 /* Defensas - WhatsApp individual: teléfono oficial de BDLocal por cédula + período. */
 (function(window){
   "use strict";
-  var VERSION="2.0.0-row-contact",pending=Object.create(null);
+  var VERSION="2.1.0-external-browser",pending=Object.create(null);
   function txt(v){return String(v==null?"":v).replace(/\s+/g," ").trim();}
   var states=["Requisitos no cargados","Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def"];
   function eligible(row){return states.indexOf(txt(row&&row._estadoDefensa))>=0;}
@@ -72,7 +72,45 @@
     }
     return {cedula:cedula,periodoId:txt(row.periodoId||row._periodoId||row.periodId)};
   }
-  function waUrl(number,message){return "https://wa.me/"+number+"?text="+encodeURIComponent(message);}
+  // Defensas se muestra en un iframe: la API de Electron está en la ventana principal.
+  function electronApi(){
+    try{
+      if(window.top&&window.top.electronAPI&&typeof window.top.electronAPI.openExternal==="function"){
+        return window.top.electronAPI;
+      }
+    }catch(error){}
+    try{
+      if(window.electronAPI&&typeof window.electronAPI.openExternal==="function")return window.electronAPI;
+    }catch(error){}
+    return null;
+  }
+  function runningInElectron(){
+    try{
+      if(window.top&&window.top.document&&window.top.document.documentElement.getAttribute("data-runtime")==="electron")return true;
+    }catch(error){}
+    try{
+      if(window.document&&window.document.documentElement.getAttribute("data-runtime")==="electron")return true;
+    }catch(error){}
+    return /Electron\//i.test(String(window.navigator&&window.navigator.userAgent||""));
+  }
+  // Enlace directo a WhatsApp Web, sin pasar por la pantalla de redirección de wa.me.
+  function waUrl(number,message){return "https://web.whatsapp.com/send?phone="+number+"&text="+encodeURIComponent(message);}
+  function closeTab(tab){if(tab){try{tab.close();}catch(error){}}}
+  function openInBrowser(url,api,tab){
+    if(api){
+      // shell.openExternal del proceso principal abre el navegador predeterminado de Windows.
+      return Promise.resolve().then(function(){return api.openExternal(url);}).then(function(result){
+        if(result===true||(result&&result.ok===true&&result.opened!==false))return true;
+        throw new Error(txt(result&&(result.error||result.message))||"Windows no confirmó la apertura del navegador.");
+      });
+    }
+    if(!tab)return Promise.reject(new Error("No se pudo preparar una pestaña del navegador."));
+    try{
+      tab.opener=null;
+      tab.location.replace(url);
+      return Promise.resolve(true);
+    }catch(error){return Promise.reject(error);}
+  }
   function openForStudent(row,button){
     row=row||{};
     var message=buildMessage(row);
@@ -84,10 +122,17 @@
     if(!connector||typeof connector.getStudentContact!=="function"){
       window.alert("No se pudo conectar con los contactos de Base Local.");return Promise.resolve(false);
     }
-    // Abrir pestaña durante el clic evita bloqueos cuando termine la consulta asíncrona.
-    var tab=window.open("about:blank","_blank");
-    if(!tab){window.alert("El navegador bloqueó la ventana de WhatsApp. Permita ventanas emergentes para esta aplicación.");return Promise.resolve(false);}
-    try{tab.document.title="Buscando contacto de "+txt(row._nombre);}catch(error){}
+    var api=electronApi(),tab=null;
+    // En Electron no abrir ventanas internas, ni siquiera about:blank.
+    if(!api&&runningInElectron()){
+      window.alert("Requisitos no tiene disponible la conexión para abrir WhatsApp en el navegador de Windows.");
+      return Promise.resolve(false);
+    }
+    // Solo en la versión web se reserva una pestaña durante el clic para evitar bloqueos de ventanas emergentes.
+    if(!api){
+      tab=window.open("about:blank","_blank");
+      if(!tab){window.alert("El navegador bloqueó la pestaña de WhatsApp. Permita ventanas emergentes para esta página.");return Promise.resolve(false);}
+    }
     if(button){button.disabled=true;button.textContent="...";}
     pending[key]=true;
     return Promise.resolve().then(function(){
@@ -95,21 +140,17 @@
     }).then(function(record){
       var number=phoneOf(Object.assign({},record,{fila:row}));
       if(!number){
-        try{tab.close();}catch(error){}
+        closeTab(tab);
         window.alert("El estudiante "+txt(row._nombre)+" no tiene un celular válido registrado en Base Local.");
         return false;
       }
-      try{
-        tab.opener=null;
-        tab.location.replace(waUrl(number,message));
-      }catch(error){
-        try{tab.close();}catch(inner){}
-        window.alert("No fue posible abrir WhatsApp para "+txt(row._nombre)+".");
+      return openInBrowser(waUrl(number,message),api,tab).catch(function(error){
+        closeTab(tab);
+        window.alert("No se pudo abrir WhatsApp de "+txt(row._nombre)+": "+txt(error&&error.message||error));
         return false;
-      }
-      return true;
+      });
     }).catch(function(error){
-      try{tab.close();}catch(inner){}
+      closeTab(tab);
       window.alert("No se pudo consultar el celular de "+txt(row._nombre)+": "+txt(error&&error.message||error));
       return false;
     }).finally(function(){
