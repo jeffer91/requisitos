@@ -37,8 +37,9 @@ Función:
     {path:"defart.service-bridge.js",test:function(){return window.DefartServiceBridge;}},
     {path:"defart.save-service-bridge.js",test:function(){return window.DefartSaveServiceBridge;}},
     {path:"defart.requirements-guard.js"},{path:"defart.periodo-normalizer.js"},
-    {path:"defart.app.js",test:function(){return window.DefartApp;}},
     {path:"defart.whatsapp.js",test:function(){return window.DefartWhatsapp;}},
+    {path:"defart.correo.js",test:function(){return window.DefartCorreo;}},
+    {path:"defart.app.js",test:function(){return window.DefartApp;}},
     {path:"defart.bulk-import.js",test:function(){return window.DefartBulkImport;}},
     {path:"defart.excel-import.js",test:function(){return window.DefartExcelImport;}},
     {path:"defart.ui-fix.js",test:function(){return window.DefartUIFix;}}
