@@ -181,7 +181,8 @@ Con qué se conecta:
       onSort:onSort,
       onInput:onNoteInput,
       onSaveRow:saveRow,
-      onWhatsapp:openStudentWhatsapp
+      onWhatsapp:openStudentWhatsapp,
+      onCorreo:openStudentCorreo
     };
   }
   function updateVisibleCount(){
@@ -247,6 +248,19 @@ Con qué se conecta:
     var api=window.DefartWhatsapp;
     if(!api||typeof api.openForStudent!=="function"){
       window.alert("No está disponible WhatsApp en Defensas.");return;
+    }
+    api.openForStudent(current,button);
+  }
+  function openStudentCorreo(id,button){
+    var current=getRowById(id);
+    if(!current){window.alert("No se encontró al estudiante en los filtros actuales.");return;}
+    if(state.changes[id]){
+      window.alert("Guarde primero las calificaciones pendientes de este estudiante antes de preparar el comunicado.");
+      return;
+    }
+    var api=window.DefartCorreo;
+    if(!api||typeof api.openForStudent!=="function"){
+      window.alert("No está disponible el comunicado por correo en Defensas.");return;
     }
     api.openForStudent(current,button);
   }
