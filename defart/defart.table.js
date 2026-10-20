@@ -170,9 +170,13 @@ Con qué se conecta:
       ?window.DefartWhatsapp.eligible(row)
       :["Requisitos no cargados","Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def"].indexOf(text(row._estadoDefensa))>=0;
     var btn=allowed
-      ?'<button class="def-row-whatsapp" type="button" data-whatsapp-row="'+esc(original._defId)+'" title="Abrir WhatsApp de '+esc(original._nombre)+'" aria-label="WhatsApp de '+esc(original._nombre)+'">WA</button>'
+      ?'<button class="def-row-whatsapp" type="button" data-whatsapp-row="'+esc(original._defId)+'" title="Abrir WhatsApp de '+esc(original._nombre)+'" aria-label="WhatsApp de '+esc(original._nombre)+'">W</button>'
       :"";
-    return '<div class="def-row-actions">'+saveActionHtml(original,options)+btn+'</div>';
+    var emailAllowed=window.DefartCorreo&&typeof window.DefartCorreo.eligible==="function"&&window.DefartCorreo.eligible(row);
+    var correo=emailAllowed
+      ?'<button class="def-row-correo" type="button" data-correo-row="'+esc(original._defId)+'" title="Preparar comunicado formal en Outlook para '+esc(original._nombre)+'" aria-label="Correo formal para '+esc(original._nombre)+'">C</button>'
+      :"";
+    return '<div class="def-row-actions">'+saveActionHtml(original,options)+btn+correo+'</div>';
   }
   function cellHtml(original, header, options){
     var row = withPending(original, options);
@@ -227,6 +231,14 @@ Con qué se conecta:
       if(whatsButton && target.contains(whatsButton) && !whatsButton.disabled){
         if(options && typeof options.onWhatsapp === "function"){
           options.onWhatsapp(whatsButton.getAttribute("data-whatsapp-row"),whatsButton);
+        }
+        return;
+      }
+
+      var correoButton = event.target.closest ? event.target.closest("[data-correo-row]") : null;
+      if(correoButton && target.contains(correoButton) && !correoButton.disabled){
+        if(options && typeof options.onCorreo === "function"){
+          options.onCorreo(correoButton.getAttribute("data-correo-row"),correoButton);
         }
         return;
       }
