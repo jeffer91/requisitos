@@ -1,7 +1,7 @@
 /* Defensas - WhatsApp individual: teléfono oficial de BDLocal por cédula + período. */
 (function(window){
   "use strict";
-  var VERSION="2.1.0-external-browser",pending=Object.create(null);
+  var VERSION="2.2.0-whatsapp-desktop",pending=Object.create(null);
   function txt(v){return String(v==null?"":v).replace(/\s+/g," ").trim();}
   var states=["Requisitos no cargados","Sin requisitos","Pendiente Art","Supletorio Art","Pendiente Def","Supletorio Def"];
   function eligible(row){return states.indexOf(txt(row&&row._estadoDefensa))>=0;}
@@ -93,18 +93,20 @@
     }catch(error){}
     return /Electron\//i.test(String(window.navigator&&window.navigator.userAgent||""));
   }
-  // Enlace directo a WhatsApp Web, sin pasar por la pantalla de redirección de wa.me.
-  function waUrl(number,message){return "https://web.whatsapp.com/send?phone="+number+"&text="+encodeURIComponent(message);}
+  // Protocolo nativo: Windows abre WhatsApp Desktop, sin navegador ni ventana de Requisitos.
+  function waUrl(number,message){return "whatsapp://send?phone="+number+"&text="+encodeURIComponent(message);}
   function closeTab(tab){if(tab){try{tab.close();}catch(error){}}}
-  function openInBrowser(url,api,tab){
+  function openInWhatsApp(url,api,tab){
     if(api){
-      // shell.openExternal del proceso principal abre el navegador predeterminado de Windows.
+      // Electron entrega el protocolo whatsapp:// al controlador instalado en Windows.
       return Promise.resolve().then(function(){return api.openExternal(url);}).then(function(result){
         if(result===true||(result&&result.ok===true&&result.opened!==false))return true;
-        throw new Error(txt(result&&(result.error||result.message))||"Windows no confirmó la apertura del navegador.");
+        throw new Error(txt(result&&(result.error||result.message))||"Windows no pudo abrir WhatsApp de escritorio.");
+      }).catch(function(error){
+        throw new Error("Verifique que WhatsApp de escritorio esté instalado y asociado al protocolo whatsapp://. "+txt(error&&error.message||error));
       });
     }
-    if(!tab)return Promise.reject(new Error("No se pudo preparar una pestaña del navegador."));
+    if(!tab)return Promise.reject(new Error("No se pudo preparar el enlace de WhatsApp."));
     try{
       tab.opener=null;
       tab.location.replace(url);
@@ -125,10 +127,10 @@
     var api=electronApi(),tab=null;
     // En Electron no abrir ventanas internas, ni siquiera about:blank.
     if(!api&&runningInElectron()){
-      window.alert("Requisitos no tiene disponible la conexión para abrir WhatsApp en el navegador de Windows.");
+      window.alert("Requisitos no tiene disponible la conexión para abrir WhatsApp de escritorio.");
       return Promise.resolve(false);
     }
-    // Solo en la versión web se reserva una pestaña durante el clic para evitar bloqueos de ventanas emergentes.
+    // Solo en la versión web se reserva una pestaña para lanzar el protocolo nativo del sistema.
     if(!api){
       tab=window.open("about:blank","_blank");
       if(!tab){window.alert("El navegador bloqueó la pestaña de WhatsApp. Permita ventanas emergentes para esta página.");return Promise.resolve(false);}
@@ -144,9 +146,9 @@
         window.alert("El estudiante "+txt(row._nombre)+" no tiene un celular válido registrado en Base Local.");
         return false;
       }
-      return openInBrowser(waUrl(number,message),api,tab).catch(function(error){
+      return openInWhatsApp(waUrl(number,message),api,tab).catch(function(error){
         closeTab(tab);
-        window.alert("No se pudo abrir WhatsApp de "+txt(row._nombre)+": "+txt(error&&error.message||error));
+        window.alert("No se pudo abrir WhatsApp de escritorio para "+txt(row._nombre)+": "+txt(error&&error.message||error));
         return false;
       });
     }).catch(function(error){
