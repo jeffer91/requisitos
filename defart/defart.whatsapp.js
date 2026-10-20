@@ -157,7 +157,7 @@
       return false;
     }).finally(function(){
       delete pending[key];
-      if(button){button.disabled=false;button.textContent="WA";}
+      if(button){button.disabled=false;button.textContent="W";}
     });
   }
   window.DefartWhatsapp={version:VERSION,eligible:eligible,issue:issue,
