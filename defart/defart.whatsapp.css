@@ -1,13 +1,15 @@
-/* Acción de WhatsApp individual por estudiante en Defensas. */
-.def-row-actions{display:flex;align-items:center;justify-content:center;gap:5px;}
+/* Acciones individuales de WhatsApp y correo formal por estudiante en Defensas. */
+.def-row-actions{display:flex;align-items:center;justify-content:center;gap:4px;}
 .def-row-actions .def-row-save{min-width:80px;width:auto;padding:0 8px;min-height:30px;}
 .def-row-actions .def-row-action-state{min-width:78px;padding:0 5px;}
-.def-row-whatsapp{display:inline-flex;align-items:center;justify-content:center;
-  width:35px;min-width:35px;min-height:30px;border:1px solid #86d0aa;
-  border-radius:8px;background:#e8f8ef;color:#176541;font-size:10px;
-  font-weight:900;cursor:pointer;}
+.def-row-whatsapp,.def-row-correo{display:inline-flex;align-items:center;justify-content:center;
+  width:30px;min-width:30px;min-height:30px;
+  border-radius:8px;font-size:12px;font-weight:900;cursor:pointer;}
+.def-row-whatsapp{border:1px solid #86d0aa;background:#e8f8ef;color:#176541;}
+.def-row-correo{border:1px solid #92b9eb;background:#e9f2ff;color:#1a4f89;}
 .def-row-whatsapp:hover:not(:disabled){background:#caefdb;border-color:#27865b;}
-.def-row-whatsapp:disabled{opacity:.6;cursor:wait;}
-.def-table .col-accion{width:156px;min-width:156px;}
-@media(max-width:900px){.def-table .col-accion{width:148px;min-width:148px;}
+.def-row-correo:hover:not(:disabled){background:#d2e5ff;border-color:#4d89c5;}
+.def-row-whatsapp:disabled,.def-row-correo:disabled{opacity:.6;cursor:wait;}
+.def-table .col-accion{width:166px;min-width:166px;}
+@media(max-width:900px){.def-table .col-accion{width:158px;min-width:158px;}
  .def-row-actions .def-row-save{min-width:75px;padding:0 5px;}}
