@@ -67,6 +67,17 @@ function parsedExternalUrl(value){
     const parsed = new URL(raw);
     const maxLength = isOutlookComposeUrl(parsed) ? MAX_OUTLOOK_COMPOSE_URL_LENGTH : MAX_EXTERNAL_URL_LENGTH;
     if(raw.length > maxLength){return null;}
+    if(parsed.protocol === "whatsapp:"){
+      // Permitir solo enlaces de conversación de WhatsApp Desktop; ningún otro protocolo externo.
+      const keys=Array.from(parsed.searchParams.keys());
+      const phone=parsed.searchParams.get("phone")||"";
+      const message=parsed.searchParams.get("text")||"";
+      if(parsed.hostname!=="send" || (parsed.pathname && parsed.pathname!=="/") ||
+         parsed.username || parsed.password || keys.length!==2 ||
+         !keys.includes("phone") || !keys.includes("text") ||
+         !/^\d{8,15}$/.test(phone) || !message){return null;}
+      return parsed;
+    }
     if(parsed.protocol === "mailto:"){return parsed;}
     if((parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password){return parsed;}
     return null;
@@ -476,7 +487,7 @@ function registerIpc(){
     const parsed=parsedExternalUrl(url);
     if(!parsed){return {ok:false,opened:false,error:"Enlace externo no permitido o demasiado extenso."};}
     await shell.openExternal(parsed.toString());
-    return {ok:true,opened:true,method:isOutlookComposeUrl(parsed)?"outlook-web":"external"};
+    return {ok:true,opened:true,method:parsed.protocol==="whatsapp:"?"whatsapp-desktop":isOutlookComposeUrl(parsed)?"outlook-web":"external"};
   });
   secureHandle("sn:sisacad-open",()=>openSisacadWindow());
   secureHandle("sn:sisacad-status",()=>getSisacadWindowStatus());
