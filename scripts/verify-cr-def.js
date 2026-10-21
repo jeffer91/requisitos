@@ -12,7 +12,9 @@ const base={tipoPeriodo:"PVC",Academico:"CUMPLE",Documentacion:"APROBADO",Financ
 let d=sandbox.BDLDefenseEligibility.evaluate(base);
 check(d.requirementsOk===true&&d.eligibleForSchedule===true&&d.intento===1,"PVC completo con N-ART >=7 debe quedar apto sin Titulación.");
 d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{tipoPeriodo:"REGULAR"}));
-check(d.requirementsOk===false&&(d.missingRequirements||[]).some(x=>/Titul/i.test(x)),"Regular debe exigir Titulación.");
+check(d.requirementsOk===true&&d.canArt===true&&d.canDef===true&&d.eligibleForSchedule===true,"Regular puede programar defensa aunque Titulación esté pendiente.");
+d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{tipoPeriodo:"REGULAR",Documentacion:"PENDIENTE"}));
+check(d.canArt===false&&d.canDef===false&&d.eligibleForSchedule===false,"Un requisito previo pendiente bloquea artículo y defensa.");
 d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{Notdef:6}));
 check(d.eligibleForSchedule===true&&d.intento===2&&d.noteState==="DEFENSA_NO_APROBADA","N-DEF <7 debe ser supletorio.");
 d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{Notdef:7}));
@@ -23,7 +25,7 @@ const ss={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promi
 check(ss.CR_DEF_SCHEDULER.fechas("31/02/2026").length===0,"Debe rechazar fechas imposibles.");
 const occupied=[{dia:"10/09/2026",hora:"10:00 a 10:30",sede:"Matriz",aula:"301",tribunal1:"X",tribunal2:"Y",tribunal3:"Z"}];
 const generated=ss.CR_DEF_SCHEDULER.generar([{id:"2",carrera:"Carrera B",sede:"Matriz",estadoClave:"apto",alertas:[]}],{diasGlobal:"10/09/2026",existingRows:occupied});
-check(generated.rows[0].hora==="10:30 a 11:00","Generación filtrada debe respetar ocupación externa.");
+check(generated.rows[0].hora==="10:30–11:00","Generación filtrada debe respetar ocupación externa.");
 const data=read("Cr-def/cr-def.data.js"),app=read("Cr-def/cr-def.js"),templates=read("Cr-def/cr-def.templates.js"),connector=read("BDLocal/conexiones/cone.crdef.js");
 check(data.includes('matricula:"ACTIVO"'),"Cr-def debe solicitar matrículas activas.");
 check(app.includes("cacheStale"),"Cr-def debe bloquear cache obsoleta.");

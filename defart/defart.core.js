@@ -539,15 +539,15 @@ Con qué se conecta:
     var notes = notesOf(source);
     var nart = notes.nart;
     var ndef = notes.ndef;
-    var canArt = true;
     var requirementsOk = req.loaded !== false && req.ok;
-    var canDef = requirementsOk && nart !== null && nart >= 7;
+    var canArt = requirementsOk;
+    var canDef = canArt && nart !== null && nart >= 7;
     var nfin = canDef ? calculateFinal(nart, ndef) : null;
     var estado = "Pendiente Art";
 
-    if (nart !== null && nart < 7) estado = "Supletorio Art";
-    else if (req.loaded === false) estado = "Requisitos no cargados";
+    if (req.loaded === false) estado = "Requisitos no cargados";
     else if (!req.ok) estado = "Sin requisitos";
+    else if (nart !== null && nart < 7) estado = "Supletorio Art";
     else if (nart === null) estado = "Pendiente Art";
     else if (ndef === null) estado = "Pendiente Def";
     else if (ndef < 7) estado = "Supletorio Def";
@@ -750,6 +750,7 @@ Con qué se conecta:
   function validateChange(current, change, patch, nart, ndef) {
     var errors = [];
     if (Object.prototype.hasOwnProperty.call(change, "nart") && !isValidNote(change.nart)) errors.push("N-ART inválida: " + current._nombre);
+    if (Object.prototype.hasOwnProperty.call(change, "nart") && !current._canArt) errors.push("N-ART bloqueada: faltan requisitos previos (excepto Titulación): " + current._nombre);
     if (Object.prototype.hasOwnProperty.call(change, "ndef") && !isValidNote(change.ndef)) errors.push("N-DEF inválida: " + current._nombre);
     if (Object.prototype.hasOwnProperty.call(change, "ndef") && (!current._requirementsOk || nart === null || nart < 7)) errors.push("N-DEF bloqueada hasta cumplir requisitos y tener N-ART igual o mayor a 7: " + current._nombre);
     if (nart !== null && (nart < 0 || nart > 10)) errors.push("N-ART fuera de rango: " + current._nombre);

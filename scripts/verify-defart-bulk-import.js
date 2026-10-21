@@ -46,6 +46,7 @@ const students=[
   {_defId:"0100000002__2026-02__2026-08",_cedula:"0100000002",_nombre:"LISBETH ALEXANDRA MERA ZAMBRANO",correoInstitucional:"lmeraz@itsqmet.edu.ec",_nart:8.5,_ndef:9,_carrera:"REDES"},
   {_defId:"0100000003__2026-02__2026-08",_cedula:"0100000003",_nombre:"CRUZ ELSA MARIA SÁNCHEZ MACIAS",correoInstitucional:"otro@itsqmet.edu.ec",_nart:null,_ndef:7.5,_carrera:"CONTABILIDAD"}
 ];
+students.forEach(student=>{student._requirementsOk=true;});
 
 const items=api.buildItems(parsed.rows,students);
 check(items[0].kind==="exact"&&items[0].confidence===100,"El correo exacto tiene prioridad y 100% de confianza.");
@@ -96,6 +97,7 @@ const reorderedStudents=[
   {_defId:"1",_nombre:"MERA ZAMBRANO LISBETH ALEXANDRA",_correo:"lmeraz@itsqmet.edu.ec",_nart:null},
   {_defId:"2",_nombre:"CABAL CEDEÑO JOSE ROLANDO",CorreoInstitucional:"jcabal@itsqmet.edu.ec",_nart:null}
 ];
+reorderedStudents.forEach(student=>{student._requirementsOk=true;});
 const reorderedItems=api.buildItems(flattened.rows,reorderedStudents);
 check(reorderedItems[0].kind==="exact"&&reorderedItems[0].confidence===100,"El correo hidratado en _correo produce coincidencia exacta.");
 check(reorderedItems[1].kind==="exact"&&reorderedItems[1].confidence===100,"El correo institucional produce coincidencia exacta.");
@@ -103,7 +105,7 @@ check(api.cleanMoodleName("LISBETH ALEXANDRA MERA ZAMBRANO LM LISBETH ALEXANDRA 
 
 const reorderedNoEmail=api.buildItems(
   [{rowNumber:1,nombreCompleto:"JOSE ROLANDO CABAL CEDEÑO",correo:"",notaArticulo:9}],
-  [{_defId:"3",_nombre:"CABAL CEDEÑO JOSE ROLANDO",_nart:null}]
+  [{_defId:"3",_nombre:"CABAL CEDEÑO JOSE ROLANDO",_nart:null,_requirementsOk:true}]
 );
 check(reorderedNoEmail[0].kind==="exact"&&reorderedNoEmail[0].confidence===99,"Mismos nombres y apellidos en distinto orden cuentan como coincidencia exacta.");
 
@@ -114,12 +116,16 @@ Seleccione ESTUDIANTE SIN NOTA ES ESTUDIANTE SIN NOTA sinnota@itsqmet.edu.ec Env
 check(zeroAndMissing.rows[0].notaArticulo===0,"0/100 se conserva como N-ART 0.00.");
 check(zeroAndMissing.rows[1].notaArticulo===null,"Una fila sin X/Y queda realmente sin calificación.");
 const missingItems=api.buildItems(zeroAndMissing.rows,[
-  {_defId:"4",_nombre:"ESTUDIANTE CERO",correoInstitucional:"cero@itsqmet.edu.ec",_nart:null},
-  {_defId:"5",_nombre:"ESTUDIANTE SIN NOTA",correoInstitucional:"sinnota@itsqmet.edu.ec",_nart:null}
+  {_defId:"4",_nombre:"ESTUDIANTE CERO",correoInstitucional:"cero@itsqmet.edu.ec",_nart:null,_requirementsOk:true},
+  {_defId:"5",_nombre:"ESTUDIANTE SIN NOTA",correoInstitucional:"sinnota@itsqmet.edu.ec",_nart:null,_requirementsOk:true}
 ]);
 check(missingItems[0].action==="load"&&missingItems[0].selected===true,"N-ART 0.00 sí queda disponible para cargar.");
 check(missingItems[1].kind==="no-grade"&&missingItems[1].action==="skip"&&missingItems[1].selected===false,"Sin calificación nunca se ofrece para cargar.");
 check(api.changesForSave(missingItems).length===1&&api.changesForSave(missingItems)[0].nart===0,"Los cambios guardables incluyen cero, pero excluyen filas sin nota.");
+const blocked=api.buildItems([{rowNumber:1,nombreCompleto:"ESTUDIANTE BLOQUEADO",correo:"",notaArticulo:9}], [
+  {_defId:"6",_nombre:"ESTUDIANTE BLOQUEADO",_nart:null,_requirementsOk:false}
+]);
+check(blocked[0].selected===false&&api.changesForSave(blocked).length===0,"La carga Moodle bloquea N-ART cuando faltan requisitos.");
 
 if(errors.length){
   console.error("\nVERIFICACIÓN CARGA MASIVA DEFENSAS: ERROR ("+errors.length+")");

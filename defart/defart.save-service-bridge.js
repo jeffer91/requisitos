@@ -10,7 +10,7 @@ Función:
 (function(window){
   "use strict";
 
-  var VERSION="1.2.0-nart-no-requirements-block";
+  var VERSION="1.3.0-gate-both-grades-by-prerequisites";
 
   function text(value){return String(value==null?"":value).trim();}
   function num(value){
@@ -67,10 +67,15 @@ Función:
     if(Number.isNaN(note.Notdef)){errors.push("N-DEF inválida o fuera de rango.");}
     if(!note.idEstudiantePeriodo||!note.periodoId||!note.cedula){errors.push("Falta identificación canónica del estudiante/período.");}
     var engine=window.BDLDefenseEligibility;
-    if(engine&&typeof engine.evaluate==="function"){
+    if(!engine||typeof engine.evaluate!=="function"){
+      errors.push("No está disponible el motor de validación de requisitos.");
+    }else{
       var decision=engine.evaluate(Object.assign({},row||{},note));
-      if(Object.prototype.hasOwnProperty.call(change||{},"ndef")&&(!decision.requirementsLoaded||!decision.requirementsOk||decision.nart===null||decision.nart<7)){
-        errors.push("N-DEF bloqueada hasta cumplir requisitos y tener N-ART igual o mayor a 7.");
+      if(Object.prototype.hasOwnProperty.call(change||{},"nart")&&!decision.canArt){
+        errors.push("N-ART bloqueada: deben cumplirse los ocho requisitos previos (Titulación es la única excepción).");
+      }
+      if(Object.prototype.hasOwnProperty.call(change||{},"ndef")&&!decision.canDef){
+        errors.push("N-DEF bloqueada: deben cumplirse los ocho requisitos previos y N-ART debe ser igual o mayor a 7.");
       }
     }
     return errors.filter(Boolean);

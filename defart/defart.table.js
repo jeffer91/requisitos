@@ -131,10 +131,10 @@ Con qué se conecta:
     var shown = withPending(original, options);
     var isArt = field === "nart";
     var value = isArt ? shown._nart : shown._ndef;
-    var enabled = isArt ? true : shown._canDef;
+    var enabled = isArt ? shown._canArt === true : shown._canDef === true;
     var title = isArt
-      ? "N-ART puede registrarse aunque existan requisitos pendientes."
-      : (!enabled ? "Bloqueado hasta cumplir requisitos y tener N-ART igual o mayor a 7." : "");
+      ? (!enabled ? "Bloqueado: debe cumplir los ocho requisitos previos (Titulación puede estar pendiente)." : "")
+      : (!enabled ? "Bloqueado: necesita los ocho requisitos previos y N-ART igual o mayor a 7." : "");
 
     return '<input class="def-note-input" type="number" min="0" max="10" step="0.01" inputmode="decimal" data-id="'+esc(original._defId)+'" data-field="'+esc(field)+'" value="'+esc(noteText(value))+'" '+(enabled ? "" : "disabled")+' title="'+esc(title)+'" />';
   }
@@ -299,10 +299,15 @@ Con qué se conecta:
     var action = rowEl.querySelector(".col-accion");
     if(action){ action.innerHTML = actionHtml(original, options || {}); }
 
+    var nartInput = rowEl.querySelector('.def-note-input[data-field="nart"]');
+    if(nartInput){
+      nartInput.disabled = preview._canArt !== true;
+      nartInput.title = preview._canArt === true ? "" : "Bloqueado hasta cumplir los ocho requisitos previos (excepto Titulación).";
+    }
     var ndefInput = rowEl.querySelector('.def-note-input[data-field="ndef"]');
     if(ndefInput){
       ndefInput.disabled = !preview._canDef;
-      ndefInput.title = preview._canDef ? "" : "Bloqueado hasta cumplir requisitos y tener N-ART igual o mayor a 7.";
+      ndefInput.title = preview._canDef ? "" : "Bloqueado: necesita los ocho requisitos previos y N-ART igual o mayor a 7.";
     }
   }
   function defaultHeaders(){ return HEADERS.slice(); }

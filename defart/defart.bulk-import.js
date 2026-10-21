@@ -78,6 +78,13 @@ Función:
     var n=Number(text(value).replace(",","."));
     return Number.isFinite(n)?Math.round(n*100)/100:null;
   }
+  function canGradeArticle(student){
+    if(!student||student._requirementsLoaded===false||student._bdlRequirementsLoaded===false)return false;
+    if(typeof student._canArt==="boolean")return student._canArt;
+    if(typeof student._requirementsOk==="boolean")return student._requirementsOk;
+    var engine=window.BDLDefenseEligibility;
+    return !!(engine&&typeof engine.evaluate==="function"&&engine.evaluate(student).canArt);
+  }
   function sameNote(a,b){
     if(a==null&&b==null){return true;}
     if(a==null||b==null){return false;}
@@ -263,7 +270,7 @@ Función:
     return {student:null,kind:"ambiguous",confidence:first.score,method:first.method,candidates:ranked};
   }
   function defaultAction(item){
-    if(!item.student||item.importConflict||item.duplicate||item.imported.notaArticulo==null){return "skip";}
+    if(!item.student||!canGradeArticle(item.student)||item.importConflict||item.duplicate||item.imported.notaArticulo==null){return "skip";}
     var current=currentNart(item.student);
     if(item.kind!=="exact"){return "skip";}
     if(current==null){return "load";}
@@ -333,7 +340,7 @@ Función:
       duplicate:items.filter(function(x){return x.kind==="duplicate";}).length,
       unmatched:items.filter(function(x){return x.kind==="unmatched";}).length,
       noGrade:items.filter(function(x){return x.kind==="no-grade";}).length,
-      ready:items.filter(function(x){return x.selected&&x.student&&(x.action==="load"||x.action==="replace")&&!x.importConflict&&!x.duplicate;}).length
+      ready:items.filter(function(x){return x.selected&&x.student&&canGradeArticle(x.student)&&(x.action==="load"||x.action==="replace")&&!x.importConflict&&!x.duplicate;}).length
     };
   }
   function manualAssign(item,student){
@@ -341,7 +348,7 @@ Función:
     item.student=student||null;
     if(!student){item.kind="unmatched";item.confidence=0;item.method="manual";item.action="skip";item.selected=false;return item;}
     item.kind=item.imported.notaArticulo==null?"no-grade":"manual";item.matchKind="manual";item.confidence=100;item.method="selección manual";item.importConflict=false;item.duplicate=false;
-    if(item.imported.notaArticulo==null){item.action="skip";item.selected=false;return item;}
+    if(item.imported.notaArticulo==null||!canGradeArticle(student)){item.action="skip";item.selected=false;return item;}
     var current=currentNart(student);
     if(current==null){item.action="load";item.selected=true;}
     else if(sameNote(current,item.imported.notaArticulo)){item.action="same";item.selected=false;}
@@ -350,7 +357,7 @@ Función:
   }
   function changesForSave(items){
     return (items||[]).filter(function(item){
-      return item.student&&item.selected&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace")&&item.imported.notaArticulo!=null;
+      return item.student&&canGradeArticle(item.student)&&item.selected&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace")&&item.imported.notaArticulo!=null;
     }).map(function(item){
       return {id:idOf(item.student),nart:item.imported.notaArticulo,_row:item.student,_bulkImport:true};
     });
@@ -437,6 +444,7 @@ Función:
   function visibleItems(){return state.tab==="all"?state.items:state.items.filter(function(item){return category(item)===state.tab;});}
   function statusLabel(item){
     if(item.kind==="no-grade")return "Sin calificación";
+    if(item.student&&!canGradeArticle(item.student))return "Requisitos pendientes";
     if(item.kind==="exact")return "Exacta · "+item.confidence+"%";
     if(item.kind==="manual")return "Manual";
     if(item.kind==="probable")return "Probable · "+item.confidence+"%";
@@ -449,6 +457,7 @@ Función:
     var current=item.student?currentNart(item.student):null,opts=[];
     if(item.imported.notaArticulo==null){return '<option value="skip">Sin calificación · no cargar</option>';}
     if(!item.student||item.importConflict||item.duplicate){return '<option value="skip">No cargar</option>';}
+    if(!canGradeArticle(item.student)){return '<option value="skip">Bloqueado · requisitos previos incompletos</option>';}
     if(current==null){
       opts.push(["load","Cargar N-ART"]);
       opts.push(["skip","No cargar"]);
@@ -475,7 +484,7 @@ Función:
   }
   function rowHtml(item){
     var current=item.student?currentNart(item.student):null;
-    var canSelect=item.imported.notaArticulo!=null&&item.student&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace");
+    var canSelect=item.imported.notaArticulo!=null&&item.student&&canGradeArticle(item.student)&&!item.importConflict&&!item.duplicate&&(item.action==="load"||item.action==="replace");
     return '<tr class="def-bulk-row is-'+esc(category(item))+'">'+
       '<td class="def-bulk-check"><input type="checkbox" data-bulk-select="'+esc(item.key)+'" '+(item.selected?"checked":"")+' '+(!canSelect?"disabled":"")+'></td>'+
       '<td><strong>'+esc(item.imported.nombreCompleto||"Nombre no detectado")+'</strong><small>'+esc(item.imported.correo||"Sin correo")+'</small></td>'+
@@ -529,13 +538,13 @@ Función:
   }
   function changeAction(select){
     var item=findItem(select.getAttribute("data-key"));if(!item)return;
-    item.action=select.value;
-    item.selected=item.action==="load"||item.action==="replace";
+    item.action=canGradeArticle(item.student)?select.value:"skip";
+    item.selected=canGradeArticle(item.student)&&(item.action==="load"||item.action==="replace");
     render();
   }
   function toggleSelect(input){
     var item=findItem(input.getAttribute("data-bulk-select"));if(!item)return;
-    item.selected=!!input.checked;
+    item.selected=canGradeArticle(item.student)&&!!input.checked;
     if(item.selected&&item.action==="keep")item.action="replace";
     if(item.selected&&item.action==="review")item.action=currentNart(item.student)==null?"load":"replace";
     if(!item.selected&&(item.action==="load"||item.action==="replace"))item.action="skip";
