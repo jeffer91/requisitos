@@ -4,7 +4,7 @@ Ruta o ubicación: /defart/defart.requirements-guard.js
 Función o funciones:
 - Diferenciar requisitos pendientes de requisitos todavía no cargados.
 - Evitar mostrar "Sin requisitos" cuando la conexión aún está preparando datos.
-- Mantener N-ART editable aunque los requisitos no estén cargados.
+- Bloquear N-ART y N-DEF cuando los requisitos no están cargados.
 - Mantener N-DEF bloqueada hasta recibir y cumplir requisitos_estudiante.
 Con qué se conecta:
 - defart.core.js
@@ -14,7 +14,7 @@ Con qué se conecta:
 (function(window){
   "use strict";
 
-  var VERSION = "1.1.0-nart-always-editable";
+  var VERSION = "1.2.0-block-unloaded-prerequisites";
 
   function protectRow(row){
     if(!row || typeof row !== "object"){
@@ -26,11 +26,11 @@ Con qué se conecta:
     }
 
     return Object.assign({}, row, {
-      _canArt: true,
+      _canArt: false,
       _canDef: false,
       _requirementsOk: false,
       _requirementsLoaded: false,
-      _estadoDefensa: row._nart !== null && Number(row._nart) < 7 ? "Supletorio Art" : "Requisitos no cargados",
+      _estadoDefensa: "Requisitos no cargados",
       _missingRequirements: [],
       _requirementValues: {},
       _requirementsPending: true
