@@ -36,10 +36,10 @@ check(connector.includes('estadoSheets:"SINCRONIZADO"'),"Defart no debe crear pe
 check(connector.includes('estadoSupabase:"SINCRONIZADO"'),"Defart no debe crear pendientes para Supabase");
 check(connector.includes('estadoFirebase:"PENDIENTE"'),"Defart debe crear pendientes para Firebase");
 check(!bootstrap.includes("defart.persistence.js"),"Defart no debe cargar el mirror antiguo duplicado");
-check(!bridgeSource.includes("N-ART bloqueada por requisitos"),"El guardado no debe bloquear N-ART por requisitos.");
-check(!coreSource.includes("N-ART bloqueada por requisitos"),"El núcleo no debe bloquear N-ART por requisitos.");
-check(tableSource.includes('var enabled = isArt ? true : shown._canDef;'),"La tabla debe mantener N-ART siempre habilitada.");
-check(guardSource.includes("_canArt: true"),"El guard de requisitos no debe deshabilitar N-ART.");
+check(bridgeSource.includes("N-ART bloqueada:"),"El guardado rechaza N-ART con requisitos previos pendientes.");
+check(coreSource.includes("var canArt = requirementsOk;"),"El núcleo debe verificar los ocho requisitos antes de habilitar N-ART.");
+check(tableSource.includes('var enabled = isArt ? shown._canArt === true : shown._canDef === true;'),"La tabla debe respetar la elegibilidad de ambas notas.");
+check(guardSource.includes("_canArt: false"),"N-ART se deshabilita cuando los requisitos no están cargados.");
 check(serviceSource.includes("function firstRecordedNote(")&&!serviceSource.includes("row.Notart ||"),"El estado de notas debe conservar ceros sin usar OR lógico.");
 check((defartHtml.match(/id="def-btn-save"/g)||[]).length===1&&defartHtml.includes('class="def-inline-save"'),"El botón de guardado debe aparecer una sola vez.");
 check(!compactCss.includes(".def-floating-save")&&compactCss.includes(".def-inline-save"),"No debe quedar el botón flotante superpuesto.");
@@ -78,7 +78,7 @@ const blockedByRequirements=eligibilitySandbox.BDLDefenseEligibility.evaluate({
   Documentacion:"PENDIENTE",
   Financiero:"PENDIENTE"
 });
-check(blockedByRequirements.canArt===true,"N-ART debe poder registrarse aunque falten requisitos.");
+check(blockedByRequirements.canArt===false,"N-ART debe bloquearse si falta documentación u otro requisito previo.");
 check(blockedByRequirements.canDef===false,"N-DEF debe permanecer bloqueada si faltan requisitos.");
 check(blockedByRequirements.stateLabel==="Sin requisitos","Con N-ART >=7 y requisitos pendientes debe conservar estado Sin requisitos.");
 
@@ -86,9 +86,16 @@ const failedArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate({
   tipoPeriodo:"PVC",
   Notart:6.5
 });
-check(failedArticle.canArt===true&&failedArticle.stateLabel==="Supletorio Art","N-ART <7 debe quedar como Supletorio Art sin depender de requisitos.");
-const zeroArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate({tipoPeriodo:"PVC",Notart:0,Documentacion:"PENDIENTE"});
-check(zeroArticle.stateLabel==="Supletorio Art","N-ART 0 y requisitos pendientes debe conservar Supletorio Art.");
+check(failedArticle.canArt===false&&failedArticle.stateLabel==="Sin requisitos","Una N-ART histórica <7 no habilita nuevas notas si faltan requisitos.");
+const readyStudent={tipoPeriodo:"REGULAR",Academico:"CUMPLE",Documentacion:"CUMPLE",Financiero:"CUMPLE","PrácticasVinculacion":"CUMPLE",Vinculacion:"CUMPLE",SeguimientoGraduados:"CUMPLE",Ingles:"CUMPLE","ActualizaciónDatos":"CUMPLE",Titulacion:"PENDIENTE"};
+const onlyTitulacionMissing=eligibilitySandbox.BDLDefenseEligibility.evaluate(readyStudent);
+check(onlyTitulacionMissing.canArt===true&&onlyTitulacionMissing.canDef===false&&onlyTitulacionMissing.requirementsOk===true,"Solo Titulación pendiente permite N-ART.");
+const approvedArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate(Object.assign({},readyStudent,{Notart:8}));
+check(approvedArticle.canArt===true&&approvedArticle.canDef===true,"N-ART >=7 y ocho requisitos completos habilitan N-DEF.");
+const zeroArticle=eligibilitySandbox.BDLDefenseEligibility.evaluate(Object.assign({},readyStudent,{Notart:0}));
+check(zeroArticle.canArt===true&&zeroArticle.canDef===false&&zeroArticle.stateLabel==="Supletorio Art","N-ART 0 se conserva como nota válida de supletorio.");
+const unloaded=eligibilitySandbox.BDLDefenseEligibility.evaluate(Object.assign({},readyStudent,{_bdlRequirementsLoaded:false}));
+check(unloaded.canArt===false&&unloaded.canDef===false,"Sin requisitos cargados ninguna nota se habilita.");
 
 const calls=[];
 const sandbox={
@@ -98,8 +105,10 @@ const sandbox={
   DefartCore:{saveNotes(){return Promise.resolve(true);}},
   DefartApp:{getState(){return {data:{rows:[{
     idEstudiantePeriodo:"2026-04__2026-09__1723456789",
-    periodoId:"2026-04__2026-09",cedula:"1723456789",Notart:8.5,Notdef:8
+    periodoId:"2026-04__2026-09",cedula:"1723456789",Notart:8.5,Notdef:8,
+    tipoPeriodo:"REGULAR",Academico:"CUMPLE",Documentacion:"CUMPLE",Financiero:"CUMPLE","PrácticasVinculacion":"CUMPLE",Vinculacion:"CUMPLE",SeguimientoGraduados:"CUMPLE",Ingles:"CUMPLE","ActualizaciónDatos":"CUMPLE",Titulacion:"PENDIENTE"
   }]}};}},
+  BDLDefenseEligibility:eligibilitySandbox.BDLDefenseEligibility,
   ConDefart:{save(note,options){calls.push({note:{...note},options:{...options}});return Promise.resolve(note);}}
 };
 sandbox.window=sandbox;
@@ -113,6 +122,10 @@ new vm.Script(read(bridgeFile),{filename:bridgeFile}).runInContext(context);
   const result=await sandbox.DefartSaveServiceBridge.saveDirect([{id:"2026-04__2026-09__1723456789",ndef:9}]);
   check(result.ok===true&&calls.length===1,"Defart debe esperar y confirmar el guardado mediante ConDefart");
   check(calls[0].options.enqueue===true,"Defart debe solicitar la creación del cambio Firebase");
+  const invalidRow=Object.assign({},readyStudent,{Documentacion:"PENDIENTE",idEstudiantePeriodo:"1723456790__2026-04__2026-09",periodoId:"2026-04__2026-09",cedula:"1723456790"});
+  sandbox.DefartApp.getState=()=>({data:{rows:[invalidRow]}});
+  const blocked=await sandbox.DefartSaveServiceBridge.saveDirect([{id:"1723456790__2026-04__2026-09",nart:9}]).then(()=>false,()=>true);
+  check(blocked&&calls.length===1,"Guardado directo impide registrar N-ART sin documentación.");
 
   if(errors.length){
     console.error("\nVERIFICACIÓN DEFART V2: ERROR\n");
