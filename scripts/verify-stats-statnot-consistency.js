@@ -49,7 +49,7 @@ vm.runInNewContext(read("BDLocal/conexiones/cone.statnot.js"),{window:win,docume
   assert.strictEqual(evaluated[0].requirementsOk,true,"Reconocer requisitos completos");
   assert.strictEqual(evaluated[0].canDef,true,"Artículo aprobado + requisitos completos habilita defensa");
   assert.strictEqual(evaluated[1].requirementsOk,false,"Detectar requisitos incompletos");
-  assert.strictEqual(evaluated[1].canArt,true,"Artículo permitido aunque falten requisitos");
+  assert.strictEqual(evaluated[1].canArt,false,"Artículo bloqueado mientras falten requisitos previos");
   assert.strictEqual(evaluated[1].canDef,false,"Defensa bloqueada");
   assert.strictEqual(evaluated[1].noteState,"ARTICULO_NO_APROBADO","Calificación menor a siete");
   const modelWindow={BDLDefenseEligibility:rules.BDLDefenseEligibility};
@@ -72,7 +72,7 @@ vm.runInNewContext(read("BDLocal/conexiones/cone.statnot.js"),{window:win,docume
   });
   const regularDecorated=modelWindow.StatNotModel.decorate(rowWithRegularPendingTit);
   assert.strictEqual(regularDecorated._snReached,true,"Titulación pendiente NO excluye al que completó requisitos previos");
-  assert.strictEqual(regularDecorated._snEligible,false,"Titulación sí puede bloquear la habilitación ordinaria");
+  assert.strictEqual(regularDecorated._snEligible,true,"Titulación pendiente no bloquea N-DEF con N-ART aprobada y ocho requisitos completos");
   const approvedWithoutBase=Object.assign({},rows[1],{Notart:8,Notdef:9});
   const failedButReached=Object.assign({},rows[0],{Notart:5,Notdef:null});
   const controlled=[
