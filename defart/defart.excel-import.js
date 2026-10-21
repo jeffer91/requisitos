@@ -33,6 +33,13 @@ Función:
   }
   function el(id){return document&&document.getElementById(id);}
   function idOf(row){row=row||{};return text(row._defId||row.idEstudiantePeriodo||row.studentId||row.id||row._cedula||row.cedula);}
+  function canGradeArticle(student){
+    if(!student||student._requirementsLoaded===false||student._bdlRequirementsLoaded===false)return false;
+    if(typeof student._canArt==="boolean")return student._canArt;
+    if(typeof student._requirementsOk==="boolean")return student._requirementsOk;
+    var engine=window.BDLDefenseEligibility;
+    return !!(engine&&typeof engine.evaluate==="function"&&engine.evaluate(student).canArt);
+  }
   function nameOf(row){row=row||{};return text(row._nombre||row.Nombres||row.nombres||row.Nombre||row.nombre||row.nombreCompleto||row.NombreCompleto||row.Estudiante||row.estudiante);}
   function currentNart(row){
     row=row||{};
@@ -230,8 +237,12 @@ Función:
     var errors=(imported.errors||[]).slice(),warnings=(imported.warnings||[]).slice();
     if(!student){return {errors:errors,warnings:warnings};}
     var effectiveNart=imported.notaArticulo!=null?imported.notaArticulo:currentNart(student);
+    var prerequisitesOk=canGradeArticle(student);
+    if(imported.notaArticulo!=null&&!prerequisitesOk){
+      errors.push("N-ART bloqueada: faltan requisitos previos (excepto Titulación).");
+    }
     if(imported.notaDefensa!=null){
-      if(!student._requirementsOk){errors.push("N-DEF bloqueada: requisitos incompletos o no cargados.");}
+      if(!prerequisitesOk){errors.push("N-DEF bloqueada: requisitos previos incompletos o no cargados.");}
       if(effectiveNart==null||effectiveNart<7){errors.push("N-DEF bloqueada: N-ART debe ser igual o mayor a 7.");}
     }
     var control=finalControl(imported,effectiveNart,imported.notaDefensa!=null?imported.notaDefensa:currentNdef(student));
@@ -449,7 +460,7 @@ Función:
 
   function changesForSave(items){
     return (items||[]).filter(function(item){
-      return item.selected&&item.student&&item.hasChanges&&!item.errors.length;
+      return item.selected&&item.student&&canGradeArticle(item.student)&&item.hasChanges&&!item.errors.length;
     }).map(function(item){
       var change={id:idOf(item.student),_row:item.student,_bulkImport:true,_excelImport:true};
       if(item.changeNart)change.nart=item.imported.notaArticulo;
