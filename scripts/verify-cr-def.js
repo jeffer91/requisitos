@@ -12,7 +12,9 @@ const base={tipoPeriodo:"PVC",Academico:"CUMPLE",Documentacion:"APROBADO",Financ
 let d=sandbox.BDLDefenseEligibility.evaluate(base);
 check(d.requirementsOk===true&&d.eligibleForSchedule===true&&d.intento===1,"PVC completo con N-ART >=7 debe quedar apto sin Titulación.");
 d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{tipoPeriodo:"REGULAR"}));
-check(d.requirementsOk===false&&(d.missingRequirements||[]).some(x=>/Titul/i.test(x)),"Regular debe exigir Titulación.");
+check(d.requirementsOk===true&&d.canArt===true&&d.canDef===true&&d.eligibleForSchedule===true,"Regular puede programar defensa aunque Titulación esté pendiente.");
+d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{tipoPeriodo:"REGULAR",Documentacion:"PENDIENTE"}));
+check(d.canArt===false&&d.canDef===false&&d.eligibleForSchedule===false,"Un requisito previo pendiente bloquea artículo y defensa.");
 d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{Notdef:6}));
 check(d.eligibleForSchedule===true&&d.intento===2&&d.noteState==="DEFENSA_NO_APROBADA","N-DEF <7 debe ser supletorio.");
 d=sandbox.BDLDefenseEligibility.evaluate(Object.assign({},base,{Notdef:7}));
