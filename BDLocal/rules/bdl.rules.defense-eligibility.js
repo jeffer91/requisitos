@@ -9,7 +9,7 @@ Función:
 ========================================================= */
 (function(window){
   "use strict";
-  var VERSION="1.1.0-nart-independent-requirements";
+  var VERSION="1.2.0-eight-prerequisites-titulacion-exempt";
   var BASE=[
     {key:"academico",label:"Académico",aliases:["academico","académico","Academico","Académico"]},
     {key:"documentacion",label:"Documentación",aliases:["documentacion","documentación","Documentacion","Documentación","documentos"]},
@@ -59,9 +59,15 @@ Función:
   function isApproved(v){return OK.indexOf(norm(v))>=0;}
   function requirementSummary(row){
     if(row&&row._bdlRequirementsLoaded===false)return {ok:false,loaded:false,missing:[],values:{},total:0,periodType:classifyPeriod(row)};
-    var list=requirementsForStudent(row),missing=[],values={},e=external();
-    list.forEach(function(req){var applies=true;try{if(e&&typeof e.requirementStatus==="function"){var st=e.requirementStatus(row||{},req.key);if(st&&st.applies===false)applies=false;}}catch(error){}if(!applies)return;var v=valueOf(row,req);values[req.key]=text(v);if(!isApproved(v))missing.push(req.label);});
-    return {ok:missing.length===0,loaded:true,missing:missing,values:values,total:list.length,periodType:classifyPeriod(row)};
+    // Para habilitar evaluaciones solo se exigen los ocho requisitos previos.
+  // Titulación nunca se exige para registrar N-ART ni N-DEF.
+  var list=BASE,missing=[],values={};
+  list.forEach(function(req){
+    var value=valueOf(row,req);
+    values[req.key]=text(value);
+    if(!isApproved(value))missing.push(req.label);
+  });
+  return {ok:missing.length===0,loaded:true,missing:missing,values:values,total:list.length,periodType:classifyPeriod(row)};
   }
   function notes(row){row=row||{};function first(names){for(var i=0;i<names.length;i++){if(row[names[i]]!==undefined&&row[names[i]]!==null&&text(row[names[i]])!=="")return row[names[i]];}return null;}return {nart:numberOrNull(first(["Notart","Nart","nart","notart","notaArticulo","nota_articulo","articulo"])),ndef:numberOrNull(first(["Notdef","Ndef","ndef","notdef","notaDefensa","nota_defensa","defensa"])),nfin:numberOrNull(first(["Notafinal","Nfinal","Nfin","nfin","notafinal","notaFinal","nota_final","final"]))};}
   function calculateFinal(a,d){a=numberOrNull(a);d=numberOrNull(d);if(a===null||d===null||a<7)return null;return round2(a*.70+d*.30);}
@@ -69,13 +75,13 @@ Función:
   function evaluate(row){
     var req=requirementSummary(row),n=notes(row);
     if(n.nfin===null)n.nfin=calculateFinal(n.nart,n.ndef);
-    var canArt=true;
-    var requirementsReady=req.loaded&&req.ok;
-    var canDef=requirementsReady&&n.nart!==null&&n.nart>=7;
+    var canArt=req.loaded&&req.ok;
+  var requirementsReady=canArt;
+  var canDef=canArt&&n.nart!==null&&n.nart>=7;
     var state="Pendiente Art";
-    if(n.nart!==null&&n.nart<7)state="Supletorio Art";
-    else if(!req.loaded)state="Requisitos no cargados";
-    else if(!req.ok)state="Sin requisitos";
+    if(!req.loaded)state="Requisitos no cargados";
+  else if(!req.ok)state="Sin requisitos";
+  else if(n.nart!==null&&n.nart<7)state="Supletorio Art";
     else if(n.nart===null)state="Pendiente Art";
     else if(n.ndef===null)state="Pendiente Def";
     else if(n.ndef<7)state="Supletorio Def";
