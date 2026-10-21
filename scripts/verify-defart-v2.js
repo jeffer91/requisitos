@@ -57,10 +57,10 @@ const incomplete=tableSandbox.DefartTable.statePill({
 });
 check(incomplete.includes("Req. incompletos"),"El estado real de requisitos incompletos se conserva.");
 const noteHelpers=serviceSource.slice(serviceSource.indexOf("  function firstRecordedNote("),serviceSource.indexOf("  function estadoLabel(estado){"));
-const noteStatus=new Function("text","numberOrNull",noteHelpers+"return notaEstado;")(
-  value=>String(value==null?"":value).trim(),
-  value=>value==null||String(value).trim()===""?null:Number(value)
-);
+const noteStatus=new vm.Script(noteHelpers+"\nnotaEstado", {filename:"verify-defart-v2:notes-status"}).runInNewContext({
+  text:value=>String(value==null?"":value).trim(),
+  numberOrNull:value=>value==null||String(value).trim()===""?null:Number(value)
+});
 check(noteStatus({Notart:0})==="ARTICULO_NO_APROBADO","N-ART 0 no es ausencia de nota.");
 check(noteStatus({Notart:0,Nart:9})==="ARTICULO_NO_APROBADO","N-ART 0 prevalece sobre alias.");
 check(noteStatus({Notart:8,Notdef:0})==="DEFENSA_NO_APROBADA","N-DEF 0 es defensa reprobada.");
