@@ -76,7 +76,7 @@ const blockedParsed=api.parseMatrix([
 const blockedItems=api.buildItems(blockedParsed.rows,[
   {_defId:"5",_nombre:"ESTUDIANTE BLOQUEADO",_nart:null,_ndef:null,_requirementsOk:false}
 ]);
-check(blockedItems[0].errors.length>0&&blockedItems[0].selected===false,"N-DEF se bloquea cuando los requisitos no están completos.");
+check(blockedItems[0].errors.some(error=>error.includes("N-ART bloqueada"))&&blockedItems[0].errors.some(error=>error.includes("N-DEF bloqueada"))&&blockedItems[0].selected===false,"Excel bloquea ambas notas cuando faltan requisitos previos.");
 
 if(errors.length){
   console.error("\nVERIFICACIÓN EXCEL DEFENSAS: ERROR ("+errors.length+")");
