@@ -10,7 +10,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.2-carla-rivera-email";
+  var VERSION = "2.1.3-carla-rivera-whatsapp";
   var ELIGIBILITY_KEY = "__pendientes_defensa_nucleos__";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -111,7 +111,7 @@ Función o funciones:
       id:"practicas", orden:5, area:"Prácticas",
       responsable:"Carla Rivera", saludo:"Carla", tratamiento:"Estimada Econ. Carla Rivera",
       correo:"crivera@itsqmet.edu.ec", copias:["mtomala@itsqmet.edu.ec"],
-      whatsapp:"",
+      whatsapp:phoneEC("0986403322"),
       descripcion:"Cumplimiento de prácticas preprofesionales.",
       requisitoKeys:["practicasvinculacion","practicas","practicaspreprofesionales","practicapreprofesional"]
     },
@@ -119,7 +119,7 @@ Función o funciones:
       id:"vinculacion", orden:6, area:"Vinculación",
       responsable:"Carla Rivera", saludo:"Carla", tratamiento:"Estimada Econ. Carla Rivera",
       correo:"crivera@itsqmet.edu.ec", copias:["mtomala@itsqmet.edu.ec"],
-      whatsapp:"",
+      whatsapp:phoneEC("0986403322"),
       descripcion:"Cumplimiento de vinculación con la sociedad.",
       requisitoKeys:["vinculacion","vinculacionconlasociedad","vinculacionsociedad"]
     },
