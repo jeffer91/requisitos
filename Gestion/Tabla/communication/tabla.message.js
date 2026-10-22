@@ -38,13 +38,14 @@ Función:
       contacto: "Jefferson Villarreal",
       correo: "jvillarreal@itsqmet.edu.ec"
     },
+    // Contacto institucional de Carla Rivera pendiente de confirmación.
     practicasvinculacion: {
-      contacto: "Verónica Ayala",
-      correo: "veayala@itsqmet.edu.ec"
+      contacto: "Carla Rivera",
+      correo: ""
     },
     vinculacion: {
-      contacto: "Verónica Ayala",
-      correo: "veayala@itsqmet.edu.ec"
+      contacto: "Carla Rivera",
+      correo: ""
     },
     seguimientograduados: {
       contacto: "Yessenia Ortega",

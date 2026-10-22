@@ -58,7 +58,7 @@ Función:
       tribunal("adm-03","Administración · Tribunal 3","Francisco Samaniego","Katheryn Simbaña","Luis Segovia")
     ],
     talentoHumano:[
-      tribunal("th-01","Talento Humano · Tribunal 1","Alejandra Hernandez","Veronica Ayala",""),
+      tribunal("th-01","Talento Humano · Tribunal 1","Alejandra Hernandez","Carla Rivera",""),
       tribunal("th-02","Talento Humano · Tribunal 2","Rodrigo Espinoza","Luis Segovia","Jefferson Villarreal")
     ],
     contabilidad:[

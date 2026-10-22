@@ -142,9 +142,14 @@ Función o funciones:
       if(previewGrid){ previewGrid.classList.remove("with-whatsapp"); }
     }else if(communication.area){
       setText("coordi-communication-title","Pendientes · " + communication.area.area);
-      setText("coordi-communication-subtitle","Correo y WhatsApp preparados para el requisito seleccionado.");
+      var contactoPendiente = !communication.area.correo && !communication.area.whatsapp;
+      setText("coordi-communication-subtitle",contactoPendiente
+        ? "Correo institucional y WhatsApp del responsable pendientes de confirmación."
+        : "Correo y WhatsApp preparados para el requisito seleccionado.");
       setText("coordi-recipient-name",communication.area.responsable || communication.area.area);
-      setText("coordi-recipient-contact",recipientContact(mail,[communication.area.correo,communication.area.whatsapp].filter(Boolean).join(" · ")));
+      setText("coordi-recipient-contact",contactoPendiente
+        ? "Datos de contacto por confirmar"
+        : recipientContact(mail,[communication.area.correo,communication.area.whatsapp].filter(Boolean).join(" · ")));
       setHidden("coordi-whatsapp-wrap",false);
       if(previewGrid){ previewGrid.classList.add("with-whatsapp"); }
       setText("coordi-whatsapp-preview",whatsapp && whatsapp.text || "No hay mensaje de WhatsApp disponible.");
