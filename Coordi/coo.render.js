@@ -142,16 +142,19 @@ Función o funciones:
       if(previewGrid){ previewGrid.classList.remove("with-whatsapp"); }
     }else if(communication.area){
       setText("coordi-communication-title","Pendientes · " + communication.area.area);
-      var contactoPendiente = !communication.area.correo && !communication.area.whatsapp;
-      setText("coordi-communication-subtitle",contactoPendiente
-        ? "Correo institucional y WhatsApp del responsable pendientes de confirmación."
-        : "Correo y WhatsApp preparados para el requisito seleccionado.");
+      var tieneCorreo = !!communication.area.correo;
+      var tieneWhatsApp = !!communication.area.whatsapp;
+      setText("coordi-communication-subtitle",tieneCorreo && tieneWhatsApp
+        ? "Correo y WhatsApp preparados para el requisito seleccionado."
+        : tieneCorreo
+          ? "Correo institucional preparado; WhatsApp del responsable pendiente de confirmación."
+          : "Datos de contacto del responsable pendientes de confirmación.");
       setText("coordi-recipient-name",communication.area.responsable || communication.area.area);
-      setText("coordi-recipient-contact",contactoPendiente
-        ? "Datos de contacto por confirmar"
-        : recipientContact(mail,[communication.area.correo,communication.area.whatsapp].filter(Boolean).join(" · ")));
-      setHidden("coordi-whatsapp-wrap",false);
-      if(previewGrid){ previewGrid.classList.add("with-whatsapp"); }
+      setText("coordi-recipient-contact",tieneCorreo || tieneWhatsApp
+        ? recipientContact(mail,[communication.area.correo,communication.area.whatsapp].filter(Boolean).join(" · "))
+        : "Datos de contacto por confirmar");
+      setHidden("coordi-whatsapp-wrap",!tieneWhatsApp);
+      if(previewGrid){ previewGrid.classList.toggle("with-whatsapp",tieneWhatsApp); }
       setText("coordi-whatsapp-preview",whatsapp && whatsapp.text || "No hay mensaje de WhatsApp disponible.");
     }else{
       setText("coordi-communication-title","Comunicación no disponible");
@@ -165,7 +168,7 @@ Función o funciones:
     setText("coordi-mail-subject",mail && mail.subject || "Correo no disponible");
     setHTML("coordi-email-preview",mail && mail.html || '<div class="coordi-empty-mail">No existe un correo preparado para este filtro.</div>');
     if(mailButton){ mailButton.hidden = !mail; mailButton.disabled = !mail || !mail.to; }
-    if(whatsappButton){ whatsappButton.hidden = communication.mode !== "requirement"; whatsappButton.disabled = !whatsapp || !whatsapp.to; }
+    if(whatsappButton){ whatsappButton.hidden = communication.mode !== "requirement" || !whatsapp || !whatsapp.to; whatsappButton.disabled = !whatsapp || !whatsapp.to; }
   }
 
   function renderAll(report,state){

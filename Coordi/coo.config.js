@@ -10,7 +10,7 @@ Función o funciones:
 (function(window){
   "use strict";
 
-  var VERSION = "2.1.1-areas-carla-rivera";
+  var VERSION = "2.1.2-carla-rivera-email";
   var ELIGIBILITY_KEY = "__pendientes_defensa_nucleos__";
 
   function text(value){ return String(value == null ? "" : value).trim(); }
@@ -34,11 +34,12 @@ Función o funciones:
 
   /*
    * El correo general utiliza únicamente direcciones institucionales confirmadas.
-   * Carla Rivera atiende Prácticas y Vinculación; sus datos de contacto
-   * están pendientes de confirmación y no se incluyen temporalmente.
+   * Carla Rivera atiende Prácticas y Vinculación, por lo que su correo
+   * se incluye una sola vez para evitar destinatarios duplicados.
    */
   var globalRecipients = [
     "aleon@itsqmet.edu.ec",
+    "crivera@itsqmet.edu.ec",
     "mtomala@itsqmet.edu.ec",
     "lsalinas@itsqmet.edu.ec",
     "paraujo@itsqmet.edu.ec",
@@ -109,7 +110,7 @@ Función o funciones:
     {
       id:"practicas", orden:5, area:"Prácticas",
       responsable:"Carla Rivera", saludo:"Carla", tratamiento:"Estimada Econ. Carla Rivera",
-      correo:"", copias:["mtomala@itsqmet.edu.ec"],
+      correo:"crivera@itsqmet.edu.ec", copias:["mtomala@itsqmet.edu.ec"],
       whatsapp:"",
       descripcion:"Cumplimiento de prácticas preprofesionales.",
       requisitoKeys:["practicasvinculacion","practicas","practicaspreprofesionales","practicapreprofesional"]
@@ -117,7 +118,7 @@ Función o funciones:
     {
       id:"vinculacion", orden:6, area:"Vinculación",
       responsable:"Carla Rivera", saludo:"Carla", tratamiento:"Estimada Econ. Carla Rivera",
-      correo:"", copias:["mtomala@itsqmet.edu.ec"],
+      correo:"crivera@itsqmet.edu.ec", copias:["mtomala@itsqmet.edu.ec"],
       whatsapp:"",
       descripcion:"Cumplimiento de vinculación con la sociedad.",
       requisitoKeys:["vinculacion","vinculacionconlasociedad","vinculacionsociedad"]
