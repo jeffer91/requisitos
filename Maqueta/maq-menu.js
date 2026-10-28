@@ -21,7 +21,7 @@ Función o funciones:
     {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
     {tipo:"modulo",moduloId:"stat_not",etiqueta:"Stat Not"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
-    {tipo:"modulo",moduloId:"cr_def",etiqueta:"Cr-def"}
+    {tipo:"modulo",moduloId:"actas",etiqueta:"Actas"}
   ];
   var state={items:[],initial:"carga_excel",rendered:false,started:false,boundCore:false};
   var floating=null,owner=null;
