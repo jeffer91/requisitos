@@ -21,8 +21,8 @@ const student=(c,n,m=undefined,extra={})=>Object.assign({cedula:c,Nombres:n,peri
 const req=(cedula,periodoId,field,state="CUMPLE")=>({cedula,periodoId,requisitoKey:field,valor:state});
 const field1="aprobaciontitulacion",field2="aprobacioncomplexivoproyecto";
 const dataset1={
-students:[student("0001","EXAMEN APROBADO"),student("0002","EXAMEN FALTANTE"),student("0003","TRABAJO APROBADO","TRABAJO_TITULACION"),student("0004","RETIRADO","EXAMEN_COMPLEXIVO",{estadoMatricula:"RETIRADO"}),student("0005","NOTA REPROBADA","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"NO_APROBADO"})],
-requirements:[req("0001",per1,field1),req("0001",per1,field2),req("0002",per1,field1),req("0003",per1,field1),req("0003",per1,field2),req("0004",per1,field1),req("0004",per1,field2),req("0005",per1,field1),req("0005",per1,field2)]};
+students:[student("0001","EXAMEN APROBADO"),student("0002","EXAMEN FALTANTE"),student("0003","TRABAJO APROBADO","TRABAJO_TITULACION"),student("0004","RETIRADO","EXAMEN_COMPLEXIVO",{estadoMatricula:"RETIRADO"}),student("0005","NOTA REPROBADA","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"NO_APROBADO"}),student("0007","ARTÍCULO PVC","TRABAJO_TITULACION",{tipoTitulacion:"ARTICULO_ACADEMICO",_ncomplexHasSavedEvaluation:false})],
+requirements:[req("0001",per1,field1),req("0001",per1,field2),req("0002",per1,field1),req("0003",per1,field1),req("0003",per1,field2),req("0004",per1,field1),req("0004",per1,field2),req("0005",per1,field1),req("0005",per1,field2),req("0007",per1,field1),req("0007",per1,field2)]};
 const dataset2={students:[student("0006","OTRO PERIODO",undefined,{periodoId:per2})],requirements:[req("0006",per2,field1),req("0006",per2,field2)]};
 const document={readyState:"complete",getElementById:elem,addEventListener(){},body:{appendChild(){}},createElement(){return {click(){},remove(){}}}};
 const win={
@@ -59,6 +59,7 @@ trigger("actas-lote-word","click");await tick();assert.equal(words.length,1,"Gen
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
 assert.equal(elem("actas-aprobados").textContent,1,"Trabajo muestra solo su modalidad");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);
+assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/ARTÍCULO PVC/,"No convierte Artículo Académico en Trabajo de Titulación");
 assert.ok(elem("actas-actividades").innerHTML.includes("Fase 3: Defensa final"));
 trigger("actas-guardar","click");
 assert.ok(storage.has("UTET_ACTAS_CRONO_V1__"+per1+"__TRABAJO_TITULACION"),"Guarda cronograma por modalidad y periodo");
