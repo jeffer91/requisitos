@@ -1,0 +1,22 @@
+"use strict";
+/* Comprobación del DOCX real generado en navegador, sin librerías externas. */
+const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict"),zlib=require("node:zlib");
+const code=fs.readFileSync(path.join(__dirname,"../Actas/actas.docx.js"),"utf8");
+const image=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==","base64");
+const context={URL,Blob,TextEncoder,DataView,Uint32Array,Uint8Array,Date,console,Promise,fetch:async()=>({ok:true,arrayBuffer:async()=>Uint8Array.from(image).buffer})};
+context.window={location:{href:"https://example.test/requisitos/Actas/actas.html"}};
+context.document={createElement(){return {}},body:{appendChild(){}}};
+vm.createContext(context);vm.runInContext(code,context);
+function readZip(blobBytes){const items=new Map(),buf=Buffer.from(blobBytes);let pos=0;while(pos+4<=buf.length&&buf.readUInt32LE(pos)===0x04034b50){const method=buf.readUInt16LE(pos+8),len=buf.readUInt32LE(pos+18),n=buf.readUInt16LE(pos+26),e=buf.readUInt16LE(pos+28),filename=buf.subarray(pos+30,pos+30+n).toString("utf8"),start=pos+30+n+e,raw=buf.subarray(start,start+len);assert.equal(method,0,"Método ZIP sin compresión");items.set(filename,raw);pos=start+len;}assert.equal(buf.readUInt32LE(pos),0x02014b50,"Índice central ZIP presente");return items;}
+async function main(){const item={student:{Nombres:"ESTUDIANTE EJEMPLO",cedula:"0000000001",NombreCarrera:"EDUCACIÓN INICIAL",CodigoCarrera:"EI"},mode:"EXAMEN_COMPLEXIVO",record:{codigo:"AT-ITSQMET-UTET-2026-10-01",consecutivo:"01"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-10-28",schedule:[{fase:"Complexivo",actividades:[{id:"examen",nombre:"Examen complexivo",inicio:"2026-04-20",fin:"2026-04-24"}]}]};
+const blob=await context.window.ActasDocx.build(item);assert.equal(blob.type,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");const parts=readZip(await blob.arrayBuffer());for(const filename of ["[Content_Types].xml","_rels/.rels","word/document.xml","word/_rels/document.xml.rels","word/media/logo.png"])assert.ok(parts.has(filename),"Existe "+filename);
+assert.equal(parts.get("word/media/logo.png").length,image.length);
+const xml=parts.get("word/document.xml").toString("utf8");
+assert.match(xml,/<w:document/);assert.match(xml,/ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO/);assert.match(xml,/RESULTADO FINAL: APROBADO/);assert.match(xml,/Aprobación titulación/);assert.match(xml,/Aprobación complexivo\/proyecto/);
+assert.doesNotMatch(xml,/Nota teórica|Nota práctica|Calificación numérica:\s*\d/i);
+assert.match(xml,/rIdLogo/);assert.match(xml,/w:type="page"/);assert.match(xml,/w:br\/>/,"Firmas y códigos con saltos de línea");
+assert.match(parts.get("[Content_Types].xml").toString("utf8"),/wordprocessingml.document.main\+xml/);
+const work=await context.window.ActasDocx.build({...item,mode:"TRABAJO_TITULACION"}),workParts=readZip(await work.arrayBuffer());
+assert.match(workParts.get("word/document.xml").toString("utf8"),/ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN/);
+console.log("VERIFICACIÓN DOCX ACTAS: OK (ZIP OOXML, logotipo incrustado, formato por modalidad, sin notas)");}
+main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
