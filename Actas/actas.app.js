@@ -17,7 +17,14 @@ const KEY1="aprobaciontitulacion",KEY2="aprobacioncomplexivoproyecto";
 function extras(row){const keys=Object.keys(row||{});const out={};for(const key of keys){const k=norm(key);if(k===KEY1||k===KEY2){const v=row[key];out[k]=norm(typeof v==="object"&&v?(v.valor||v.estado||v.value||v.label):v);}}return out;}
 function indexReqs(){const m=new Map();for(const r of S.reqs){const p=idPeriod(r.periodoId||r.periodId||r.periodoCanonicoId),c=ced(r);if(!p||!c)continue;const k=c+"__"+p;if(!m.has(k))m.set(k,{});m.get(k)[reqKey(r)]=reqValue(r);}return m;}
 function approval(value){return value==="cumple";}
-function modality(s){return text(s.modalidadTitulacion||s.modalidad).toUpperCase()===TT?TT:CX;}
+function modality(s){
+  const parse=value=>{const k=norm(value);if(!k)return "";if(k.includes("articulo"))return "ARTICULO_ACADEMICO";if(k.includes("trabajo")||k==="proyecto")return TT;if(k.includes("complexivo"))return CX;return "";};
+  const declared=parse(s.tipoTitulacion||s.TipoTitulacion||s._raw&&s._raw.tipoTitulacion||s._raw&&s._raw.ModalidadTitulacion||s._modalidadTitulacion||s.ModalidadTitulacion);
+  const evaluated=parse(s.modalidadTitulacion||s.modalidad);
+  if(declared==="ARTICULO_ACADEMICO"||evaluated==="ARTICULO_ACADEMICO")return "ARTICULO_ACADEMICO";
+  if(s._ncomplexHasSavedEvaluation===true&&declared&&evaluated&&declared!==evaluated)return "MODALIDAD_CONFLICTO";
+  return s._ncomplexHasSavedEvaluation===true?(evaluated||declared||CX):(declared||evaluated||CX);
+}
 function errorConflict(s){const estado=text(s.estadoEvaluacion).toUpperCase(),matricula=text(s.estadoMatricula||s._estadoMatricula).toUpperCase();return (estado==="NO_APROBADO"&&s._ncomplexHasSavedEvaluation===true)||matricula==="RETIRADO"||s.retirado===true||s.eliminado===true;}
 function rows(){const idx=indexReqs();return S.students.filter(s=>period(s)===S.periodo).map(s=>{const vals=Object.assign({},extras(s),idx.get(stKey(s))||{});const a=approval(vals[KEY1]),b=approval(vals[KEY2]);const conflict=errorConflict(s);return {student:s,identity:stKey(s),mode:modality(s),a,b,approved:a&&b&&!conflict,conflict};}).filter(r=>r.mode===S.mode);}
 function notify(msg,isError){const el=$("actas-alert");el.textContent=msg;el.classList.toggle("error",!!isError);}
