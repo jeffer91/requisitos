@@ -23,7 +23,7 @@ Función:
   var listeners=Object.create(null);
   var usageSerial=0;
 
-  var BL_MODULES={baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,stat_not:true,ncomplex:true,cr_def:true,titulacion:true};
+  var BL_MODULES={baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,stat_not:true,ncomplex:true,cr_def:true,actas:true,titulacion:true};
   var FALLBACK_MODULES={
     carga_excel:{id:"carga_excel",nombre:"Carga",ruta:"../Carga/carga.html",estado:"activo"},
     baselocal:{id:"baselocal",nombre:"Centro de datos",ruta:"../BDLocal/bl2.html",estado:"activo"},
@@ -36,6 +36,7 @@ Función:
     defart:{id:"defart",nombre:"Defensas",ruta:"../defart/defart.html",estado:"activo"},
     stat_not:{id:"stat_not",nombre:"Stat Not",ruta:"../StatNot/stat-not.html",estado:"activo"},
     ncomplex:{id:"ncomplex",nombre:"Ncomplex",ruta:"../Ncomplex/ncomplex.html",estado:"activo"},
+    actas:{id:"actas",nombre:"Actas",ruta:"../Actas/actas.html",estado:"activo"},
     cr_def:{id:"cr_def",nombre:"Cr-def",ruta:"../Cr-def/cr-def.html",estado:"activo"},
     titulacion:{id:"titulacion",nombre:"InPVC",ruta:"../InPVC/inpvc.html",estado:"activo"}
   };
@@ -46,6 +47,7 @@ Función:
     stats:"stat_main",estadisticas:"stat_main",estadísticas:"stat_main","stat main":"stat_main",coordinador:"coordi",coordi:"coordi",
     global:"global",globals:"global",reporte:"modulo_reporte",reportes:"modulo_reporte",repor:"modulo_reporte",
     defensas:"defart",defensa:"defart",defart:"defart",statnot:"stat_not","stat not":"stat_not","estadisticas notas":"stat_not",ncomplex:"ncomplex",complexivo:"ncomplex",
+    actas:"actas","actas de titulacion":"actas","actas de titulación":"actas",
     "cr-def":"cr_def","cr def":"cr_def",crdef:"cr_def",infor:"titulacion",inpvc:"titulacion",titulacion:"titulacion",titulación:"titulacion"
   };
 
