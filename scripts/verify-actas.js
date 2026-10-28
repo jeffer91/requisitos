@@ -3,7 +3,7 @@
 const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
-const modules=["Actas/actas.catalog.js","Actas/actas.document.js","Actas/actas.app.js","BDLocal/conexiones/cone.actas.js","Maqueta/maq-menu.js","Maqueta/maq-config-service.js","Maqueta/maq-modulos-registry.js","Maqueta/maq-core.js"];
+const modules=["Actas/actas.catalog.js","Actas/actas.document.js","Actas/actas.docx.js","Actas/actas.app.js","BDLocal/conexiones/cone.actas.js","Maqueta/maq-menu.js","Maqueta/maq-config-service.js","Maqueta/maq-modulos-registry.js","Maqueta/maq-core.js"];
 for(const file of modules)new vm.Script(read(file),{filename:file});
 const sandbox={window:{location:{href:"https://example.test/requisitos/Actas/actas.html"}},URL};
 vm.runInNewContext(read(modules[0]),sandbox);
