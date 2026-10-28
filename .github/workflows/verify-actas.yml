@@ -1,0 +1,32 @@
+name: Verificar Actas
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Actas/**'
+      - 'BDLocal/conexiones/cone.actas.js'
+      - 'BDLocal/conexiones/cone.registry.js'
+      - 'BDLocal/conexiones/cone.screen-map.js'
+      - 'Maqueta/**'
+      - 'scripts/verify-actas*.js'
+      - 'scripts/verify-main-menu.js'
+      - 'package.json'
+      - '.github/workflows/verify-actas.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Integridad del módulo Actas
+        run: npm run test:actas
+      - name: Navegación principal
+        run: npm run test:menu
+      - name: Conectores de pantallas
+        run: npm run test:connections
