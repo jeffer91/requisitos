@@ -55,6 +55,7 @@ assert.equal(printed.length,1);
 assert.equal(printed[0].length,1);
 assert.equal(printed[0][0].student.cedula,"0001");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
+trigger("actas-lote-word","click");await tick();assert.equal(words.length,1,"Genera DOCX masivo");assert.equal(words[0].length,1,"Incluye al estudiante aprobado en DOCX");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
 assert.equal(elem("actas-aprobados").textContent,1,"Trabajo muestra solo su modalidad");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);
