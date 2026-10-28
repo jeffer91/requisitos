@@ -55,7 +55,7 @@ const registry = read("BDLocal/conexiones/cone.registry.js");
   ["stats", "ConStats", "cone.stats.js"], ["coordi", "ConCoordi", "cone.coordi.js"],
   ["global", "ConGlobal", "cone.global.js"], ["reportes", "ConReportes", "cone.reportes.js"],
   ["defart", "ConDefart", "cone.defart.js"], ["stat_not", "ConStatNot", "cone.statnot.js"], ["ncomplex", "ConNcomplex", "cone.ncomplex.js"],
-  ["cr_def", "ConCrDef", "cone.crdef.js"], ["inpvc", "ConInPVC", "cone.inpvc.js"]
+  ["actas", "ConActas", "cone.actas.js"], ["cr_def", "ConCrDef", "cone.crdef.js"], ["inpvc", "ConInPVC", "cone.inpvc.js"]
 ].forEach(([id, globalName, connectorFile]) => {
   ok(registry.includes(`id:"${id}"`) && registry.includes(`global:"${globalName}"`) && registry.includes(`file:"${connectorFile}"`), `Registro incompleto para ${id} → ${globalName}`);
 });
