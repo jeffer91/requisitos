@@ -40,6 +40,6 @@ cron+
 }
 function render(items){const all=Array.isArray(items)?items:[items];return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
 function preview(items){const win=w.open("","_blank");if(!win)throw Error("Habilita ventanas emergentes para ver las actas.");win.document.open();win.document.write(render(items));win.document.close();win.focus();}
-function word(items){let html=render(items).replace(/<div class="toolstrip">[\s\S]*?<\/div>/,"");const blob=new Blob(["\ufeff",html],{type:"application/msword;charset=utf-8"}),url=URL.createObjectURL(blob);const a=w.document.createElement("a");a.href=url;a.download="Actas_UTET_"+new Date().toISOString().slice(0,10)+".doc";w.document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
-w.ActasDocument=Object.freeze({render,preview,word});
+
+w.ActasDocument=Object.freeze({render,preview});
 })(window);
