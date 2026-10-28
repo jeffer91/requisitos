@@ -34,7 +34,7 @@ const win={
   async listPeriods(){return [{periodoId:per1,nombre:"Octubre 2025 a Marzo 2026"},{periodoId:per2,nombre:"Abril 2026 a Septiembre 2026"}]},
   async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};}
  },
- ActasDocument:{preview:items=>printed.push(items),word:items=>words.push(items)}
+ ActasDocument:{preview:items=>printed.push(items)},ActasDocx:{download:async items=>{words.push(items);return {ok:true}}}
 };
 context.window=win;context.document=document;
 vm.createContext(context);
