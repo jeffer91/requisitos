@@ -34,7 +34,7 @@ function sample(cedula,mode){
  const student={Nombres:"ESTUDIANTE DE PRUEBA",cedula,NombreCarrera:"ADMINISTRACIÓN",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:ev};
  const keys=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
  const reqs=Object.fromEntries(keys.map(k=>[k,"CUMPLE"]));
- return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-10-30",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs})};
+ return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-05-29",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs})};
 }
 async function main(){
  const exam=sample("0000000001","EXAMEN_COMPLEXIVO"),work=sample("0000000002","TRABAJO_TITULACION");
@@ -46,7 +46,9 @@ async function main(){
  assert.ok(lastDoc.fontSizes.filter(n=>n===23).length>=2,"Título central y período académico deben usar ambos 23 pt");
  assert.ok(lastDoc.texts.some(t=>t.includes("Versión: 1.0")),"Versión en celda C2");
  assert.ok(lastDoc.texts.some(t=>t.startsWith("Página 1 de ")),"Paginación automática de portada");
- assert.ok(lastDoc.texts.some(t=>t.includes("Fecha de emisión:")),"Fecha en la celda A3");
+ assert.ok(lastDoc.texts.some(t=>t.includes("Fecha de emisión: 29/05/2026")),"Fecha del período en portada");
+assert.ok(lastDoc.texts.some(t=>t.includes("Unidad de Titulación y")),"Unidad institucional en mayúsculas iniciales");
+assert.ok(lastDoc.texts.some(t=>t.includes("Acta de Titulación por Examen Complexivo")),"Título en mayúsculas iniciales");
  assert.ok(!lastDoc.texts.some(t=>t.includes("Nombre: ___")||t.includes("Cargo: ___")),"Nombres y cargos no deben quedar vacíos");
  for(const phrase of ["Culminación de la malla curricular","Verificación de requisitos institucionales","Prácticas preprofesionales","Núcleos formativos y requisito de Titulación","Resultado del examen complexivo","8,60/10"])assert.ok(lastDoc.texts.join(" ").includes(phrase),"Cuerpo del PDF: "+phrase);
  for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(lastDoc.texts.join(" ").includes(signer),"PDF contiene nombre y cargo de "+signer);

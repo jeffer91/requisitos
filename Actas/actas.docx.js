@@ -4,7 +4,7 @@ const NS='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const q=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]));
 function first(row,names){for(const name of names)if(row&&row[name]!=null&&String(row[name]).trim())return String(row[name]).trim();return "No registrado";}
 function dmy(v){const x=String(v||"").slice(0,10).split("-");return x.length===3?x[2]+"/"+x[1]+"/"+x[0]:"No registrada";}
-function title(mode){return mode==="TRABAJO_TITULACION"?"ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN":"ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO";}
+function title(mode){return mode==="TRABAJO_TITULACION"?"Acta de Titulación por Trabajo de Titulación":"Acta de Titulación por Examen Complexivo";}
 function label(mode){return mode==="TRABAJO_TITULACION"?"Trabajo de Titulación":"Examen Complexivo";}
 function para(s,opts){opts=opts||{};const size=Number(opts.size||20),jc=opts.align||"left";
 const props='<w:pPr><w:jc w:val="'+jc+'"/><w:spacing w:before="'+(opts.before||0)+'" w:after="'+(opts.after===undefined?90:opts.after)+'"/>'+(opts.keep?'<w:keepNext/>':'')+'</w:pPr>';
@@ -35,7 +35,7 @@ function encabezado(x,n){
  return actTable([
   [
    {xml:rawPara(imageTag()),vm:"restart"},
-   {text:"UNIDAD DE TITULACIÓN Y\nEFICIENCIA TERMINAL",size:18,align:"center",bold:true,vm:"restart"},
+   {text:"Unidad de Titulación y\nEficiencia Terminal",size:18,align:"center",bold:false,vm:"restart"},
    {text:"Código:\n"+x.record.codigo,size:16,align:"center"}
   ],
   [

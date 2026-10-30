@@ -17,7 +17,7 @@ assert.equal(cat.get(cat.COMPLEXIVO,false).flatMap(g=>g.actividades).every(a=>!a
 assert.equal(cat.get(cat.COMPLEXIVO,true)[0].actividades[0].inicio,"2026-03-30","Ejemplo de Complexivo");
 assert.equal(cat.get(cat.TRABAJO,true)[2].actividades.at(-1).inicio,"2026-04-20","Cierre de Trabajo");
 assert.equal(cat.valid([{fase:"ejemplo",actividades:[{id:"x",inicio:"2026-04-30",fin:"2026-04-01"}]}]),false,"Rechazar fecha final anterior");
-const sample={student:{Nombres:"ESTUDIANTE PRUEBA",cedula:"1234567890",NombreCarrera:"TECNOLOGÍA SUPERIOR"},mode:cat.COMPLEXIVO,record:{codigo:"AT-ITSQMET-UTET-2026-10-01",consecutivo:"01",numeroActa:"2026-1234-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",schedule:cat.get(cat.COMPLEXIVO,true),issue:"2026-10-28"};
+const sample={student:{Nombres:"ESTUDIANTE PRUEBA",cedula:"1234567890",NombreCarrera:"TECNOLOGÍA SUPERIOR"},mode:cat.COMPLEXIVO,record:{codigo:"AT-ITSQMET-UTET-2026-10-01",consecutivo:"01",numeroActa:"2026-1234-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",schedule:cat.get(cat.COMPLEXIVO,true),issue:"2026-05-29"};
 const base=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
 const requireAll=Object.fromEntries(base.map(key=>[key,"CUMPLE"]));
 sample.student._ncomplexHasSavedEvaluation=true;
@@ -25,7 +25,7 @@ sample.student._ncomplexEvaluation={modalidadTitulacion:cat.COMPLEXIVO,estadoEva
 sample.evidence=sandbox.window.ActasEvidence.assess({student:sample.student,mode:sample.mode,requirementValues:requireAll});
 assert.equal(sample.evidence.eligible,true);
 const exam=docs.render(sample);
-assert.match(exam,/ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO/);
+assert.match(exam,/Acta de Titulación por Examen Complexivo/);assert.match(exam,/Unidad de Titulación y Eficiencia Terminal/);assert.match(exam,/Fecha de emisión: 29\/05\/2026/);
 assert.match(exam,/Aprobación de titulación/);
 assert.match(exam,/Aprobación complexivo\/proyecto/);
 assert.match(exam,/RESULTADO FINAL: APROBADO/);
@@ -49,7 +49,7 @@ assert.doesNotMatch(exam,/NOMBRE: __________________|CARGO: __________________/)
 
 const workStudent={...sample.student,_ncomplexEvaluation:{modalidadTitulacion:cat.TRABAJO,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};
 const work=docs.render({...sample,student:workStudent,mode:cat.TRABAJO,schedule:cat.get(cat.TRABAJO,true),evidence:sandbox.window.ActasEvidence.assess({student:workStudent,mode:cat.TRABAJO,requirementValues:requireAll})});
-assert.match(work,/ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN/);
+assert.match(work,/Acta de Titulación por Trabajo de Titulación/);
 assert.match(work,/Evaluación del trabajo de titulación/);
 assert.match(work,/Requisito Titulación/);
 const menu=read("Maqueta/maq-config-service.js");

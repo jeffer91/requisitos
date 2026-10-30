@@ -152,7 +152,7 @@ service cloud.firestore {
 );
     }
     function validActaEntry(id, data) {
-      return data.keys().hasAll(['identidad','numeroActa','periodoId','cedula','modalidad','mesClave','consecutivo','estado'])
+      return data.keys().hasAll(['identidad','numeroActa','periodoId','cedula','modalidad','mesClave','consecutivo','fechaEmision','estado'])
         && data.identidad == id
         && data.cedula is string && data.cedula.matches('^[0-9]{10}
       allow read, write: if false;
@@ -164,6 +164,53 @@ service cloud.firestore {
         && id == data.periodoId + '__' + data.cedula
         && validNumberActa(data.numeroActa)
         && validMonthActa(data.mesClave)
+        && data.fechaEmision is string && data.fechaEmision.matches('^' + data.mesClave + '-[0-9]{2} && data.consecutivo >= 1 && data.consecutivo <= 9999
+        && data.estado == 'REGISTRADA'
+        && (data.modalidad == 'EXAMEN_COMPLEXIVO' || data.modalidad == 'TRABAJO_TITULACION');
+    }
+    match /actas_contadores/{mesClave} {
+      allow read: if true;
+      allow create: if validMonthActa(mesClave)
+        && request.resource.data.mesClave == mesClave
+        && request.resource.data.ultimo == 1
+        && validNumberActa(request.resource.data.ultimaActa)
+        && getAfter(/databases/$(database)/documents/actas_numeros/$(request.resource.data.ultimaActa)).data.identidad == request.resource.data.ultimaIdentidad
+        && getAfter(/databases/$(database)/documents/actas_registro/$(request.resource.data.ultimaIdentidad)).data.numeroActa == request.resource.data.ultimaActa;
+      allow update: if validMonthActa(mesClave)
+        && request.resource.data.mesClave == mesClave
+        && request.resource.data.ultimo is int
+        && request.resource.data.ultimo == resource.data.ultimo + 1
+        && request.resource.data.ultimo <= 9999
+        && validNumberActa(request.resource.data.ultimaActa)
+        && getAfter(/databases/$(database)/documents/actas_numeros/$(request.resource.data.ultimaActa)).data.identidad == request.resource.data.ultimaIdentidad
+        && getAfter(/databases/$(database)/documents/actas_registro/$(request.resource.data.ultimaIdentidad)).data.numeroActa == request.resource.data.ultimaActa;
+      allow delete: if false;
+    }
+    match /actas_registro/{identidad} {
+      allow read: if true;
+      allow create: if validActaEntry(identidad,request.resource.data)
+        && getAfter(/databases/$(database)/documents/actas_numeros/$(request.resource.data.numeroActa)).data.identidad == identidad
+        && getAfter(/databases/$(database)/documents/actas_contadores/$(request.resource.data.mesClave)).data.ultimaActa == request.resource.data.numeroActa
+        && getAfter(/databases/$(database)/documents/actas_contadores/$(request.resource.data.mesClave)).data.ultimo == request.resource.data.consecutivo;
+      allow update, delete: if false;
+    }
+    match /actas_numeros/{numero} {
+      allow read: if true;
+      allow create: if validNumberActa(numero)
+        && request.resource.data.numeroActa == numero
+        && validMonthActa(request.resource.data.mesClave)
+        && getAfter(/databases/$(database)/documents/actas_registro/$(request.resource.data.identidad)).data.numeroActa == numero
+        && getAfter(/databases/$(database)/documents/actas_contadores/$(request.resource.data.mesClave)).data.ultimaActa == numero
+        && getAfter(/databases/$(database)/documents/actas_contadores/$(request.resource.data.mesClave)).data.ultimo == request.resource.data.consecutivo;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
         && data.consecutivo is int && data.consecutivo >= 1 && data.consecutivo <= 9999
         && data.estado == 'REGISTRADA'
         && (data.modalidad == 'EXAMEN_COMPLEXIVO' || data.modalidad == 'TRABAJO_TITULACION');

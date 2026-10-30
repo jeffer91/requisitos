@@ -37,6 +37,7 @@ const win={
   async listPeriods(){return [{periodoId:per1,nombre:"Octubre 2025 a Marzo 2026"},{periodoId:per2,nombre:"Abril 2026 a Septiembre 2026"}]},
   async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};},async setModality(opts){modalityWrites.push(opts);return {ok:true}}
  },
+ ActasIssueDate:{forPeriod:()=>({date:"2026-05-29",year:"2026",month:"05",monthKey:"2026-05",holidaysVerified:true}),mayRegister:()=>true},
  ActasNumbering:{
   async list(periodoId){return [...centralNumbers.values()].filter(x=>x.periodoId===periodoId);},
   async getOrAssign(input){const key=input.periodoId+"__"+input.cedula;if(centralNumbers.has(key))return centralNumbers.get(key);
@@ -65,8 +66,9 @@ trigger("actas-lote","click");await tick();
 assert.equal(printed.length,1);
 assert.equal(printed[0].length,4,"PDF masivo incluye ambas modalidades y borradores con evidencias pendientes");
 assert.equal(printed[0][0].student.cedula,"0001");
-assert.equal(new Set(printed[0].filter(x=>x.record.numeroActa).map(x=>x.record.numeroActa)).size,2,"Cada registro central usa un número distinto");
-assert.equal(printed[0].filter(x=>!x.record.numeroActa).length,2,"Los pendientes siguen sin numerar");
+assert.equal(printed[0].filter(x=>x.record.numeroActa).length,0,"Descargar borradores no asigna folios automáticamente");
+assert.equal(printed[0].filter(x=>!x.record.numeroActa).length,4,"Sin registrar, todos los PDF son borradores sin número");
+assert.ok(printed[0].every(x=>x.issue==="2026-05-29"),"Fecha común de emisión según el período seleccionado");
 assert.equal(printed[0][0].evidence.requirements.length,8,"Acta incorpora ocho requisitos");
 assert.ok(printed[0][0].evidence.requirements.every(r=>r.status==="CUMPLE"),"Lee ocho requisitos directamente desde el registro del estudiante");
 assert.equal(printed[0][0].evidence.evaluation.official,8.6,"Usa nota oficial de Ncomplex");
@@ -74,8 +76,13 @@ assert.equal(printed[0][1].evidence.titulationStatus,"CUMPLE","Núcleos acredita
 assert.ok(printed[0].some(item=>item.student.cedula==="0008"&&!item.evidence.eligible),"Permite borrador sin nota oficial y advierte lo pendiente");
 assert.ok(printed[0].some(item=>item.student.cedula==="0009"&&!item.evidence.eligible),"Permite borrador con evaluación incompleta");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
+const regClick={dataset:{register:"0"},disabled:false};
+await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
+assert.equal(centralNumbers.size,1,"Registrar N.º asigna un único registro central");
+await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
+assert.equal(centralNumbers.size,1,"Registrar nuevamente no duplica el número");
 trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,4,"ZIP incorpora borradores pendientes de verificar");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
-assert.deepEqual(zips[0].items.map(x=>x.record.numeroActa||""),printed[0].map(x=>x.record.numeroActa||""),"ZIP conserva el mismo número que los PDF iniciales");
+assert.deepEqual(zips[0].items.map(x=>x.record.numeroActa||""),printed[0].map(x=>x.record.numeroActa||""),"ZIP no genera nuevos números al descargar");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
 assert.equal(elem("actas-aprobados").textContent,4,"La métrica incluye borradores descargables de ambas modalidades");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);

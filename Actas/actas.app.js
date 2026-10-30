@@ -70,10 +70,11 @@ function regKey(){return "UTET_ACTAS_BORRADORES_V1";}
 function registry(){return retrieve(regKey(),{});}
 function savedRecord(r){return registry()[r.identity]||null;}
 function registeredNumber(r){return S.numbers.get(r.identity)||null;}
-function numberInput(r){return {cedula:ced(r.student),periodoId:S.periodo,modalidad:r.mode,nombre:name(r.student),carrera:career(r.student)};}
+function numberInput(r){return {cedula:ced(r.student),periodoId:S.periodo,modalidad:r.mode,nombre:name(r.student),carrera:career(r.student),fechaEmision:w.ActasIssueDate.forPeriod(S.periodo).date};}
 async function registerNumber(r){
  if(!r.approved)throw Error("No consta autorización para emitir el acta.");
  if(!r.verified)throw Error("El borrador contiene evidencias por validar. No puede recibir un número oficial todavía.");
+ if(!w.ActasIssueDate.mayRegister(S.periodo))throw Error("La numeración oficial se habilitará a partir del día laborable de emisión del período: "+w.ActasIssueDate.forPeriod(S.periodo).date+".");
  if(!w.ActasNumbering)throw Error("No está disponible el registro central de actas.");
  const entry=await w.ActasNumbering.getOrAssign(numberInput(r));
  S.numbers.set(r.identity,entry);return entry;
@@ -96,17 +97,12 @@ async function prepareWithNumber(r){
  return item;
 }
 async function assignToRows(selected,progress){
- const items=[];let failed=0,reason="",assigned=0;
+ const items=[];
  for(let i=0;i<selected.length;i++){
-  const r=selected[i];
-  if(r.verified&&!registeredNumber(r)){
-   try{await registerNumber(r);assigned++;}
-   catch(e){failed++;reason=w.ActasNumbering?w.ActasNumbering.readableError(e):e.message;}
-  }
-  items.push(await prepareWithNumber(r));
-  if(typeof progress==="function")progress({done:i+1,total:selected.length,assigned,failed});
+  items.push(await prepareWithNumber(selected[i]));
+  if(typeof progress==="function")progress({done:i+1,total:selected.length});
  }
- return {items,failed,reason,assigned};
+ return {items,failed:0,reason:"",assigned:0};
 }
 function periodLabel(){const s=S.periods.find(p=>idPeriod(p.periodoId||p.id||p.periodId)===S.periodo);return text(s&&(s.nombre||s.label||s.periodoLabel||s.periodo||s.descripcion))||S.periodo;}
 function schedule(mode){mode=mode||S.mode;const raw=retrieve(cronKey(mode),null);return raw&&raw.mode===mode&&C.valid(raw.groups)?raw.groups:C.get(mode,false);}
@@ -134,17 +130,13 @@ function renderTable(){
  $("actas-zip").disabled=!all.some(r=>r.approved);
  $("actas-registrar-lote").disabled=!all.some(r=>r.verified&&!registeredNumber(r));
 }
-function prepare(r){if(!r.approved)throw Error("No se puede descargar: faltan aprobaciones finales, el estudiante está retirado o existe una contradicción académica confirmada.");if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");let map=registry(),rec=map[r.identity];if(rec&&(rec.mode!==r.mode||rec.periodId!==S.periodo))throw Error("Existe un borrador con otra modalidad o período. Revisa y resuelve esa discrepancia antes de emitir una nueva acta.");if(!rec){const stamp=new Date().toISOString(),prefix=stamp.slice(0,7),next=Object.values(map).filter(x=>x.month===prefix).reduce((m,x)=>Math.max(m,Number(x.consecutivo)||0),0)+1;rec={consecutivo:String(next).padStart(2,"0"),codigo:"AT-ITSQMET-UTET-"+prefix+"-"+String(next).padStart(2,"0"),createdAt:stamp,month:prefix,mode:r.mode,periodId:S.periodo,status:"BORRADOR"};map[r.identity]=rec;if(!store(regKey(),map))throw Error("No se pudo guardar el registro del borrador.");}return {student:r.student,mode:r.mode,record:rec,periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue:rec.createdAt.slice(0,10),evidence:r.proof};}
+function prepare(r){if(!r.approved)throw Error("No se puede descargar: faltan aprobaciones finales, el estudiante está retirado o existe una contradicción académica confirmada.");if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");let map=registry(),rec=map[r.identity];if(rec&&(rec.mode!==r.mode||rec.periodId!==S.periodo))throw Error("Existe un borrador con otra modalidad o período. Revisa y resuelve esa discrepancia antes de emitir una nueva acta.");if(!rec){const stamp=new Date().toISOString(),prefix=stamp.slice(0,7),next=Object.values(map).filter(x=>x.month===prefix).reduce((m,x)=>Math.max(m,Number(x.consecutivo)||0),0)+1;rec={consecutivo:String(next).padStart(2,"0"),codigo:"AT-ITSQMET-UTET-"+prefix+"-"+String(next).padStart(2,"0"),createdAt:stamp,month:prefix,mode:r.mode,periodId:S.periodo,status:"BORRADOR"};map[r.identity]=rec;if(!store(regKey(),map))throw Error("No se pudo guardar el registro del borrador.");}return {student:r.student,mode:r.mode,record:rec,periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue:w.ActasIssueDate.forPeriod(S.periodo).date,evidence:r.proof};}
 async function action(r){
  try{
-  let issue="";
-  if(r.verified&&!registeredNumber(r)){
-   try{await registerNumber(r);}catch(e){issue=w.ActasNumbering?w.ActasNumbering.readableError(e):e.message;}
-  }
   const item=await prepareWithNumber(r);
   await w.ActasPDF.download(item);renderTable();
-  const reg=registeredNumber(r);
-  notify(reg?"Acta N.º "+reg.numeroActa+" descargada. El número permanece fijo para futuras descargas.":"Se descargó un BORRADOR SIN NÚMERO OFICIAL. "+(issue||"Hay evidencias pendientes de validación."),!reg);
+  const registered=registeredNumber(r);
+  notify(registered?"PDF del acta N.º "+registered.numeroActa+" descargado; conserva su número oficial.":"PDF de BORRADOR SIN NÚMERO OFICIAL descargado. Para numerar, utiliza Registrar N.º cuando las evidencias estén verificadas.");
  }catch(e){notify("Error al descargar PDF: "+e.message,true);}
 }
 function start(){const ids=["actas-total","actas-aprobados","actas-preparadas"];ids.forEach(k=>$(k).textContent="—");renderTable();renderCron();}

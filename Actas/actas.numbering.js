@@ -3,7 +3,7 @@
  * La pantalla operativa invoca este conector solo ante una acción explícita del usuario.
  */
 (function(w,d){"use strict";
-const VERSION="1.0.0",COUNTERS="actas_contadores",REGISTRY="actas_registro",NUMBERS="actas_numeros";
+const VERSION="1.1.0",COUNTERS="actas_contadores",REGISTRY="actas_registro",NUMBERS="actas_numeros";
 let loading=null;
 function t(v){return String(v==null?"":v).trim();}
 function ced(v){const s=t(v).replace(/[^0-9A-Za-z]/g,"").toUpperCase();return /^\d{9}$/.test(s)?"0"+s:s;}
@@ -59,6 +59,7 @@ function validExisting(row,input){
  if(!row||!/^\d{4}-\d{4}-(0[1-9]|1[0-2])-\d{4}$/.test(t(row.numeroActa)))throw Error("El registro central contiene un acta sin número válido. Requiere revisión.");
  if(row.periodoId!==period(input.periodoId)||row.cedula!==ced(input.cedula))throw Error("El acta central no coincide con el estudiante o período.");
  if(row.modalidad!==t(input.modalidad))throw Error("El acta ya está numerada con otra modalidad. Revisa el registro antes de continuar.");
+ if(row.fechaEmision&&w.ActasIssueDate&&row.fechaEmision!==w.ActasIssueDate.forPeriod(input.periodoId).date)throw Error("La fecha de emisión registrada no coincide con la política académica actual. Se requiere conciliación, sin crear otro folio.");
  return row;
 }
 async function lookup(input){
@@ -76,7 +77,11 @@ async function getOrAssign(input){
  input=input||{};
  const id=identity(input),mode=t(input.modalidad);
  if(!["EXAMEN_COMPLEXIVO","TRABAJO_TITULACION"].includes(mode))throw Error("La modalidad debe ser COMPLEX o TRAB.");
- const db=await firestore(),month=monthNow();
+ if(!w.ActasIssueDate)throw Error("No está disponible el calendario institucional de Actas.");
+ const issue=w.ActasIssueDate.forPeriod(input.periodoId);
+ if(input.fechaEmision&&input.fechaEmision!==issue.date)throw Error("La fecha enviada no corresponde al período académico.");
+ if(!w.ActasIssueDate.mayRegister(input.periodoId))throw Error("Aún no corresponde numerar el acta. Fecha de emisión programada: "+issue.date+".");
+ const db=await firestore(),month={year:issue.year,month:issue.month,key:issue.monthKey};
  const recordRef=db.collection(REGISTRY).doc(id),counterRef=db.collection(COUNTERS).doc(month.key);
  const timestamp=w.firebase&&w.firebase.firestore&&w.firebase.firestore.FieldValue&&w.firebase.firestore.FieldValue.serverTimestamp;
  const registered=await db.runTransaction(async tx=>{
@@ -92,7 +97,7 @@ async function getOrAssign(input){
   if(used.exists)throw Error("Número ya reservado centralmente. Se suspendió la asignación para evitar duplicados.");
   const entry={identidad:id,numeroActa,periodoId:period(input.periodoId),cedula:ced(input.cedula),
    modalidad:mode,carrera:t(input.carrera).slice(0,170),nombre:t(input.nombre).slice(0,180),
-   mesClave:month.key,consecutivo:next,estado:"REGISTRADA",fechaCliente:new Date().toISOString(),
+   mesClave:month.key,consecutivo:next,fechaEmision:issue.date,estado:"REGISTRADA",fechaCliente:new Date().toISOString(),
    createdAt:timestamp?timestamp():new Date().toISOString()};
   tx.set(counterRef,{mesClave:month.key,ultimo:next,ultimaActa:numeroActa,ultimaIdentidad:id,updatedAt:timestamp?timestamp():new Date().toISOString()});
   tx.set(recordRef,entry);

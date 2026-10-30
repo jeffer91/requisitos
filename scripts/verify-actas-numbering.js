@@ -37,8 +37,9 @@ const db={
   throw Error("Transacción agotó los reintentos");
  }
 };
-const context={window:{db},document:{baseURI:"https://ejemplo.test/Actas/actas.html"},Date,URL,Intl,Promise,Map,Set,console};
-vm.createContext(context);vm.runInContext(source,context);
+class FrozenDate extends Date{constructor(...args){super(...(args.length?args:["2026-10-30T12:00:00-05:00"]));}static now(){return Date.parse("2026-10-30T12:00:00-05:00");}}
+const context={window:{db},document:{baseURI:"https://ejemplo.test/Actas/actas.html"},Date:FrozenDate,URL,Intl,Promise,Map,Set,console};
+vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,"../Actas/actas.issue-date.js"),"utf8"),context);vm.runInContext(source,context);
 const api=context.window.ActasNumbering;
 const period="2025-10__2026-03";
 const input=(cedula,modalidad="EXAMEN_COMPLEXIVO")=>({cedula,periodoId:period,modalidad,nombre:"ESTUDIANTE PRUEBA",carrera:"ADMINISTRACIÓN"});
@@ -48,11 +49,14 @@ async function main(){
  assert.equal(one.numeroActa,oneAgain.numeroActa,"El mismo estudiante conserva su número al registrar simultáneamente");
  assert.equal(new Set([one.numeroActa,two.numeroActa,three.numeroActa]).size,3,"Dos equipos concurrentes no repiten números");
  assert.ok([one,two,three].every(x=>/^\d{4}-\d{4}-\d{2}-\d{4}$/.test(x.numeroActa)),"Formato año-cédula-mes-consecutivo");
+ assert.ok([one,two,three].every(x=>x.mesClave==="2026-05"&&x.fechaEmision==="2026-05-29"),"El año y mes del folio coinciden con la fecha institucional, no con el día actual");
  assert.equal((await api.lookup(a)).numeroActa,one.numeroActa);
  assert.equal((await api.list(period)).length,3);
  assert.equal(store.size,7,"Tres identidades, tres reservas y un contador central");
  await assert.rejects(()=>api.getOrAssign(input(a.cedula,"TRABAJO_TITULACION")),/otra modalidad/,"No se duplica la misma cédula/período cambiando modalidad");
  assert.equal(store.size,7);
+ const future=input("0123456789");future.periodoId="2026-04__2026-09";
+ await assert.rejects(()=>api.getOrAssign(future),/Aún no corresponde numerar/,"La emisión de noviembre no puede numerarse en octubre de 2026");
  const offline={...a,cedula:"0999999999"};
  const before=store.size;
  const original=db.runTransaction;db.runTransaction=async()=>{throw Error("unavailable: offline");};

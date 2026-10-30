@@ -28,9 +28,9 @@ function header(doc,x,logo){
  doc.line(67,top,67,45);doc.line(143,top,143,45);
  doc.line(143,26.5,195,26.5);doc.line(left,34,195,34);
  drawLogo(doc,logo,19,17,44,15);
- doc.setFont("helvetica","bold");doc.setFontSize(9);
- doc.text("UNIDAD DE TITULACIÓN Y",middle,23.2,{align:"center"});
- doc.text("EFICIENCIA TERMINAL",middle,27.6,{align:"center"});
+ doc.setFont("helvetica","normal");doc.setFontSize(9);
+ doc.text("Unidad de Titulación y",middle,23.2,{align:"center"});
+ doc.text("Eficiencia Terminal",middle,27.6,{align:"center"});
  doc.setFontSize(8.3);doc.text("Código:",right,18.9,{align:"center"});
  doc.setFont("helvetica","normal");doc.setFontSize(8);
  const codeLines=doc.splitTextToSize(txt(x.record&&x.record.codigo),48);
@@ -39,7 +39,7 @@ function header(doc,x,logo){
  doc.setFontSize(8.5);doc.text("Versión: 1.0",right,31.2,{align:"center"});
  doc.setFontSize(8);doc.text("Fecha de emisión: "+formatDate(x.issue),41,40.2,{align:"center",maxWidth:48});
  doc.setFont("helvetica","bold");doc.setFontSize(8.5);
- const typeTitle=x.mode==="TRABAJO_TITULACION"?"ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN":"ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO";
+ const typeTitle=x.mode==="TRABAJO_TITULACION"?"Acta de Titulación por Trabajo de Titulación":"Acta de Titulación por Examen Complexivo";
  const lines=doc.splitTextToSize(typeTitle,72);
  if(lines.length>2)throw Error("El título del acta no cabe en la celda B3.");
  doc.text(lines,middle,lines.length===1?40.3:38.8,{align:"center"});
@@ -112,7 +112,7 @@ function dataRow(doc,x,logo,left,right,pos,opts){
 function heading(doc,x,logo,t,pos){if(pos.y+12>274)nextPage(doc,x,logo,pos);section(doc,x,logo,t,pos);}
 function paint(doc,x,logo){if(doc.getNumberOfPages()>1||doc.__actasCount){doc.addPage();}const start=doc.getNumberOfPages();doc.__actasCount=(doc.__actasCount||0)+1;
 header(doc,x,logo);
-let y=center(doc,"ACTA DE TITULACIÓN POR "+(x.mode==="TRABAJO_TITULACION"?"TRABAJO DE TITULACIÓN":"EXAMEN COMPLEXIVO"),126,23,true);
+let y=center(doc,x.mode==="TRABAJO_TITULACION"?"Acta de Titulación por Trabajo de Titulación":"Acta de Titulación por Examen Complexivo",126,23,true);
 center(doc,"Período académico: "+txt(x.periodLabel),y+13,23,true);
 signatures(doc);
 doc.addPage();header(doc,x,logo);const pos={y:54};
