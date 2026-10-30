@@ -1,21 +1,47 @@
 /* Módulo Actas: ambos requisitos finales CUMPLE; cronogramas editables y actas en borrador. */
 (function(w,d){"use strict";
 const C=w.ActasCatalog,CX=C.COMPLEXIVO,TT=C.TRABAJO;
-const S={periods:[],students:[],reqs:[],periodo:"",mode:"TODAS",busqueda:"",estado:"todos",selected:new Set(),ready:false,loading:false,requestId:0,cronograma:null};
+const S={periods:[],students:[],reqs:[],meta:{},periodo:"",mode:"TODAS",busqueda:"",estado:"todos",selected:new Set(),ready:false,loading:false,requestId:0,cronograma:null};
 const $=id=>d.getElementById(id),text=v=>String(v==null?"":v).trim();
 function norm(v){return text(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function esc(v){return text(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function idPeriod(v){const x=text(v);return x.replace(/_+/g,"__");}
-function ced(s){return text(s.cedula||s.numeroIdentificacion||s.NumeroIdentificacion||s.Cedula||s._cedula).replace(/[^0-9A-Za-z]/g,"").toUpperCase();}
+function ced(s){const raw=text(s.cedula||s.numeroIdentificacion||s.NumeroIdentificacion||s.Cedula||s._cedula).replace(/[^0-9A-Za-z]/g,"").toUpperCase();return /^\d{9}$/.test(raw)?"0"+raw:raw;}
 function period(s){return idPeriod(s.periodoId||s.periodId||s.periodoCanonicoId||s.ultimoPeriodoId||s._periodoId);}
 function career(s){return text(s.NombreCarrera||s.nombreCarrera||s.carrera||s.Carrera||"Sin carrera");}
 function name(s){return text(s.Nombres||s.nombres||s.nombreCompleto||s.Nombre||s.nombre||"Sin nombre");}
 function stKey(s){return ced(s)+"__"+period(s);}
 function reqKey(r){return norm(r.requisitoKey||r.requirementKey||r.key||r.nombre||r.requisitoLabel);}
-function reqValue(r){const v=r.valor!==undefined?r.valor:r.estado!==undefined?r.estado:r.value!==undefined?r.value:r.cumple!==undefined?r.cumple:r.aprobado;return norm(typeof v==="object"&&v?(v.value||v.label||v.id):v);}
+function reqValue(r){for(const k of ["valor","value","estado","cumple","aprobado","resultado"]){const v=r&&r[k];const value=typeof v==="object"&&v?(v.valor||v.estado||v.value||v.label||v.id):v;if(value!==undefined&&value!==null&&text(value)!=="")return norm(value);}return "";}
 const KEY1="aprobaciontitulacion",KEY2="aprobacioncomplexivoproyecto";
-function extras(row){const keys=Object.keys(row||{});const out={};for(const key of keys){const k=norm(key);if(k===KEY1||k===KEY2){const v=row[key];out[k]=norm(typeof v==="object"&&v?(v.valor||v.estado||v.value||v.label):v);}}return out;}
-function indexReqs(){const m=new Map();for(const r of S.reqs){const p=idPeriod(r.periodoId||r.periodId||r.periodoCanonicoId),c=ced(r);if(!p||!c)continue;const k=c+"__"+p;if(!m.has(k))m.set(k,{});m.get(k)[reqKey(r)]=reqValue(r);}return m;}
+const REQ_KEYS=new Set(["academico","documentacion","practicasvinculacion","pricasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","titulacion","financiero",KEY1,KEY2]);
+function extras(row){
+ const out={};
+ function add(source){
+  if(!source||typeof source!=="object")return;
+  for(const field of Object.keys(source)){const key=norm(field);if(!REQ_KEYS.has(key))continue;
+   const value=reqValue({valor:source[field]});if(value)out[key]=value;
+  }
+ }
+ [row,row&&row._raw,row&&row._sourceRow].forEach(add);
+ for(const records of [row&&row.requisitos,row&&row._requisitos,row&&row.requirements,row&&row._requirements]){
+  if(!Array.isArray(records))continue;
+  for(const r of records){const key=reqKey(r),value=reqValue(r);if(key&&value)out[key]=value;}
+ }
+ return out;
+}
+function indexReqs(){
+ const map=new Map();
+ for(const r of S.reqs){
+  const p=idPeriod(r.periodoId||r.periodId||r.periodoCanonicoId);
+  const c=ced(r),key=reqKey(r),value=reqValue(r);
+  if(!p||!c||!key||!value)continue;
+  const k=c+"__"+p;
+  if(!map.has(k))map.set(k,{});
+  map.get(k)[key]=value;
+ }
+ return map;
+}
 function approval(value){return value==="cumple";}
 function modality(s){
   const parse=value=>{const k=norm(value);if(!k)return "";if(k.includes("articulo"))return "ARTICULO_ACADEMICO";if(k.includes("trabajo")||k==="proyecto")return TT;if(k.includes("complexivo"))return CX;return "";};
@@ -69,7 +95,9 @@ function renderTable(){
 function prepare(r){if(!r.approved)throw Error("No se puede descargar: faltan aprobaciones finales, el estudiante está retirado o existe una contradicción académica confirmada.");if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");let map=registry(),rec=map[r.identity];if(rec&&(rec.mode!==r.mode||rec.periodId!==S.periodo))throw Error("Existe un borrador con otra modalidad o período. Revisa y resuelve esa discrepancia antes de emitir una nueva acta.");if(!rec){const stamp=new Date().toISOString(),prefix=stamp.slice(0,7),next=Object.values(map).filter(x=>x.month===prefix).reduce((m,x)=>Math.max(m,Number(x.consecutivo)||0),0)+1;rec={consecutivo:String(next).padStart(2,"0"),codigo:"AT-ITSQMET-UTET-"+prefix+"-"+String(next).padStart(2,"0"),createdAt:stamp,month:prefix,mode:r.mode,periodId:S.periodo,status:"BORRADOR"};map[r.identity]=rec;if(!store(regKey(),map))throw Error("No se pudo guardar el registro del borrador.");}return {student:r.student,mode:r.mode,record:rec,periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue:rec.createdAt.slice(0,10),evidence:r.proof};}
 async function action(r){try{const item=prepare(r);await w.ActasPDF.download(item);renderTable();notify("PDF descargado como borrador. "+(r.verified?"Datos académicos verificados.":"Contiene evidencias por validar; consulta los detalles en Documento.")+" Debe revisarse antes de legalizar.");}catch(e){notify("Error al generar PDF: "+e.message,true);}}
 function start(){const ids=["actas-total","actas-aprobados","actas-preparadas"];ids.forEach(k=>$(k).textContent="—");renderTable();renderCron();}
-async function load(){const requestId=++S.requestId,requestedPeriod=S.periodo;if(!requestedPeriod){S.loading=false;start();return;}S.loading=true;notify("Consultando Base Local y Ncomplex…");try{const result=await w.ConActas.read({periodoId:requestedPeriod});if(requestId!==S.requestId||requestedPeriod!==S.periodo)return;S.students=result.data.students||[];S.reqs=result.data.requirements||[];S.ready=true;notify("Datos actualizados. Con ambas aprobaciones finales en CUMPLE puedes descargar un borrador; las evidencias faltantes se señalan como pendientes de validación.");renderTable();renderCron();}catch(e){if(requestId!==S.requestId)return;S.students=[];S.reqs=[];notify("Error al cargar los datos: "+e.message,true);renderTable();}finally{if(requestId===S.requestId)S.loading=false;}}
+async function load(){const requestId=++S.requestId,requestedPeriod=S.periodo;if(!requestedPeriod){S.loading=false;start();return;}S.loading=true;notify("Consultando Base Local y Ncomplex…");try{const result=await w.ConActas.read({periodoId:requestedPeriod});if(requestId!==S.requestId||requestedPeriod!==S.periodo)return;S.students=result.data.students||[];S.reqs=result.data.requirements||[];S.meta=result.meta&&result.meta.diagnostics||{};S.ready=true;
+const metrics=S.meta;const details=metrics.requirements!==undefined?" Requisitos relacionados: "+metrics.requirements+"; evaluaciones Ncomplex: "+(metrics.matchedEvaluations||0)+"; notas recuperadas: "+(metrics.matchedMirrors||0)+".":"";
+notify("Datos actualizados."+details+" Se mantienen separadas las aprobaciones finales de los registros aún no verificados.");renderTable();renderCron();}catch(e){if(requestId!==S.requestId)return;S.students=[];S.reqs=[];notify("Error al cargar los datos: "+e.message,true);renderTable();}finally{if(requestId===S.requestId)S.loading=false;}}
 async function init(){try{await w.ConActas.ready();S.periods=await w.ConActas.listPeriods();const select=$("actas-periodo");select.innerHTML='<option value="">Seleccione período</option>'+S.periods.map(p=>'<option value="'+esc(idPeriod(p.periodoId||p.id||p.periodId))+'">'+esc(p.nombre||p.label||p.periodoLabel||p.periodo||p.descripcion||p.id||p.periodoId)+'</option>').join("");
 const global=retrieve("REQ_PERIODO_GLOBAL_V1",{});const preferred=idPeriod(global.periodoId||global.id||global.value||"");S.periodo=preferred&&S.periods.some(p=>idPeriod(p.periodoId||p.id||p.periodId)===preferred)?preferred:idPeriod(S.periods[0]&&(S.periods[0].periodoId||S.periods[0].id)||"");select.value=S.periodo;$("actas-estado").value=S.estado;$("actas-modalidad").value=S.mode;await load();}catch(e){notify("No se pudo iniciar Actas: "+e.message,true);}}
 $("actas-periodo").addEventListener("change",e=>{S.periodo=idPeriod(e.target.value);S.selected.clear();S.students=[];S.reqs=[];load();});

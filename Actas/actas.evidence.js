@@ -5,7 +5,7 @@
 const REQUIREMENTS=Object.freeze([
  {key:"academico",label:"Académico / cumplimiento curricular",aliases:["academico"]},
  {key:"documentacion",label:"Documentación académica",aliases:["documentacion","documentacionacademica"]},
- {key:"practicasvinculacion",label:"Prácticas preprofesionales",aliases:["practicasvinculacion","practicaspreprofesionales","practicas"]},
+ {key:"practicasvinculacion",label:"Prácticas preprofesionales",aliases:["practicasvinculacion","pricasvinculacion","practicaspreprofesionales","practicas"]},
  {key:"vinculacion",label:"Vinculación con la sociedad",aliases:["vinculacion"]},
  {key:"seguimientograduados",label:"Seguimiento a graduados",aliases:["seguimientograduados","graduados"]},
  {key:"ingles",label:"Segunda lengua / Inglés",aliases:["ingles","segundalengua"]},
@@ -21,7 +21,7 @@ function read(map,aliases){for(const alias of aliases){const k=key(alias);if(Obj
 function sources(input){
  const source=Object.assign({},input.student||{},input.requirementValues||{});
  const map={};for(const [k,v] of Object.entries(source))map[key(k)]=v;
- for(const r of input.requirementRows||[]){
+ for(const r of [].concat(input.requirementRows||[],input.student&&input.student.requisitos||[],input.student&&input.student._requisitos||[])){
   const reqKey=key(r.requisitoKey||r.requirementKey||r.key||r.nombre||r.requisitoLabel);
   if(reqKey)map[reqKey]=r.valor!==undefined?r.valor:r.estado!==undefined?r.estado:r.value;
  }
