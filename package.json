@@ -76,7 +76,7 @@
     "dist:win": "electron-builder --win nsis --x64 --publish never",
     "release:win": "electron-builder --win nsis --x64 --publish always",
     "test:defart-excel": "node scripts/verify-defart-excel-import.js",
-    "test:actas": "node scripts/verify-actas-numbering.js && node scripts/verify-actas-connection.js && node scripts/verify-actas-evidence.js && node scripts/verify-actas.js && node scripts/verify-actas-runtime.js && node scripts/verify-actas-docx.js && node scripts/verify-actas-pdf.js"
+    "test:actas": "node scripts/verify-actas-issue-date.js && node scripts/verify-actas-numbering.js && node scripts/verify-actas-connection.js && node scripts/verify-actas-evidence.js && node scripts/verify-actas.js && node scripts/verify-actas-runtime.js && node scripts/verify-actas-docx.js && node scripts/verify-actas-pdf.js"
   },
   "testCommandSignatures": {
     "test:electron": "electron electron/smoke-main.js",

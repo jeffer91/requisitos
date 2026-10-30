@@ -82,7 +82,9 @@ assert.equal(centralNumbers.size,1,"Registrar N.º asigna un único registro cen
 await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
 assert.equal(centralNumbers.size,1,"Registrar nuevamente no duplica el número");
 trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,4,"ZIP incorpora borradores pendientes de verificar");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
-assert.deepEqual(zips[0].items.map(x=>x.record.numeroActa||""),printed[0].map(x=>x.record.numeroActa||""),"ZIP no genera nuevos números al descargar");
+assert.equal(centralNumbers.size,1,"El ZIP no crea números nuevos");
+assert.equal(zips[0].items[0].record.numeroActa,centralNumbers.get(per1+"__0001").numeroActa,"El ZIP reutiliza el número previamente registrado");
+assert.equal(zips[0].items.filter(x=>!x.record.numeroActa).length,3,"Los demás PDF siguen como borradores sin folio");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
 assert.equal(elem("actas-aprobados").textContent,4,"La métrica incluye borradores descargables de ambas modalidades");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);
