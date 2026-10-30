@@ -22,6 +22,7 @@ assert.match(xml,/<w:vMerge w:val="continue"\/>/,"Combinación vertical continú
 assert.match(xml,/<w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850"/,"Márgenes de 1,5 cm");
 for(const height of ["1361","425","595"])assert.ok(xml.includes('<w:trHeight w:val="'+height+'"'),"Fila de firma ACT: "+height);
 assert.match(xml,/Versión: 1.0/);
+assert.match(xml,/<w:sz w:val="46"\/>[^<]*<\/w:rPr><w:t xml:space="preserve">Período académico:/,"El período académico debe estar en 23 pt en Word");
 assert.doesNotMatch(xml,/NOMBRE: _{4}|CARGO: _{4}/);
 assert.match(xml,/rIdLogo/);assert.match(xml,/w:type="page"/);assert.match(xml,/w:br\/>/,"Firmas y códigos con saltos de línea");
 assert.match(parts.get("[Content_Types].xml").toString("utf8"),/wordprocessingml.document.main\+xml/);

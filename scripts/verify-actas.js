@@ -31,6 +31,8 @@ assert.match(exam,/col style="width:76mm"/,"Columna central ACT debe medir 7,60 
 assert.match(exam,/class="r1"/);assert.match(exam,/class="r2"/);assert.match(exam,/class="r3"/);
 assert.match(exam,/class="sign-space"/);assert.match(exam,/class="sign-names"/);assert.match(exam,/class="sign-roles"/);
 assert.match(exam,/Versión: 1.0/);
+assert.match(read("Actas/actas.document.js"),/\.cover-title\{[^}]*font-size:23pt/,"Título de 23 pt en vista previa");
+assert.match(read("Actas/actas.document.js"),/\.cover-sub\{[^}]*font-size:23pt/,"Período de 23 pt en vista previa");
 assert.match(exam,/Fecha de emisión:/);
 assert.doesNotMatch(exam,/NOMBRE: __________________|CARGO: __________________/);
 

@@ -92,7 +92,7 @@ function timeline(doc,x,logo,rows,pos){if(!rows.length){lines(doc,x,logo,"Cronog
 function paint(doc,x,logo){if(doc.getNumberOfPages()>1||doc.__actasCount){doc.addPage();}const start=doc.getNumberOfPages();doc.__actasCount=(doc.__actasCount||0)+1;
 header(doc,x,logo);
 let y=center(doc,"ACTA DE TITULACIÓN POR "+(x.mode==="TRABAJO_TITULACION"?"TRABAJO DE TITULACIÓN":"EXAMEN COMPLEXIVO"),126,23,true);
-center(doc,"Período académico: "+txt(x.periodLabel),y+13,11,true);
+center(doc,"Período académico: "+txt(x.periodLabel),y+13,23,true);
 signatures(doc);
 doc.addPage();header(doc,x,logo);const pos={y:59};
 section(doc,x,logo,"CONSTANCIA DEL PROCESO DE TITULACIÓN",pos);

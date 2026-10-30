@@ -71,7 +71,7 @@ function signatures(){
 }
 function cover(x){return encabezado(x,1)+
  para(title(x.mode),{size:46,align:"center",bold:true,before:3100,after:500})+
- para("Período académico: "+x.periodLabel,{size:22,align:"center",bold:true,after:4750})+
+ para("Período académico: "+x.periodLabel,{size:46,align:"center",bold:true,after:4750})+
  signatures();}
 function body(x){
 const s=x.student,nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]),cod=first(s,["CodigoCarrera","codigoCarrera"]);

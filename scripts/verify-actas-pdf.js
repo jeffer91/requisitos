@@ -34,7 +34,7 @@ async function main(){
  assert.ok(lastDoc.rects.some(r=>r.page===1&&r.x===15&&r.y===15&&r.w===180&&r.h===30),"Encabezado ACT 18 cm y 3 cm de altura");
  assert.ok(lastDoc.rects.some(r=>r.page===1&&r.x===15&&r.y===225&&r.w===180&&r.h===42),"Bloque de firmas 18 x 4,2 cm");
  for(const coords of [[67,15,67,45],[143,15,143,45],[143,26.5,195,26.5],[15,34,195,34],[75,225,75,267],[135,225,135,267],[15,249,195,249],[15,256.5,195,256.5]])assert.ok(lastDoc.segments.some(l=>["x1","y1","x2","y2"].every((k,i)=>l[k]===coords[i])&&l.page===1),"Estructura de celdas ACT: "+coords.join(","));
- assert.ok(lastDoc.fontSizes.includes(23),"Título central ACT de 23 pt");
+ assert.ok(lastDoc.fontSizes.filter(n=>n===23).length>=2,"Título central y período académico deben usar ambos 23 pt");
  assert.ok(lastDoc.texts.some(t=>t.includes("Versión: 1.0")),"Versión en celda C2");
  assert.ok(lastDoc.texts.some(t=>t.includes("Página 1 de 2")),"Paginación automática de portada");
  assert.ok(lastDoc.texts.some(t=>t.includes("Fecha de emisión:")),"Fecha en la celda A3");
