@@ -3,7 +3,7 @@
 const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict");
 const root=path.resolve(__dirname,".."),read=p=>fs.readFileSync(path.join(root,p),"utf8");
 const context={URL,Promise,Set,Map,JSON,Date,console,Blob,setTimeout,clearTimeout};
-const storage=new Map(),elements=new Map(),printed=[],words=[],delays=new Map(),calls=[];
+const storage=new Map(),elements=new Map(),printed=[],zips=[],modalityWrites=[],delays=new Map(),calls=[];
 function elem(id){if(!elements.has(id))elements.set(id,{
  id,value:"",innerHTML:"",textContent:"",disabled:false,checked:false,handlers:{},classList:{toggle(){},add(){},remove(){}},
  addEventListener(type,fn){this.handlers[type]=fn;},
@@ -32,9 +32,9 @@ const win={
  ConActas:{
   async ready(){return {ok:true}},
   async listPeriods(){return [{periodoId:per1,nombre:"Octubre 2025 a Marzo 2026"},{periodoId:per2,nombre:"Abril 2026 a Septiembre 2026"}]},
-  async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};}
+  async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};},async setModality(opts){modalityWrites.push(opts);return {ok:true}}
  },
- ActasDocument:{preview:items=>printed.push(items)},ActasDocx:{download:async items=>{words.push(items);return {ok:true}}}
+ ActasPDF:{download:async items=>{printed.push(items);return {ok:true,count:Array.isArray(items)?items.length:1}},downloadZip:async(items,summary,periodoId)=>{zips.push({items,summary,periodoId});return {ok:true,generated:items.length,excluded:summary.length-items.length,errors:0}}},ActasBrand:{resolve:async()=>null},
 };
 context.window=win;context.document=document;
 vm.createContext(context);
@@ -43,23 +43,23 @@ vm.runInContext(read("Actas/actas.app.js"),context);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 async function main(){
 await tick();await tick();
-assert.equal(elem("actas-aprobados").textContent,1,"Complexivo filtra quienes cumplen ambos y bloquea retirados/reprobados");
+assert.equal(elem("actas-aprobados").textContent,2,"Cuenta aprobados de ambas modalidades; bloquea retirados y reprobados");
 assert.match(elem("actas-estudiantes").innerHTML,/EXAMEN APROBADO/);
-assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/EXAMEN FALTANTE/);
-assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/RETIRADO/);
-assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/NOTA REPROBADA/);
+assert.match(elem("actas-estudiantes").innerHTML,/EXAMEN FALTANTE/,"El buscador/listado muestra pendientes");
+assert.match(elem("actas-estudiantes").innerHTML,/RETIRADO/,"Muestra retirados sin permitir descargar");
+assert.match(elem("actas-estudiantes").innerHTML,/NOTA REPROBADA/,"Muestra evaluaciones pendientes de revisión");
 trigger("actas-seleccionar","click");
 assert.equal(elem("actas-lote").disabled,false);
-trigger("actas-lote","click");
+trigger("actas-lote","click");await tick();
 assert.equal(printed.length,1);
-assert.equal(printed[0].length,1);
+assert.equal(printed[0].length,2,"PDF masivo incluye ambas modalidades");
 assert.equal(printed[0][0].student.cedula,"0001");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
-trigger("actas-lote-word","click");await tick();assert.equal(words.length,1,"Genera DOCX masivo");assert.equal(words[0].length,1,"Incluye al estudiante aprobado en DOCX");
+trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,2,"ZIP incluye todos los habilitados");assert.equal(zips[0].summary.length,6,"ZIP registra también excluidos");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
-assert.equal(elem("actas-aprobados").textContent,1,"Trabajo muestra solo su modalidad");
+assert.equal(elem("actas-aprobados").textContent,2,"La métrica incluye ambas modalidades");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);
-assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/ARTÍCULO PVC/,"No convierte Artículo Académico en Trabajo de Titulación");
+assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/ARTÍCULO PVC/,"El filtro TRAB no convierte Artículo Académico en Trabajo");
 assert.ok(elem("actas-actividades").innerHTML.includes("Fase 3: Defensa final"));
 trigger("actas-guardar","click");
 assert.ok(storage.has("UTET_ACTAS_CRONO_V1__"+per1+"__TRABAJO_TITULACION"),"Guarda cronograma por modalidad y periodo");
@@ -67,6 +67,9 @@ const all=JSON.parse(storage.get("UTET_ACTAS_CRONO_V1__"+per1+"__TRABAJO_TITULAC
 assert.equal(all.groups.flatMap(g=>g.actividades).length,20);
 trigger("actas-modalidad","change",{target:{value:"EXAMEN_COMPLEXIVO"}});
 assert.equal(elem("actas-actividades").innerHTML.includes("Núcleo 1"),true);
+trigger("actas-busqueda","input",{target:{value:"TRABAJO APROBADO"}});
+assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/,"La búsqueda encuentra estudiantes de cualquier modalidad");
+trigger("actas-busqueda","input",{target:{value:""}});
 let resolveSlow;
 delays.set(per1,{promise:new Promise(resolve=>{resolveSlow=resolve;})});
 trigger("actas-recargar","click");
@@ -77,9 +80,13 @@ resolveSlow({data:dataset1});
 await tick();await tick();
 assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lectura tardía no reemplaza período actual");
 assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/EXAMEN APROBADO/);
+const selector={value:"TRABAJO_TITULACION",disabled:false,dataset:{mode:"0"},matches:s=>s==="[data-mode]"};
+await trigger("actas-estudiantes","change",{target:selector});await tick();
+assert.equal(modalityWrites.length,1,"Guarda modalidad mediante conector");
+assert.equal(modalityWrites[0].mode,"TRABAJO_TITULACION");
 trigger("actas-ejemplo","click");
 assert.match(elem("actas-alert").textContent,/exclusivamente al período Octubre 2025 a Marzo 2026/);
 assert.equal(elem("actas-cronograma-estado").textContent,"Sin fechas guardadas","No inyecta fechas de otro periodo");
-console.log("VERIFICACIÓN DE ACTAS RUNTIME: OK (doble aprobación, bloqueos, modalides, lotes, cronogramas y carrera de carga)");
+console.log("VERIFICACIÓN ACTAS V2: OK (búsqueda global, selector, PDF, ZIP, bloqueo de actas, cronograma y carrera de carga)");
 }
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
