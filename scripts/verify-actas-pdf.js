@@ -34,11 +34,12 @@ function sample(cedula,mode){
  const student={Nombres:"ESTUDIANTE DE PRUEBA",cedula,NombreCarrera:"ADMINISTRACIÓN",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:ev};
  const keys=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
  const reqs=Object.fromEntries(keys.map(k=>[k,"CUMPLE"]));
- return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-10-30",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs})};
+ return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-10-30",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs})};
 }
 async function main(){
  const exam=sample("0000000001","EXAMEN_COMPLEXIVO"),work=sample("0000000002","TRABAJO_TITULACION");
  const one=await api.build(exam);assert.equal(one.type,"application/pdf");assert.ok(lastDoc.pages>=2,"Acta individual ocupa al menos dos páginas");assert.ok(lastDoc.images>=2,"Logo insertado en ambas páginas");
+ assert.ok(lastDoc.texts.some(x=>x.includes("N.º DE ACTA: 2026-0000-10-0001")),"Número único al inicio del cuerpo, no en portada");
  assert.ok(lastDoc.rects.some(r=>r.page===1&&r.x===15&&r.y===15&&r.w===180&&r.h===30),"Encabezado ACT 18 cm y 3 cm de altura");
  assert.ok(lastDoc.rects.some(r=>r.page===1&&r.x===15&&r.y===225&&r.w===180&&r.h===42),"Bloque de firmas 18 x 4,2 cm");
  for(const coords of [[67,15,67,45],[143,15,143,45],[143,26.5,195,26.5],[15,34,195,34],[75,225,75,267],[135,225,135,267],[15,249,195,249],[15,256.5,195,256.5]])assert.ok(lastDoc.segments.some(l=>["x1","y1","x2","y2"].every((k,i)=>l[k]===coords[i])&&l.page===1),"Estructura de celdas ACT: "+coords.join(","));
@@ -52,20 +53,21 @@ async function main(){
  const draftStudent={Nombres:"ESTUDIANTE SIN NOTAS",cedula:"0000000010",NombreCarrera:"ADMINISTRACIÓN"};
  const draftEvidence=context.window.ActasEvidence.assess({student:draftStudent,mode:"EXAMEN_COMPLEXIVO",requirementValues:{aprobaciontitulacion:"CUMPLE",aprobacioncomplexivoproyecto:"CUMPLE"}});
  assert.equal(draftEvidence.eligible,false,"La evidencia pendiente no se convierte en aprobación definitiva");
- const draft={...exam,student:draftStudent,evidence:draftEvidence};
+ const draft={...exam,student:draftStudent,evidence:draftEvidence,record:{...exam.record,numeroActa:""}};
  const draftPdf=await api.build(draft);
  assert.equal(draftPdf.type,"application/pdf","Los borradores con ambas aprobaciones se pueden descargar");
  assert.ok(lastDoc.texts.some(t=>t.includes("PENDIENTE DE VALIDACIÓN")),"El PDF advierte que faltan evidencias");
+ assert.ok(lastDoc.texts.some(t=>t.includes("BORRADOR SIN NÚMERO OFICIAL")),"No inventa número oficial sin transacción central");
  assert.ok(lastDoc.texts.some(t=>t.includes("NO REGISTRADA")),"El PDF no inventa calificaciones");
  const both=await api.build([exam,work]);assert.equal(both.type,"application/pdf");assert.ok(lastDoc.pages>=4,"PDF de seleccionados incluye ambas actas");
  const summary=[{cedula:"0000000001",nombre:"PRUEBA 1",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"},{cedula:"0000000002",nombre:"PRUEBA 2",carrera:"ADM",modalidad:"TRAB",estado:"EN_PROCESO"},{cedula:"0000000003",nombre:"PENDIENTE",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"},{cedula:"0000000010",nombre:"BORRADOR SIN NOTAS",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"}];
  const zip=await api.downloadZip([exam,work,draft],summary,"2025-10__2026-03");assert.equal(zip.generated,3);assert.equal(zip.drafts,1,"Se contabiliza el borrador con información faltante");assert.equal(zip.excluded,1,"No se contabiliza el borrador como excluido");
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("COMPLEX/")&&f.endsWith(".pdf")));
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("TRAB/")&&f.endsWith(".pdf")));
- assert.ok(lastZip.files.has("Resumen_exportacion.csv"));assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("BORRADOR_PENDIENTE"),"Resumen CSV distingue borradores por validar");
+ assert.ok(lastZip.files.has("Resumen_exportacion.csv"));assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("BORRADOR_SIN_NUMERO"),"Resumen CSV distingue borradores sin numeración");
  assert.ok(downloads.length>=1,"ZIP dispara una descarga");
  ["actas-busqueda","actas-zip","actas-config-logo","actas-logo-modal","actas-logo-file","actas-logo-guardar"].forEach(id=>assert.match(html,new RegExp('id="'+id+'"')));
- assert.match(html,/actas\.pdf\.js/);assert.match(html,/actas\.brand\.js/);
+ assert.match(html,/actas\.pdf\.js/);assert.match(html,/actas\.brand\.js/);assert.match(html,/actas\.numbering\.js/);
  console.log("VERIFICACIÓN PDF/ZIP ACTAS: OK (PDF individual y múltiple, logo, dos carpetas, resumen y controles)");
 }
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});

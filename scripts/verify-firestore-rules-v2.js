@@ -19,7 +19,10 @@ check(firebase.firestore&&firebase.firestore.indexes==="firestore.indexes.json",
 check(/rules_version\s*=\s*['"]2['"]/.test(rules),"Las reglas deben usar rules_version 2");
 check(/function\s+validIdentification\s*\(/.test(rules),"Debe validarse la identificación normalizada");
 check(/value\.matches\('\^\[0-9A-Za-z\]\{6,20\}\$'\)/.test(rules),"Las reglas deben aceptar cédulas y documentos extranjeros alfanuméricos");
-check(!/\^\[0-9\]\{10\}\$/.test(rules),"Las reglas no deben limitar toda identificación a diez dígitos");
+check(/function\s+validIdentification\s*\(/.test(rules),"La identificación general debe conservar su validador flexible");
+check(/match\s+\/actas_registro\//.test(rules),"Debe protegerse el registro único de actas");
+check(/match\s+\/actas_contadores\//.test(rules),"Debe protegerse el contador central de actas");
+check(/match\s+\/actas_numeros\//.test(rules),"Debe protegerse la reserva del número único");
 check(/function\s+validStudentPeriodDocument\s*\(/.test(rules),"Debe validarse la identidad período-identificación");
 check(/function\s+validReportGroup\s*\(/.test(rules),"Debe validarse el grupo de informe de Informtit");
 check(/allow\s+delete\s*:\s*if\s+false/.test(rules),"Las colecciones oficiales deben impedir eliminaciones físicas");

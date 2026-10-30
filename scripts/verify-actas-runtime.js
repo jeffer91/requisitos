@@ -4,6 +4,7 @@ const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),asse
 const root=path.resolve(__dirname,".."),read=p=>fs.readFileSync(path.join(root,p),"utf8");
 const context={URL,Promise,Set,Map,JSON,Date,console,Blob,setTimeout,clearTimeout};
 const storage=new Map(),elements=new Map(),printed=[],zips=[],modalityWrites=[],delays=new Map(),calls=[];
+const centralNumbers=new Map();let centralCounter=0;
 function elem(id){if(!elements.has(id))elements.set(id,{
  id,value:"",innerHTML:"",textContent:"",disabled:false,checked:false,handlers:{},classList:{toggle(){},add(){},remove(){}},
  addEventListener(type,fn){this.handlers[type]=fn;},
@@ -36,6 +37,13 @@ const win={
   async listPeriods(){return [{periodoId:per1,nombre:"Octubre 2025 a Marzo 2026"},{periodoId:per2,nombre:"Abril 2026 a Septiembre 2026"}]},
   async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};},async setModality(opts){modalityWrites.push(opts);return {ok:true}}
  },
+ ActasNumbering:{
+  async list(periodoId){return [...centralNumbers.values()].filter(x=>x.periodoId===periodoId);},
+  async getOrAssign(input){const key=input.periodoId+"__"+input.cedula;if(centralNumbers.has(key))return centralNumbers.get(key);
+   centralCounter++;const entry={identidad:key,periodoId:input.periodoId,cedula:input.cedula,modalidad:input.modalidad,numeroActa:"2026-"+input.cedula.slice(0,4)+"-10-"+String(centralCounter).padStart(4,"0"),fechaCliente:"2026-10-30"};
+   centralNumbers.set(key,entry);return entry;},
+  readableError:e=>String(e&&e.message||e)
+ },
  ActasPDF:{download:async items=>{printed.push(items);return {ok:true,count:Array.isArray(items)?items.length:1}},downloadZip:async(items,summary,periodoId)=>{zips.push({items,summary,periodoId});return {ok:true,generated:items.length,excluded:summary.length-items.length,errors:0}}},ActasBrand:{resolve:async()=>null},
 };
 context.window=win;context.document=document;
@@ -57,6 +65,8 @@ trigger("actas-lote","click");await tick();
 assert.equal(printed.length,1);
 assert.equal(printed[0].length,4,"PDF masivo incluye ambas modalidades y borradores con evidencias pendientes");
 assert.equal(printed[0][0].student.cedula,"0001");
+assert.equal(new Set(printed[0].filter(x=>x.record.numeroActa).map(x=>x.record.numeroActa)).size,2,"Cada registro central usa un número distinto");
+assert.equal(printed[0].filter(x=>!x.record.numeroActa).length,2,"Los pendientes siguen sin numerar");
 assert.equal(printed[0][0].evidence.requirements.length,8,"Acta incorpora ocho requisitos");
 assert.ok(printed[0][0].evidence.requirements.every(r=>r.status==="CUMPLE"),"Lee ocho requisitos directamente desde el registro del estudiante");
 assert.equal(printed[0][0].evidence.evaluation.official,8.6,"Usa nota oficial de Ncomplex");
@@ -65,6 +75,7 @@ assert.ok(printed[0].some(item=>item.student.cedula==="0008"&&!item.evidence.eli
 assert.ok(printed[0].some(item=>item.student.cedula==="0009"&&!item.evidence.eligible),"Permite borrador con evaluación incompleta");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
 trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,4,"ZIP incorpora borradores pendientes de verificar");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
+assert.deepEqual(zips[0].items.map(x=>x.record.numeroActa||""),printed[0].map(x=>x.record.numeroActa||""),"ZIP conserva el mismo número que los PDF iniciales");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
 assert.equal(elem("actas-aprobados").textContent,4,"La métrica incluye borradores descargables de ambas modalidades");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);

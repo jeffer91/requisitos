@@ -37,6 +37,7 @@ function bodyPage(data){
  const title4=data.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo";
  return '<section class="page page2">'+head(data.mode,data.record,data.periodLabel,2,data.issue)+
  '<h2 class="stage-heading">CONSTANCIA DE CULMINACIÓN Y TITULACIÓN</h2>'+
+ '<p class="stage-result"><b>'+safe(data.record.numeroActa?'N.º DE ACTA: '+data.record.numeroActa:'BORRADOR SIN NÚMERO OFICIAL')+'</b></p>'+
  '<table class="stage-identity">'+item("Estudiante",nm)+item("Cédula",ced)+item("Carrera",car)+item("Modalidad",nombreModo(data.mode))+'</table>'+
  '<h3 class="stage-title">1. Culminación de la malla curricular</h3><p class="stage-text">'+safe(p.mallaText)+'</p>'+
  '<h3 class="stage-title">2. Verificación de los ocho requisitos institucionales</h3><table class="stage-rows">'+rows+'</table>'+

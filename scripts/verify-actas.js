@@ -3,7 +3,7 @@
 const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
-const modules=["Actas/actas.catalog.js","Actas/actas.evidence.js","Actas/actas.document.js","Actas/actas.docx.js","Actas/actas.app.js","BDLocal/conexiones/cone.actas.js","Maqueta/maq-menu.js","Maqueta/maq-config-service.js","Maqueta/maq-modulos-registry.js","Maqueta/maq-core.js"];
+const modules=["Actas/actas.catalog.js","Actas/actas.evidence.js","Actas/actas.document.js","Actas/actas.docx.js","Actas/actas.numbering.js","Actas/actas.app.js","BDLocal/conexiones/cone.actas.js","Maqueta/maq-menu.js","Maqueta/maq-config-service.js","Maqueta/maq-modulos-registry.js","Maqueta/maq-core.js"];
 for(const file of modules)new vm.Script(read(file),{filename:file});
 const sandbox={window:{location:{href:"https://example.test/requisitos/Actas/actas.html"}},URL};
 vm.runInNewContext(read(modules[0]),sandbox);
@@ -17,7 +17,7 @@ assert.equal(cat.get(cat.COMPLEXIVO,false).flatMap(g=>g.actividades).every(a=>!a
 assert.equal(cat.get(cat.COMPLEXIVO,true)[0].actividades[0].inicio,"2026-03-30","Ejemplo de Complexivo");
 assert.equal(cat.get(cat.TRABAJO,true)[2].actividades.at(-1).inicio,"2026-04-20","Cierre de Trabajo");
 assert.equal(cat.valid([{fase:"ejemplo",actividades:[{id:"x",inicio:"2026-04-30",fin:"2026-04-01"}]}]),false,"Rechazar fecha final anterior");
-const sample={student:{Nombres:"ESTUDIANTE PRUEBA",cedula:"1234567890",NombreCarrera:"TECNOLOGÍA SUPERIOR"},mode:cat.COMPLEXIVO,record:{codigo:"AT-ITSQMET-UTET-2026-10-01",consecutivo:"01"},periodLabel:"Octubre 2025 a Marzo 2026",schedule:cat.get(cat.COMPLEXIVO,true),issue:"2026-10-28"};
+const sample={student:{Nombres:"ESTUDIANTE PRUEBA",cedula:"1234567890",NombreCarrera:"TECNOLOGÍA SUPERIOR"},mode:cat.COMPLEXIVO,record:{codigo:"AT-ITSQMET-UTET-2026-10-01",consecutivo:"01",numeroActa:"2026-1234-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",schedule:cat.get(cat.COMPLEXIVO,true),issue:"2026-10-28"};
 const base=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
 const requireAll=Object.fromEntries(base.map(key=>[key,"CUMPLE"]));
 sample.student._ncomplexHasSavedEvaluation=true;
@@ -29,6 +29,7 @@ assert.match(exam,/ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO/);
 assert.match(exam,/Aprobación de titulación/);
 assert.match(exam,/Aprobación complexivo\/proyecto/);
 assert.match(exam,/RESULTADO FINAL: APROBADO/);
+assert.match(exam,/N.º DE ACTA: 2026-1234-10-0001/,"La numeración aparece después de la portada");
 for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(exam.includes(signer),"Vista previa conserva firmante: "+signer);
 
 assert.match(exam,/Prácticas preprofesionales/);

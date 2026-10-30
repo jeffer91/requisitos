@@ -78,6 +78,7 @@ function body(x){
  const s=x.student||{},nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]);
  const section=(t)=>para(t,{size:20,bold:true,before:100,after:60});
  let out=encabezado(x,2)+para("CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",{bold:true,size:24,align:"center",before:220,after:100});
+ out+=para(x.record.numeroActa?"N.º DE ACTA: "+x.record.numeroActa:"BORRADOR SIN NÚMERO OFICIAL",{bold:true,size:23,align:"center",after:90});
  out+=table([[{text:"Estudiante",bold:true},nm],[{text:"Cédula",bold:true},ced],[{text:"Carrera",bold:true},car],[{text:"Modalidad",bold:true},label(x.mode)]],[2300,6700]);
  out+=section("1. Culminación de la malla curricular");
  out+=para(p.mallaText,{size:17,after:80});
