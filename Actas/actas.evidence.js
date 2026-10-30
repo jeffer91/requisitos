@@ -81,7 +81,7 @@ function assess(input){
   evaluation:{saved:hasEval,verified,mode:evalMode,opportunity:work?"DEFENSA":op,official,minimum,primary,secondary,computed,state:actualState,inconsistent,rows:gradeRows},
   eligible,missing,requiredCount:items.length,
   mallaText:items[0].status==="CUMPLE"?
-   "El control académico institucional registra el requisito Académico como CUMPLE, correspondiente al cumplimiento curricular para continuar con la titulación. La constancia de egreso y el historial de asignaturas respaldan la culminación de la malla curricular en el expediente académico.":
+   "El control académico institucional registra el requisito Académico como CUMPLE, correspondiente al cumplimiento curricular para continuar con la titulación. La culminación integral de la malla debe contrastarse con la constancia de egreso y el historial de asignaturas del expediente académico.":
    "El requisito Académico no registra cumplimiento completo. No es posible certificar la culminación curricular con la información consultada.",
   nucleiText:work?
    "El requisito Titulación corresponde al desarrollo y la aprobación del trabajo de titulación y su defensa, según los registros institucionales.":
