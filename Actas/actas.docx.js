@@ -11,21 +11,68 @@ const props='<w:pPr><w:jc w:val="'+jc+'"/><w:spacing w:before="'+(opts.before||0
 const rp='<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="'+size+'"/>'+(opts.bold?'<w:b/>':'')+'</w:rPr>';
 const content=String(s==null?"":s).split(/\r?\n/).map((line,i)=>(i?'<w:r><w:br/></w:r>':'')+'<w:r>'+rp+'<w:t xml:space="preserve">'+q(line||" ")+'</w:t></w:r>').join('');return '<w:p>'+props+content+'</w:p>';}
 function rawPara(inner){return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'+inner+'</w:p>';}
-function imageTag(){return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="1350000" cy="640000"/><wp:docPr id="1" name="Logotipo ITSQMET"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Logo institucional"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1350000" cy="640000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';}
-function cell(value,width,opts){opts=opts||{};const content=opts.xml?value:para(value,{size:opts.size||18,align:opts.align||"left",bold:!!opts.bold,after:0});return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/>'+(opts.span?'<w:gridSpan w:val="'+opts.span+'"/>':'')+'</w:tcPr>'+content+'</w:tc>';}
+function imageTag(){return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="1368000" cy="567720"/><wp:docPr id="1" name="Logotipo ITSQMET"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Logo institucional"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1368000" cy="567720"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';}
+function cell(value,width,opts){opts=opts||{};const content=opts.xml?value:para(value,{size:opts.size||18,align:opts.align||"left",bold:!!opts.bold,after:0});return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/>'+(opts.span?'<w:gridSpan w:val="'+opts.span+'"/>':'')+(opts.vm?'<w:vMerge w:val="'+opts.vm+'"/>':'')+'<w:vAlign w:val="center"/>'+'</w:tcPr>'+content+'</w:tc>';}
 function table(rows,widths){const total=widths.reduce((a,b)=>a+b,0);return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:tblBorders>'+["top","left","bottom","right","insideH","insideV"].map(k=>'<w:'+k+' w:val="single" w:sz="4" w:color="454545"/>').join('')+'</w:tblBorders><w:tblCellMar><w:top w:w="75" w:type="dxa"/><w:bottom w:w="75" w:type="dxa"/><w:left w:w="75" w:type="dxa"/><w:right w:w="75" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>'+widths.map(x=>'<w:gridCol w:w="'+x+'"/>').join('')+'</w:tblGrid>'+rows.map(row=>'<w:tr>'+row.map((value,i)=>{if(value&&typeof value==="object")return cell(value.text||value.xml,widths[i],value);return cell(value,widths[i]);}).join('')+'</w:tr>').join('')+'</w:tbl>';}
-function encabezado(x,n){return table([
-[{xml:rawPara(imageTag()),span:1},{text:"Unidad de Titulación y Eficiencia Terminal",align:"center"},{text:"Código:\n"+x.record.codigo+"\nVersión: 1.0",align:"center",size:16}],
-[{text:"Fecha de emisión: "+dmy(x.issue),align:"center",size:16},{text:label(x.mode)+"\n"+x.periodLabel,align:"center",bold:true,size:17},{text:"Página "+n+" de 2",align:"center",size:17}]
-],[2200,4200,2600]);}
+/* ACT v1.1: tablas de ancho fijo, márgenes A4 de 15 mm, celdas verticales combinadas. */
+function actTable(rows,widths,heights){
+ const total=widths.reduce((a,b)=>a+b,0);
+ const border=(name,sz)=>'<w:'+name+' w:val="single" w:sz="'+sz+'" w:color="000000"/>';
+ return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>'+
+  border("top",6)+border("bottom",6)+border("left",6)+border("right",6)+border("insideH",4)+border("insideV",4)+
+ '</w:tblBorders><w:tblCellMar><w:top w:w="50" w:type="dxa"/><w:bottom w:w="50" w:type="dxa"/><w:left w:w="50" w:type="dxa"/><w:right w:w="50" w:type="dxa"/></w:tblCellMar></w:tblPr>'+
+ '<w:tblGrid>'+widths.map(x=>'<w:gridCol w:w="'+x+'"/>').join('')+'</w:tblGrid>'+
+ rows.map((row,i)=>'<w:tr><w:trPr><w:trHeight w:val="'+heights[i]+'" w:hRule="atLeast"/><w:cantSplit/></w:trPr>'+
+ row.map((value,j)=>cell(value.xml||value.text||" ",widths[j],value)).join('')+'</w:tr>').join('')+'</w:tbl>';
+}
+function fieldPara(label,value){
+ const font='<w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="16"/>';
+ return '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>'+
+ '<w:r><w:rPr>'+font+'<w:b/></w:rPr><w:t xml:space="preserve">'+q(label)+' </w:t></w:r>'+
+ '<w:r><w:rPr>'+font+'</w:rPr><w:t xml:space="preserve">'+q(value)+'</w:t></w:r></w:p>';
+}
+function encabezado(x,n){
+ return actTable([
+  [
+   {xml:rawPara(imageTag()),vm:"restart"},
+   {text:"UNIDAD DE TITULACIÓN Y\nEFICIENCIA TERMINAL",size:18,align:"center",bold:true,vm:"restart"},
+   {text:"Código:\n"+x.record.codigo,size:16,align:"center"}
+  ],
+  [
+   {text:" ",vm:"continue"},
+   {text:" ",vm:"continue"},
+   {text:"Versión: 1.0",size:17,align:"center"}
+  ],
+  [
+   {text:"Fecha de emisión: "+dmy(x.issue),size:16,align:"center"},
+   {text:title(x.mode),size:17,bold:true,align:"center"},
+   {text:"Página "+n+" de 2",size:17,align:"center"}
+  ]
+ ],[2948,4304,2948],[652,425,624]);
+}
+function signatures(){
+ return actTable([
+  [
+   {text:"ELABORADO POR:",size:17,align:"center"},
+   {text:"REVISADO POR:",size:17,align:"center"},
+   {text:"APROBADO POR:",size:17,align:"center"}
+  ],
+  [
+   {xml:fieldPara("NOMBRE:","MSc, Jefferson Villarreal")},
+   {xml:fieldPara("NOMBRE:","Ing. Martha Tomalá")},
+   {xml:fieldPara("NOMBRE:","Dr. Alex León T.")}
+  ],
+  [
+   {xml:fieldPara("CARGO:","Coordinador de Titulación y Eficiencia Terminal")},
+   {xml:fieldPara("CARGO:","Coordinadora General de Carreras")},
+   {xml:fieldPara("CARGO:","Vicerrector")}
+  ]
+ ],[3400,3400,3400],[1361,425,595]);
+}
 function cover(x){return encabezado(x,1)+
-para(" ",{after:1000})+para(title(x.mode),{size:46,align:"center",bold:true,after:260})+
-para("Período académico: "+x.periodLabel,{size:22,align:"center",after:220})+
-para("BORRADOR · PENDIENTE DE LEGALIZACIÓN",{size:18,align:"center",bold:true,after:2000})+
-table([
-[{text:"ELABORADO POR:",align:"center"},{text:"REVISADO POR:",align:"center"},{text:"APROBADO POR:",align:"center"}],
-[{text:"\n\n\nNOMBRE: MSc, Jefferson Villarreal\nCARGO: Coordinador de Titulación y Eficiencia Terminal",size:17},{text:"\n\n\nNOMBRE: Ing. Martha Tomalá\nCARGO: Coordinadora General de Carreras",size:17},{text:"\n\n\nNOMBRE: Dr. Alex León T.\nCARGO: Vicerrector",size:17}]
-],[3000,3000,3000]);}
+ para(title(x.mode),{size:46,align:"center",bold:true,before:3100,after:500})+
+ para("Período académico: "+x.periodLabel,{size:22,align:"center",bold:true,after:4750})+
+ signatures();}
 function body(x){
 const s=x.student,nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]),cod=first(s,["CodigoCarrera","codigoCarrera"]);
 const allowed=x.mode==="TRABAJO_TITULACION"?["induccion","tema","entrega","defensa","cierre"]:["nucleo1","nucleo4","examen","supletorio"];
@@ -47,7 +94,7 @@ out+=para("Una vez revisada y legalizada, el acta deberá incorporarse al expedi
 return out;}
 function documentXML(items){const pages=items.map(x=>cover(x)+'<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+body(x));return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<w:document xmlns:w="'+NS+'" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'+pages.join('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')+
-'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1300" w:right="1450" w:bottom="1250" w:left="1450" w:header="300" w:footer="300" w:gutter="0"/></w:sectPr></w:body></w:document>';}
+'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="300" w:footer="300" w:gutter="0"/></w:sectPr></w:body></w:document>';}
 const tableCRC=(()=>{const a=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;a[n]=c>>>0;}return a;})();
 function crc32(bytes){let c=0xFFFFFFFF;for(const v of bytes)c=tableCRC[(c^v)&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
 function write16(view,at,v){view.setUint16(at,v,true);}

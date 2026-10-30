@@ -20,12 +20,67 @@ function label(mode){return mode==="TRABAJO_TITULACION"?"Trabajo de Titulación"
 function category(mode){return mode==="TRABAJO_TITULACION"?"TRAB":"COMPLEX";}
 function filename(x){return "ACTA_"+category(x.mode)+"_"+safe(studentId(x))+"_"+safe(studentName(x))+"_"+safe(x.record.periodId||x.periodLabel)+".pdf";}
 function drawLogo(doc,logo,x,y,maxW,maxH){if(!logo||!logo.dataUrl)return;try{const ratio=Math.max(.01,logo.width/logo.height),width=Math.min(maxW,maxH*ratio),height=width/ratio;doc.addImage(logo.dataUrl,logo.format||"PNG",x+(maxW-width)/2,y+(maxH-height)/2,width,height);}catch(err){throw Error("No se pudo incrustar el logo: "+err.message);}}
-function header(doc,x,logo){doc.setDrawColor(50,70,90);doc.setLineWidth(.25);doc.rect(16,13,178,33);drawLogo(doc,logo,19,16,43,26);
-doc.setFont("helvetica","bold");doc.setFontSize(8.5);doc.text("UNIDAD DE TITULACIÓN Y",112,22,{align:"center"});doc.text("EFICIENCIA TERMINAL",112,27,{align:"center"});
-doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("ITSQMET · "+txt(x.periodLabel),112,35,{align:"center",maxWidth:87});
-doc.setFontSize(7);doc.text("Código:",168,20);doc.text(doc.splitTextToSize(txt(x.record.codigo),24),168,26);doc.text("BORRADOR",168,39);
-doc.setDrawColor(120,130,145);doc.line(16,49,194,49);}
-function footer(doc,x,start,end){for(let i=start;i<=end;i++){doc.setPage(i);doc.setDrawColor(185,195,210);doc.line(17,280,193,280);doc.setFont("helvetica","normal");doc.setFontSize(7.5);doc.text("Borrador para revisión y legalización · "+txt(x.record.codigo),17,285,{maxWidth:142});doc.text("Página "+(i-start+1)+" de "+(end-start+1),193,285,{align:"right"});}}
+/* Portada ACT v1.1: A4, márgenes 15 mm; encabezado 180 mm (52/76/52), tres filas (11,5/7,5/11). */
+function header(doc,x,logo){
+ const left=15,top=15,w=180,cols=[52,76,52],rows=[11.5,7.5,11],middle=105,right=169;
+ doc.setDrawColor(0,0,0);doc.setLineWidth(.20);doc.rect(left,top,w,30);
+ doc.setLineWidth(.18);
+ doc.line(67,top,67,45);doc.line(143,top,143,45);
+ doc.line(143,26.5,195,26.5);doc.line(left,34,195,34);
+ drawLogo(doc,logo,19,17,44,15);
+ doc.setFont("helvetica","bold");doc.setFontSize(9);
+ doc.text("UNIDAD DE TITULACIÓN Y",middle,23.2,{align:"center"});
+ doc.text("EFICIENCIA TERMINAL",middle,27.6,{align:"center"});
+ doc.setFontSize(8.3);doc.text("Código:",right,18.9,{align:"center"});
+ doc.setFont("helvetica","normal");doc.setFontSize(8);
+ const codeLines=doc.splitTextToSize(txt(x.record&&x.record.codigo),48);
+ if(codeLines.length>2)throw Error("El código documental no cabe en el encabezado ACT.");
+ doc.text(codeLines,right,22.3,{align:"center"});
+ doc.setFontSize(8.5);doc.text("Versión: 1.0",right,31.2,{align:"center"});
+ doc.setFontSize(8);doc.text("Fecha de emisión: "+formatDate(x.issue),41,40.2,{align:"center",maxWidth:48});
+ doc.setFont("helvetica","bold");doc.setFontSize(8.5);
+ const typeTitle=x.mode==="TRABAJO_TITULACION"?"ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN":"ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO";
+ const lines=doc.splitTextToSize(typeTitle,72);
+ if(lines.length>2)throw Error("El título del acta no cabe en la celda B3.");
+ doc.text(lines,middle,lines.length===1?40.3:38.8,{align:"center"});
+ /* La paginación de C3 se dibuja después de conocer el total de páginas. */
+}
+function footer(doc,x,start,end){
+ for(let i=start;i<=end;i++){
+  doc.setPage(i);
+  doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+  doc.text("Página "+(i-start+1)+" de "+(end-start+1),169,40.2,{align:"center"});
+  doc.setDrawColor(70,70,70);doc.setLineWidth(.18);doc.line(15,277.5,195,277.5);
+  doc.setFontSize(8);
+  doc.text("Borrador para revisión y legalización · "+txt(x.record.codigo),15,281.3,{maxWidth:178});
+ }
+}
+function signatures(doc){
+ const data=[
+  {title:"ELABORADO POR:",name:"MSc, Jefferson Villarreal",job:"Coordinador de Titulación y Eficiencia Terminal"},
+  {title:"REVISADO POR:",name:"Ing. Martha Tomalá",job:"Coordinadora General de Carreras"},
+  {title:"APROBADO POR:",name:"Dr. Alex León T.",job:"Vicerrector"}
+ ];
+ const x=15,y=225,w=180,h=42,col=60,row1=24,row2=7.5;
+ doc.setDrawColor(0,0,0);doc.setLineWidth(.20);doc.rect(x,y,w,h);
+ doc.setLineWidth(.18);
+ doc.line(75,y,75,y+h);doc.line(135,y,135,y+h);
+ doc.line(x,y+row1,x+w,y+row1);doc.line(x,y+row1+row2,x+w,y+row1+row2);
+ data.forEach((f,i)=>{
+  const bx=x+i*col;
+  doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+  doc.text(f.title,bx+col/2,y+4.6,{align:"center"});
+  doc.setFont("helvetica","bold");doc.setFontSize(8);
+  doc.text("NOMBRE:",bx+1.5,y+row1+4.8);
+  doc.setFont("helvetica","normal");
+  doc.text(f.name,bx+17.3,y+row1+4.8,{maxWidth:40.9});
+  doc.setFont("helvetica","bold");doc.text("CARGO:",bx+1.5,y+row1+row2+4.1);
+  doc.setFont("helvetica","normal");
+  const jobLines=doc.splitTextToSize(f.job,46.5);
+  if(jobLines.length>2)throw Error("El cargo de "+f.name+" excede la celda de firma.");
+  doc.text(jobLines,bx+12,y+row1+row2+4.1);
+ });
+}
 function center(doc,value,y,size,bold){doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(size);const lines=doc.splitTextToSize(value,165);doc.text(lines,105,y,{align:"center"});return y+lines.length*size*.45;}
 function nextPage(doc,x,logo,pos){doc.addPage();header(doc,x,logo);pos.y=58;}
 function lines(doc,x,logo,value,pos,opts){opts=opts||{};const size=opts.size||9,step=size*.48;doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(size);
@@ -35,21 +90,10 @@ function pair(doc,x,logo,key,value,pos){if(pos.y+12>273)nextPage(doc,x,logo,pos)
 function milestones(x){const ids=x.mode==="TRABAJO_TITULACION"?["induccion","tema","entrega","defensa","cierre"]:["nucleo1","nucleo4","examen","supletorio"];return (x.schedule||[]).flatMap(g=>g.actividades||[]).filter(a=>ids.includes(a.id)&&(a.inicio||a.fin));}
 function timeline(doc,x,logo,rows,pos){if(!rows.length){lines(doc,x,logo,"Cronograma sin fechas registradas.",pos,{size:8.5});return;}for(const a of rows){if(pos.y+11>273)nextPage(doc,x,logo,pos);doc.setDrawColor(196,203,214);doc.rect(18,pos.y,174,10);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text(doc.splitTextToSize(txt(a.nombre),91).slice(0,2),20,pos.y+4.2);doc.text(formatDate(a.inicio),116,pos.y+6);doc.text(formatDate(a.fin),157,pos.y+6);pos.y+=10;}pos.y+=3;}
 function paint(doc,x,logo){if(doc.getNumberOfPages()>1||doc.__actasCount){doc.addPage();}const start=doc.getNumberOfPages();doc.__actasCount=(doc.__actasCount||0)+1;
-header(doc,x,logo);let y=96;y=center(doc,"ACTA DE TITULACIÓN POR "+(x.mode==="TRABAJO_TITULACION"?"TRABAJO DE TITULACIÓN":"EXAMEN COMPLEXIVO"),y,20,true);
-y=center(doc,"Período académico: "+txt(x.periodLabel),y+14,11,false);center(doc,"BORRADOR · PENDIENTE DE LEGALIZACIÓN",y+15,11,true);
-doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Fecha de emisión: "+formatDate(x.issue),105,201,{align:"center"});
-const firmantes=[
-{role:"ELABORADO POR",nombre:"MSc, Jefferson Villarreal",cargo:"Coordinador de Titulación y Eficiencia Terminal"},
-{role:"REVISADO POR",nombre:"Ing. Martha Tomalá",cargo:"Coordinadora General de Carreras"},
-{role:"APROBADO POR",nombre:"Dr. Alex León T.",cargo:"Vicerrector"}
-];for(let i=0;i<firmantes.length;i++){
- const f=firmantes[i],bx=18+i*58,ancho=58;
- doc.setDrawColor(35,35,35);doc.setLineWidth(.22);doc.rect(bx,211,ancho,60);doc.line(bx,243,bx+ancho,243);
- doc.setFont("helvetica","bold");doc.setFontSize(8);doc.text(f.role+":",bx+2,217,{maxWidth:ancho-4});
- doc.setFontSize(7.6);const names=doc.splitTextToSize("NOMBRE: "+f.nombre,ancho-4);doc.text(names.slice(0,2),bx+2,248);
- const cargoY=248+(names.length>1?4.2:0)+8;
- const jobs=doc.splitTextToSize("CARGO: "+f.cargo,ancho-4);doc.text(jobs.slice(0,3),bx+2,cargoY);
-}
+header(doc,x,logo);
+let y=center(doc,"ACTA DE TITULACIÓN POR "+(x.mode==="TRABAJO_TITULACION"?"TRABAJO DE TITULACIÓN":"EXAMEN COMPLEXIVO"),126,23,true);
+center(doc,"Período académico: "+txt(x.periodLabel),y+13,11,true);
+signatures(doc);
 doc.addPage();header(doc,x,logo);const pos={y:59};
 section(doc,x,logo,"CONSTANCIA DEL PROCESO DE TITULACIÓN",pos);
 pair(doc,x,logo,"Estudiante",studentName(x),pos);pair(doc,x,logo,"Cédula",studentId(x),pos);

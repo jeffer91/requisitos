@@ -26,6 +26,14 @@ for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex
 
 assert.doesNotMatch(exam,/Nota teórica|Nota práctica|Calificación final:\s*\d/i);
 assert.equal((exam.match(/class="page/g)||[]).length,2,"Dos páginas por acta");
+assert.match(exam,/col style="width:52mm"/,"Logo y control ACT deben medir 5,20 cm");
+assert.match(exam,/col style="width:76mm"/,"Columna central ACT debe medir 7,60 cm");
+assert.match(exam,/class="r1"/);assert.match(exam,/class="r2"/);assert.match(exam,/class="r3"/);
+assert.match(exam,/class="sign-space"/);assert.match(exam,/class="sign-names"/);assert.match(exam,/class="sign-roles"/);
+assert.match(exam,/Versión: 1.0/);
+assert.match(exam,/Fecha de emisión:/);
+assert.doesNotMatch(exam,/NOMBRE: __________________|CARGO: __________________/);
+
 const work=docs.render({...sample,mode:cat.TRABAJO,schedule:cat.get(cat.TRABAJO,true)});
 assert.match(work,/ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN/);
 assert.match(work,/Defensa de tesis/);
