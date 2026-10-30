@@ -77,9 +77,9 @@ async function read(opts){
  const notesPromise=notas&&typeof notas.list==="function"?notas.list({periodoId:periodId}).catch(()=>[]):Promise.resolve([]);
  const [periods,students,evaluations,primaryRequirements,supplementary,notes]=await Promise.all([
   w.ConNcomplex.listPeriods(),
-  localStudents({periodoId}),
-  w.ConNcomplex.listEvaluations({periodoId}),
-  w.BDLRepoRequisitos.list({periodoId}),
+  localStudents({periodoId:periodId}),
+  w.ConNcomplex.listEvaluations({periodoId:periodId}),
+  w.BDLRepoRequisitos.list({periodoId:periodId}),
   supplementaryRequirements(periodId),
   notesPromise
  ]);
