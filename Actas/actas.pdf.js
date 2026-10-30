@@ -92,7 +92,7 @@ function timeline(doc,x,logo,rows,pos){if(!rows.length){lines(doc,x,logo,"Cronog
 /* Cuerpo documental: fuentes verificadas (BDLocal + Ncomplex). No modifica la portada. */
 function academicEvidence(x){
  const proof=x&&x.evidence||w.ActasEvidence.assess({student:x.student,mode:x.mode,requirementValues:x.requirementValues||{},evaluation:x.evaluation});
- if(!proof.eligible)throw Error("El acta requiere evidencias completas: "+proof.missing.join("; "));
+ /* El borrador puede emitirse con las dos aprobaciones finales, aun cuando falten evidencias. El estado se refleja en el cuerpo. */
  return proof;
 }
 function dataRow(doc,x,logo,left,right,pos,opts){
@@ -142,7 +142,7 @@ pos.y+=4;
 heading(doc,x,logo,"5. Constancia de culminación y aprobación",pos);
 lines(doc,x,logo,"Controles finales: Aprobación de titulación = "+proof.finalTitleStatus+"; Aprobación complexivo/proyecto = "+proof.finalResultStatus+".",pos,{size:8.7,after:2});
 lines(doc,x,logo,proof.closureText,pos,{size:9,after:3});
-lines(doc,x,logo,"RESULTADO FINAL: APROBADO",pos,{size:12,bold:true,after:3});
+lines(doc,x,logo,"RESULTADO FINAL: "+(proof.eligible?"APROBADO":"PENDIENTE DE VALIDACIÓN"),pos,{size:12,bold:true,after:3});
 lines(doc,x,logo,"Esta acta es un borrador sujeto a cotejo con las evidencias oficiales, revisión institucional y firmas autorizadas. Se conservará en el expediente de titulación una vez legalizada.",pos,{size:8.5});
 footer(doc,x,start,doc.getNumberOfPages());}
 async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
@@ -152,8 +152,8 @@ async function download(items){const list=Array.isArray(items)?items:[items],blo
 function csvCell(value){let s=txt(value);if(/^[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';}
 function csv(rows){const headers=["Cedula","Estudiante","Carrera","Modalidad","Estado","Motivo","Archivo"];return "\uFEFF"+[headers,...rows.map(r=>[r.cedula,r.nombre,r.carrera,r.modalidad,r.estado,r.motivo,r.archivo])].map(row=>row.map(csvCell).join(";")).join("\r\n");}
 async function downloadZip(items,summary,periodId,progress){const list=Array.isArray(items)?items:[],JsZip=await zipReady();if(!list.length)throw Error("No existen estudiantes con actas habilitadas en este período.");
-const zip=new JsZip(),log=Array.isArray(summary)?summary.map(r=>Object.assign({},r)):[],used=new Set();let done=0,generated=0;for(const item of list){const fullName=category(item.mode)+"/"+filename(item),key=fullName.toLowerCase();let path=fullName,n=2;while(used.has(path.toLowerCase()))path=fullName.replace(/\.pdf$/i,"_"+n+++".pdf");used.add(path.toLowerCase());try{const blob=await build(item);zip.file(path,blob);generated++;const row=log.find(r=>r.cedula===studentId(item)&&r.modalidad===category(item.mode));if(row){row.estado="INCLUIDO";row.motivo="";row.archivo=path;}}catch(e){const row=log.find(r=>r.cedula===studentId(item)&&r.modalidad===category(item.mode));if(row){row.estado="ERROR";row.motivo=e.message;row.archivo="";}}done++;if(typeof progress==="function")progress({done,total:list.length,generated});}
+const zip=new JsZip(),log=Array.isArray(summary)?summary.map(r=>Object.assign({},r)):[],used=new Set();let done=0,generated=0;for(const item of list){const fullName=category(item.mode)+"/"+filename(item),key=fullName.toLowerCase();let path=fullName,n=2;while(used.has(path.toLowerCase()))path=fullName.replace(/\.pdf$/i,"_"+n+++".pdf");used.add(path.toLowerCase());try{const blob=await build(item);zip.file(path,blob);generated++;const row=log.find(r=>r.cedula===studentId(item)&&r.modalidad===category(item.mode));if(row){const verified=!!(item.evidence&&item.evidence.eligible);row.estado=verified?"INCLUIDO":"BORRADOR_PENDIENTE";row.motivo=verified?"":"Pendiente de validación: "+(item.evidence&&item.evidence.missing||[]).join("; ");row.archivo=path;}}catch(e){const row=log.find(r=>r.cedula===studentId(item)&&r.modalidad===category(item.mode));if(row){row.estado="ERROR";row.motivo=e.message;row.archivo="";}}done++;if(typeof progress==="function")progress({done,total:list.length,generated});}
 zip.file("Resumen_exportacion.csv",csv(log));if(!generated)throw Error("No se pudo generar ningún PDF. Revisa el logo y los datos.");
-const out=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});downloadBlob(out,"ACTAS_UTET_"+safe(periodId)+".zip");return {ok:true,bytes:out.size,generated,excluded:log.filter(x=>x.estado!=="INCLUIDO").length,errors:log.filter(x=>x.estado==="ERROR").length};}
+const out=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});downloadBlob(out,"ACTAS_UTET_"+safe(periodId)+".zip");return {ok:true,bytes:out.size,generated,excluded:log.filter(x=>x.estado!=="INCLUIDO"&&x.estado!=="BORRADOR_PENDIENTE").length,drafts:log.filter(x=>x.estado==="BORRADOR_PENDIENTE").length,errors:log.filter(x=>x.estado==="ERROR").length};}
 w.ActasPDF=Object.freeze({build,download,downloadZip,filename,category});
 })(window,document);
