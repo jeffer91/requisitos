@@ -24,7 +24,7 @@ para("Período académico: "+x.periodLabel,{size:22,align:"center",after:220})+
 para("BORRADOR · PENDIENTE DE LEGALIZACIÓN",{size:18,align:"center",bold:true,after:2000})+
 table([
 [{text:"ELABORADO POR:",align:"center"},{text:"REVISADO POR:",align:"center"},{text:"APROBADO POR:",align:"center"}],
-[{text:"\n\n\nNOMBRE: __________________\nCARGO: __________________",size:17},{text:"\n\n\nNOMBRE: __________________\nCARGO: __________________",size:17},{text:"\n\n\nNOMBRE: __________________\nCARGO: __________________",size:17}]
+[{text:"\n\n\nNOMBRE: MSc, Jefferson Villarreal\nCARGO: Coordinador de Titulación y Eficiencia Terminal",size:17},{text:"\n\n\nNOMBRE: Ing. Martha Tomalá\nCARGO: Coordinadora General de Carreras",size:17},{text:"\n\n\nNOMBRE: Dr. Alex León T.\nCARGO: Vicerrector",size:17}]
 ],[3000,3000,3000]);}
 function body(x){
 const s=x.student,nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]),cod=first(s,["CodigoCarrera","codigoCarrera"]);

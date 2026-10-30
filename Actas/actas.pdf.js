@@ -38,7 +38,18 @@ function paint(doc,x,logo){if(doc.getNumberOfPages()>1||doc.__actasCount){doc.ad
 header(doc,x,logo);let y=96;y=center(doc,"ACTA DE TITULACIÓN POR "+(x.mode==="TRABAJO_TITULACION"?"TRABAJO DE TITULACIÓN":"EXAMEN COMPLEXIVO"),y,20,true);
 y=center(doc,"Período académico: "+txt(x.periodLabel),y+14,11,false);center(doc,"BORRADOR · PENDIENTE DE LEGALIZACIÓN",y+15,11,true);
 doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Fecha de emisión: "+formatDate(x.issue),105,201,{align:"center"});
-const roles=["ELABORADO POR","REVISADO POR","APROBADO POR"];for(let i=0;i<3;i++){const bx=18+i*58;doc.rect(bx,224,56,41);doc.setFont("helvetica","bold");doc.setFontSize(8);doc.text(roles[i],bx+28,230,{align:"center"});doc.setFont("helvetica","normal");doc.text("Nombre: __________________",bx+3,251,{maxWidth:51});doc.text("Cargo: ___________________",bx+3,260,{maxWidth:51});}
+const firmantes=[
+{role:"ELABORADO POR",nombre:"MSc, Jefferson Villarreal",cargo:"Coordinador de Titulación y Eficiencia Terminal"},
+{role:"REVISADO POR",nombre:"Ing. Martha Tomalá",cargo:"Coordinadora General de Carreras"},
+{role:"APROBADO POR",nombre:"Dr. Alex León T.",cargo:"Vicerrector"}
+];for(let i=0;i<firmantes.length;i++){
+ const f=firmantes[i],bx=18+i*58,ancho=58;
+ doc.setDrawColor(35,35,35);doc.setLineWidth(.22);doc.rect(bx,211,ancho,60);doc.line(bx,243,bx+ancho,243);
+ doc.setFont("helvetica","bold");doc.setFontSize(8);doc.text(f.role+":",bx+2,217,{maxWidth:ancho-4});
+ doc.setFontSize(7.6);const names=doc.splitTextToSize("NOMBRE: "+f.nombre,ancho-4);doc.text(names.slice(0,2),bx+2,248);
+ const cargoY=248+(names.length>1?4.2:0)+8;
+ const jobs=doc.splitTextToSize("CARGO: "+f.cargo,ancho-4);doc.text(jobs.slice(0,3),bx+2,cargoY);
+}
 doc.addPage();header(doc,x,logo);const pos={y:59};
 section(doc,x,logo,"CONSTANCIA DEL PROCESO DE TITULACIÓN",pos);
 pair(doc,x,logo,"Estudiante",studentName(x),pos);pair(doc,x,logo,"Cédula",studentId(x),pos);

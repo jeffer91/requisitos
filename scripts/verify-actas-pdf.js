@@ -5,10 +5,10 @@ const root=path.resolve(__dirname,".."),source=fs.readFileSync(path.join(root,"A
 new vm.Script(source);
 let lastDoc=null,lastZip=null,downloads=[];
 class Pdf{
- constructor(){this.pages=1;this.index=1;this.images=0;lastDoc=this;}
+ constructor(){this.pages=1;this.index=1;this.images=0;this.texts=[];lastDoc=this;}
  setDrawColor(){return this;}setLineWidth(){return this;}rect(){return this;}setFont(){return this;}setFontSize(){return this;}
  setFillColor(){return this;}line(){return this;}
- text(value){assert.ok(value!==undefined);return this;}
+ text(value){assert.ok(value!==undefined);this.texts.push(Array.isArray(value)?value.join(" "):String(value));return this;}
  splitTextToSize(value){const content=String(value);return content.match(/.{1,95}/g)||[""];}
  addImage(value){assert.match(value,/^data:image\//);this.images++;return this;}
  addPage(){this.pages++;this.index=this.pages;return this;}
@@ -31,6 +31,7 @@ function sample(cedula,mode){return {student:{Nombres:"ESTUDIANTE DE PRUEBA",ced
 async function main(){
  const exam=sample("0000000001","EXAMEN_COMPLEXIVO"),work=sample("0000000002","TRABAJO_TITULACION");
  const one=await api.build(exam);assert.equal(one.type,"application/pdf");assert.ok(lastDoc.pages>=2,"Acta individual ocupa al menos dos páginas");assert.ok(lastDoc.images>=2,"Logo insertado en ambas páginas");
+ for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(lastDoc.texts.join(" ").includes(signer),"PDF contiene nombre y cargo de "+signer);
  const both=await api.build([exam,work]);assert.equal(both.type,"application/pdf");assert.ok(lastDoc.pages>=4,"PDF de seleccionados incluye ambas actas");
  const summary=[{cedula:"0000000001",nombre:"PRUEBA 1",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"},{cedula:"0000000002",nombre:"PRUEBA 2",carrera:"ADM",modalidad:"TRAB",estado:"EN_PROCESO"},{cedula:"0000000003",nombre:"PENDIENTE",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"}];
  const zip=await api.downloadZip([exam,work],summary,"2025-10__2026-03");assert.equal(zip.generated,2);

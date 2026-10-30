@@ -14,6 +14,7 @@ assert.ok(parts.get("word/media/logo.png").length>1000,"Logo institucional incru
 const xml=parts.get("word/document.xml").toString("utf8");
 assert.match(xml,/<w:document/);assert.match(xml,/ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO/);assert.match(xml,/RESULTADO FINAL: APROBADO/);assert.match(xml,/Aprobación titulación/);assert.match(xml,/Aprobación complexivo\/proyecto/);
 assert.doesNotMatch(xml,/Nota teórica|Nota práctica|Calificación numérica:\s*\d/i);
+for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(xml.includes(signer),"DOCX conserva firmante: "+signer);
 assert.match(xml,/rIdLogo/);assert.match(xml,/w:type="page"/);assert.match(xml,/w:br\/>/,"Firmas y códigos con saltos de línea");
 assert.match(parts.get("[Content_Types].xml").toString("utf8"),/wordprocessingml.document.main\+xml/);
 const work=await context.window.ActasDocx.build({...item,mode:"TRABAJO_TITULACION"}),workParts=readZip(await work.arrayBuffer());
