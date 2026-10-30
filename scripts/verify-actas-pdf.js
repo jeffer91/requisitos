@@ -25,9 +25,17 @@ const image="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 const context={Blob,Promise,Date,Map,Set,console,URL:{createObjectURL:()=>"blob:local",revokeObjectURL(){}},setTimeout(){}};
 context.window={jspdf:{jsPDF:Pdf},JSZip:Zip,ActasBrand:{resolve:async()=>({dataUrl:image,width:100,height:38,format:"PNG"})}};
 context.document={baseURI:"https://example.test/Actas/actas.html",head:{appendChild(){}},body:{appendChild(){}},createElement:()=>({click(){downloads.push(true)},remove(){}})};
+vm.runInNewContext(fs.readFileSync(path.join(root,"Actas/actas.evidence.js"),"utf8"),context,{filename:"actas.evidence.js"});
 vm.runInNewContext(source,context,{filename:"actas.pdf.js"});
 const api=context.window.ActasPDF;
-function sample(cedula,mode){return {student:{Nombres:"ESTUDIANTE DE PRUEBA",cedula,NombreCarrera:"ADMINISTRACIÓN"},mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-10-30",schedule:[{actividades:[{id:"examen",nombre:"Examen Complexivo",inicio:"2026-04-16",fin:"2026-04-18"}]}]};}
+function sample(cedula,mode){
+ const work=mode==="TRABAJO_TITULACION";
+ const ev=work?{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}:{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6};
+ const student={Nombres:"ESTUDIANTE DE PRUEBA",cedula,NombreCarrera:"ADMINISTRACIÓN",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:ev};
+ const keys=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
+ const reqs=Object.fromEntries(keys.map(k=>[k,"CUMPLE"]));
+ return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-10-30",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs})};
+}
 async function main(){
  const exam=sample("0000000001","EXAMEN_COMPLEXIVO"),work=sample("0000000002","TRABAJO_TITULACION");
  const one=await api.build(exam);assert.equal(one.type,"application/pdf");assert.ok(lastDoc.pages>=2,"Acta individual ocupa al menos dos páginas");assert.ok(lastDoc.images>=2,"Logo insertado en ambas páginas");
@@ -36,9 +44,10 @@ async function main(){
  for(const coords of [[67,15,67,45],[143,15,143,45],[143,26.5,195,26.5],[15,34,195,34],[75,225,75,267],[135,225,135,267],[15,249,195,249],[15,256.5,195,256.5]])assert.ok(lastDoc.segments.some(l=>["x1","y1","x2","y2"].every((k,i)=>l[k]===coords[i])&&l.page===1),"Estructura de celdas ACT: "+coords.join(","));
  assert.ok(lastDoc.fontSizes.filter(n=>n===23).length>=2,"Título central y período académico deben usar ambos 23 pt");
  assert.ok(lastDoc.texts.some(t=>t.includes("Versión: 1.0")),"Versión en celda C2");
- assert.ok(lastDoc.texts.some(t=>t.includes("Página 1 de 2")),"Paginación automática de portada");
+ assert.ok(lastDoc.texts.some(t=>t.startsWith("Página 1 de ")),"Paginación automática de portada");
  assert.ok(lastDoc.texts.some(t=>t.includes("Fecha de emisión:")),"Fecha en la celda A3");
  assert.ok(!lastDoc.texts.some(t=>t.includes("Nombre: ___")||t.includes("Cargo: ___")),"Nombres y cargos no deben quedar vacíos");
+ for(const phrase of ["Culminación de la malla curricular","Verificación de requisitos institucionales","Prácticas preprofesionales","Núcleos formativos y requisito de Titulación","Resultado del examen complexivo","8,60/10"])assert.ok(lastDoc.texts.join(" ").includes(phrase),"Cuerpo del PDF: "+phrase);
  for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(lastDoc.texts.join(" ").includes(signer),"PDF contiene nombre y cargo de "+signer);
  const both=await api.build([exam,work]);assert.equal(both.type,"application/pdf");assert.ok(lastDoc.pages>=4,"PDF de seleccionados incluye ambas actas");
  const summary=[{cedula:"0000000001",nombre:"PRUEBA 1",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"},{cedula:"0000000002",nombre:"PRUEBA 2",carrera:"ADM",modalidad:"TRAB",estado:"EN_PROCESO"},{cedula:"0000000003",nombre:"PENDIENTE",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"}];

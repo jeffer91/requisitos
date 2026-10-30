@@ -74,24 +74,28 @@ function cover(x){return encabezado(x,1)+
  para("Período académico: "+x.periodLabel,{size:46,align:"center",bold:true,after:4750})+
  signatures();}
 function body(x){
-const s=x.student,nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]),cod=first(s,["CodigoCarrera","codigoCarrera"]);
-const allowed=x.mode==="TRABAJO_TITULACION"?["induccion","tema","entrega","defensa","cierre"]:["nucleo1","nucleo4","examen","supletorio"];
-const activities=(x.schedule||[]).flatMap(g=>g.actividades||[]).filter(a=>allowed.includes(a.id)&&(a.inicio||a.fin));
-let out=encabezado(x,2)+para("CONSTANCIA DEL PROCESO DE TITULACIÓN",{bold:true,size:26,align:"center",before:280,after:150});
-out+=table([[{text:"Nombres completos",bold:true},nm],[{text:"Cédula",bold:true},ced],[{text:"Código de carrera",bold:true},cod],[{text:"Carrera",bold:true},car],[{text:"Modalidad",bold:true},label(x.mode)],[{text:"Período académico",bold:true},x.periodLabel]],[2500,6500]);
-out+=para("1. Antecedentes",{bold:true,size:20,before:140});
-out+=para("En el marco de las actividades académicas del Instituto Superior Tecnológico Quito Metropolitano, la Unidad de Titulación y Eficiencia Terminal documenta el resultado final del estudiante "+nm+", portador de la cédula de identidad "+ced+", perteneciente a la carrera "+car+". La modalidad registrada es "+label(x.mode)+", correspondiente al período "+x.periodLabel+".",{size:18});
-out+=para("2. Desarrollo académico y cronograma",{bold:true,size:20,before:120});
-out+=para(x.mode==="TRABAJO_TITULACION"?"El proceso comprende planificación, formulación y aprobación del tema, elaboración y revisión del trabajo académico y defensa final ante el tribunal correspondiente. Los hitos que siguen proceden del cronograma ingresado por la unidad responsable.":"El proceso comprende núcleos formativos, evaluación ordinaria y, de corresponder, la instancia supletoria. Los hitos que siguen proceden del cronograma ingresado por la unidad responsable. Las fechas no acreditan por sí solas ejecución.",{size:18});
-if(activities.length)out+=table([[{text:"Actividad",bold:true,size:16},{text:"Inicio",bold:true,size:16},{text:"Fin",bold:true,size:16}],...activities.map(a=>[{text:a.nombre,size:16},{text:dmy(a.inicio),size:16},{text:dmy(a.fin),size:16}])],[5000,2000,2000]);
-else out+=para("El cronograma correspondiente aún no tiene fechas ingresadas.",{size:18});
-out+=para("3. Verificación de requisitos finales",{bold:true,size:20,before:120});
-out+=para("Conforme a los registros consultados, el estudiante consta con estado CUMPLE en «Aprobación titulación» y estado CUMPLE en «Aprobación complexivo/proyecto». El documento refleja estos estados finales sin incorporar calificaciones numéricas.",{size:18});
-out+=para("4. Constancia de resultado",{bold:true,size:20,before:120});
-out+=para("De acuerdo con la aprobación final registrada para el período y modalidad identificados, se deja constancia de que el estudiante registra APROBADO su proceso de titulación. La emisión del borrador no sustituye la revisión de evidencias académicas ni la suscripción por los responsables institucionales.",{size:18});
-out+=para("RESULTADO FINAL: APROBADO",{bold:true,size:24,align:"center",before:160,after:180});
-out+=para("Una vez revisada y legalizada, el acta deberá incorporarse al expediente de titulación y archivarse en el repositorio documental correspondiente de la UTET.",{size:17});
-return out;}
+ const p=x.evidence||w.ActasEvidence.assess({student:x.student,mode:x.mode,requirementValues:x.requirementValues||{},evaluation:x.evaluation});
+ const s=x.student||{},nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]);
+ const section=(t)=>para(t,{size:20,bold:true,before:100,after:60});
+ let out=encabezado(x,2)+para("CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",{bold:true,size:24,align:"center",before:220,after:100});
+ out+=table([[{text:"Estudiante",bold:true},nm],[{text:"Cédula",bold:true},ced],[{text:"Carrera",bold:true},car],[{text:"Modalidad",bold:true},label(x.mode)]],[2300,6700]);
+ out+=section("1. Culminación de la malla curricular");
+ out+=para(p.mallaText,{size:17,after:80});
+ out+=section("2. Verificación de los ocho requisitos institucionales");
+ out+=table([[{text:"Requisito",bold:true,size:16},{text:"Estado",bold:true,size:16}],...p.requirements.map((r,i)=>[{text:(i+1)+". "+r.label,size:16},{text:r.status,size:16}])],[6900,2100]);
+ out+=section(x.mode==="TRABAJO_TITULACION"?"3. Cumplimiento del componente de titulación":"3. Núcleos formativos y requisito de Titulación");
+ out+=para(p.nucleiText,{size:17,after:65});
+ out+=table([[{text:"Requisito Titulación",bold:true,size:16},{text:p.titulationStatus,size:16}]],[6900,2100]);
+ out+=section(x.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo");
+ out+=para("Fuente: Ncomplex. Oportunidad aplicada: "+p.evaluation.opportunity+".",{size:17,after:60});
+ out+=table([[{text:"Componente",bold:true,size:16},{text:"Resultado",bold:true,size:16}],...p.evaluation.rows.map(r=>[{text:r.label,size:16},{text:r.value,size:16}])],[6900,2100]);
+ out+=section("5. Constancia de culminación y aprobación");
+ out+=para("Aprobación de titulación: "+p.finalTitleStatus+". Aprobación complexivo/proyecto: "+p.finalResultStatus+".",{size:17,after:50});
+ out+=para(p.closureText,{size:17,after:80});
+ out+=para("RESULTADO FINAL: "+(p.eligible?"APROBADO":"PENDIENTE DE VALIDACIÓN"),{bold:true,size:23,align:"center",after:110});
+ out+=para("Borrador sujeto a revisión, cotejo con las evidencias académicas, firmas autorizadas y posterior archivo en el expediente de titulación.",{size:16});
+ return out;
+}
 function documentXML(items){const pages=items.map(x=>cover(x)+'<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+body(x));return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<w:document xmlns:w="'+NS+'" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'+pages.join('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')+
 '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="300" w:footer="300" w:gutter="0"/></w:sectPr></w:body></w:document>';}

@@ -20,9 +20,11 @@ const per1="2025-10__2026-03",per2="2026-04__2026-09";
 const student=(c,n,m=undefined,extra={})=>Object.assign({cedula:c,Nombres:n,periodoId:per1,NombreCarrera:"ADMINISTRACIÓN",modalidadTitulacion:m||"EXAMEN_COMPLEXIVO",estadoMatricula:"ACTIVO"},extra);
 const req=(cedula,periodoId,field,state="CUMPLE")=>({cedula,periodoId,requisitoKey:field,valor:state});
 const field1="aprobaciontitulacion",field2="aprobacioncomplexivoproyecto";
+const eight=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero"];
+const grades=mode=>mode==="TRABAJO_TITULACION"?{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4,oportunidadAplicada:"ORDINARIA"}:{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,oportunidadAplicada:"ORDINARIA"};
 const dataset1={
-students:[student("0001","EXAMEN APROBADO"),student("0002","EXAMEN FALTANTE"),student("0003","TRABAJO APROBADO","TRABAJO_TITULACION"),student("0004","RETIRADO","EXAMEN_COMPLEXIVO",{estadoMatricula:"RETIRADO"}),student("0005","NOTA REPROBADA","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"NO_APROBADO"}),student("0007","ARTÍCULO PVC","TRABAJO_TITULACION",{tipoTitulacion:"ARTICULO_ACADEMICO",_ncomplexHasSavedEvaluation:false})],
-requirements:[req("0001",per1,field1),req("0001",per1,field2),req("0002",per1,field1),req("0003",per1,field1),req("0003",per1,field2),req("0004",per1,field1),req("0004",per1,field2),req("0005",per1,field1),req("0005",per1,field2),req("0007",per1,field1),req("0007",per1,field2)]};
+students:[student("0001","EXAMEN APROBADO","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"APROBADO",_ncomplexEvaluation:grades("EXAMEN_COMPLEXIVO")}),student("0002","EXAMEN FALTANTE"),student("0003","TRABAJO APROBADO","TRABAJO_TITULACION",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"APROBADO",_ncomplexEvaluation:grades("TRABAJO_TITULACION")}),student("0004","RETIRADO","EXAMEN_COMPLEXIVO",{estadoMatricula:"RETIRADO"}),student("0005","NOTA REPROBADA","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"NO_APROBADO"}),student("0007","ARTÍCULO PVC","TRABAJO_TITULACION",{tipoTitulacion:"ARTICULO_ACADEMICO",_ncomplexHasSavedEvaluation:false})],
+requirements:[req("0001",per1,field1),req("0001",per1,field2),req("0002",per1,field1),req("0003",per1,field1),req("0003",per1,field2),req("0004",per1,field1),req("0004",per1,field2),req("0005",per1,field1),req("0005",per1,field2),req("0007",per1,field1),req("0007",per1,field2),...["0001","0003"].flatMap(id=>eight.concat(["titulacion"]).map(key=>req(id,per1,key)))]};
 const dataset2={students:[student("0006","OTRO PERIODO",undefined,{periodoId:per2})],requirements:[req("0006",per2,field1),req("0006",per2,field2)]};
 const document={readyState:"complete",getElementById:elem,addEventListener(){},body:{appendChild(){}},createElement(){return {click(){},remove(){}}}};
 const win={
@@ -39,6 +41,7 @@ const win={
 context.window=win;context.document=document;
 vm.createContext(context);
 vm.runInContext(read("Actas/actas.catalog.js"),context);
+vm.runInContext(read("Actas/actas.evidence.js"),context);
 vm.runInContext(read("Actas/actas.app.js"),context);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 async function main(){
@@ -54,6 +57,9 @@ trigger("actas-lote","click");await tick();
 assert.equal(printed.length,1);
 assert.equal(printed[0].length,2,"PDF masivo incluye ambas modalidades");
 assert.equal(printed[0][0].student.cedula,"0001");
+assert.equal(printed[0][0].evidence.requirements.length,8,"Acta incorpora ocho requisitos");
+assert.equal(printed[0][0].evidence.evaluation.official,8.6,"Usa nota oficial de Ncomplex");
+assert.equal(printed[0][1].evidence.titulationStatus,"CUMPLE","Núcleos acreditados por Titulación");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
 trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,2,"ZIP incluye todos los habilitados");assert.equal(zips[0].summary.length,6,"ZIP registra también excluidos");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});

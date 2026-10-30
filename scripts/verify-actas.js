@@ -3,11 +3,12 @@
 const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"..");
 const read=p=>fs.readFileSync(path.join(root,p),"utf8");
-const modules=["Actas/actas.catalog.js","Actas/actas.document.js","Actas/actas.docx.js","Actas/actas.app.js","BDLocal/conexiones/cone.actas.js","Maqueta/maq-menu.js","Maqueta/maq-config-service.js","Maqueta/maq-modulos-registry.js","Maqueta/maq-core.js"];
+const modules=["Actas/actas.catalog.js","Actas/actas.evidence.js","Actas/actas.document.js","Actas/actas.docx.js","Actas/actas.app.js","BDLocal/conexiones/cone.actas.js","Maqueta/maq-menu.js","Maqueta/maq-config-service.js","Maqueta/maq-modulos-registry.js","Maqueta/maq-core.js"];
 for(const file of modules)new vm.Script(read(file),{filename:file});
 const sandbox={window:{location:{href:"https://example.test/requisitos/Actas/actas.html"}},URL};
 vm.runInNewContext(read(modules[0]),sandbox);
 vm.runInNewContext(read(modules[1]),sandbox);
+vm.runInNewContext(read(modules[2]),sandbox);
 const cat=sandbox.window.ActasCatalog,docs=sandbox.window.ActasDocument;
 assert.equal(cat.get(cat.COMPLEXIVO,false).flatMap(g=>g.actividades).length,6,"Complexivo debe tener 6 actividades");
 assert.equal(cat.get(cat.TRABAJO,false).flatMap(g=>g.actividades).length,20,"Trabajo debe conservar sus 20 actividades");
@@ -17,14 +18,23 @@ assert.equal(cat.get(cat.COMPLEXIVO,true)[0].actividades[0].inicio,"2026-03-30",
 assert.equal(cat.get(cat.TRABAJO,true)[2].actividades.at(-1).inicio,"2026-04-20","Cierre de Trabajo");
 assert.equal(cat.valid([{fase:"ejemplo",actividades:[{id:"x",inicio:"2026-04-30",fin:"2026-04-01"}]}]),false,"Rechazar fecha final anterior");
 const sample={student:{Nombres:"ESTUDIANTE PRUEBA",cedula:"1234567890",NombreCarrera:"TECNOLOGÍA SUPERIOR"},mode:cat.COMPLEXIVO,record:{codigo:"AT-ITSQMET-UTET-2026-10-01",consecutivo:"01"},periodLabel:"Octubre 2025 a Marzo 2026",schedule:cat.get(cat.COMPLEXIVO,true),issue:"2026-10-28"};
+const base=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
+const requireAll=Object.fromEntries(base.map(key=>[key,"CUMPLE"]));
+sample.student._ncomplexHasSavedEvaluation=true;
+sample.student._ncomplexEvaluation={modalidadTitulacion:cat.COMPLEXIVO,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,oportunidadAplicada:"ORDINARIA"};
+sample.evidence=sandbox.window.ActasEvidence.assess({student:sample.student,mode:sample.mode,requirementValues:requireAll});
+assert.equal(sample.evidence.eligible,true);
 const exam=docs.render(sample);
 assert.match(exam,/ACTA DE TITULACIÓN POR EXAMEN COMPLEXIVO/);
-assert.match(exam,/Aprobación titulación/);
+assert.match(exam,/Aprobación de titulación/);
 assert.match(exam,/Aprobación complexivo\/proyecto/);
 assert.match(exam,/RESULTADO FINAL: APROBADO/);
 for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(exam.includes(signer),"Vista previa conserva firmante: "+signer);
 
-assert.doesNotMatch(exam,/Nota teórica|Nota práctica|Calificación final:\s*\d/i);
+assert.match(exam,/Prácticas preprofesionales/);
+assert.match(exam,/Núcleos formativos y requisito de Titulación/);
+assert.match(exam,/Evaluación teórica/);
+assert.match(exam,/8,60\/10/);
 assert.equal((exam.match(/class="page/g)||[]).length,2,"Dos páginas por acta");
 assert.match(exam,/col style="width:52mm"/,"Logo y control ACT deben medir 5,20 cm");
 assert.match(exam,/col style="width:76mm"/,"Columna central ACT debe medir 7,60 cm");
@@ -36,10 +46,11 @@ assert.match(read("Actas/actas.document.js"),/\.cover-sub\{[^}]*font-size:23pt/,
 assert.match(exam,/Fecha de emisión:/);
 assert.doesNotMatch(exam,/NOMBRE: __________________|CARGO: __________________/);
 
-const work=docs.render({...sample,mode:cat.TRABAJO,schedule:cat.get(cat.TRABAJO,true)});
+const workStudent={...sample.student,_ncomplexEvaluation:{modalidadTitulacion:cat.TRABAJO,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};
+const work=docs.render({...sample,student:workStudent,mode:cat.TRABAJO,schedule:cat.get(cat.TRABAJO,true),evidence:sandbox.window.ActasEvidence.assess({student:workStudent,mode:cat.TRABAJO,requirementValues:requireAll})});
 assert.match(work,/ACTA DE TITULACIÓN POR TRABAJO DE TITULACIÓN/);
-assert.match(work,/Defensa de tesis/);
-assert.match(work,/Cierre del proceso/);
+assert.match(work,/Evaluación del trabajo de titulación/);
+assert.match(work,/Requisito Titulación/);
 const menu=read("Maqueta/maq-config-service.js");
 const registry=read("Maqueta/maq-modulos-registry.js");
 assert.match(menu,/moduloId:"actas",etiqueta:"Actas"/);

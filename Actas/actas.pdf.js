@@ -89,26 +89,61 @@ function section(doc,x,logo,title,pos){lines(doc,x,logo,title,pos,{bold:true,siz
 function pair(doc,x,logo,key,value,pos){if(pos.y+12>273)nextPage(doc,x,logo,pos);doc.setDrawColor(188,197,206);doc.rect(18,pos.y,174,11);doc.setFillColor(241,245,249);doc.rect(18,pos.y,46,11,"F");doc.setFontSize(8);doc.setFont("helvetica","bold");doc.text(key,20,pos.y+6.2,{maxWidth:42});doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(txt(value),121).slice(0,2),67,pos.y+4.5);pos.y+=11;}
 function milestones(x){const ids=x.mode==="TRABAJO_TITULACION"?["induccion","tema","entrega","defensa","cierre"]:["nucleo1","nucleo4","examen","supletorio"];return (x.schedule||[]).flatMap(g=>g.actividades||[]).filter(a=>ids.includes(a.id)&&(a.inicio||a.fin));}
 function timeline(doc,x,logo,rows,pos){if(!rows.length){lines(doc,x,logo,"Cronograma sin fechas registradas.",pos,{size:8.5});return;}for(const a of rows){if(pos.y+11>273)nextPage(doc,x,logo,pos);doc.setDrawColor(196,203,214);doc.rect(18,pos.y,174,10);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text(doc.splitTextToSize(txt(a.nombre),91).slice(0,2),20,pos.y+4.2);doc.text(formatDate(a.inicio),116,pos.y+6);doc.text(formatDate(a.fin),157,pos.y+6);pos.y+=10;}pos.y+=3;}
+/* Cuerpo documental: fuentes verificadas (BDLocal + Ncomplex). No modifica la portada. */
+function academicEvidence(x){
+ const proof=x&&x.evidence||w.ActasEvidence.assess({student:x.student,mode:x.mode,requirementValues:x.requirementValues||{},evaluation:x.evaluation});
+ if(!proof.eligible)throw Error("El acta requiere evidencias completas: "+proof.missing.join("; "));
+ return proof;
+}
+function dataRow(doc,x,logo,left,right,pos,opts){
+ opts=opts||{};const widthLeft=opts.widthLeft||132;
+ doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(8.5);
+ const leftLines=doc.splitTextToSize(txt(left),widthLeft);
+ const rightLines=doc.splitTextToSize(txt(right),37);
+ const h=Math.max(7.5,Math.max(leftLines.length,rightLines.length)*4+2.5);
+ if(pos.y+h>274)nextPage(doc,x,logo,pos);
+ doc.setDrawColor(120,120,120);doc.setLineWidth(.12);doc.rect(18,pos.y,174,h);
+ doc.line(18+widthLeft+3,pos.y,18+widthLeft+3,pos.y+h);
+ doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(8.5);
+ doc.text(leftLines,20,pos.y+4.4);
+ doc.text(rightLines,21+widthLeft+3,pos.y+4.4);
+ pos.y+=h;
+}
+function heading(doc,x,logo,t,pos){if(pos.y+12>274)nextPage(doc,x,logo,pos);section(doc,x,logo,t,pos);}
 function paint(doc,x,logo){if(doc.getNumberOfPages()>1||doc.__actasCount){doc.addPage();}const start=doc.getNumberOfPages();doc.__actasCount=(doc.__actasCount||0)+1;
 header(doc,x,logo);
 let y=center(doc,"ACTA DE TITULACIÓN POR "+(x.mode==="TRABAJO_TITULACION"?"TRABAJO DE TITULACIÓN":"EXAMEN COMPLEXIVO"),126,23,true);
 center(doc,"Período académico: "+txt(x.periodLabel),y+13,23,true);
 signatures(doc);
-doc.addPage();header(doc,x,logo);const pos={y:59};
-section(doc,x,logo,"CONSTANCIA DEL PROCESO DE TITULACIÓN",pos);
-pair(doc,x,logo,"Estudiante",studentName(x),pos);pair(doc,x,logo,"Cédula",studentId(x),pos);
-pair(doc,x,logo,"Carrera",career(x),pos);pair(doc,x,logo,"Modalidad",label(x.mode),pos);pair(doc,x,logo,"Período",txt(x.periodLabel),pos);
-pos.y+=4;section(doc,x,logo,"1. Antecedentes",pos);
-lines(doc,x,logo,"La Unidad de Titulación y Eficiencia Terminal documenta el resultado final de "+studentName(x)+", con cédula "+studentId(x)+", perteneciente a la carrera "+career(x)+". La modalidad registrada para este período es "+label(x.mode)+".",pos);
-section(doc,x,logo,"2. Desarrollo académico y cronograma",pos);
-lines(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"El proceso contempla planificación, elaboración del trabajo, revisión y defensa ante tribunal. Las fechas siguientes son informativas y no acreditan su ejecución.":"El proceso contempla los núcleos formativos, la evaluación ordinaria y, cuando corresponde, el supletorio. Las fechas siguientes son informativas y no acreditan su ejecución.",pos);
-timeline(doc,x,logo,milestones(x),pos);
-section(doc,x,logo,"3. Verificación de requisitos finales",pos);
-lines(doc,x,logo,"Los registros de requisitos consultados indican CUMPLE en «Aprobación titulación» y CUMPLE en «Aprobación complexivo/proyecto». Este borrador no incorpora calificaciones numéricas y debe contrastarse con las evidencias originales.",pos);
-section(doc,x,logo,"4. Constancia de resultado",pos);
-lines(doc,x,logo,"Conforme a las aprobaciones finales registradas para este estudiante, período y modalidad, se deja constancia del resultado APROBADO. Esta acta es un borrador y no sustituye su revisión, aprobación y suscripción por los responsables institucionales.",pos);
-lines(doc,x,logo,"RESULTADO FINAL: APROBADO",pos,{size:12,bold:true,after:6});
-lines(doc,x,logo,"Una vez revisado y legalizado, este documento debe incorporarse al expediente de titulación y al repositorio documental institucional de la UTET.",pos,{size:8.5});
+doc.addPage();header(doc,x,logo);const pos={y:54};
+const proof=academicEvidence(x);
+heading(doc,x,logo,"CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",pos);
+pair(doc,x,logo,"Estudiante",studentName(x),pos);
+pair(doc,x,logo,"Cédula",studentId(x),pos);
+pair(doc,x,logo,"Carrera",career(x),pos);
+pair(doc,x,logo,"Modalidad",label(x.mode),pos);
+pos.y+=2;
+heading(doc,x,logo,"1. Culminación de la malla curricular",pos);
+lines(doc,x,logo,proof.mallaText,pos,{size:9,after:3});
+dataRow(doc,x,logo,"Requisito Académico",proof.academicStatus,pos,{bold:true});
+pos.y+=4;
+heading(doc,x,logo,"2. Verificación de requisitos institucionales",pos);
+lines(doc,x,logo,"Constan los siguientes ocho requisitos previos consultados en Base Local para el estudiante y el período académico:",pos,{size:8.5,after:2});
+proof.requirements.forEach((r,i)=>dataRow(doc,x,logo,(i+1)+". "+r.label,r.status,pos));
+pos.y+=4;
+heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"3. Cumplimiento del componente de titulación":"3. Núcleos formativos y requisito de Titulación",pos);
+lines(doc,x,logo,proof.nucleiText,pos,{size:8.8,after:2});
+dataRow(doc,x,logo,"Requisito Titulación",proof.titulationStatus,pos,{bold:true});
+pos.y+=4;
+heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo",pos);
+lines(doc,x,logo,"Fuente: Ncomplex, registro individual de evaluación. Oportunidad aplicada: "+proof.evaluation.opportunity+".",pos,{size:8.5,after:2});
+proof.evaluation.rows.forEach((r,i)=>dataRow(doc,x,logo,r.label,r.value,pos,{bold:i===2||i===4}));
+pos.y+=4;
+heading(doc,x,logo,"5. Constancia de culminación y aprobación",pos);
+lines(doc,x,logo,"Controles finales: Aprobación de titulación = "+proof.finalTitleStatus+"; Aprobación complexivo/proyecto = "+proof.finalResultStatus+".",pos,{size:8.7,after:2});
+lines(doc,x,logo,proof.closureText,pos,{size:9,after:3});
+lines(doc,x,logo,"RESULTADO FINAL: APROBADO",pos,{size:12,bold:true,after:3});
+lines(doc,x,logo,"Esta acta es un borrador sujeto a cotejo con las evidencias oficiales, revisión institucional y firmas autorizadas. Se conservará en el expediente de titulación una vez legalizada.",pos,{size:8.5});
 footer(doc,x,start,doc.getNumberOfPages());}
 async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
 const doc=new JsPDF({unit:"mm",format:"a4",compress:true,putOnlyUsedFonts:true});for(const x of list)paint(doc,x,logo);return doc.output("blob");}
