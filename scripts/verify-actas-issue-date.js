@@ -6,6 +6,8 @@ const cal=ctx.window.ActasIssueDate;
 assert.equal(cal.forPeriod("2025-10__2026-03").date,"2026-05-29","Octubre–marzo: último día hábil de mayo");
 assert.equal(cal.forPeriod("2026-04__2026-09").date,"2026-11-30","Abril–septiembre: último día hábil de noviembre");
 assert.equal(cal.forPeriod("2025-10__2026-03").holidaysVerified,true,"Calendario ecuatoriano 2026 verificado");
+assert.equal(cal.forPeriod("2026-10__2027-03").date,"2027-05-31","Octubre–marzo del siguiente ciclo");
+assert.equal(cal.forPeriod("2026-10__2027-03").holidaysVerified,true,"Calendario de feriados nacionales 2027 verificado");
 assert.equal(cal.mayRegister("2025-10__2026-03",new Date("2026-05-28T15:00:00-05:00")),false,"No se registra anticipadamente");
 assert.equal(cal.mayRegister("2025-10__2026-03",new Date("2026-05-29T10:00:00-05:00")),true,"Se registra en fecha de emisión");
 assert.equal(cal.mayRegister("2026-04__2026-09",new Date("2026-10-30T14:00:00-05:00")),false,"No se emite oficialmente en octubre un acta programada para noviembre");

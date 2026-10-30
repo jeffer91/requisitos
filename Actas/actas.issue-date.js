@@ -8,6 +8,11 @@ const OFFICIAL_2026=new Set([
  "2026-05-01","2026-05-25","2026-08-10","2026-10-09",
  "2026-11-02","2026-11-03","2026-12-25"
 ]);
+const OFFICIAL_2027=new Set([
+ "2027-01-01","2027-02-08","2027-02-09","2027-03-26",
+ "2027-04-30","2027-05-24","2027-08-09","2027-10-08",
+ "2027-11-01","2027-11-02","2027-12-25"
+]);
 function pad(n){return String(n).padStart(2,"0");}
 function iso(y,m,d){return y+"-"+pad(m)+"-"+pad(d);}
 function parse(period){
@@ -38,6 +43,7 @@ function moved(year,month,day){
 }
 function holidays(year){
  if(year===2026)return new Set(OFFICIAL_2026);
+ if(year===2027)return new Set(OFFICIAL_2027);
  // Reglas nacionales habituales para otros años, sujetas a decretos y feriados locales.
  const dates=new Set([iso(year,1,1),iso(year,5,1),iso(year,12,25)]);
  for(const [month,day] of [[5,24],[8,10],[10,9],[11,2],[11,3]])dates.add(moved(year,month,day));
@@ -58,7 +64,7 @@ function forPeriod(periodId,extraHolidays){
   const date=iso(last.getUTCFullYear(),last.getUTCMonth()+1,last.getUTCDate());
   if(last.getUTCDay()!==0&&last.getUTCDay()!==6&&!official.has(date)&&!extra.has(date)){
    return {date,year:String(targetY),month:pad(targetM),monthKey:targetY+"-"+pad(targetM),
-    calendar:"EC",holidaysVerified:targetY===2026};
+    calendar:"EC",holidaysVerified:targetY===2026||targetY===2027};
   }
   last.setUTCDate(last.getUTCDate()-1);
  }
