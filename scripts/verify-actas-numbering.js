@@ -7,8 +7,22 @@ const key=(type,id)=>type+"/"+id;
 const documentRef=(collection,id)=>({collection,id,key:key(collection,id)});
 const snapshot=ref=>({id:ref.id,exists:store.has(ref.key),data:()=>store.get(ref.key)||null});
 const db={
- collection(name){return {doc(id){return { ...documentRef(name,id),async get(){return snapshot(this)}};},
-  where(field,operator,value){assert.equal(operator,"==");return {async get(){return {docs:[...store].filter(([k,row])=>k.startsWith(name+"/")&&row[field]===value).map(([k,row])=>({id:k.slice(name.length+1),exists:true,data:()=>row}))}}}};},
+ collection(name){
+  return {
+   doc(id){
+    const ref=documentRef(name,id);
+    return {...ref,async get(){return snapshot(this);}};
+   },
+   where(field,operator,value){
+    assert.equal(operator,"==");
+    return {async get(){
+     const docs=[...store].filter(([k,row])=>k.startsWith(name+"/")&&row[field]===value)
+      .map(([k,row])=>({id:k.slice(name.length+1),exists:true,data:()=>row}));
+     return {docs};
+    }};
+   }
+  };
+ },
  async runTransaction(fn,options){
   for(let attempt=0;attempt<16;attempt++){
    const reads=new Map(),writes=[];
