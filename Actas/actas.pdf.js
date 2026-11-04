@@ -136,6 +136,7 @@ pos.y+=4;
 heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"3. Cumplimiento del componente de titulación":"3. Núcleos formativos y requisito de Titulación",pos);
 lines(doc,x,logo,proof.nucleiText,pos,{size:8.8,after:2});
 dataRow(doc,x,logo,"Requisito Titulación",proof.titulationStatus,pos,{bold:true});
+ if(x.mode==="EXAMEN_COMPLEXIVO")proof.nuclei.forEach(n=>dataRow(doc,x,logo,"Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10",pos));
 pos.y+=4;
 heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo",pos);
 lines(doc,x,logo,"Fuente: Ncomplex, registro individual de evaluación. Oportunidad aplicada: "+proof.evaluation.opportunity+".",pos,{size:8.5,after:2});
@@ -147,7 +148,7 @@ lines(doc,x,logo,proof.closureText,pos,{size:9,after:3});
 lines(doc,x,logo,"RESULTADO FINAL: "+(proof.eligible?"APROBADO":"PENDIENTE DE VALIDACIÓN"),pos,{size:12,bold:true,after:3});
 lines(doc,x,logo,"Esta acta es un borrador sujeto a cotejo con las evidencias oficiales, revisión institucional y firmas autorizadas. Se conservará en el expediente de titulación una vez legalizada.",pos,{size:8.5});
 footer(doc,x,start,doc.getNumberOfPages());}
-async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
+async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");if(list.some(x=>!x.evidence||!x.evidence.eligible))throw Error("Acta bloqueada: faltan notas verificadas de núcleos o examen complexivo.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
 const doc=new JsPDF({unit:"mm",format:"a4",compress:true,putOnlyUsedFonts:true});for(const x of list)paint(doc,x,logo);return doc.output("blob");}
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=d.createElement("a");a.href=url;a.download=name;d.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 async function download(items){const list=Array.isArray(items)?items:[items],blob=await build(list);const name=list.length===1?filename(list[0]):"ACTAS_SELECCIONADAS_"+safe(list[0].record.periodId||list[0].periodLabel)+".pdf";downloadBlob(blob,name);return {ok:true,bytes:blob.size,count:list.length};}

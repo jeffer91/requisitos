@@ -101,7 +101,10 @@ async function read(opts){
    estadoEvaluacion:evaluation?evaluation.estadoEvaluacion||"":""
   });
  });
- return {ok:true,data:{periods:asRows(periods),students:joined,requirements:joinedRequirements.rows},meta:{
+ let enriched=joined,gradeError="";
+ try{if(!w.ActasGrades)throw Error("Consulta de notas no disponible");enriched=await w.ActasGrades.enrich(periodId,joined);}
+ catch(err){gradeError=err.message||String(err);enriched=joined.map(s=>Object.assign({},s,{_actasNuclei:[],_actasComplexivo:null}));}
+ return {ok:true,data:{periods:asRows(periods),students:enriched,requirements:joinedRequirements.rows},meta:{gradeError,
   source:"BDLocal requisitos_estudiante + requisitos legacy + Ncomplex",readOnly:true,
   diagnostics:{students:joined.length,requirements:joinedRequirements.rows.length,
    requirementSources:joinedRequirements.counts,evaluations:asRows(evaluations).length,

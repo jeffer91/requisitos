@@ -38,8 +38,8 @@ function assess(input){
  if(titleStatus!=="CUMPLE")missing.push("Titulación / núcleos ("+titleStatus+")");
  if(approvalTitle!=="CUMPLE")missing.push("Aprobación de titulación ("+approvalTitle+")");
  if(approvalResult!=="CUMPLE")missing.push("Aprobación complexivo/proyecto ("+approvalResult+")");
- const evalRow=input.evaluation||student._ncomplexEvaluation||null;
- const hasEval=!!evalRow&&student._ncomplexHasSavedEvaluation!==false;
+ const evalRow=input.remoteEvaluation||input.evaluation||student._ncomplexEvaluation||null;
+ const hasEval=!!evalRow&&(!!input.remoteEvaluation||student._ncomplexHasSavedEvaluation!==false);
  const evaluation=evalRow||{};
  const expected=mode==="TRABAJO_TITULACION"?"TRABAJO_TITULACION":"EXAMEN_COMPLEXIVO";
  const evalMode=txt(evaluation.modalidadTitulacion);
@@ -65,6 +65,14 @@ function assess(input){
   if(primary===null||secondary===null)missing.push("No consta desglose de calificaciones de la evaluación");
   if(inconsistent)missing.push("Inconsistencia entre ponderación y nota oficial");
  }
+ const nuclei=expected==="EXAMEN_COMPLEXIVO"?[1,2,3,4].map(n=>{
+   const found=(input.nuclei||[]).filter(row=>Number(row.nucleo)===n),row=found[0]||{};
+   const grade=note(row.notaFinal),state=txt(row.estado).toUpperCase();
+   const valid=found.length===1&&grade!==null&&grade>=7&&state==="APROBADO";
+   if(!valid)missing.push("Núcleo "+n+": "+(found.length>1?"duplicado":grade===null?"sin nota":state!=="APROBADO"?"no aprobado":"nota insuficiente"));
+   return {nucleo:n,nota:grade,estado:state,valid};
+ }):[];
+ if(expected==="EXAMEN_COMPLEXIVO"&&!input.remoteEvaluation)missing.push("Examen complexivo no verificado en Firebase");
  const eligible=missing.length===0;
  const labels=items.map(r=>r.label);
  const gradeRows=[
@@ -79,7 +87,7 @@ function assess(input){
   requirements:items,academicStatus:items[0].status, titulationStatus:titleStatus,
   finalTitleStatus:approvalTitle,finalResultStatus:approvalResult,
   evaluation:{saved:hasEval,verified,mode:evalMode,opportunity:work?"DEFENSA":op,official,minimum,primary,secondary,computed,state:actualState,inconsistent,rows:gradeRows},
-  eligible,missing,requiredCount:items.length,
+  eligible,missing,requiredCount:items.length,nuclei,
   mallaText:items[0].status==="CUMPLE"?
    "El control académico institucional registra el requisito Académico como CUMPLE, correspondiente al cumplimiento curricular para continuar con la titulación. La culminación integral de la malla debe contrastarse con la constancia de egreso y el historial de asignaturas del expediente académico.":
    "El requisito Académico no registra cumplimiento completo. No es posible certificar la culminación curricular con la información consultada.",
