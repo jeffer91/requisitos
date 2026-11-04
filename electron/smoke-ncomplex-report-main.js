@@ -25,10 +25,12 @@ async function run(){
  const body=[
  "<!doctype html><html lang='es'><head><meta charset='utf-8'>",
  "<link rel='stylesheet' href='ncomplex.report.css'>",
+ "<link rel='stylesheet' href='ncomplex.report.document.css'>",
  "</head><body>",
  "<div id='ncomplex-report-status'></div>",
  "<script src='../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js'></script>",
  "<script src='ncomplex.report.model.js'></script>",
+ "<script src='ncomplex.report.document.js'></script>",
  "<script src='ncomplex.report.pdf.js'></script>",
  "</body></html>"
  ].join("");
@@ -45,7 +47,8 @@ async function run(){
  await win.loadFile(htmlPath);
  const result=await win.webContents.executeJavaScript(`(async()=>{
   if(typeof window.html2pdf!=="function")throw Error("html2pdf.js local no cargó");
-  if(!window.NcomplexReportModel||!window.NcomplexReportPDF)throw Error("Módulos del informe no cargaron");
+  if(!window.NcomplexReportModel||!window.NcomplexReportDocument||!window.NcomplexReportPDF)
+   throw Error("Módulos del informe no cargaron");
   const req={eligible:true,complete:9,total:9,
    requirements:["Académico","Documentación","Financiero","Prácticas","Vinculación","Seguimiento","Inglés","Actualización","Titulación"]
     .map(label=>({label,status:"CUMPLE"}))};
@@ -56,6 +59,11 @@ async function run(){
    _ncomplexHasSavedEvaluation:true,notaTeorica:9.7,notaPractica:9,
    notaOficial:9.28,oportunidadAplicada:"ORDINARIA"}];
   const report=window.NcomplexReportModel.build(rows,period);
+  const pages=window.NcomplexReportPDF.contentPages(report,"Abril 2026 - Septiembre 2026","Prueba automática");
+  if(pages[0].kind!=="cover"||pages[1].title!=="Resumen ejecutivo")
+    throw Error("El PDF no contiene la portada y el resumen ejecutivo en el orden solicitado");
+  if(!pages.some(p=>p.title.indexOf(" · consolidado")>0))
+    throw Error("Falta el consolidado de resultados por carrera");
   return await window.NcomplexReportPDF.renderPDF(report,{period:"Abril 2026 - Septiembre 2026",date:"Prueba automática"});
  })()`,true);
  let size=0;

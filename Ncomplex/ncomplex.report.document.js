@@ -23,7 +23,7 @@ function row(cells){
  }).join("")+'</tr>';
 }
 function source(period,figure){
- return '<p class="nr-caption">'+(figure?'Figura '+figure+'. ':'')+
+ return '<p class="nr-caption">'+(figure&&figure!=="—"?'Figura '+figure+'. ':'')+
   'Fuente: Ncomplex, calificaciones guardadas del período '+h(period)+'. Elaboración automática; notas normalizadas sobre 100.</p>';
 }
 function stats(rows,key){

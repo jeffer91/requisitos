@@ -5,7 +5,7 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const root=path.resolve(__dirname,".."),window={},document={getElementById(){return null;}};
 const context=vm.createContext({window,document,console,Date});
-for(const file of ["Ncomplex/ncomplex.report.model.js","Ncomplex/ncomplex.report.pdf.js"])
+for(const file of ["Ncomplex/ncomplex.report.model.js","Ncomplex/ncomplex.report.document.js","Ncomplex/ncomplex.report.pdf.js"])
  vm.runInContext(fs.readFileSync(path.join(root,file),"utf8"),context,{filename:file});
 const ruleNames=["Académico","Documentación","Financiero","Prácticas","Vinculación",
  "Seguimiento graduados","Inglés","Actualización de datos","Titulación"];
@@ -48,11 +48,19 @@ assert.equal(report.careers[0].rows.find(x=>x.name==="ALUMNA SUPLETORIO").final,
 assert.equal(report.careers[0].rows.find(x=>x.name==="ALUMNA ORDINARIA BAJA").status,"SUPLETORIO PENDIENTE");
 assert.ok(!report.careers[0].rows.some(x=>x.name==="ALUMNA REQUISITOS"));
 const pages=window.NcomplexReportPDF.contentPages(report,"Abril 2026 a Septiembre 2026","Fecha de ensayo");
-assert.equal(pages[0].title,"Resumen ejecutivo");
+assert.equal(pages[0].title,"Portada","Debe iniciar con portada institucional");
+assert.equal(pages[1].title,"Resumen ejecutivo","El resumen ejecutivo sigue a la portada");
 assert.ok(pages.some(p=>p.title==="Comparativo práctico"));
 assert.ok(pages.some(p=>p.title==="Comparativo teórico"));
 assert.ok(pages.some(p=>p.title==="Comparativo final"));
-assert.ok(pages.some(p=>p.title==="Estudiantes · EDUCACIÓN INICIAL"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · práctico · tabla"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · práctico · análisis"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · teórico · tabla"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · teórico · análisis"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · finales · tabla"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · finales · análisis"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · consolidado"));
+assert.ok(pages.some(p=>p.title==="EDUCACIÓN INICIAL · conclusiones"));
 const concatenated=pages.map(p=>p.body).join("\n");
 const wrongSupplementary=model.classify(record("0100000091","SUPLETORIO INCORRECTO",{
  oportunidadAplicada:"SUPLETORIO",notaTeorica:8,notaPractica:8,
@@ -72,19 +80,41 @@ assert.ok(window.NcomplexReportPDF.contentPages(excludedOnly,"Abril 2026","Fecha
 assert.ok(concatenated.includes("ALUMNA VALIDA"));
 assert.ok(!concatenated.includes("ALUMNA REQUISITOS"));
 assert.ok(concatenated.includes("Distribución de notas prácticas"));
-assert.ok(concatenated.includes("Distribución de notas teóricas"));
-assert.ok(concatenated.includes("Distribución de notas finales"));
-assert.ok(concatenated.includes("0,40 × teórico + 0,60 × práctico"));
+assert.ok(concatenated.includes("Distribución de notas teórico"))||assert.ok(concatenated.includes("Distribución de notas teóricas"));
+assert.ok(concatenated.includes("Distribución por condición académica"));
+assert.ok(concatenated.includes("Teórico × 0,40) + (Práctico × 0,60)"));
+assert.ok(concatenated.includes("Resumen estadístico consolidado"));
+assert.ok(concatenated.includes("Mediana /100"));
+assert.ok(concatenated.includes("Conclusión general"));
+assert.ok(concatenated.includes("Calificación /100"));
+assert.ok(concatenated.includes("Teórico /100"));
+assert.ok(concatenated.includes("Práctico /100"));
+assert.ok(concatenated.includes("Final /100"));
+assert.ok(!concatenated.includes("ALUMNA REQUISITOS"),"No publicar nombres de excluidos");
+assert.ok(concatenated.includes("ALUMNA VALID"));
+const stats=model.build([record("0100000071","ESTUDIANTE CON 70",{notaTeorica:7,notaPractica:7,notaOficial:7}),
+ record("0100000072","ESTUDIANTE CON 90",{notaTeorica:9,notaPractica:9,notaOficial:9})],period);
+const metric=window.NcomplexReportDocument.stats(stats.careers[0].rows,"final");
+assert.equal(metric.mean,8);
+assert.equal(metric.median,8);
+assert.equal(metric.min,7);
+assert.equal(metric.max,9);
+assert.equal(metric.above,2);
 const printed=window.NcomplexReportPDF.pageHtml(pages[0],1,pages.length,
  {period:"Abril 2026",date:"Fecha de ensayo"},"../Global/assets/branding/logo-instituto.png");
 assert.ok(printed.includes("logo-instituto.png"));
-assert.ok(printed.includes("Página 1 de "+pages.length));
+assert.ok(printed.includes("nr-pdf-cover"));
+assert.ok(printed.includes("RESULTADOS DE LOS EXÁMENES COMPLEXIVOS"));
 assert.ok(printed.includes("UNIDAD DE TITULACIÓN"));
+const inner=window.NcomplexReportPDF.pageHtml(pages[1],2,pages.length,
+ {period:"Abril 2026",date:"Fecha de ensayo"},"../Global/assets/branding/logo-instituto.png");
+assert.ok(inner.includes("Página 2 de "+pages.length));
 const many=Array.from({length:57},(_,i)=>record(String(1000000000+i),"ESTUDIANTE "+i));
 const full=model.build(many,period);
 const fullPages=window.NcomplexReportPDF.contentPages(full,"Abril 2026 a Septiembre 2026","Fecha de ensayo");
 assert.equal(full.summary.qualified,57,"No limitar el informe a las primeras 25 filas");
-const roster=fullPages.filter(p=>p.title.indexOf("Estudiantes · ")===0);
-assert.equal(roster.length,5,"Cohorte larga dividida en páginas de detalle");
-assert.equal((roster.map(p=>p.body).join("").match(/class="nr-num"><b>9,28/g)||[]).length,57);
+const roster=fullPages.filter(p=>p.title==="EDUCACIÓN INICIAL · finales · tabla");
+assert.equal(roster.length,5,"Cohorte larga dividida en cinco páginas finales");
+assert.equal((roster.map(p=>p.body).join("").match(/9,28/g)||[]).length,57);
+assert.ok(fullPages.some(p=>p.kind==="cover"));
 console.log("VERIFICACIÓN INFORME COMPLEXIVOS: OK (9/9, excluidos, 40/60, 57 estudiantes, gráficos, logo y páginas)");
