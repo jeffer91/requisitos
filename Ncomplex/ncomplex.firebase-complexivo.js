@@ -38,10 +38,24 @@ async function publish(){
   await center.ensure();
   const repo=w.RequisitosFirebaseRepository;
   if(!repo)throw Error("Repositorio central Firebase no disponible.");
-  const rows=await con.listEvaluations({periodoId:period}),valid=[],invalid=[];
+  const [rows,students]=await Promise.all([con.listEvaluations({periodoId:period}),con.listStudents({periodoId:period,estadoMatricula:"ACTIVO"})]);
+  const studentsByCed=new Map();
+  (students||[]).forEach(st=>{
+    const ced=t(st.cedula||st.numeroIdentificacion||st.Cedula).replace(/\D/g,"");
+    if(!studentsByCed.has(ced))studentsByCed.set(ced,[]);
+    studentsByCed.get(ced).push(st);
+  });
+  const valid=[],invalid=[];
   (rows||[]).filter(r=>t(r.periodoId).replace(/_+/g,"__")===period&&t(r.modalidadTitulacion)==="EXAMEN_COMPLEXIVO").forEach(r=>{
-   const doc=normalize(r,period,group);
-   if(doc)valid.push(doc);else invalid.push(t(r.cedula||r.id||"sin cédula"));
+   const ced=t(r.cedula||r.numeroIdentificacion).replace(/\D/g,"");
+   const found=studentsByCed.get(ced)||[];
+   if(found.length!==1){invalid.push(ced+": matrícula no identificada unívocamente");return;}
+   const st=found[0];
+   const study=t(st.modalidadEstudio||st.Modalidad||st.modalidad||st.tipoModalidad).toLowerCase();
+   const inferred=/online|en.linea|virtual/.test(study)?"ONLINE":/presencial/.test(study)?"PRESENCIAL":/pvc/.test(study)?"PVC":"";
+   if(inferred&&inferred!==group){invalid.push(ced+": grupo distinto de la matrícula");return;}
+   const doc=normalize(Object.assign({},st,r),period,group);
+   if(doc)valid.push(doc);else invalid.push(ced+": calificaciones incompletas o discordantes");
   });
   const pending=[],conflicts=[];let same=0;
   for(const doc of valid){
