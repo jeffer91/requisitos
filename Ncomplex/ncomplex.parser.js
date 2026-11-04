@@ -275,13 +275,20 @@ Función o funciones:
     return columns;
   }
 
-  // Dos esquemas detectados: Moodle clásico (7 columnas), Moodle multiversión (11).
+  // Esquemas: Moodle básico (5), clásico con supletorio (7) y multiversión (11).
   // Una posición desconocida nunca se asigna a otra calificación.
   function moodleRow(lines,emailEntry,nextIndex,rowNumber,columns){
     var tokens=gradeTokens(lines,emailEntry.index+1,nextIndex),warnings=[],issues=[];
-    var layout=tokens.length===11?"moodle_11":tokens.length===7?"moodle_7":"";
-    if(!layout)issues.push("Estructura desconocida: "+tokens.length+" columnas; se requieren 7 u 11.");
+    var layout=tokens.length===11?"moodle_11":tokens.length===7?"moodle_7":tokens.length===5?"moodle_5":"";
+    if(!layout)issues.push("Estructura desconocida: "+tokens.length+" columnas; se requieren 5, 7 u 11.");
     if(!columns||columns.length!==tokens.length)issues.push("Encabezados Moodle incompletos o desalineados con las "+tokens.length+" columnas.");
+    var required=layout==="moodle_5"?["te1","totalT","pr1","totalP","totalCurso"]:
+      layout==="moodle_7"?["te1","teSup1","totalT","pr1","prSup1","totalP","totalCurso"]:
+      layout==="moodle_11"?["te1","te2","teSup1","teSup2","totalT",
+        "pr1","pr2","prSup1","prSup2","totalP","totalCurso"]:[];
+    if(layout && (!columns||required.some(function(key){
+      return columns.filter(function(col){return col===key;}).length!==1;
+    })))issues.push("Encabezados de teórico, práctico y subtotales incompatibles con "+layout+".");
     function index(key,fallback){return columns&&columns.length===tokens.length?columns.indexOf(key):fallback;}
     function raw(i){return rawNumber(tokens[i]);}
     function noteAt(i,field){
@@ -306,6 +313,23 @@ Función o funciones:
     }else if(layout==="moodle_7"){
       te=noteAt(index("te1",0),"Teórico");tes=noteAt(index("teSup1",1),"Teórico supletorio");totalT=noteAt(index("totalT",2),"Total teórico");
       pr=noteAt(index("pr1",3),"Práctico");prs=noteAt(index("prSup1",4),"Práctico supletorio");totalP=noteAt(index("totalP",5),"Total práctico");totalCurso=noteAt(index("totalCurso",6),"Total curso");
+    }else if(layout==="moodle_5"){
+      // Formato ordinario: 5 columnas (teoría, subtotal, práctica, subtotal, curso).
+      te=noteAt(index("te1",0),"Teórico");
+      totalT=noteAt(index("totalT",1),"Subtotal teórico (40 %)");
+      pr=noteAt(index("pr1",2),"Práctico");
+      totalP=noteAt(index("totalP",3),"Subtotal práctico (60 %)");
+      totalCurso=noteAt(index("totalCurso",4),"Total del curso");
+      function checkSubtotal(label,actual,expected){
+        if(actual!==null&&expected!==null&&Math.abs(actual-expected)>.015){
+          issues.push(label+" de Moodle ("+actual.toFixed(2)+
+            ") no coincide con el cálculo ("+expected.toFixed(2)+").");
+        }
+      }
+      checkSubtotal("Teórico 40 %",totalT,te===null?null:Math.round(te*.4*100)/100);
+      checkSubtotal("Práctico 60 %",totalP,pr===null?null:Math.round(pr*.6*100)/100);
+      checkSubtotal("Total del curso",totalCurso,totalT===null||totalP===null?null:
+        Math.round((totalT+totalP)*100)/100);
     }
     var ordinary=te!==null&&pr!==null?Math.round((te*.4+pr*.6)*100)/100:null;
     var sup=tes!==null&&prs!==null?Math.round((tes*.4+prs*.6)*100)/100:null;
@@ -314,7 +338,7 @@ Función o funciones:
     var current=sup!==null&&(ordinary===null||ordinary<7)?sup:ordinary;
     if(totalCurso!==null&&current!==null&&Math.abs(totalCurso-current)>.025){
       var explanation="Total Moodle "+totalCurso.toFixed(2)+"/10 distinto del cálculo "+current.toFixed(2)+"/10; puede existir una media interna de versiones.";
-      if(layout==="moodle_11")issues.push(explanation);else warnings.push(explanation);
+      if(layout==="moodle_11"||layout==="moodle_5")issues.push(explanation);else warnings.push(explanation);
     }
     var studentName=previousName(lines,emailEntry.index);
     if(!studentName)issues.push("Nombre de estudiante no encontrado.");
@@ -379,6 +403,27 @@ Función o funciones:
     return result;
   }
 
+  // Permite pegar una tabla Markdown de Moodle con hipervínculos, además del texto plano.
+  function markdownCell(value){
+    return text(value)
+      .replace(/\\&/g,"&")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g,"")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g,"$1")
+      .replace(/\*\*/g,"")
+      .replace(/^image(?=[A-ZÁÉÍÓÚÜÑ])/,"")
+      .replace(/\(\s*image\s*\)/gi,"")
+      .trim();
+  }
+
+  function expandMarkdownMoodle(source){
+    return source.split("\n").map(function(line){
+      if(!/^\s*\|.*\|\s*$/.test(line)){return line;}
+      var cells=line.trim().slice(1,-1).split("|").map(markdownCell);
+      if(cells.every(function(c){return /^:?-{3,}:?$/.test(c);})){return "";}
+      return cells.join("\n");
+    }).join("\n");
+  }
+
   function parse(input){
     var source = String(input == null ? "" : input)
       .replace(/\r\n?/g, "\n")
@@ -397,7 +442,7 @@ Función o funciones:
       };
     }
 
-    var lines = source.split("\n");
+    var lines = expandMarkdownMoodle(source).split("\n");
     var headerIndex = findHeader(lines);
     if(headerIndex >= 0){
       return parseTabular(lines, source, headerIndex);
@@ -422,7 +467,7 @@ Función o funciones:
   }
 
   window.NcomplexParser = {
-    version: "2.0.0-moodle-gradebook",
+    version: "2.1.0-moodle-5-7-11-columns",
     parse: parse,
     parseMoodle: parseMoodle,
     normalizeCedula: normalizeCedula,
