@@ -195,13 +195,13 @@ Función o funciones:
 
   function isGradeToken(value){
     var raw = text(value).replace(/\s+/g, "");
-    return raw === "-" || /^\d{1,3}(?:[.,]\d+)?$/.test(raw);
+    return /^[-–—]$/.test(raw) || /^n\/?a$/i.test(raw) || /^\d{1,3}(?:[.,]\d+)?\s*%?$/.test(raw);
   }
 
   function rawNumber(value){
     var raw = text(value).replace(/\s+/g, "");
-    if(!raw || raw === "-"){ return null; }
-    var number = Number(raw.replace(/,/g, "."));
+    if(!raw || /^[-–—]$/.test(raw) || /^n\/?a$/i.test(raw)){ return null; }
+    var number = Number(raw.replace(/%$/,"").replace(/,/g, "."));
     return Number.isFinite(number) ? number : null;
   }
 
@@ -240,10 +240,11 @@ Función o funciones:
   function gradeTokens(lines,emailEntry,nextEntry){
     var output=[],start=emailEntry.index,end=nextEntry.index;
     for(var index=start;index<end;index++){
-      var line=text(lines[index]);
+      var rawLine=String(lines[index]==null?"":lines[index]);
+      var line=text(rawLine);
       if(normalized(line).indexOf("promedio general")===0)break;
       if(!line||isNoiseLine(line))continue;
-      var parts=splitTabs(line);
+      var parts=splitTabs(rawLine);
       // Moodle en TSV coloca nombre, correo y notas en la misma fila.
       if(index===start){
         if(parts.length<=1)continue;
