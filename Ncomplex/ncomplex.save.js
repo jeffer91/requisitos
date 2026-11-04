@@ -159,9 +159,40 @@ Con qué se conecta:
             importApplied: false
           }, "saving-complete");
         }
-        setStatus(saved.length + " evaluación(es) guardada(s) correctamente.", "success");
         updateButton();
-        return { ok: true, saved: saved.length, rows: saved };
+        var localResult={ok:true,saved:saved.length,rows:saved};
+        var complexRows=saved.filter(function(row){
+          return text(row.modalidadTitulacion)==="EXAMEN_COMPLEXIVO";
+        });
+        var group=document.getElementById("ncomplex-complexivo-grupo");
+        var selectedGroup=group&&text(group.value);
+        var cloud=window.NcomplexFirebaseComplexivo;
+        if(!complexRows.length){
+          setStatus(saved.length+" evaluación(es) guardada(s) en BDLocal. Las notas de Trabajo de Titulación no pertenecen a la colección complexivo.","success");
+          return localResult;
+        }
+        if(!selectedGroup){
+          setStatus(saved.length+" evaluación(es) guardada(s) SOLO EN BDLocal. Para crear complexivo en Firebase, seleccione Grupo (Presencial, Online o PVC) y pulse Publicar en complexivo.","warning");
+          return localResult;
+        }
+        if(!cloud||typeof cloud.publish!=="function"){
+          setStatus(saved.length+" evaluación(es) guardada(s) SOLO EN BDLocal. El publicador de Firebase no está disponible.","warning");
+          return localResult;
+        }
+        setStatus(saved.length+" guardada(s) en BDLocal. Verificando requisitos para publicar en Firebase...","info");
+        return Promise.resolve(cloud.publish({onlyCedulas:complexRows.map(function(row){return text(row.cedula||row.numeroIdentificacion);})}))
+          .then(function(result){
+            if(result&&result.ok&&result.published>0)
+              setStatus("BDLocal: "+saved.length+" guardada(s). Firebase complexivo: "+result.published+" documento(s) creado(s).","success");
+            else if(result&&result.ok)
+              setStatus("BDLocal: "+saved.length+" guardada(s). Firebase: 0 documentos nuevos. Revise los requisitos, conflictos y avisos del panel Firebase.","warning");
+            else
+              setStatus("BDLocal: "+saved.length+" guardada(s). Firebase NO confirmó la publicación. "+text(result&&result.error||result&&result.reason||"Revise el panel Firebase."),"warning");
+            return Object.assign(localResult,{firebase:result||null});
+          }).catch(function(error){
+            setStatus("BDLocal: "+saved.length+" guardada(s). Firebase NO confirmó la publicación: "+(error.message||error),"warning");
+            return Object.assign(localResult,{firebase:{ok:false,error:String(error.message||error)}});
+          });
       });
     }).catch(function(error){
       if(State.patch){ State.patch({ saving: false }, "saving-error"); }
