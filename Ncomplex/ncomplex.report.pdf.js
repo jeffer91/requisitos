@@ -73,7 +73,7 @@ function findings(report){
    return "El mayor promedio "+desc+" corresponde a "+order[0].career+" ("+f(order[0][field])+"/10, n="+order[0].count+").";
  };
  return [
- "El período reúne "+report.summary.registered+" registros activos de Examen Complexivo en "+
+ "El período reúne "+report.summary.registered+" registros no retirados de Examen Complexivo en "+
  report.summary.careers+" carreras. Solo "+report.summary.qualified+" cuentan con los nueve requisitos CUMPLE y resultados completos y concordantes.",
  "Se registran "+report.summary.approved+" resultados aprobatorios (nota final ≥ 7/10), "+
  report.summary.pending+" notas ordinarias que requieren supletorio y "+
@@ -92,7 +92,7 @@ function contentPages(report,periodName,date){
  var exclusions=summary.excluded;
  var summaryContent='<div class="nr-eyebrow">01 / RESUMEN EJECUTIVO</div><h1>Resultados de exámenes complexivos</h1>'+
   '<div class="nr-subtitle">Comparación institucional entre carreras · '+esc(periodName)+'</div>'+
-  '<div class="nr-kpis">'+card("Registros activos",summary.registered,"Examen Complexivo")+
+  '<div class="nr-kpis">'+card("Registros del período",summary.registered,"Examen Complexivo, sin retirados")+
   card("Notas habilitadas",summary.qualified,"Requisitos 9/9 y evaluación verificada")+
   card("Aprobados",summary.approved,"Nota final ≥ 7,00")+
   card("A supletorio",summary.pending,"Nota ordinaria inferior a 7,00")+
@@ -116,8 +116,8 @@ function contentPages(report,periodName,date){
    all.push({title:"Comparativo general",body:'<div class="nr-eyebrow">02 / COMPARACIÓN ENTRE CARRERAS</div>'+
      '<h1>Resumen por carrera'+(comparison.length>1?' · '+(i+1)+'/'+comparison.length:'')+'</h1>'+
      '<div class="nr-subtitle">Cada promedio se calcula sobre notas oficialmente habilitadas, no sobre la matrícula total.</div>'+
-     table(["Carrera","Activos","Válidos","Teórico","Práctico","Final","Aprob.","Suplet."],rows,"nr-compact")+
-     '<p class="nr-caption">Activos: estudiantes de Examen Complexivo. Válidos: cumplen 9/9 requisitos y tienen notas oficiales verificadas. '+
+     table(["Carrera","Registr.","Válidos","Teórico","Práctico","Final","Aprob.","Suplet."],rows,"nr-compact")+
+     '<p class="nr-caption">Registr.: estudiantes no retirados de Examen Complexivo. Válidos: cumplen 9/9 requisitos y tienen notas oficiales verificadas. '+
      'Suplet.: resultado ordinario inferior a 7,00.</p>'});
  });
  [{key:"practical",name:"práctico",num:"03"},{key:"theoretical",name:"teórico",num:"04"},{key:"final",name:"final",num:"05"}].forEach(function(component){
@@ -134,7 +134,7 @@ function contentPages(report,periodName,date){
    var note=c.count?'Calificaciones verificadas del período.':'Esta carrera no registra calificaciones habilitadas con las reglas de este informe.';
    all.push({title:c.career,body:'<div class="nr-eyebrow">06 / RESULTADOS POR CARRERA · '+(index+1)+' DE '+report.careers.length+'</div>'+
      '<h1>'+esc(c.career)+'</h1><div class="nr-subtitle">'+esc(periodName)+'</div>'+
-     '<div class="nr-kpis nr-kpis-three">'+card("Activos",c.registered,"Estudiantes del período")+
+     '<div class="nr-kpis nr-kpis-three">'+card("Registrados",c.registered,"Estudiantes no retirados")+
        card("Habilitados",c.count,"Requisitos 9/9 y notas válidas")+
        card("Aprobados",c.approved,"Nota final ≥ 7,00")+
        card("Prom. teórico",f(c.theoretical),"40 % de la nota")+
@@ -171,12 +171,12 @@ function contentPages(report,periodName,date){
     '<h1>Expedientes excluidos'+(i?' · continuación':'')+'</h1>'+
     '<div class="nr-subtitle">No se incorporan a gráficos, promedios ni listados académicos habilitados.</div>'+
     table(["Carrera","Req. pendientes","Sin notas","Discordancias","Duplicados"],lines,"nr-compact")+
-    '<p class="nr-caption">Los recuentos reflejan estudiantes activos que no pasan el control de elegibilidad o consistencia. '+
+    '<p class="nr-caption">Los recuentos reflejan estudiantes no retirados que no pasan el control de elegibilidad o consistencia. '+
     'Ninguna nota fue modificada por este informe.</p>'});
  });
  all.push({title:"Metodología",body:'<div class="nr-eyebrow">09 / METODOLOGÍA Y TRAZABILIDAD</div>'+
    '<h1>Criterios de elaboración</h1><ol class="nr-method">'+[
-    'Cohorte: estudiantes activos del período seleccionado cuya modalidad de titulación es Examen Complexivo.',
+    'Cohorte: estudiantes no retirados (incluidos egresados) del período seleccionado cuya modalidad de titulación es Examen Complexivo.',
     'Elegibilidad: exactamente nueve requisitos en estado CUMPLE, incluido Titulación, verificados desde Base Local.',
     'Datos: evaluación previamente guardada; no se utilizan valores únicamente editados en pantalla.',
     'Componentes: se normalizan a escala 0–10 antes del cálculo. Teórico 40 % y práctico 60 %.',
@@ -270,7 +270,7 @@ async function exportReport(){
  busy=true;refresh();
  try{
    status("Consultando la cohorte completa y los nueve requisitos...",false);
-   var rows=await connector.listStudents({periodoId:pid,estadoMatricula:"ACTIVO"});
+   var rows=await connector.listStudents({periodoId:pid});
    if(!Array.isArray(rows))throw Error("Base Local no devolvió la cohorte completa.");
    var report=window.NcomplexReportModel.build(rows,pid);
    if(!report.summary.qualified)throw Error("No hay notas habilitadas para este período. Verifique los nueve requisitos, calificaciones y el guardado.");
