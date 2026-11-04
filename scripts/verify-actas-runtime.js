@@ -146,8 +146,10 @@ win.confirm=()=>true;selector.value="TRABAJO_TITULACION";
 await trigger("actas-estudiantes","change",{target:selector});await tick();
 assert.equal(modalityWrites.length,1,"Guarda modalidad mediante conector");
 assert.equal(modalityWrites[0].mode,"TRABAJO_TITULACION");
+trigger("actas-modalidad","change",{target:{value:"TODAS"}});
 assert.match(elem("actas-estudiantes").innerHTML,/value="TRABAJO_TITULACION" selected/,"Tras cambiar la modalidad debe conservarse al recargar");
 assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"También puede descargarse borrador TRAB");
+trigger("actas-modalidad","change",{target:{value:"EXAMEN_COMPLEXIVO"}});
 trigger("actas-ejemplo","click");
 assert.match(elem("actas-alert").textContent,/exclusivamente al período Octubre 2025 a Marzo 2026/);
 assert.equal(elem("actas-cronograma-estado").textContent,"Sin fechas guardadas","No inyecta fechas de otro periodo");
@@ -158,6 +160,7 @@ dataset2.students.push(student("0011","MODALIDAD GUARDADA TRAB","TRABAJO_TITULAC
  periodoId:per2,tipoTitulacion:"EXAMEN_COMPLEXIVO"
 }));
 trigger("actas-recargar","click");await tick();await tick();
+trigger("actas-modalidad","change",{target:{value:"TODAS"}});
 assert.match(elem("actas-estudiantes").innerHTML,/MODALIDAD GUARDADA COMPLEX/);
 assert.match(elem("actas-estudiantes").innerHTML,/MODALIDAD GUARDADA TRAB/);
 assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/Revisar identidad, matrícula o modalidad/,
