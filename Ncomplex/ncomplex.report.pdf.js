@@ -219,13 +219,27 @@ async function renderPDF(report,meta){
  var host=document.createElement("div");host.id="ncomplex-report-render-host";
  document.body.appendChild(host);var pdf=null;
  var options={margin:0,image:{type:"jpeg",quality:.96},
-   html2canvas:{scale:1.45,useCORS:true,allowTaint:false,backgroundColor:"#ffffff",logging:false,scrollX:0,scrollY:0},
+   html2canvas:{scale:1.45,useCORS:true,allowTaint:false,backgroundColor:"#ffffff",logging:false,scrollX:0,scrollY:0,windowWidth:794,windowHeight:1120},
    jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true}};
  try{
    for(var i=0;i<chunksHtml.length;i++){
      host.innerHTML=pageHtml(chunksHtml[i],i+1,chunksHtml.length,meta,logo());
      var element=host.firstElementChild;if(!element)throw Error("No se pudo preparar la página "+(i+1));
+     await new Promise(function(resolve,reject){
+       var images=Array.prototype.slice.call(element.querySelectorAll("img")||[]);
+       if(!images.length){resolve();return;}
+       Promise.all(images.map(function(img){
+         return new Promise(function(done){
+           if(img.complete){done();return;}
+           img.addEventListener("load",done,{once:true});
+           img.addEventListener("error",done,{once:true});
+         });
+       })).then(resolve,reject);
+     });
      await afterPaint();
+     var main=element.querySelector(".nr-page-main");
+     if(main&&main.scrollHeight>main.clientHeight+3)
+       throw Error("La página "+(i+1)+" supera el espacio de impresión; no se generará un PDF con contenido cortado.");
      if(i===0){
        pdf=await engine().set(options).from(element).toPdf().get("pdf");
        if(pdf.internal&&typeof pdf.internal.getNumberOfPages==="function"&&pdf.internal.getNumberOfPages()!==1)
