@@ -248,12 +248,14 @@ Función o funciones:
       ok: true,
       matches: [],
       unmatched: [],
+      review: [],
       duplicates: [],
       conflicts: [],
       totalImported: parsedRows.length,
       totalStudents: students.length,
       totalMatched: 0,
       totalUnmatched: 0,
+      totalReview: 0,
       totalDuplicates: 0,
       totalConflicts: 0,
       matchedByCedula: 0,
@@ -263,7 +265,7 @@ Función o funciones:
 
     parsedRows.forEach(function(imported){
       if(imported.blocked===true || imported.issues && imported.issues.length){
-        result.unmatched.push({imported:imported,label:importedLabel(imported),reason:(imported.issues||[]).join(" | ")||"Notas pendientes de conciliación"});return;
+        result.review.push({imported:imported,label:importedLabel(imported),reason:(imported.issues||[]).join(" | ")||"Notas pendientes de conciliación"});return;
       }
       var resolved = resolveStudent(imported, indexes);
       var student = resolved.student;
@@ -347,6 +349,7 @@ Función o funciones:
 
     result.totalMatched = result.matches.length;
     result.totalUnmatched = result.unmatched.length;
+    result.totalReview = result.review.length;
     result.totalDuplicates = result.duplicates.length;
     result.totalConflicts = result.conflicts.length;
     return result;
