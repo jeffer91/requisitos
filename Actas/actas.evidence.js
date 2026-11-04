@@ -30,7 +30,7 @@ function sources(input){
  }
  return map;
 }
-function value(map,aliases){for(const alias of aliases){const k=key(alias);if(Object.prototype.hasOwnProperty.call(map,k))return map[k];}return null;}
+function value(map,aliases){for(const alias of aliases){const k=key(alias);if(Object.prototype.hasOwnProperty.call(map,k)&&map[k]!==undefined&&map[k]!==null&&txt(map[k])!=="")return map[k];}return null;}
 function assess(input){
  input=input||{};
  const student=input.student||{},mode=txt(input.mode),values=sources(input);
