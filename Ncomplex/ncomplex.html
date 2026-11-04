@@ -14,6 +14,7 @@ Función o funciones:
   <title>Ncomplex</title>
   <link rel="stylesheet" href="ncomplex.css" />
   <link rel="stylesheet" href="ncomplex.firebase-sync.css" />
+  <link rel="stylesheet" href="ncomplex.report.css" />
 </head>
 <body>
   <main class="ncomplex-app">
@@ -95,6 +96,23 @@ Función o funciones:
           Limpiar filtros
         </button>
       </div>
+    </section>
+
+    <section class="ncomplex-card ncomplex-report-toolbar" aria-label="Informe institucional de exámenes complexivos">
+      <div class="ncomplex-report-copy">
+        <img id="ncomplex-report-logo-preview" src="../Global/assets/branding/logo-instituto.png" alt="Logotipo institucional del informe" />
+        <div>
+          <strong>Informe institucional de exámenes complexivos</strong>
+          <small>Resumen ejecutivo, comparativos y detalle de todas las carreras. Se incluyen únicamente notas y requisitos 9/9 verificados.</small>
+        </div>
+      </div>
+      <div class="ncomplex-report-actions">
+        <input id="ncomplex-report-logo-file" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Seleccionar logotipo del PDF" />
+        <button id="ncomplex-report-logo-browse" class="ncomplex-btn" type="button">Examinar logo</button>
+        <button id="ncomplex-report-logo-reset" class="ncomplex-btn" type="button">Logo original</button>
+        <button id="ncomplex-report-export" class="ncomplex-btn ncomplex-btn-primary" type="button" disabled>Generar informe PDF</button>
+      </div>
+      <div id="ncomplex-report-status" class="ncomplex-report-message" aria-live="polite">El logotipo seleccionado se utiliza solo en este equipo y en los PDF de Ncomplex.</div>
     </section>
 
     <section id="ncomplex-summary" class="ncomplex-summary" aria-label="Resumen de calificaciones"></section>
