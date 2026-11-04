@@ -253,12 +253,36 @@ Función o funciones:
     return indexes;
   }
 
+  // Convierte encabezados reales de Moodle en claves estables, sin depender del orden.
+  function moodleColumns(lines,end){
+    var columns=[],counts={teSup:0,prSup:0};
+    for(var i=0;i<end;i++){
+      var k=normalized(lines[i]);
+      if(k.indexOf("cuestionario")===0&&k.indexOf("componente")>=0){
+        var kind=k.indexOf("teorico")>=0?"te":k.indexOf("practico")>=0?"pr":"";
+        if(!kind)continue;
+        var supplemental=k.indexOf("supletorio")>=0;
+        if(supplemental){var key=kind+"Sup";counts[key]++;columns.push(key+Math.min(counts[key],2));}
+        else columns.push(kind+(k.indexOf("version 2")>=0?"2":"1"));
+      }else if(k.indexOf("media de calificaciones")===0&&k.indexOf("total teorico")>=0){
+        columns.push("totalT");
+      }else if(k.indexOf("media de calificaciones")===0&&k.indexOf("total practico")>=0){
+        columns.push("totalP");
+      }else if(k.indexOf("sumatotal del curso")===0||k.indexOf("suma total del curso")===0){
+        columns.push("totalCurso");
+      }
+    }
+    return columns;
+  }
+
   // Dos esquemas detectados: Moodle clásico (7 columnas), Moodle multiversión (11).
   // Una posición desconocida nunca se asigna a otra calificación.
-  function moodleRow(lines,emailEntry,nextIndex,rowNumber){
+  function moodleRow(lines,emailEntry,nextIndex,rowNumber,columns){
     var tokens=gradeTokens(lines,emailEntry.index+1,nextIndex),warnings=[],issues=[];
     var layout=tokens.length===11?"moodle_11":tokens.length===7?"moodle_7":"";
     if(!layout)issues.push("Estructura desconocida: "+tokens.length+" columnas; se requieren 7 u 11.");
+    if(!columns||columns.length!==tokens.length)issues.push("Encabezados Moodle incompletos o desalineados con las "+tokens.length+" columnas.");
+    function index(key,fallback){return columns&&columns.length===tokens.length?columns.indexOf(key):fallback;}
     function raw(i){return rawNumber(tokens[i]);}
     function noteAt(i,field){
       var v=raw(i);
@@ -272,16 +296,16 @@ Función o funciones:
     }
     var te=null,pr=null,tes=null,prs=null,totalT=null,totalP=null,totalCurso=null;
     if(layout==="moodle_11"){
-      te=version(0,1,"Teórico ordinario");
-      tes=version(2,3,"Teórico supletorio");
-      totalT=noteAt(4,"Total teórico");
-      pr=version(5,6,"Práctico ordinario");
-      prs=version(7,8,"Práctico supletorio");
-      totalP=noteAt(9,"Total práctico");
-      totalCurso=noteAt(10,"Total curso");
+      te=version(index("te1",0),index("te2",1),"Teórico ordinario");
+      tes=version(index("teSup1",2),index("teSup2",3),"Teórico supletorio");
+      totalT=noteAt(index("totalT",4),"Total teórico");
+      pr=version(index("pr1",5),index("pr2",6),"Práctico ordinario");
+      prs=version(index("prSup1",7),index("prSup2",8),"Práctico supletorio");
+      totalP=noteAt(index("totalP",9),"Total práctico");
+      totalCurso=noteAt(index("totalCurso",10),"Total curso");
     }else if(layout==="moodle_7"){
-      te=noteAt(0,"Teórico");tes=noteAt(1,"Teórico supletorio");totalT=noteAt(2,"Total teórico");
-      pr=noteAt(3,"Práctico");prs=noteAt(4,"Práctico supletorio");totalP=noteAt(5,"Total práctico");totalCurso=noteAt(6,"Total curso");
+      te=noteAt(index("te1",0),"Teórico");tes=noteAt(index("teSup1",1),"Teórico supletorio");totalT=noteAt(index("totalT",2),"Total teórico");
+      pr=noteAt(index("pr1",3),"Práctico");prs=noteAt(index("prSup1",4),"Práctico supletorio");totalP=noteAt(index("totalP",5),"Total práctico");totalCurso=noteAt(index("totalCurso",6),"Total curso");
     }
     var ordinary=te!==null&&pr!==null?Math.round((te*.4+pr*.6)*100)/100:null;
     var sup=tes!==null&&prs!==null?Math.round((tes*.4+prs*.6)*100)/100:null;
@@ -310,7 +334,9 @@ Función o funciones:
     var emails=findEmailIndexes(lines);
     var result={ok:false,format:"moodle_gradebook",headers:[],rows:[],errors:[],warnings:[],rawText:source,total:0};
     if(!emails.length){result.errors.push("No se detectaron correos institucionales.");return result;}
-    emails.forEach(function(e,i){result.rows.push(moodleRow(lines,e,i+1<emails.length?emails[i+1].index:lines.length,i+1));});
+    var columns=moodleColumns(lines,emails[0].index);
+    result.headers=columns.slice();
+    emails.forEach(function(e,i){result.rows.push(moodleRow(lines,e,i+1<emails.length?emails[i+1].index:lines.length,i+1,columns));});
     result.total=result.rows.length;
     var blocked=result.rows.filter(function(r){return r.blocked;}).length;
     if(blocked)result.warnings.push(blocked+" estudiante(s) bloqueado(s) hasta resolver discrepancias.");
