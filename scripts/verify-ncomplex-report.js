@@ -53,6 +53,21 @@ assert.ok(pages.some(p=>p.title==="Comparativo teórico"));
 assert.ok(pages.some(p=>p.title==="Comparativo final"));
 assert.ok(pages.some(p=>p.title==="Estudiantes · EDUCACIÓN INICIAL"));
 const concatenated=pages.map(p=>p.body).join("\n");
+const wrongSupplementary=model.classify(record("0100000091","SUPLETORIO INCORRECTO",{
+ oportunidadAplicada:"SUPLETORIO",notaTeorica:8,notaPractica:8,
+ notaTeoricaSupletorio:7,notaPracticaSupletorio:8,notaOficial:7.6
+}));
+assert.equal(wrongSupplementary.status,"incidencia","No aplicar supletorio si el ordinario ya aprobó");
+const staleOrdinary=model.classify(record("0100000092","SUPLETORIO SIN APLICAR",{
+ notaTeorica:6,notaPractica:7,notaOficial:6.6,
+ notaTeoricaSupletorio:8,notaPracticaSupletorio:8
+}));
+assert.equal(staleOrdinary.status,"incidencia","No presentar ordinario si hay un supletorio completo");
+const excludedOnly=model.build([record("0100000093","PENDIENTE TITULACIÓN",{
+ _ncomplexRequirements:eligibility("Titulación")
+})],period);
+assert.equal(excludedOnly.summary.qualified,0);
+assert.ok(window.NcomplexReportPDF.contentPages(excludedOnly,"Abril 2026","Fecha de ensayo").length>0);
 assert.ok(concatenated.includes("ALUMNA VALIDA"));
 assert.ok(!concatenated.includes("ALUMNA REQUISITOS"));
 assert.ok(concatenated.includes("Distribución de notas prácticas"));
@@ -69,6 +84,6 @@ const full=model.build(many,period);
 const fullPages=window.NcomplexReportPDF.contentPages(full,"Abril 2026 a Septiembre 2026","Fecha de ensayo");
 assert.equal(full.summary.qualified,57,"No limitar el informe a las primeras 25 filas");
 const roster=fullPages.filter(p=>p.title.indexOf("Estudiantes · ")===0);
-assert.equal(roster.length,3,"Cohorte larga dividida en páginas de detalle");
+assert.equal(roster.length,5,"Cohorte larga dividida en páginas de detalle");
 assert.equal((roster.map(p=>p.body).join("").match(/class="nr-num"><b>9,28/g)||[]).length,57);
 console.log("VERIFICACIÓN INFORME COMPLEXIVOS: OK (9/9, excluidos, 40/60, 57 estudiantes, gráficos, logo y páginas)");

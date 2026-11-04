@@ -101,7 +101,7 @@ function contentPages(report,periodName,date){
   card("Promedio final",f(summary.final),"Ponderación 40/60")+
   card("Expedientes excluidos",summary.registered-summary.qualified,"No entran en promedios")+'</div>'+
   '<h2>Principales hallazgos</h2>'+findingsHtml+
-  '<div class="nr-note"><b>Alcance.</b> Fuente: Base Local de Ncomplex; registros activos del período indicado. '+
+  '<div class="nr-note"><b>Alcance.</b> Fuente: Base Local de Ncomplex; estudiantes no retirados del período indicado. '+
   'Los promedios incluyen únicamente expedientes con 9/9 requisitos en CUMPLE, notas guardadas y concordancia entre componentes y resultado oficial. '+
   'Se preserva la separación entre evaluación ordinaria y supletoria. Este documento no sustituye un acta de titulación.</div>';
  all.push({title:"Resumen ejecutivo",body:summaryContent});
@@ -115,9 +115,9 @@ function contentPages(report,periodName,date){
    });
    all.push({title:"Comparativo general",body:'<div class="nr-eyebrow">02 / COMPARACIÓN ENTRE CARRERAS</div>'+
      '<h1>Resumen por carrera'+(comparison.length>1?' · '+(i+1)+'/'+comparison.length:'')+'</h1>'+
-     '<div class="nr-subtitle">Cada promedio se calcula sobre notas oficialmente habilitadas, no sobre la matrícula total.</div>'+
+     '<div class="nr-subtitle">Cada promedio se calcula sobre notas verificadas en BDLocal y con los nueve requisitos completos, no sobre toda la matrícula.</div>'+
      table(["Carrera","Registr.","Válidos","Teórico","Práctico","Final","Aprob.","Suplet."],rows,"nr-compact")+
-     '<p class="nr-caption">Registr.: estudiantes no retirados de Examen Complexivo. Válidos: cumplen 9/9 requisitos y tienen notas oficiales verificadas. '+
+     '<p class="nr-caption">Registr.: estudiantes no retirados de Examen Complexivo. Válidos: cumplen 9/9 requisitos y tienen notas guardadas y verificadas en BDLocal. '+
      'Suplet.: resultado ordinario inferior a 7,00.</p>'});
  });
  [{key:"practical",name:"práctico",num:"03"},{key:"theoretical",name:"teórico",num:"04"},{key:"final",name:"final",num:"05"}].forEach(function(component){
@@ -144,7 +144,7 @@ function contentPages(report,periodName,date){
      '<h2>Distribución de notas teóricas</h2>'+hist(c.distributions.theoretical)+
      '<h2>Distribución de notas finales</h2>'+hist(c.distributions.final)+
      '<p class="nr-caption">'+esc(note)+' Se utiliza distribución por rangos para mantener legible el gráfico, incluso con cohortes numerosas.</p>'});
-   var pieces=chunks(c.rows,21);
+   var pieces=chunks(c.rows,12);
    pieces.forEach(function(piece,j){
      all.push({title:"Estudiantes · "+c.career,body:
        '<div class="nr-eyebrow">07 / LISTADO INDIVIDUAL</div>'+
@@ -153,7 +153,7 @@ function contentPages(report,periodName,date){
        ' · '+esc(periodName)+'</div>'+
        table(["#","Estudiante","Cédula","Teórico","Práctico","Final","Oportunidad / resultado"],
          piece.map(function(row,k){
-           return '<tr><td class="nr-num">'+(j*21+k+1)+'</td><td>'+esc(row.name)+'</td>'+
+           return '<tr><td class="nr-num">'+(j*12+k+1)+'</td><td>'+esc(row.name)+'</td>'+
             '<td>'+esc(row.cedula)+'</td><td class="nr-num">'+f(row.teorico)+'</td>'+
             '<td class="nr-num">'+f(row.practico)+'</td><td class="nr-num"><b>'+f(row.final)+'</b></td>'+
             '<td>'+esc(row.opportunity==="SUPLETORIO"?"Supletorio":"Ordinaria")+' · '+esc(row.status)+'</td></tr>';
@@ -203,12 +203,28 @@ function pageHtml(content,number,count,meta,sourceLogo){
 function loadEngine(){
  if(typeof window.html2pdf==="function")return Promise.resolve(window.html2pdf);
  if(engineTask)return engineTask;
+ var sources=["../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js",
+   "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.12.1/html2pdf.bundle.min.js"];
  engineTask=new Promise(function(resolve,reject){
-   var script=document.createElement("script");
-   script.src="../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js";
-   script.onload=function(){typeof window.html2pdf==="function"?resolve(window.html2pdf):reject(Error("La biblioteca PDF no se inicializó."));};
-   script.onerror=function(){reject(Error("No se encuentra html2pdf.js en la instalación. Ejecute npm install antes de exportar."));};
-   (document.head||document.documentElement).appendChild(script);
+   var index=0;
+   function next(lastError){
+     if(typeof window.html2pdf==="function"){resolve(window.html2pdf);return;}
+     if(index>=sources.length){reject(lastError||Error("No se pudo cargar el motor PDF."));return;}
+     var src=sources[index++],script=document.createElement("script"),finished=false;
+     var clock=window.setTimeout(function(){done(false,Error("Tiempo agotado al cargar la biblioteca PDF."));},9000);
+     function done(ok,error){
+       if(finished)return;
+       finished=true;window.clearTimeout(clock);
+       if(ok){resolve(window.html2pdf);return;}
+       if(script.parentNode)script.parentNode.removeChild(script);
+       next(error);
+     }
+     script.src=src;script.async=true;
+     script.onload=function(){done(typeof window.html2pdf==="function",Error("La biblioteca PDF no se inicializó."));};
+     script.onerror=function(){done(false,Error("No se pudo cargar "+src));};
+     (document.head||document.documentElement).appendChild(script);
+   }
+   next();
  }).catch(function(error){engineTask=null;throw error;});
  return engineTask;
 }
@@ -229,10 +245,10 @@ async function renderPDF(report,meta){
        var images=Array.prototype.slice.call(element.querySelectorAll("img")||[]);
        if(!images.length){resolve();return;}
        Promise.all(images.map(function(img){
-         return new Promise(function(done){
-           if(img.complete){done();return;}
+         return new Promise(function(done,rejectImage){
+           if(img.complete){img.naturalWidth?done():rejectImage(Error("No se pudo cargar el logotipo institucional."));return;}
            img.addEventListener("load",done,{once:true});
-           img.addEventListener("error",done,{once:true});
+           img.addEventListener("error",function(){rejectImage(Error("No se pudo cargar el logotipo institucional."));},{once:true});
          });
        })).then(resolve,reject);
      });
@@ -273,7 +289,8 @@ async function exportReport(){
    var rows=await connector.listStudents({periodoId:pid});
    if(!Array.isArray(rows))throw Error("Base Local no devolvió la cohorte completa.");
    var report=window.NcomplexReportModel.build(rows,pid);
-   if(!report.summary.qualified)throw Error("No hay notas habilitadas para este período. Verifique los nueve requisitos, calificaciones y el guardado.");
+   if(!report.summary.registered)throw Error("No se encontraron estudiantes de Examen Complexivo para este período.");
+   if(!report.summary.qualified)status("Sin expedientes habilitados; se generará el informe de exclusiones sin atribuir promedios inexistentes.",false);
    var meta={period:periodLabel(pid),date:new Date().toLocaleString("es-EC",{dateStyle:"long",timeStyle:"short"})};
    var created=await renderPDF(report,meta);
    status("Informe institucional generado: "+created.pages+" páginas · "+report.summary.qualified+" estudiantes habilitados.",false);

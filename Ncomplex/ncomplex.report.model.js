@@ -25,6 +25,7 @@ function assessment(row){
 function classify(row){
  if(!assessment(row))return {status:"requisitos",reason:text(row.requisitosFaltantes||row._ncomplexRequirements&&row._ncomplexRequirements.reason)||"No se acreditaron nueve requisitos CUMPLE"};
  if(row._ncomplexHasSavedEvaluation!==true)return {status:"sinNotas",reason:"Evaluación sin guardar en BDLocal"};
+ if(row._ncomplexConflict===true)return {status:"incidencia",reason:"Existe una conciliación no resuelta"};
  var opportunity=text(row.oportunidadAplicada).toUpperCase();
  if(opportunity!=="ORDINARIA"&&opportunity!=="SUPLETORIO")return {status:"incidencia",reason:"Oportunidad académica no identificada"};
  var theor=num(opportunity==="SUPLETORIO"?row.notaTeoricaSupletorio:row.notaTeorica);
@@ -32,6 +33,13 @@ function classify(row){
  var official=num(row.notaOficial);
  if(theor===null||pract===null||official===null)return {status:"sinNotas",reason:"Faltan teórico, práctico o nota oficial"};
  var computed=round(theor*.4+pract*.6);
+ var ordinaryT=num(row.notaTeorica),ordinaryP=num(row.notaPractica);
+ var ordinary=ordinaryT===null||ordinaryP===null?null:round(ordinaryT*.4+ordinaryP*.6);
+ var supplT=num(row.notaTeoricaSupletorio),supplP=num(row.notaPracticaSupletorio);
+ if(opportunity==="SUPLETORIO"&&ordinary!==null&&ordinary>=7)
+   return {status:"incidencia",reason:"Supletorio aplicado pese a ordinario aprobatorio"};
+ if(opportunity==="ORDINARIA"&&ordinary!==null&&ordinary<7&&supplT!==null&&supplP!==null)
+   return {status:"incidencia",reason:"Supletorio completo sin aplicar en la nota oficial"};
  if(Math.abs(computed-official)>.025)return {status:"incidencia",reason:"Nota oficial "+official.toFixed(2)+" no coincide con cálculo "+computed.toFixed(2)};
  var item={name:name(row),cedula:id(row),career:career(row),teorico:theor,practico:pract,final:computed,opportunity:opportunity};
  item.status=gradeStatus(item.final,opportunity);
