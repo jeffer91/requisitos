@@ -177,6 +177,7 @@ Función o funciones:
     container.innerHTML = [
       card("Filas detectadas", Number(result.totalImported || 0), "", ""),
       card("Encontrados", Number(result.totalMatched || 0), "is-success", ""),
+      card("Por conciliar", Number(result.totalReview || 0), "is-warning", ""),
       card("No encontrados", Number(result.totalUnmatched || 0), "is-danger", ""),
       card("Duplicados", Number(result.totalDuplicates || 0), "is-warning", ""),
       card("Conflictos", Number(result.totalConflicts || 0), "is-warning", "")
@@ -187,6 +188,7 @@ Función o funciones:
       var unmatched = (result.unmatched || []).map(function(item){
         return escapeHtml((item.label || importedLabel(item.imported)) + " — " + item.reason);
       });
+      var review = (result.review || []).map(function(item){return escapeHtml((item.label || importedLabel(item.imported)) + " — " + item.reason);});
       var duplicates = (result.duplicates || []).map(function(item){
         return escapeHtml(item.label || importedLabel(item.imported));
       });
@@ -202,6 +204,7 @@ Función o funciones:
       details.innerHTML = "";
       if(matchedBy.length){ details.innerHTML += "<p><strong>Cruce realizado por:</strong> " + escapeHtml(matchedBy.join("; ")) + "</p>"; }
       if(unmatched.length){ details.innerHTML += "<p><strong>No encontrados:</strong> " + unmatched.join("; ") + "</p>"; }
+      if(review.length){ details.innerHTML += "<p><strong>Por conciliar (no se guardan):</strong> " + review.join("; ") + "</p>"; }
       if(duplicates.length){ details.innerHTML += "<p><strong>Duplicados:</strong> " + duplicates.join("; ") + "</p>"; }
       if(conflicts.length){ details.innerHTML += "<p><strong>Conflictos:</strong> " + conflicts.join("; ") + "</p>"; }
       if(!details.innerHTML){ details.innerHTML = "<p>Todos los registros están listos para aplicar.</p>"; }
