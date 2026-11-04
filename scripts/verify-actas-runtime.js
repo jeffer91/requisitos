@@ -18,7 +18,7 @@ function elem(id){if(!elements.has(id))elements.set(id,{
 });return elements.get(id);}
 function trigger(id,type,event){const fn=elem(id).handlers[type];assert.equal(typeof fn,"function",id+" "+type+" tiene controlador");return fn(Object.assign({target:elem(id)},event||{}));}
 const per1="2025-10__2026-03",per2="2026-04__2026-09";
-const student=(c,n,m=undefined,extra={})=>Object.assign({cedula:c,Nombres:n,periodoId:per1,NombreCarrera:"ADMINISTRACIÓN",modalidadTitulacion:m||"EXAMEN_COMPLEXIVO",estadoMatricula:"ACTIVO"},extra);
+const student=(c,n,m=undefined,extra={})=>Object.assign({cedula:c,Nombres:n,periodoId:per1,NombreCarrera:"ADMINISTRACIÓN",modalidadTitulacion:m===undefined?"EXAMEN_COMPLEXIVO":m,estadoMatricula:"ACTIVO"},extra);
 const req=(cedula,periodoId,field,state="CUMPLE")=>({cedula,periodoId,requisitoKey:field,valor:state});
 const field1="aprobaciontitulacion",field2="aprobacioncomplexivoproyecto";
 const eight=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero"];
@@ -37,7 +37,14 @@ const win={
  ConActas:{
   async ready(){return {ok:true}},
   async listPeriods(){return [{periodoId:per1,nombre:"Octubre 2025 a Marzo 2026"},{periodoId:per2,nombre:"Abril 2026 a Septiembre 2026"}]},
-  async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};},async setModality(opts){modalityWrites.push(opts);return {ok:true}}
+  async read(opts){calls.push(opts.periodoId); if(delays.has(opts.periodoId))return delays.get(opts.periodoId).promise;return {data:opts.periodoId===per1?dataset1:dataset2};},
+   async setModality(opts){
+    modalityWrites.push(opts);
+    const list=opts.periodoId===per1?dataset1.students:dataset2.students;
+    const row=list.find(s=>s.cedula===opts.cedula&&s.periodoId===opts.periodoId);
+    if(row)row.modalidadTitulacion=opts.mode;
+    return {ok:true};
+   }
  },
  ActasIssueDate:{forPeriod:()=>({date:"2026-05-29",year:"2026",month:"05",monthKey:"2026-05",holidaysVerified:true}),mayRegister:()=>true},
  ActasNumbering:{
@@ -95,6 +102,10 @@ await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[da
 assert.equal(centralNumbers.size,1,"Registrar N.º asigna un único registro central");
 await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
 assert.equal(centralNumbers.size,1,"Registrar nuevamente no duplica el número");
+ const beforeLocked=modalityWrites.length,registeredSelector={value:"TRABAJO_TITULACION",disabled:false,dataset:{mode:"0"},matches:s=>s==="[data-mode]"};
+ await trigger("actas-estudiantes","change",{target:registeredSelector});await tick();
+ assert.equal(modalityWrites.length,beforeLocked,"Un acta numerada no permite cambio de modalidad");
+ assert.match(elem("actas-alert").textContent,/número oficial/);
 trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,6,"ZIP incorpora borradores sin notas");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
 assert.equal(centralNumbers.size,1,"El ZIP no crea números nuevos");
 assert.equal(zips[0].items[0].record.numeroActa,centralNumbers.get(per1+"__0001").numeroActa,"El ZIP reutiliza el número previamente registrado");
@@ -119,9 +130,9 @@ trigger("actas-recargar","click");
 trigger("actas-periodo","change",{target:{value:per2}});
 await tick();await tick();
 assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lee segundo período");
- assert.match(elem("actas-estudiantes").innerHTML,/Seleccione modalidad/,"Nunca asumir COMPLEX sin modalidad registrada");
- assert.match(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"Bloquear borrador hasta definir modalidad");
- assert.match(elem("actas-estudiantes").innerHTML,/data-register="0" disabled/,"Bloquear folio si no tiene modalidad");
+ assert.match(elem("actas-estudiantes").innerHTML,/value="EXAMEN_COMPLEXIVO" selected/,"Se muestra Complexivo por defecto sin modalidad guardada");
+ assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"El borrador se descarga con Complexivo por defecto");
+ assert.match(elem("actas-estudiantes").innerHTML,/data-register="0" disabled/,"Los requisitos siguen bloqueando la numeración");
 resolveSlow({data:dataset1});
 await tick();await tick();
 assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lectura tardía no reemplaza período actual");
@@ -130,23 +141,29 @@ const selector={value:"TRABAJO_TITULACION",disabled:false,dataset:{mode:"0"},mat
 win.confirm=()=>false;
 await trigger("actas-estudiantes","change",{target:selector});await tick();
 assert.equal(modalityWrites.length,0,"No modificar modalidad al cancelar la advertencia sobre Ncomplex");
-assert.equal(selector.value,"","Se restaura la modalidad sin definir al cancelar");
+assert.equal(selector.value,"EXAMEN_COMPLEXIVO","Restaurar modalidad por defecto al cancelar");
 win.confirm=()=>true;selector.value="TRABAJO_TITULACION";
 await trigger("actas-estudiantes","change",{target:selector});await tick();
 assert.equal(modalityWrites.length,1,"Guarda modalidad mediante conector");
 assert.equal(modalityWrites[0].mode,"TRABAJO_TITULACION");
+assert.match(elem("actas-estudiantes").innerHTML,/value="TRABAJO_TITULACION" selected/,"Tras cambiar la modalidad debe conservarse al recargar");
+assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"También puede descargarse borrador TRAB");
 trigger("actas-ejemplo","click");
 assert.match(elem("actas-alert").textContent,/exclusivamente al período Octubre 2025 a Marzo 2026/);
 assert.equal(elem("actas-cronograma-estado").textContent,"Sin fechas guardadas","No inyecta fechas de otro periodo");
-dataset2.students.push(student("0010","MODALIDAD CONTRADICTORIA","EXAMEN_COMPLEXIVO",{
+dataset2.students.push(student("0010","MODALIDAD GUARDADA COMPLEX","EXAMEN_COMPLEXIVO",{
  periodoId:per2,tipoTitulacion:"TRABAJO_TITULACION"
 }));
+dataset2.students.push(student("0011","MODALIDAD GUARDADA TRAB","TRABAJO_TITULACION",{
+ periodoId:per2,tipoTitulacion:"EXAMEN_COMPLEXIVO"
+}));
 trigger("actas-recargar","click");await tick();await tick();
-assert.match(elem("actas-estudiantes").innerHTML,/MODALIDAD CONTRADICTORIA/);
-assert.match(elem("actas-estudiantes").innerHTML,/Revisar identidad, matrícula o modalidad/,
- "Dos modalidades contradictorias se reportan como conflicto");
-assert.ok(elem("actas-estudiantes").innerHTML.includes('data-register="1" disabled'),
- "No registrar folio cuando Ficha y expediente registran modalidades diferentes");
+assert.match(elem("actas-estudiantes").innerHTML,/MODALIDAD GUARDADA COMPLEX/);
+assert.match(elem("actas-estudiantes").innerHTML,/MODALIDAD GUARDADA TRAB/);
+assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/Revisar identidad, matrícula o modalidad/,
+ "La modalidad guardada en Ficha prevalece sobre el tipo histórico");
+assert.match(elem("actas-estudiantes").innerHTML,/value="TRABAJO_TITULACION" selected/,
+ "El cambio explícito a Trabajo no se revierte");
 console.log("VERIFICACIÓN ACTAS V2: OK (búsqueda global, selector, PDF, ZIP, bloqueo de actas, cronograma y carrera de carga)");
 }
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
