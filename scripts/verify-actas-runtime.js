@@ -28,7 +28,7 @@ students:[student("0001","EXAMEN APROBADO","EXAMEN_COMPLEXIVO",{_ncomplexHasSave
 requirements:[req("0001",per1,field1),req("0001",per1,field2),req("0002",per1,field1),req("0003",per1,field1),req("0003",per1,field2),req("0004",per1,field1),req("0004",per1,field2),req("0005",per1,field1),req("0005",per1,field2),req("0007",per1,field1),req("0007",per1,field2),req("0008",per1,field1),req("0008",per1,field2),req("0009",per1,field1),req("0009",per1,field2),...["0003"].flatMap(id=>eight.concat(["titulacion"]).map(key=>req(id,per1,key)))]};
 dataset1.students[0]._actasNuclei=[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}));
 dataset1.students[0]._actasComplexivo=grades("EXAMEN_COMPLEXIVO");
-const dataset2={students:[student("0006","OTRO PERIODO",undefined,{periodoId:per2})],requirements:[req("0006",per2,field1),req("0006",per2,field2)]};
+const dataset2={students:[student("0006","OTRO PERIODO",undefined,{periodoId:per2,modalidadTitulacion:""})],requirements:[req("0006",per2,field1),req("0006",per2,field2)]};
 const document={readyState:"complete",getElementById:elem,addEventListener(){},body:{appendChild(){}},createElement(){return {click(){},remove(){}}}};
 const win={
  location:{href:"https://example.test/requisitos/Actas/actas.html"},
@@ -119,6 +119,9 @@ trigger("actas-recargar","click");
 trigger("actas-periodo","change",{target:{value:per2}});
 await tick();await tick();
 assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lee segundo período");
+ assert.match(elem("actas-estudiantes").innerHTML,/Seleccione modalidad/,"Nunca asumir COMPLEX sin modalidad registrada");
+ assert.match(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"Bloquear borrador hasta definir modalidad");
+ assert.match(elem("actas-estudiantes").innerHTML,/data-register="0" disabled/,"Bloquear folio si no tiene modalidad");
 resolveSlow({data:dataset1});
 await tick();await tick();
 assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lectura tardía no reemplaza período actual");

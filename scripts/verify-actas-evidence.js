@@ -26,6 +26,13 @@ assert.equal(assess({...complete,aprobaciontitulacion:"PENDIENTE"}).eligible,fal
 const pending=assess({});assert.equal(pending.eligible,false);
 assert.equal(pending.draftEligible,true,"Se admite borrador sin requisitos completos");
 assert.equal(assess(complete,"ARTICULO_ACADEMICO").draftEligible,false);
+ const stale={requisitos:[{requisitoKey:"financiero",valor:"CUMPLE"}]};
+ assert.equal(assess({...complete,financiero:"PENDIENTE"},"EXAMEN_COMPLEXIVO",stale).eligible,false,
+  "Un requisito actual PENDIENTE prevalece sobre la ficha histórica CUMPLE");
+ const staleApproval={requisitos:[{requisitoKey:"aprobaciontitulacion",valor:"CUMPLE"}]};
+ assert.equal(assess({...complete,aprobaciontitulacion:"PENDIENTE"},"EXAMEN_COMPLEXIVO",staleApproval).eligible,false,
+  "La aprobación final actual prevalece sobre aprobaciones antiguas");
+ assert.equal(assess(complete,"").draftEligible,false,"No admitir acta sin modalidad definida");
 assert.equal(assess({},"EXAMEN_COMPLEXIVO",{Nombres:"ESTUDIANTE",...complete}).eligible,true);
 const nested={requisitos:Object.entries(complete).map(([requisitoKey,valor])=>({requisitoKey,valor}))};
 assert.equal(assess({},"TRABAJO_TITULACION",nested).eligible,true);
