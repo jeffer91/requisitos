@@ -59,7 +59,9 @@ async function publish(options){
    if(found.length!==1){invalid.push(ced+": matrícula no identificada unívocamente");continue;}
    const st=found[0];
    const study=t(st.modalidadEstudio||st.Modalidad||st.modalidad||st.tipoModalidad).toLowerCase();
-   const inferred=/online|en.linea|virtual/.test(study)?"ONLINE":/presencial/.test(study)?"PRESENCIAL":/pvc/.test(study)?"PVC":"";
+   const career=t(st.NombreCarrera||st.Carrera||st.carrera).toLowerCase();
+   const inferred=/online|en.linea|virtual/.test(study)||/\bonline\b/.test(career)?"ONLINE":
+     /pvc/.test(study)?"PVC":/presencial/.test(study)?"PRESENCIAL":"";
    if(inferred&&inferred!==group){invalid.push(ced+": grupo distinto de la matrícula");continue;}
    if(typeof con.checkRequirements!=="function"){
      blocked.push(ced+": verificador de requisitos no disponible");continue;
