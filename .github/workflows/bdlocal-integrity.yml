@@ -99,7 +99,7 @@ jobs:
           exit "$code"
 
   ncomplex-pdf-smoke:
-    name: Ncomplex PDF real rendering smoke
+    name: PDF real rendering smoke (Ncomplex and Actas)
     runs-on: ubuntu-latest
     timeout-minutes: 12
     needs: static-audit
@@ -124,6 +124,8 @@ jobs:
           sudo chmod 4755 "$helper"
       - name: Render and validate a real PDF
         run: xvfb-run --auto-servernum npm run test:ncomplex:pdf
+      - name: Render and validate a real Actas PDF
+        run: xvfb-run --auto-servernum npm run test:actas:pdf
 
   electron-smoke:
     name: Electron, IndexedDB and navigation smoke tests
