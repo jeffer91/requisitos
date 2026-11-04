@@ -114,7 +114,7 @@ function addComponentPages(pages,c,key,name,weight,ordinal,period){
  tableParts.forEach(function(part,index){
    var rows=part.map(function(r,j){return row([index*19+j+1,r.name,fixed(hundred(r[key]))]);});
    var textTitle='RESULTADOS DEL COMPONENTE '+mode+' ('+weight+' %)';
-   pages.push(page(c.career+' · '+name+' · tabla',label(ordinal+' / '+h(c.career).toUpperCase())+
+   pages.push(page(c.career+' · '+name+' · tabla',label(ordinal+' / '+str(c.career).toUpperCase())+
      heading(textTitle,'Tabla de calificaciones del componente '+name+' · '+(index+1)+'/'+tableParts.length)+
      '<p class="nr-intro">'+intro+'</p>'+
      (rows.length?table(["N.º","Estudiante","Calificación /100"],rows,"nr-student-component"):
@@ -124,8 +124,10 @@ function addComponentPages(pages,c,key,name,weight,ordinal,period){
  var st=stats(c.rows,key);
  pages.push(page(c.career+' · '+name+' · análisis',label(ordinal+' / '+h(c.career).toUpperCase())+
    heading('Componente '+name+' — distribución y análisis','Gráfico estadístico, indicadores y valoración del desempeño')+
-   '<h2>Gráfico de distribución de calificaciones '+name+'</h2>'+bars(distribution(c.rows,key))+
-   source(period,'—')+
+   '<h2>Gráfico de distribución de calificaciones '+name+'</h2>'+
+   '<p class="nr-figure">Figura '+(key==="practico"?"1":"2")+
+   '. Distribución de estudiantes según las notas del componente '+h(name)+'.</p>'+
+   bars(distribution(c.rows,key))+source(period)+
    '<h2>Indicadores del componente '+name+'</h2>'+indicators(st)+
    '<h2>Análisis de los resultados '+name+'</h2><p class="nr-analysis">'+h(analysisComponent(c,key,name))+'</p>',
    "career-component"));
@@ -138,7 +140,7 @@ function addFinalPages(pages,c,period){
      return row([i*13+k+1,r.name,fixed(hundred(r.teorico)),fixed(hundred(r.practico)),
        fixed(hundred(r.final)),cond]);
    });
-   pages.push(page(c.career+' · finales · tabla',label('RESULTADOS FINALES / '+h(c.career).toUpperCase())+
+   pages.push(page(c.career+' · finales · tabla',label('RESULTADOS FINALES / '+str(c.career).toUpperCase())+
     heading('RESULTADOS FINALES DEL EXAMEN COMPLEXIVO',
       'Teórico 40 % + Práctico 60 % · Tabla de notas '+(i+1)+'/'+parts.length)+
     '<p class="nr-intro">Nota final = (Teórico × 0,40) + (Práctico × 0,60). '+
@@ -150,8 +152,9 @@ function addFinalPages(pages,c,period){
  pages.push(page(c.career+' · finales · análisis',
    label('RESULTADOS FINALES / '+h(c.career).toUpperCase())+
    heading('Resultados finales del examen','Distribución por condición académica y rendimiento ponderado')+
-   '<h2>Gráfico de condición académica</h2>'+conditionGraph(c)+
-   source(period,'—')+
+   '<h2>Gráfico de condición académica</h2>'+
+   '<p class="nr-figure">Figura 3. Distribución de estudiantes según la condición académica del examen.</p>'+
+   conditionGraph(c)+source(period)+
    '<h2>Indicadores de resultados finales</h2>'+indicators(stats(c.rows,"final"))+
    '<h2>Análisis de resultados finales</h2><p class="nr-analysis">'+h(analysisFinal(c))+'</p>',
    "career-component"));
@@ -192,7 +195,7 @@ function conclusion(c){
 }
 function careerConsolidation(pages,c,period){
  pages.push(page(c.career+' · consolidado',
-   label('CONSOLIDADO GENERAL / '+h(c.career).toUpperCase())+
+   label('CONSOLIDADO GENERAL / '+str(c.career).toUpperCase())+
    heading('CONSOLIDADO GENERAL DE LA CARRERA','Indicadores y comparación de componentes académicos')+
    '<h2>Resumen estadístico consolidado</h2>'+statisticsConsolidated(c)+
    '<h2>Indicadores de aprobación y supletorio</h2>'+
@@ -205,12 +208,13 @@ function careerConsolidation(pages,c,period){
     row(["Expedientes excluidos",covered(c),percent(covered(c),c.registered)])
    ],"nr-stats-table")+
    '<h2>Comparación de promedios práctico, teórico y final</h2>'+
+   '<p class="nr-figure">Figura 4. Comparación de los componentes práctico, teórico y final.</p>'+
    comparison([{career:"Práctico (60 %)",count:c.count,final:c.practical},
      {career:"Teórico (40 %)",count:c.count,final:c.theoretical},
      {career:"Final ponderado",count:c.count,final:c.final}],"final")+
    source(period),"career-consolidated"));
  pages.push(page(c.career+' · conclusiones',
-   label('CIERRE ANALÍTICO / '+h(c.career).toUpperCase())+
+   label('CIERRE ANALÍTICO / '+str(c.career).toUpperCase())+
    heading('ANÁLISIS Y CONCLUSIONES DE LA CARRERA','Interpretación académica de los resultados')+
    '<h2>Análisis comparativo de los componentes</h2><p class="nr-analysis">'+h(consolidatedAnalysis(c))+'</p>'+
    '<h2>Casos especiales y control institucional</h2>'+
