@@ -51,22 +51,31 @@ function parseModality(value){
  if(k.includes("complexivo"))return CX;
  return "";
 }
+/* Solo se aplica el valor predeterminado en la presentación; nunca se modifica
+ * de forma masiva la matrícula ni se infiere la modalidad desde las notas. */
 function explicitModalities(s){
- return {
-  type:parseModality(s.tipoTitulacion||s.TipoTitulacion||s._raw&&s._raw.tipoTitulacion||s._raw&&s._raw.TipoTitulacion),
-  declared:parseModality(s._modalidadTitulacion||s.modalidadTitulacion||s.ModalidadTitulacion||s._raw&&s._raw.modalidadTitulacion||s._raw&&s._raw.ModalidadTitulacion)
- };
+ const raw=s._raw||{},source=s._sourceRow||{};
+ function read(obj,fields){
+  for(const field of fields){const mode=parseModality(obj&&obj[field]);if(mode)return mode;}
+  return "";
+ }
+ const preferred=["modalidadTitulacion","ModalidadTitulacion","_modalidadTitulacion","modalidad","Modalidad"];
+ const declared=read(s,preferred)||read(raw,preferred)||read(source,preferred);
+ const legacy=["tipoTitulacion","TipoTitulacion"];
+ const type=read(s,legacy)||read(raw,legacy)||read(source,legacy);
+ return {declared,type};
 }
 function modality(s){
  const m=explicitModalities(s);
- if(m.type==="ARTICULO_ACADEMICO")return m.type;
- // Actas no infiere modalidad a partir de evaluaciones de Ncomplex.
- return m.declared||m.type||"";
+ // Respeta la modalidad especial Artículo Académico cuando está declarada.
+ if(m.type==="ARTICULO_ACADEMICO"||m.declared==="ARTICULO_ACADEMICO")return "ARTICULO_ACADEMICO";
+ // La modalidad que se guarda desde Ficha prevalece sobre tipoTitulacion legado.
+ return m.declared||m.type||CX;
 }
 function inactive(s){return text(s.estadoMatricula||s._estadoMatricula).toUpperCase()==="RETIRADO"||s.retirado===true||s.eliminado===true;}
 function errorConflict(s){
  const m=explicitModalities(s);
- return inactive(s)||m.type==="ARTICULO_ACADEMICO"||!!(m.type&&m.declared&&m.type!==m.declared);
+ return inactive(s)||m.type==="ARTICULO_ACADEMICO"||m.declared==="ARTICULO_ACADEMICO";
 }
 function rows(){
  const idx=indexReqs(),duplicates=new Map();
@@ -211,6 +220,7 @@ $("actas-estudiantes").addEventListener("change",async e=>{
   const el=e.target,r=S.visible[Number(el.dataset.mode)];if(!r||r.mode===el.value)return;
   const old=r.mode,requested=el.value;el.disabled=true;notify("Guardando modalidad en Base Local…");
   try{
+    if(registeredNumber(r))throw Error("Esta acta ya tiene un número oficial. La modalidad no puede cambiarse desde Actas sin una revisión institucional.");
     if(w.confirm&&!w.confirm("Vas a cambiar la modalidad de titulación en Ficha. Actas no consulta las calificaciones de Ncomplex; si existen evaluaciones guardadas tendrás que revisarlas en Ncomplex, pues el cambio no las convierte ni las elimina. ¿Confirmas el cambio?")){el.value=old;return;}
     await w.ConActas.setModality({studentId:r.student.idEstudiantePeriodo||r.identity,cedula:ced(r.student),periodoId:S.periodo,periodoLabel:periodLabel(),mode:requested});
     S.selected.delete(r.identity);await load();const updated=rows().find(x=>x.identity===r.identity);
