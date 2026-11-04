@@ -128,17 +128,31 @@ Con qué se conecta:
       "</td></tr>";
   }
 
-  function headers(mode){
-    var isWork = mode === (Config.modalidades && Config.modalidades.TRABAJO);
-    var isComplex = mode === (Config.modalidades && Config.modalidades.COMPLEXIVO);
-    var first = isWork ? "Escrito" : isComplex ? "Teórico" : "Nota A";
-    var second = isWork ? "Defensa" : isComplex ? "Práctico" : "Nota B";
-    var final = isWork ? "Final trabajo" : isComplex ? "Final complexivo" : "Final";
+  // Los encabezados representan la modalidad académica real, incluso cuando
+  // el filtro está en "Todas las modalidades". La lista completa de los
+  // filtrados mantiene los encabezados estables al paginar.
+  function headers(mode, modalidadesVisibles){
+    var complexivo = Config.modalidades && Config.modalidades.COMPLEXIVO;
+    var trabajo = Config.modalidades && Config.modalidades.TRABAJO;
+    var visible = Array.isArray(modalidadesVisibles) ? modalidadesVisibles : [];
+    var hasComplex = visible.indexOf(complexivo) !== -1;
+    var hasWork = visible.indexOf(trabajo) !== -1;
+    if(!hasComplex && !hasWork){
+      hasWork = mode === trabajo;
+      hasComplex = !hasWork;
+    }
+    var mixed = hasComplex && hasWork;
+    var first = mixed ? "Teórico (40 %) / Escrito (60 %)"
+      : hasWork ? "Escrito (60 %)" : "Teórico (40 %)";
+    var second = mixed ? "Práctico (60 %) / Defensa (40 %)"
+      : hasWork ? "Defensa (40 %)" : "Práctico (60 %)";
+    var final = mixed ? "Final según modalidad"
+      : hasWork ? "Final trabajo" : "Final complexivo";
 
     return [
       "#", "Estudiante", "Carrera", "Horario", "Modalidad",
       first, second, final,
-      "Teórico supl.", "Práctico supl.", "Final supl.",
+      "Teórico supl. (40 %)", "Práctico supl. (60 %)", "Final supl.",
       "Nota oficial", "Estado", "Acciones"
     ];
   }
@@ -156,7 +170,10 @@ Con qué se conecta:
     }
 
     var mode = options.modalidad || "";
-    var headerHtml = headers(mode).map(function(label){
+    var modalidadesVisibles = Array.isArray(options.modalidadesVisibles)
+      ? options.modalidadesVisibles
+      : rows.map(function(row){ return text(row.modalidadTitulacion); });
+    var headerHtml = headers(mode, modalidadesVisibles).map(function(label){
       return "<th scope=\"col\">" + esc(label) + "</th>";
     }).join("");
 

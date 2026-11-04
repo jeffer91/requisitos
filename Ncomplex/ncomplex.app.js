@@ -179,6 +179,7 @@ Con qué se conecta:
     if(Table.render){
       Table.render(paged.rows, {
         modalidad: current.filters && current.filters.modalidad || "",
+        modalidadesVisibles: filtered.map(function(row){ return row.modalidadTitulacion; }),
         offset: Math.max(0, (paged.page - 1) * paged.pageSize)
       });
     }
