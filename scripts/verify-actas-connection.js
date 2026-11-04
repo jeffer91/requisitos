@@ -55,5 +55,23 @@ vm.runInNewContext(source,con,{filename:"cone.actas.js"});
  assert.equal(byKey.financiero,"CUMPLE","Rechaza requisitos de otros períodos");
  assert.equal(byKey.aprobaciontitulacion,"CUMPLE");
  assert.ok(!result.data.requirements.some(r=>r.periodoId===another));
+ let saved=null;
+ con.window.ConFicha={
+  ready:async()=>({ok:true}),
+  updateGraduationModality:async(id,mode,options)=>{
+   saved={id,mode,options};
+   return {ok:true,value:mode};
+  }
+ };
+ const changed=await con.window.ConActas.setModality({
+  periodoId:period,periodoLabel:"Octubre 2025 a Marzo 2026",
+  cedula:"0987654321",studentId:"0987654321__"+period,mode:"TRABAJO_TITULACION"
+ });
+ assert.equal(changed.ok,true);
+ assert.equal(saved.id,"0987654321__"+period);
+ assert.equal(saved.mode,"TRABAJO_TITULACION");
+ assert.equal(saved.options.periodoId,period,"La variable periodoId está definida");
+ assert.equal(saved.options.periodId,period,"Ficha recibe también periodId");
+ assert.equal(saved.options.periodoLabel,"Octubre 2025 a Marzo 2026");
  console.log("VERIFICACIÓN CONEXIÓN ACTAS: OK (cédula/período, V2, legacy, caché, independencia de Ncomplex, prioridades)");
 })().catch(err=>{console.error(err);process.exitCode=1;});
