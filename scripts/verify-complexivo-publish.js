@@ -9,7 +9,7 @@ const elements={
  "ncomplex-btn-complexivo-sync":{disabled:false},
  "ncomplex-firebase-status":{textContent:"",className:""}
 };
-let saved=[],remote=new Map(),confirms=0,disconnected=false;
+let saved=[],remote=new Map(),confirms=0,disconnected=false,eligible=true;
 const school={cedula:id,Nombres:"EJEMPLO ESTUDIANTE",periodoId:period,modalidad:"presencial"};
 const note={periodoId:period,cedula:id,modalidadTitulacion:"EXAMEN_COMPLEXIVO",
  estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,
@@ -19,7 +19,8 @@ const window={
  NcomplexState:{get(){return {dirty:{}};}},
  ConNcomplex:{
   async listEvaluations(){return [note];},
-  async listStudents(){return [school];}
+  async listStudents(){return [school];},
+  async checkRequirements(){return eligible?{eligible:true,complete:9,total:9,missing:[]}: {eligible:false,complete:8,total:9,reason:"Financiero (PENDIENTE)"};}
  },
  RequisitosFirebaseOperationCenter:{async ensure(){if(disconnected)throw Error("offline");}},
  RequisitosFirebaseRepository:{
@@ -56,6 +57,11 @@ async function main(){
  await api.publish();
  assert.equal(saved.length,1,"No publica matrícula presencial en grupo online");
  elements["ncomplex-complexivo-grupo"].value="PRESENCIAL";
+ eligible=false;
+ await api.publish();
+ assert.equal(saved.length,1,"No publica cuando Financiero está pendiente");
+ assert.match(elements["ncomplex-firebase-status"].textContent,/bloqueados por requisitos: 1/);
+ eligible=true;
  disconnected=true;
  await api.publish();
  assert.equal(saved.length,1,"Una desconexión no produce cambios");
