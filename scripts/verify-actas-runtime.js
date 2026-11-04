@@ -88,7 +88,7 @@ assert.ok(printed[0].every(x=>x.issue==="2026-05-29"),"Fecha común de emisión 
 assert.equal(printed[0][0].evidence.requirements.length,9,"Acta muestra nueve requisitos");
 assert.ok(printed[0][0].evidence.requirements.every(r=>r.status==="CUMPLE"),"Lee nueve requisitos del expediente");
 assert.equal(printed[0][0].evidence.evaluation,undefined,"Actas no recibe ni conserva calificaciones");
-assert.equal(printed[0][1].evidence.titulationStatus,"CUMPLE","Núcleos acreditados por Titulación");
+assert.equal(printed[0].find(x=>x.student.cedula==="0003").evidence.titulationStatus,"CUMPLE","Titulación se verifica mediante requisito institucional, no notas de núcleos");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
 const regClick={dataset:{register:"0"},disabled:false};
 await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
