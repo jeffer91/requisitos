@@ -225,13 +225,14 @@ Con qué se conecta:
     }
 
     var matched = Matcher.match(parsed.rows, current.records || [], {
-      periodoId: current.selectedPeriodId
+      periodoId: current.selectedPeriodId,manualOverrides:{}
     });
 
     if(State.patch){
       State.patch({
         parsedImport: parsed,
         matchedImport: matched,
+        manualImportOverrides: {},
         importApplied: false
       }, "import-analyzed");
     }
@@ -246,6 +247,42 @@ Con qué se conecta:
       (matched.totalReview||0) + " por conciliar; " + matched.totalConflicts + " conflicto(s).",
       matched.totalUnmatched || matched.totalConflicts || matched.totalReview ? "warning" : "success"
     );
+  }
+
+  function confirmManualImport(event){
+    var button=event.target&&event.target.closest&&event.target.closest("[data-ncomplex-manual-link]");
+    if(!button){return;}
+    var current=State.get?State.get():{},parsed=current.parsedImport,matched=current.matchedImport;
+    if(!parsed||!matched){status("Analice de nuevo la tabla de Moodle.","warning");return;}
+    var number=Number(button.getAttribute("data-ncomplex-manual-link"));
+    var pending=(matched.unmatched||[]).find(function(x){return Number(x.imported.rowNumber)===number;});
+    if(!pending){status("Esta fila ya no está pendiente.","warning");return;}
+    var panel=button.closest(".ncomplex-manual-row"),select=panel&&panel.querySelector("[data-ncomplex-manual-select]");
+    var input=panel&&panel.querySelector("[data-ncomplex-manual-cedula]");
+    var id=select&&select.value||"",cedula=String(input&&input.value||"").trim();
+    var students=current.records||[];
+    if(cedula){
+      if(!/^\\d{10}$/.test(cedula)){status("Ingrese la cédula de 10 dígitos sin separadores.","error");return;}
+      var found=students.filter(function(s){return Matcher.normalizeCedula(s.cedula||s.numeroIdentificacion)===cedula;});
+      if(found.length!==1){status("La cédula no identifica de forma única a un estudiante del período.","error");return;}
+      id=State.recordId(found[0]);
+    }
+    if(!id){status("Seleccione un estudiante o ingrese una cédula.","warning");return;}
+    var selected=students.filter(function(s){return String(State.recordId(s))===String(id);});
+    if(selected.length!==1){status("El estudiante no tiene identidad única en el período actual.","error");return;}
+    var st=selected[0],studentName=Matcher.studentName(st),moodleName=pending.imported.nombreCompleto;
+    var message="Confirme que la persona de Moodle: "+moodleName+" ("+(pending.imported.correo||"sin correo")+
+      ") es la misma que "+studentName+" (cédula "+Matcher.normalizeCedula(st.cedula||st.numeroIdentificacion)+
+      "). No se guardarán notas hasta pulsar Aplicar encontrados y Guardar cambios.";
+    if(!window.confirm(message)){return;}
+    var overrides=Object.assign({},current.manualImportOverrides||{});
+    overrides[number]=String(id);
+    var next=Matcher.match(parsed.rows,students,{periodoId:current.selectedPeriodId,manualOverrides:overrides});
+    if(State.patch){State.patch({manualImportOverrides:overrides,matchedImport:next,importApplied:false},"moodle-manual-link");}
+    if(Summary.renderImport){Summary.renderImport(next);}
+    var apply=element("ncomplex-btn-apply-import");
+    if(apply)apply.disabled=!(next.matches||[]).some(function(x){return !x.hasConflict&&x.apply!==false;});
+    status("Vínculo confirmado en la vista previa. Verifique el resumen y aplique los resultados.","success");
   }
 
   function applyImport(){
@@ -286,6 +323,7 @@ Con qué se conecta:
     var textarea = element(Config.selectors && Config.selectors.textarea || "ncomplex-paste-data");
     if(textarea){ textarea.value = ""; }
     if(State.resetImport){ State.resetImport(); }
+    if(State.patch){State.patch({manualImportOverrides:{}},"import-cleared");}
     if(Summary.renderImport){ Summary.renderImport(null); }
     var applyButton = element("ncomplex-btn-apply-import");
     if(applyButton){ applyButton.disabled = true; }
@@ -334,6 +372,9 @@ Con qué se conecta:
 
     var analyze = element("ncomplex-btn-analyze");
     if(analyze){ analyze.addEventListener("click", analyzeImport); }
+
+    var details=element("ncomplex-import-details");
+    if(details){details.addEventListener("click",confirmManualImport);}
 
     var apply = element("ncomplex-btn-apply-import");
     if(apply){ apply.addEventListener("click", applyImport); }

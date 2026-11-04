@@ -202,6 +202,7 @@ Función o funciones:
       if(result.matchedByEmail){ matchedBy.push("correo: " + result.matchedByEmail); }
       if(result.matchedByName){ matchedBy.push("nombre: " + result.matchedByName); }
       if(result.matchedByInitials){ matchedBy.push("iniciales de Moodle corregidas: " + result.matchedByInitials); }
+      if(result.matchedByManual){ matchedBy.push("coincidencias confirmadas manualmente: " + result.matchedByManual); }
 
       details.innerHTML = "";
       if(matchedBy.length){ details.innerHTML += "<p><strong>Cruce realizado por:</strong> " + escapeHtml(matchedBy.join("; ")) + "</p>"; }
@@ -211,7 +212,24 @@ Función o funciones:
             return escapeHtml(item.imported.nombreCompleto+" → "+item.nombre);
           }).join("; ")+"</p>";
       }
-      if(unmatched.length){ details.innerHTML += "<p><strong>No encontrados:</strong> " + unmatched.join("; ") + "</p>"; }
+      if(unmatched.length){
+        details.innerHTML += "<p><strong>Sin vincular:</strong> compruebe la cédula y confirme manualmente solo cuando sea la misma persona.</p>";
+        details.innerHTML += (result.unmatched||[]).map(function(item){
+          var number=Number(item.imported&&item.imported.rowNumber);
+          if(!Number.isSafeInteger(number)||number<=0){return "<p>"+escapeHtml(item.label||"Sin identificación")+"</p>";}
+          var suggestions=(item.suggestions||[]).map(function(candidate){
+            return '<option value="'+escapeAttr(candidate.id)+'">'+escapeHtml(candidate.nombre+" · "+candidate.cedula+" · similitud "+candidate.score+" %")+"</option>";
+          }).join("");
+          return '<div class="ncomplex-manual-row">'+
+            '<strong>'+escapeHtml(item.label||"Sin identificación")+'</strong>'+
+            '<span>'+escapeHtml(item.reason||"Sin coincidencia")+'</span>'+
+            '<label>Posibles estudiantes — solo sugerencias'+
+            '<select data-ncomplex-manual-select="'+number+'"><option value="">Seleccione...</option>'+suggestions+'</select></label>'+
+            '<label>O escriba la cédula exacta'+
+            '<input type="text" maxlength="10" inputmode="numeric" autocomplete="off" data-ncomplex-manual-cedula="'+number+'" placeholder="10 dígitos" /></label>'+
+            '<button class="ncomplex-btn" type="button" data-ncomplex-manual-link="'+number+'">Confirmar vínculo</button></div>';
+        }).join("");
+      }
       if(review.length){ details.innerHTML += "<p><strong>Por conciliar (no se guardan):</strong> " + review.join("; ") + "</p>"; }
       if(duplicates.length){ details.innerHTML += "<p><strong>Duplicados:</strong> " + duplicates.join("; ") + "</p>"; }
       if(conflicts.length){ details.innerHTML += "<p><strong>Conflictos:</strong> " + conflicts.join("; ") + "</p>"; }

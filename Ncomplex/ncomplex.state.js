@@ -44,6 +44,7 @@ Con qué se conecta:
       totalPages: 1,
       parsedImport: null,
       matchedImport: null,
+      manualImportOverrides: {},
       importApplied: false,
       dirty: Object.create(null),
       selectedStudentId: "",
@@ -146,6 +147,7 @@ Con qué se conecta:
   function resetImport(){
     state.parsedImport = null;
     state.matchedImport = null;
+    state.manualImportOverrides = {};
     state.importApplied = false;
     emit("import-reset", {});
   }

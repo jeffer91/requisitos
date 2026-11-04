@@ -130,6 +130,13 @@ body.ncomplex-modal-open{overflow:hidden}
 .ncomplex-import-details{max-height:190px;overflow:auto;padding:10px;border-radius:9px;background:#f7fafc;border:1px dashed var(--nc-border);color:var(--nc-muted);font-size:11px}
 .ncomplex-import-details:empty{display:none}
 .ncomplex-import-details p{margin:0 0 7px}.ncomplex-import-details p:last-child{margin-bottom:0}
+.ncomplex-manual-row{border-top:1px solid var(--nc-border);padding:10px 0;display:grid;gap:6px}
+.ncomplex-manual-row>strong{color:var(--nc-navy)}
+.ncomplex-manual-row>span{color:var(--nc-muted)}
+.ncomplex-manual-row label{display:grid;gap:3px;font-weight:600}
+.ncomplex-manual-row select,.ncomplex-manual-row input{background:#fff;width:100%;border:1px solid var(--nc-border);padding:7px;border-radius:7px;color:var(--nc-text)}
+.ncomplex-manual-row button{justify-self:start}
+.ncomplex-import-details:has(.ncomplex-manual-row){max-height:min(47vh,420px)}
 .ncomplex-import-footer{border-top:1px solid var(--nc-border);padding-top:12px}
 
 @media (max-width:1120px){
