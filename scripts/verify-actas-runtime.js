@@ -67,7 +67,7 @@ win.ActasNumbering.listDetailed=async()=>({
 trigger("actas-recargar","click");await tick();await tick();
 assert.match(elem("actas-alert").textContent,/Libro central NO VERIFICADO/,"Aviso diferenciado cuando falla el servidor");
 assert.equal(elem("actas-registrar-lote").disabled,true,"No habilitar numeración masiva con caché");
-assert.match(elem("actas-estudiantes").innerHTML,/Libro central no verificado/,"El estado nominal revela falta de verificación");
+assert.match(elem("actas-estudiantes").innerHTML,/servidor no verificado/,"El estado nominal revela falta de verificación");
 assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/N.º 2026-0001-05-0001/,"Un número en caché no aparece como folio oficial");
 assert.ok(elem("actas-estudiantes").innerHTML.includes("data-register=\"0\" disabled"),"No registrar número individual cuando el libro está sin verificar");
 delete win.ActasNumbering.listDetailed;
