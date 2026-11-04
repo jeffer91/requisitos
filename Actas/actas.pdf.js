@@ -129,27 +129,26 @@ heading(doc,x,logo,"1. Culminación de la malla curricular",pos);
 lines(doc,x,logo,proof.mallaText,pos,{size:9,after:3});
 dataRow(doc,x,logo,"Requisito Académico",proof.academicStatus,pos,{bold:true});
 pos.y+=4;
-heading(doc,x,logo,"2. Verificación de requisitos institucionales",pos);
-lines(doc,x,logo,"Constan los siguientes ocho requisitos previos consultados en Base Local para el estudiante y el período académico:",pos,{size:8.5,after:2});
+heading(doc,x,logo,"2. Verificación de los nueve requisitos institucionales",pos);
+lines(doc,x,logo,"Se presentan los estados documentales registrados para el estudiante y su período; no se incluyen calificaciones numéricas.",pos,{size:8.5,after:2});
 proof.requirements.forEach((r,i)=>dataRow(doc,x,logo,(i+1)+". "+r.label,r.status,pos));
 pos.y+=4;
-heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"3. Cumplimiento del componente de titulación":"3. Núcleos formativos y requisito de Titulación",pos);
-lines(doc,x,logo,proof.nucleiText,pos,{size:8.8,after:2});
-dataRow(doc,x,logo,"Requisito Titulación",proof.titulationStatus,pos,{bold:true});
- if(x.mode==="EXAMEN_COMPLEXIVO")proof.nuclei.forEach(n=>dataRow(doc,x,logo,"Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10",pos));
- if(x.mode==="EXAMEN_COMPLEXIVO")proof.nuclei.forEach(n=>dataRow(doc,x,logo,"Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10",pos));
+heading(doc,x,logo,"3. Modalidad y estado del proceso de titulación",pos);
+lines(doc,x,logo,proof.componentText,pos,{size:8.8,after:3});
+heading(doc,x,logo,"4. Aprobaciones institucionales",pos);
+dataRow(doc,x,logo,"Aprobación de titulación",proof.finalTitleStatus,pos,{bold:true});
+dataRow(doc,x,logo,"Aprobación complexivo/proyecto",proof.finalResultStatus,pos,{bold:true});
 pos.y+=4;
-heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo",pos);
-lines(doc,x,logo,"Fuente: Ncomplex, registro individual de evaluación. Oportunidad aplicada: "+proof.evaluation.opportunity+".",pos,{size:8.5,after:2});
-proof.evaluation.rows.forEach((r,i)=>dataRow(doc,x,logo,r.label,r.value,pos,{bold:i===2||i===4}));
-pos.y+=4;
-heading(doc,x,logo,"5. Constancia de culminación y aprobación",pos);
-lines(doc,x,logo,"Controles finales: Aprobación de titulación = "+proof.finalTitleStatus+"; Aprobación complexivo/proyecto = "+proof.finalResultStatus+".",pos,{size:8.7,after:2});
+heading(doc,x,logo,"5. Constancia documental",pos);
 lines(doc,x,logo,proof.closureText,pos,{size:9,after:3});
-lines(doc,x,logo,"RESULTADO FINAL: "+(proof.eligible?"APROBADO":"PENDIENTE DE VALIDACIÓN"),pos,{size:12,bold:true,after:3});
-lines(doc,x,logo,"Esta acta es un borrador sujeto a cotejo con las evidencias oficiales, revisión institucional y firmas autorizadas. Se conservará en el expediente de titulación una vez legalizada.",pos,{size:8.5});
+const official=!!x.record.numeroActa&&proof.eligible;
+lines(doc,x,logo,"ESTADO DOCUMENTAL: "+(official?"APROBACIONES INSTITUCIONALES ACREDITADAS":"BORRADOR · PENDIENTE DE EMISIÓN OFICIAL"),pos,{size:11,bold:true,after:3});
+if(!proof.eligible)lines(doc,x,logo,"Pendientes: "+proof.missing.join("; "),pos,{size:8.2,after:2});
+lines(doc,x,logo,official?
+ "La constancia numerada mantiene el folio central. La legalización definitiva requiere las firmas institucionales correspondientes.":
+ "BORRADOR SIN VALIDEZ DE ACTA NUMERADA. No acredita por sí mismo la aprobación definitiva del examen ni sustituye las firmas institucionales.",pos,{size:8.5});
 footer(doc,x,start,doc.getNumberOfPages());}
-async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");if(list.some(x=>!x.evidence||!x.evidence.eligible))throw Error("Acta bloqueada: faltan notas verificadas de núcleos o examen complexivo.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
+async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");if(list.some(x=>!x.evidence||x.evidence.draftEligible===false))throw Error("El borrador requiere un expediente documental válido.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
 const doc=new JsPDF({unit:"mm",format:"a4",compress:true,putOnlyUsedFonts:true});for(const x of list)paint(doc,x,logo);return doc.output("blob");}
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=d.createElement("a");a.href=url;a.download=name;d.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 async function download(items){const list=Array.isArray(items)?items:[items],blob=await build(list);const name=list.length===1?filename(list[0]):"ACTAS_SELECCIONADAS_"+safe(list[0].record.periodId||list[0].periodLabel)+".pdf";downloadBlob(blob,name);return {ok:true,bytes:blob.size,count:list.length};}
