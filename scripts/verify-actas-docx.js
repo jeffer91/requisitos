@@ -17,7 +17,32 @@ item.evidence=context.window.ActasEvidence.assess({student:item.student,mode:ite
 assert.ok(item.evidence.eligible);
 const blob=await context.window.ActasDocx.build(item);assert.equal(blob.type,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");const parts=readZip(await blob.arrayBuffer());for(const filename of ["[Content_Types].xml","_rels/.rels","word/document.xml","word/_rels/document.xml.rels","word/media/logo.png"])assert.ok(parts.has(filename),"Existe "+filename);
 assert.ok(parts.get("word/media/logo.png").length>1000,"Logo institucional incrustado en DOCX");assert.equal(parts.get("word/media/logo.png").subarray(0,8).toString("hex"),"89504e470d0a1a0a","Logotipo es PNG auténtico");
-const xml=parts.get("word/document.xml").toString("utf8");
+const institutionLogo=fs.readFileSync(path.join(__dirname,"../Global/assets/branding/logo-instituto.png"));
+ assert.ok(parts.get("word/media/logo.png").equals(institutionLogo),"DOCX incluye el logo institucional reparado, no una copia obsoleta");
+ function crc32(data){
+   let crc=0xffffffff;
+   for(const byte of data){
+     crc^=byte;
+     for(let i=0;i<8;i++)crc=(crc&1)?((crc>>>1)^0xedb88320):(crc>>>1);
+   }
+   return (crc^0xffffffff)>>>0;
+ }
+ function inspectPng(png){
+   assert.equal(png.subarray(0,8).toString("hex"),"89504e470d0a1a0a");
+   let offset=8,complete=false,count=0;
+   while(offset+12<=png.length){
+     const size=png.readUInt32BE(offset),end=offset+12+size;
+     assert.ok(end<=png.length,"El bloque PNG debe caber en la imagen");
+     const type=png.subarray(offset+4,offset+8).toString("ascii");
+     const crcStored=png.readUInt32BE(end-4),actual=crc32(png.subarray(offset+4,end-4));
+     assert.equal(crcStored,actual,"Bloque PNG "+type+" tiene CRC válido");
+     offset=end;count++;
+     if(type==="IEND"){complete=true;break;}
+   }
+   assert.ok(complete&&count>=3&&offset===png.length,"El archivo PNG termina correctamente");
+ }
+ inspectPng(parts.get("word/media/logo.png"));
+ const xml=parts.get("word/document.xml").toString("utf8");
 assert.match(xml,/<w:document/);assert.match(xml,/Acta de Titulación por Examen Complexivo/);assert.match(xml,/Unidad de Titulación y/);assert.match(xml,/Fecha de emisión: 29\/05\/2026/);assert.match(xml,/ESTADO DOCUMENTAL: APROBACIONES INSTITUCIONALES ACREDITADAS/);assert.match(xml,/Aprobación de titulación/);
 assert.match(xml,/N.º DE ACTA: 2026-0000-10-0001/,"Número al inicio del cuerpo del Word");assert.match(xml,/Aprobación complexivo\/proyecto/);
 assert.match(xml,/Prácticas preprofesionales/);assert.match(xml,/Verificación de los nueve requisitos institucionales/);assert.doesNotMatch(xml,new RegExp("8,60/10|Nota final oficial|Evaluación teórica"),"DOCX no contiene calificaciones");
