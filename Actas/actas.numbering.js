@@ -3,7 +3,7 @@
  * La pantalla operativa invoca este conector solo ante una acción explícita del usuario.
  */
 (function(w,d){"use strict";
-const VERSION="1.1.0",COUNTERS="actas_contadores",REGISTRY="actas_registro",NUMBERS="actas_numeros";
+const VERSION="1.2.0",COUNTERS="actas_contadores",REGISTRY="actas_registro",NUMBERS="actas_numeros";
 let loading=null;
 function t(v){return String(v==null?"":v).trim();}
 function ced(v){const s=t(v).replace(/[^0-9A-Za-z]/g,"").toUpperCase();return /^\d{9}$/.test(s)?"0"+s:s;}
@@ -71,7 +71,31 @@ async function list(periodoId){
  const p=period(periodoId);if(!validPeriod(p))return [];
  const db=await firestore();
  const snapshot=await db.collection(REGISTRY).where("periodoId","==",p).get({source:"server"});
+ if(snapshot.metadata&&snapshot.metadata.fromCache)
+  throw Error("No se pudo confirmar la consulta del libro central en el servidor.");
  return snapshot.docs.map(asEntry);
+}
+/* La caché solo sirve para diagnóstico: nunca confirma que un número esté
+ * libre y no autoriza la emisión de folios oficiales. */
+async function listDetailed(periodoId){
+ const p=period(periodoId);
+ if(!validPeriod(p))return {entries:[],verified:false,source:"invalid",warning:"Seleccione un período válido."};
+ try{
+  return {entries:await list(p),verified:true,source:"server",warning:""};
+ }catch(serverError){
+  let entries=[],cacheAvailable=false;
+  try{
+   const db=await firestore();
+   const snapshot=await db.collection(REGISTRY).where("periodoId","==",p).get({source:"cache"});
+   entries=snapshot.docs.map(asEntry);
+   cacheAvailable=true;
+  }catch(cacheError){/* El dispositivo puede no disponer de caché. */}
+  return {
+   entries,verified:false,source:cacheAvailable?"cache":"unavailable",
+   cacheAvailable,warning:readableError(serverError),
+   errorCode:t(serverError&&serverError.code||"")
+  };
+ }
 }
 async function getOrAssign(input){
  input=input||{};
@@ -107,10 +131,14 @@ async function getOrAssign(input){
  return validExisting(registered,input);
 }
 function readableError(error){
- const message=t(error&&error.message||error);
- if(/permission-denied|insufficient permissions|missing or insufficient permissions/i.test(message))return "Firestore todavía no permite registrar actas: deben publicarse las reglas de numeración.";
- if(/offline|unavailable|network|failed to fetch/i.test(message))return "No hay conexión con el registro central. No se asignó ningún número; la descarga solo puede ser borrador.";
- return message||"No se pudo registrar el número de acta.";
+ const message=t(error&&error.message||error),code=t(error&&error.code).toLowerCase();
+ if(code==="permission-denied"||/permission-denied|insufficient permissions|missing or insufficient permissions/i.test(message))
+  return "El servidor rechazó el acceso al libro de actas (permission-denied). Revise las reglas desplegadas y los permisos del proyecto Firebase.";
+ if(code==="unavailable"||/failed to get documents from server|offline|unavailable|network|failed to fetch/i.test(message))
+  return "No fue posible consultar el servidor de Firestore. Compruebe la conexión a Internet y pulse Actualizar datos para reintentar.";
+ if(/deadline-exceeded|timeout|timed out/i.test(message))
+  return "El servidor de Firestore tardó demasiado en responder. Pulse Actualizar datos para reintentar.";
+ return message||"No fue posible consultar el libro central de actas.";
 }
-w.ActasNumbering=Object.freeze({version:VERSION,identity,code,monthNow,lookup,list,getOrAssign,readableError});
+w.ActasNumbering=Object.freeze({version:VERSION,identity,code,monthNow,lookup,list,listDetailed,getOrAssign,readableError});
 })(window,document);
