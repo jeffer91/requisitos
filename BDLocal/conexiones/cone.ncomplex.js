@@ -63,6 +63,7 @@ Función:
     getPage:function(options){return invoke("getPage",[options||{}],{rows:[],page:1,limit:25,total:0,totalPages:1});},page:function(options){return invoke("getPage",[options||{}]);},
     getSummary:function(options){return invoke("getSummary",[options||{}],{});},summary:function(options){return invoke("getSummary",[options||{}],{});},
     listEvaluations:function(options){return invoke("listEvaluations",[options||{}],[]);},
+    checkRequirements:function(periodoId,cedula){return invoke("checkRequirements",[periodoId,cedula]);},
     getEvaluation:function(periodoId,cedula){return invoke("getEvaluation",[periodoId,cedula],null);},getByPeriodoCedula:function(periodoId,cedula){return invoke("getEvaluation",[periodoId,cedula],null);},
     saveEvaluation:function(row,context){return invoke("saveEvaluation",[row||{},context||{}]);},save:function(row,context){return invoke("saveEvaluation",[row||{},context||{}]);},
     saveMany:function(rows,context){return invoke("saveMany",[Array.isArray(rows)?rows:[],context||{}],[]);},
