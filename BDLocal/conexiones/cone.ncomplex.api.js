@@ -58,6 +58,7 @@ Función:
   function getPage(options){return call("getPage",[options||{}],{rows:[],page:1,limit:25,total:0,totalPages:1,hasPrev:false,hasNext:false});}
   function getSummary(options){return call("getSummary",[options||{}],{});}
   function getEvaluation(periodoId,cedula){return call("getByPeriodoCedula",[periodoId,cedula],null);}
+  function checkRequirements(periodoId,cedula){return call("checkRequirements",[periodoId,cedula]);}
   function saveEvaluation(row,context){return call("saveEvaluation",[row||{},context||{}]);}
   function saveMany(rows,context){return call("saveMany",[Array.isArray(rows)?rows:[],context||{}],[]);}
   function changeModality(periodoId,cedula,modalidad){return call("changeModality",[periodoId,cedula,modalidad]);}
@@ -73,7 +74,7 @@ Función:
   function schedule(){window.clearTimeout(schedule.timer);schedule.timer=window.setTimeout(function(){emit("ncomplex:data-changed",{at:new Date().toISOString(),source:SOURCE});},120);}
   function bind(){if(state.eventsBound){return;}state.eventsBound=true;["bdlocal:evaluaciones-titulacion-updated","bdlocal:ncomplex-saved","bdlocal:importaciones-updated","bl2:students-saved","bl2:student-updated"].forEach(function(name){window.addEventListener(name,schedule);});}
 
-  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,ensureSchema:ensureSchema,refresh:refresh,reload:refresh,status:status,read:read,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,listEvaluations:listEvaluations,getEvaluation:getEvaluation,getByPeriodoCedula:getEvaluation,saveEvaluation:saveEvaluation,save:saveEvaluation,saveMany:saveMany,changeModality:changeModality,saveImport:saveImport,listImports:listImports};
+  var api={version:VERSION,screen:SCREEN,source:SOURCE,ready:ready,ensureSchema:ensureSchema,refresh:refresh,reload:refresh,status:status,read:read,listPeriods:listPeriods,getPeriods:listPeriods,listStudents:listStudents,getStudents:listStudents,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,listEvaluations:listEvaluations,checkRequirements:checkRequirements,getEvaluation:getEvaluation,getByPeriodoCedula:getEvaluation,saveEvaluation:saveEvaluation,save:saveEvaluation,saveMany:saveMany,changeModality:changeModality,saveImport:saveImport,listImports:listImports};
 
   window.ConNcomplex=api;window.BDLocalConeNcomplex=api;window.BDLocalNcomplex=api;register();bind();
 })(window);
