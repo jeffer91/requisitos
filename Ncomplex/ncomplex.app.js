@@ -394,7 +394,7 @@ Con qué se conecta:
       if(State.patch){ State.patch({ ready: true, loading: false }, "ready"); }
       status("Ncomplex listo. Seleccione un período.", "success");
       if(window.location&&/actasImport=1/.test(window.location.search||"")){
-        var popup=element("ncomplex-import-modal");if(popup){popup.hidden=false;popup.setAttribute("aria-hidden","false");}
+        if(window.NcomplexSimpleUI&&typeof window.NcomplexSimpleUI.openImport==="function")window.NcomplexSimpleUI.openImport();
       }
       return periods;
     }).catch(function(error){
