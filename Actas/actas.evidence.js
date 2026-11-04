@@ -68,8 +68,8 @@ function assess(input){
  const nuclei=expected==="EXAMEN_COMPLEXIVO"?[1,2,3,4].map(n=>{
    const found=(input.nuclei||[]).filter(row=>Number(row.nucleo)===n),row=found[0]||{};
    const grade=note(row.notaFinal),state=txt(row.estado).toUpperCase();
-   const valid=found.length===1&&grade!==null&&grade>=7&&state==="APROBADO";
-   if(!valid)missing.push("Núcleo "+n+": "+(found.length>1?"duplicado":grade===null?"sin nota":state!=="APROBADO"?"no aprobado":"nota insuficiente"));
+   const valid=found.length===1&&grade!==null&&grade>=7&&row.eliminado!==true&&(state==="APROBADO"||(state===""&&row.verificado===true));
+   if(!valid)missing.push("Núcleo "+n+": "+(found.length>1?"duplicado":grade===null?"sin nota":grade<7?"nota insuficiente":"estado no aprobado o no verificado"));
    return {nucleo:n,nota:grade,estado:state,valid};
  }):[];
  if(expected==="EXAMEN_COMPLEXIVO"&&!input.remoteEvaluation)missing.push("Examen complexivo no verificado en Firebase");
