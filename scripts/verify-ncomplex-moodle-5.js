@@ -23,4 +23,16 @@ assert.equal(matched.totalMatched,2);
 assert.deepEqual(Array.from(matched.matches,r=>r.proposed.notaOficial),[4.44,5.12]);
 assert.ok(matched.matches.every(r=>r.proposed.estadoEvaluacion==="NO_APROBADO"));
 assert.ok(window.NcomplexParser.parse((head+"\n"+data).replace("8,40","8,90")).rows[0].blocked);
+const md=[
+ "| Nombre / Apellido(s) | Dirección de correo | [CuestionarioCOMPONENTE TEÓRICO EXAMEN COMPLEXIVO](https://example.org/t) | [Media de calificaciones](https://example.org/mt)Total Teórico | [CuestionarioCOMPONENTE PRACTICO EXAMEN COMPLEXIVO](https://example.org/p) | [Media de calificaciones](https://example.org/mp)Total Práctico | [Suma](https://example.org/s)Total del curso |",
+ "| --- | --- | --- | --- | --- | --- | --- |",
+ "| [XALMA MARIA LOPEZ DIAZ](https://example.org/u1) | alma@ejemplo.edu | 21,00 | 8,40 | 60,00 | 36,00 | 44,40 |",
+ "| [imageBEATRIZ ELENA ROJAS PEREZ](https://example.org/u2) | beatriz@ejemplo.edu | 38,00 | 15,20 | 60,00 | 36,00 | 51,20 |",
+ "| **Promedio general** | 29,50 | 11,80 | 60,00 | 36,00 | 47,80 |  |"
+].join("\n");
+const markdown=window.NcomplexParser.parse(md);
+assert.equal(markdown.rows.length,2);
+assert.ok(markdown.rows.every(r=>!r.blocked));
+assert.equal(markdown.rows[1].nombreCompleto,"BEATRIZ ELENA ROJAS PEREZ");
+assert.equal(window.NcomplexMatcher.match(markdown.rows,students,{}).totalMatched,2);
 console.log("MOODLE 5 COLUMNAS: OK");
