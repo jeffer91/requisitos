@@ -196,13 +196,21 @@ Función o funciones:
         return escapeHtml((item.nombre || item.correo || item.cedula) + " — " + item.conflicts.length + " campo(s)");
       });
       var matchedBy = [];
+      var adjustedNames=(result.matches||[]).filter(function(item){return item.matchInitials===true;});
 
       if(result.matchedByCedula){ matchedBy.push("cédula: " + result.matchedByCedula); }
       if(result.matchedByEmail){ matchedBy.push("correo: " + result.matchedByEmail); }
       if(result.matchedByName){ matchedBy.push("nombre: " + result.matchedByName); }
+      if(result.matchedByInitials){ matchedBy.push("iniciales de Moodle corregidas: " + result.matchedByInitials); }
 
       details.innerHTML = "";
       if(matchedBy.length){ details.innerHTML += "<p><strong>Cruce realizado por:</strong> " + escapeHtml(matchedBy.join("; ")) + "</p>"; }
+      if(adjustedNames.length){
+        details.innerHTML += "<p><strong>Iniciales separadas (coincidencia exacta y única):</strong> " +
+          adjustedNames.map(function(item){
+            return escapeHtml(item.imported.nombreCompleto+" → "+item.nombre);
+          }).join("; ")+"</p>";
+      }
       if(unmatched.length){ details.innerHTML += "<p><strong>No encontrados:</strong> " + unmatched.join("; ") + "</p>"; }
       if(review.length){ details.innerHTML += "<p><strong>Por conciliar (no se guardan):</strong> " + review.join("; ") + "</p>"; }
       if(duplicates.length){ details.innerHTML += "<p><strong>Duplicados:</strong> " + duplicates.join("; ") + "</p>"; }

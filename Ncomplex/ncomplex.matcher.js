@@ -51,6 +51,56 @@ Función o funciones:
     return words.join("|");
   }
 
+  // Moodle suele pegar las iniciales del avatar al primer nombre: "TVTANIA".
+  // Solo se elimina un prefijo si el nombre completo restante coincide
+  // EXACTAMENTE con una única matrícula del período (incluyendo apellidos).
+  function nameWithoutMoodleInitials(value, indexes){
+    var words = normalized(value).split(" ").filter(Boolean);
+    if(words.length < 3 || words[0].length < 5){ return null; }
+    var distinct=Object.create(null), candidates=[];
+    for(var count=1;count<=3;count++){
+      if(words[0].length-count<3){continue;}
+      var corrected=[words[0].slice(count)].concat(words.slice(1)).join(" ");
+      var fp=nameFingerprint(corrected);
+      var matched=indexes.byFingerprint[fp]||[];
+      matched.forEach(function(student){
+        var key=recordId(student);
+        if(!key){return;}
+        if(!distinct[key]){
+          distinct[key]=true;
+          candidates.push({student:student,initialsRemoved:count,normalizedMoodleName:corrected});
+        }
+      });
+    }
+    if(!candidates.length){return null;}
+    if(candidates.length!==1){return {ambiguous:true};}
+    return Object.assign({method:"nombre",reordered:true,correctedInitials:true},candidates[0]);
+  }
+
+  // En BDLocal el institucional puede estar en correoInstitucional, en
+  // Correos u otro campo de contacto. Se indexan todos los correos válidos.
+  function studentEmails(row){
+    row=row||{};
+    var fields=[
+      "correoInstitucional","CorreoInstitucional","emailInstitucional","EmailInstitucional",
+      "correoElectronico","CorreoElectronico","direccionCorreo","DireccionCorreo",
+      "correoPersonal","CorreoPersonal","emailPersonal","EmailPersonal",
+      "correo","Correo","email","Email","mail","Mail","correos","Correos","_correo"
+    ];
+    var unique=Object.create(null),all=[];
+    fields.forEach(function(field){
+      var value=row[field];
+      if(typeof value!=="string" && !Array.isArray(value)){return;}
+      var source=Array.isArray(value)?value.join(" "):value;
+      var emails=source.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g)||[];
+      emails.forEach(function(email){
+        var key=normalizeEmail(email);
+        if(!unique[key]){unique[key]=true;all.push(key);}
+      });
+    });
+    return all;
+  }
+
   function recordId(row){
     row = row || {};
     return text(row.idEstudiantePeriodo || row.studentId || row.id || row.cedula);
@@ -67,23 +117,8 @@ Función o funciones:
   }
 
   function studentEmail(row){
-    row = row || {};
-    return normalizeEmail(
-      row.correoInstitucional ||
-      row.CorreoInstitucional ||
-      row.emailInstitucional ||
-      row.EmailInstitucional ||
-      row.correoElectronico ||
-      row.CorreoElectronico ||
-      row.direccionCorreo ||
-      row.DireccionCorreo ||
-      row.correo ||
-      row.Correo ||
-      row.email ||
-      row.Email ||
-      row.mail ||
-      row.Mail
-    );
+    var emails=studentEmails(row);
+    return emails.length?emails[0]:"";
   }
 
   function studentName(row){
@@ -185,7 +220,15 @@ Función o funciones:
 
     if(email){
       student = uniqueFromMap(indexes.byEmail, email);
-      if(student){ return { student: student, method: "correo", key: email }; }
+      if(student){
+        var verifiedName=uniqueFromMap(indexes.byFingerprint,fingerprint);
+        var correctedName=nameWithoutMoodleInitials(imported.nombreCompleto||imported.nombre,indexes);
+        var byName=verifiedName || (correctedName && !correctedName.ambiguous && correctedName.student);
+        if(byName && recordId(byName)!==recordId(student)){
+          return {student:null,method:"correo/nombre",key:email,ambiguous:true};
+        }
+        return { student: student, method: "correo", key: email };
+      }
       if(ambiguousInMap(indexes.byEmail, email)){
         return { student: null, method: "correo", key: email, ambiguous: true };
       }
@@ -207,18 +250,23 @@ Función o funciones:
       }
     }
 
+    var fixed=nameWithoutMoodleInitials(imported.nombreCompleto||imported.nombre,indexes);
+    if(fixed){
+      if(fixed.ambiguous){return {student:null,method:"nombre/iniciales",key:"",ambiguous:true};}
+      return {
+        student:fixed.student,method:"nombre",key:nameFingerprint(fixed.normalizedMoodleName),
+        reordered:true,correctedInitials:true,initialsRemoved:fixed.initialsRemoved,
+        normalizedMoodleName:fixed.normalizedMoodleName
+      };
+    }
     return { student: null, method: "", key: "", ambiguous: false };
   }
 
   function importedLabel(imported){
-    return text(
-      imported.correo ||
-      imported.email ||
-      imported.nombreCompleto ||
-      imported.nombre ||
-      imported.cedula ||
-      "Registro sin identificación"
-    );
+    var nombre=text(imported.nombreCompleto||imported.nombre);
+    var correo=text(imported.correo||imported.email);
+    return nombre&&correo?nombre+" ("+correo+")":
+      nombre||correo||text(imported.cedula)||"Registro sin identificación";
   }
 
   function match(parsedRows, students, options){
@@ -238,7 +286,7 @@ Función o funciones:
 
     students.forEach(function(student){
       addToMap(studentsByCedula, studentCedula(student), student);
-      addToMap(indexes.byEmail, studentEmail(student), student);
+      studentEmails(student).forEach(function(email){addToMap(indexes.byEmail,email,student);});
       addToMap(indexes.byName, normalized(studentName(student)), student);
       addToMap(indexes.byFingerprint, nameFingerprint(studentName(student)), student);
     });
@@ -260,7 +308,8 @@ Función o funciones:
       totalConflicts: 0,
       matchedByCedula: 0,
       matchedByEmail: 0,
-      matchedByName: 0
+      matchedByName: 0,
+      matchedByInitials: 0
     };
 
     parsedRows.forEach(function(imported){
@@ -304,7 +353,10 @@ Función o funciones:
 
       if(resolved.method === "cedula"){ result.matchedByCedula += 1; }
       else if(resolved.method === "correo"){ result.matchedByEmail += 1; }
-      else if(resolved.method === "nombre"){ result.matchedByName += 1; }
+      else if(resolved.method === "nombre"){
+        result.matchedByName += 1;
+        if(resolved.correctedInitials===true){result.matchedByInitials += 1;}
+      }
 
       var cedula = studentCedula(student);
       var incoming = incomingFields(imported);
@@ -334,6 +386,8 @@ Función o funciones:
         nombre: studentName(student),
         matchMethod: resolved.method,
         matchReorderedName: resolved.reordered === true,
+        matchInitials: resolved.correctedInitials === true,
+        normalizedMoodleName: resolved.normalizedMoodleName || "",
         student: student,
         imported: imported,
         incoming: incoming,
@@ -388,6 +442,7 @@ Función o funciones:
     normalizeEmail: normalizeEmail,
     nameFingerprint: nameFingerprint,
     studentEmail: studentEmail,
+    studentEmails: studentEmails,
     studentName: studentName,
     incomingFields: incomingFields,
     conflicts: conflicts
