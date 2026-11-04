@@ -22,7 +22,7 @@ const base=["academico","documentacion","practicasvinculacion","vinculacion","se
 const requireAll=Object.fromEntries(base.map(key=>[key,"CUMPLE"]));
 sample.student._ncomplexHasSavedEvaluation=true;
 sample.student._ncomplexEvaluation={modalidadTitulacion:cat.COMPLEXIVO,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,oportunidadAplicada:"ORDINARIA"};
-sample.evidence=sandbox.window.ActasEvidence.assess({student:sample.student,mode:sample.mode,requirementValues:requireAll});
+sample.evidence=sandbox.window.ActasEvidence.assess({student:sample.student,mode:sample.mode,requirementValues:requireAll,remoteEvaluation:sample.student._ncomplexEvaluation,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))});
 assert.equal(sample.evidence.eligible,true);
 const exam=docs.render(sample);
 assert.match(exam,/Acta de Titulación por Examen Complexivo/);assert.match(exam,/Unidad de Titulación y Eficiencia Terminal/);assert.match(exam,/Fecha de emisión: 29\/05\/2026/);

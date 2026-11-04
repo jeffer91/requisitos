@@ -8,7 +8,7 @@ const all=["academico","documentacion","practicasvinculacion","vinculacion","seg
 const ok=Object.fromEntries(all.map(k=>[k,"CUMPLE"]));
 function record(mode="EXAMEN_COMPLEXIVO"){
  const evalRow=mode==="EXAMEN_COMPLEXIVO"?{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,oportunidadAplicada:"ORDINARIA"}:{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4};
- return {mode,student:{Nombres:"PERSONA PRUEBA",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:evalRow},requirementValues:ok};
+ return {mode,student:{Nombres:"PERSONA PRUEBA",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:evalRow},requirementValues:ok,remoteEvaluation:mode==="EXAMEN_COMPLEXIVO"?evalRow:null,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))};
 }
 const a=model.assess(record());
 assert.equal(a.eligible,true);
@@ -17,7 +17,7 @@ assert.equal(a.evaluation.official,8.6);
 assert.equal(a.titulationStatus,"CUMPLE");
 assert.equal(a.evaluation.rows[0].value,"8,00/10");
 assert.equal(a.evaluation.rows[2].value,"8,60/10");
-assert.match(a.nucleiText,/no dispone de calificaciones independientes/);
+assert.match(a.nucleiText,/cuatro calificaciones individuales/);
 const direct=model.assess({...record(),requirementValues:{},student:{...record().student,...ok}});
 assert.equal(direct.eligible,true,"Puede leer los once estados directamente en matrícula");
 const nestedReqs=Object.entries(ok).map(([requisitoKey,valor])=>({requisitoKey,valor}));
@@ -36,8 +36,11 @@ assert.ok(contradictory.missing.some(x=>x.includes("Inconsistencia")));
 const work=model.assess(record("TRABAJO_TITULACION"));
 assert.equal(work.eligible,true);
 assert.equal(work.evaluation.official,8.4);
-const supl=model.assess({...record(),student:{_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:{modalidadTitulacion:"EXAMEN_COMPLEXIVO",estadoEvaluacion:"APROBADO",oportunidadAplicada:"SUPLETORIO",notaTeoricaSupletorio:7,notaPracticaSupletorio:8,notaOficial:7.6}}});
+const suplRow={modalidadTitulacion:"EXAMEN_COMPLEXIVO",estadoEvaluacion:"APROBADO",oportunidadAplicada:"SUPLETORIO",notaTeoricaSupletorio:7,notaPracticaSupletorio:8,notaOficial:7.6};
+const supl=model.assess({...record(),remoteEvaluation:suplRow,student:{_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:suplRow}});
 assert.equal(supl.eligible,true);
 assert.equal(supl.evaluation.opportunity,"SUPLETORIO");
 assert.equal(supl.evaluation.rows[2].value,"7,60/10");
+assert.equal(model.assess({...record(),nuclei:[]}).eligible,false);
+assert.equal(model.assess({...record(),remoteEvaluation:null,student:{}}).eligible,false);
 console.log("VERIFICACIÓN ACTAS EVIDENCIAS: OK (malla, ocho requisitos, núcleos, Ncomplex, supletorio y casos bloqueados)");

@@ -93,7 +93,7 @@ function assess(input){
    "El requisito Académico no registra cumplimiento completo. No es posible certificar la culminación curricular con la información consultada.",
   nucleiText:work?
    "El requisito Titulación corresponde al desarrollo y la aprobación del trabajo de titulación y su defensa, según los registros institucionales.":
-   "El requisito Titulación corresponde al proceso de núcleos formativos. Base Local registra su estado, pero Actas no dispone de calificaciones independientes de los cuatro núcleos; no se atribuyen notas inexistentes.",
+   "El requisito Titulación corresponde al proceso de núcleos formativos. se verifican sus cuatro calificaciones individuales; no se atribuyen notas inexistentes.",
   closureText:eligible?
    "Verificada la condición académica, los ocho requisitos previos, el requisito Titulación y el resultado oficial de "+(work?"Trabajo de Titulación":"Examen Complexivo")+" en Ncomplex, se deja constancia del resultado APROBADO. El documento requiere revisión y legalización institucional.":
    "No se acredita el cierre completo del proceso. Faltan evidencias o existen discrepancias; no corresponde emitir una constancia definitiva de aprobación."

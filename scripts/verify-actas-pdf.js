@@ -34,7 +34,7 @@ function sample(cedula,mode){
  const student={Nombres:"ESTUDIANTE DE PRUEBA",cedula,NombreCarrera:"ADMINISTRACIÓN",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:ev};
  const keys=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
  const reqs=Object.fromEntries(keys.map(k=>[k,"CUMPLE"]));
- return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-05-29",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs})};
+ return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-05-29",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs,remoteEvaluation:work?null:ev,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))})};
 }
 async function main(){
  const exam=sample("0000000001","EXAMEN_COMPLEXIVO"),work=sample("0000000002","TRABAJO_TITULACION");
@@ -56,17 +56,13 @@ assert.ok(lastDoc.texts.some(t=>t.includes("Acta de Titulación por Examen Compl
  const draftEvidence=context.window.ActasEvidence.assess({student:draftStudent,mode:"EXAMEN_COMPLEXIVO",requirementValues:{aprobaciontitulacion:"CUMPLE",aprobacioncomplexivoproyecto:"CUMPLE"}});
  assert.equal(draftEvidence.eligible,false,"La evidencia pendiente no se convierte en aprobación definitiva");
  const draft={...exam,student:draftStudent,evidence:draftEvidence,record:{...exam.record,numeroActa:""}};
- const draftPdf=await api.build(draft);
- assert.equal(draftPdf.type,"application/pdf","Los borradores con ambas aprobaciones se pueden descargar");
- assert.ok(lastDoc.texts.some(t=>t.includes("PENDIENTE DE VALIDACIÓN")),"El PDF advierte que faltan evidencias");
- assert.ok(lastDoc.texts.some(t=>t.includes("BORRADOR SIN NÚMERO OFICIAL")),"No inventa número oficial sin transacción central");
- assert.ok(lastDoc.texts.some(t=>t.includes("NO REGISTRADA")),"El PDF no inventa calificaciones");
+ await assert.rejects(()=>api.build(draft),/Acta bloqueada/,"No se genera acta sin notas");
  const both=await api.build([exam,work]);assert.equal(both.type,"application/pdf");assert.ok(lastDoc.pages>=4,"PDF de seleccionados incluye ambas actas");
  const summary=[{cedula:"0000000001",nombre:"PRUEBA 1",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"},{cedula:"0000000002",nombre:"PRUEBA 2",carrera:"ADM",modalidad:"TRAB",estado:"EN_PROCESO"},{cedula:"0000000003",nombre:"PENDIENTE",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"},{cedula:"0000000010",nombre:"BORRADOR SIN NOTAS",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"}];
- const zip=await api.downloadZip([exam,work,draft],summary,"2025-10__2026-03");assert.equal(zip.generated,3);assert.equal(zip.drafts,1,"Se contabiliza el borrador con información faltante");assert.equal(zip.excluded,1,"No se contabiliza el borrador como excluido");
+ const zip=await api.downloadZip([exam,work],summary,"2025-10__2026-03");assert.equal(zip.generated,2);assert.equal(zip.drafts,0);assert.equal(zip.excluded,2);
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("COMPLEX/")&&f.endsWith(".pdf")));
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("TRAB/")&&f.endsWith(".pdf")));
- assert.ok(lastZip.files.has("Resumen_exportacion.csv"));assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("BORRADOR_SIN_NUMERO"),"Resumen CSV distingue borradores sin numeración");
+ assert.ok(lastZip.files.has("Resumen_exportacion.csv"));assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("EXCLUIDO"));
  assert.ok(downloads.length>=1,"ZIP dispara una descarga");
  ["actas-busqueda","actas-zip","actas-config-logo","actas-logo-modal","actas-logo-file","actas-logo-guardar"].forEach(id=>assert.match(html,new RegExp('id="'+id+'"')));
  assert.match(html,/actas\.pdf\.js/);assert.match(html,/actas\.brand\.js/);assert.match(html,/actas\.numbering\.js/);

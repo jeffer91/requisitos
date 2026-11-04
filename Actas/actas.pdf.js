@@ -137,6 +137,7 @@ heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"3. Cumplimiento del componente
 lines(doc,x,logo,proof.nucleiText,pos,{size:8.8,after:2});
 dataRow(doc,x,logo,"Requisito Titulación",proof.titulationStatus,pos,{bold:true});
  if(x.mode==="EXAMEN_COMPLEXIVO")proof.nuclei.forEach(n=>dataRow(doc,x,logo,"Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10",pos));
+ if(x.mode==="EXAMEN_COMPLEXIVO")proof.nuclei.forEach(n=>dataRow(doc,x,logo,"Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10",pos));
 pos.y+=4;
 heading(doc,x,logo,x.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo",pos);
 lines(doc,x,logo,"Fuente: Ncomplex, registro individual de evaluación. Oportunidad aplicada: "+proof.evaluation.opportunity+".",pos,{size:8.5,after:2});

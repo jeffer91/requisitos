@@ -13,7 +13,7 @@ const reqKeys=["academico","documentacion","practicasvinculacion","vinculacion",
 const requirementValues=Object.fromEntries(reqKeys.map(k=>[k,"CUMPLE"]));
 item.student._ncomplexHasSavedEvaluation=true;
 item.student._ncomplexEvaluation={modalidadTitulacion:item.mode,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6};
-item.evidence=context.window.ActasEvidence.assess({student:item.student,mode:item.mode,requirementValues});
+item.evidence=context.window.ActasEvidence.assess({student:item.student,mode:item.mode,requirementValues,remoteEvaluation:item.student._ncomplexEvaluation,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))});
 assert.ok(item.evidence.eligible);
 const blob=await context.window.ActasDocx.build(item);assert.equal(blob.type,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");const parts=readZip(await blob.arrayBuffer());for(const filename of ["[Content_Types].xml","_rels/.rels","word/document.xml","word/_rels/document.xml.rels","word/media/logo.png"])assert.ok(parts.has(filename),"Existe "+filename);
 assert.ok(parts.get("word/media/logo.png").length>1000,"Logo institucional incrustado en DOCX");assert.equal(parts.get("word/media/logo.png").subarray(0,8).toString("hex"),"89504e470d0a1a0a","Logotipo es PNG auténtico");

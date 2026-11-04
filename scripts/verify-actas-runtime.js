@@ -26,6 +26,8 @@ const grades=mode=>mode==="TRABAJO_TITULACION"?{modalidadTitulacion:mode,estadoE
 const dataset1={
 students:[student("0001","EXAMEN APROBADO","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"APROBADO",_ncomplexEvaluation:grades("EXAMEN_COMPLEXIVO"),...Object.fromEntries(eight.concat(["titulacion"]).map(k=>[k,"CUMPLE"]))}),student("0002","EXAMEN FALTANTE"),student("0003","TRABAJO APROBADO","TRABAJO_TITULACION",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"APROBADO",_ncomplexEvaluation:grades("TRABAJO_TITULACION")}),student("0004","RETIRADO","EXAMEN_COMPLEXIVO",{estadoMatricula:"RETIRADO"}),student("0005","NOTA REPROBADA","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"NO_APROBADO"}),student("0007","ARTÍCULO PVC","TRABAJO_TITULACION",{tipoTitulacion:"ARTICULO_ACADEMICO",_ncomplexHasSavedEvaluation:false}),student("0008","DOS APROBACIONES SIN NOTAS"),student("0009","DOS APROBACIONES EVALUACIÓN INCOMPLETA","EXAMEN_COMPLEXIVO",{_ncomplexHasSavedEvaluation:true,estadoEvaluacion:"INCOMPLETO",_ncomplexEvaluation:{modalidadTitulacion:"EXAMEN_COMPLEXIVO",estadoEvaluacion:"INCOMPLETO",notaTeorica:8}})],
 requirements:[req("0001",per1,field1),req("0001",per1,field2),req("0002",per1,field1),req("0003",per1,field1),req("0003",per1,field2),req("0004",per1,field1),req("0004",per1,field2),req("0005",per1,field1),req("0005",per1,field2),req("0007",per1,field1),req("0007",per1,field2),req("0008",per1,field1),req("0008",per1,field2),req("0009",per1,field1),req("0009",per1,field2),...["0003"].flatMap(id=>eight.concat(["titulacion"]).map(key=>req(id,per1,key)))]};
+dataset1.students[0]._actasNuclei=[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}));
+dataset1.students[0]._actasComplexivo=grades("EXAMEN_COMPLEXIVO");
 const dataset2={students:[student("0006","OTRO PERIODO",undefined,{periodoId:per2})],requirements:[req("0006",per2,field1),req("0006",per2,field2)]};
 const document={readyState:"complete",getElementById:elem,addEventListener(){},body:{appendChild(){}},createElement(){return {click(){},remove(){}}}};
 const win={
@@ -64,27 +66,25 @@ trigger("actas-seleccionar","click");
 assert.equal(elem("actas-lote").disabled,false);
 trigger("actas-lote","click");await tick();
 assert.equal(printed.length,1);
-assert.equal(printed[0].length,4,"PDF masivo incluye ambas modalidades y borradores con evidencias pendientes");
+assert.equal(printed[0].length,2,"PDF masivo incluye ambas modalidades y borradores con evidencias pendientes");
 assert.equal(printed[0][0].student.cedula,"0001");
 assert.equal(printed[0].filter(x=>x.record.numeroActa).length,0,"Descargar borradores no asigna folios automáticamente");
-assert.equal(printed[0].filter(x=>!x.record.numeroActa).length,4,"Sin registrar, todos los PDF son borradores sin número");
+assert.equal(printed[0].filter(x=>!x.record.numeroActa).length,2,"Sin registrar, todos los PDF son borradores sin número");
 assert.ok(printed[0].every(x=>x.issue==="2026-05-29"),"Fecha común de emisión según el período seleccionado");
 assert.equal(printed[0][0].evidence.requirements.length,8,"Acta incorpora ocho requisitos");
 assert.ok(printed[0][0].evidence.requirements.every(r=>r.status==="CUMPLE"),"Lee ocho requisitos directamente desde el registro del estudiante");
 assert.equal(printed[0][0].evidence.evaluation.official,8.6,"Usa nota oficial de Ncomplex");
 assert.equal(printed[0][1].evidence.titulationStatus,"CUMPLE","Núcleos acreditados por Titulación");
-assert.ok(printed[0].some(item=>item.student.cedula==="0008"&&!item.evidence.eligible),"Permite borrador sin nota oficial y advierte lo pendiente");
-assert.ok(printed[0].some(item=>item.student.cedula==="0009"&&!item.evidence.eligible),"Permite borrador con evaluación incompleta");
 assert.ok(storage.has("UTET_ACTAS_BORRADORES_V1"),"Guarda consecutivo de borrador");
 const regClick={dataset:{register:"0"},disabled:false};
 await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
 assert.equal(centralNumbers.size,1,"Registrar N.º asigna un único registro central");
 await trigger("actas-estudiantes","click",{target:{closest:sel=>sel==="button[data-register]"?regClick:null}});await tick();
 assert.equal(centralNumbers.size,1,"Registrar nuevamente no duplica el número");
-trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,4,"ZIP incorpora borradores pendientes de verificar");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
+trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,2,"ZIP incorpora borradores pendientes de verificar");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
 assert.equal(centralNumbers.size,1,"El ZIP no crea números nuevos");
 assert.equal(zips[0].items[0].record.numeroActa,centralNumbers.get(per1+"__0001").numeroActa,"El ZIP reutiliza el número previamente registrado");
-assert.equal(zips[0].items.filter(x=>!x.record.numeroActa).length,3,"Los demás PDF siguen como borradores sin folio");
+assert.equal(zips[0].items.filter(x=>!x.record.numeroActa).length,1,"Los demás PDF siguen como borradores sin folio");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
 assert.equal(elem("actas-aprobados").textContent,4,"La métrica incluye borradores descargables de ambas modalidades");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);
