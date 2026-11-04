@@ -133,6 +133,10 @@ assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lee segundo per
  assert.match(elem("actas-estudiantes").innerHTML,/value="EXAMEN_COMPLEXIVO" selected/,"Se muestra Complexivo por defecto sin modalidad guardada");
  assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"El borrador se descarga con Complexivo por defecto");
  assert.match(elem("actas-estudiantes").innerHTML,/data-register="0" disabled/,"Los requisitos siguen bloqueando la numeración");
+const defaultDownload={dataset:{pdf:"0"},disabled:false};
+await trigger("actas-estudiantes","click",{target:{closest:selector=>selector==="button[data-pdf]"?defaultDownload:null}});await tick();
+assert.equal(printed.length,2,"Se descarga un PDF individual sin guardar una modalidad explícita");
+assert.equal(printed[1].mode,"EXAMEN_COMPLEXIVO","El borrador usa Examen Complexivo por defecto");
 resolveSlow({data:dataset1});
 await tick();await tick();
 assert.match(elem("actas-estudiantes").innerHTML,/OTRO PERIODO/,"Lectura tardía no reemplaza período actual");
@@ -149,6 +153,13 @@ assert.equal(modalityWrites[0].mode,"TRABAJO_TITULACION");
 trigger("actas-modalidad","change",{target:{value:"TODAS"}});
 assert.match(elem("actas-estudiantes").innerHTML,/value="TRABAJO_TITULACION" selected/,"Tras cambiar la modalidad debe conservarse al recargar");
 assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/data-pdf="0" disabled/,"También puede descargarse borrador TRAB");
+const updatedDownload={dataset:{pdf:"0"},disabled:false};
+await trigger("actas-estudiantes","click",{target:{closest:selector=>selector==="button[data-pdf]"?updatedDownload:null}});await tick();
+assert.equal(printed.length,3,"Se descarga el segundo borrador tras cambiar a Trabajo");
+assert.equal(printed[2].mode,"TRABAJO_TITULACION","El segundo borrador usa la modalidad guardada");
+const drafts=JSON.parse(storage.get("UTET_ACTAS_BORRADORES_V1"));
+assert.ok(Object.keys(drafts).some(key=>key.includes("__ANTERIOR__EXAMEN_COMPLEXIVO__")),
+ "Se conserva el borrador anterior como historial al cambiar modalidad");
 trigger("actas-modalidad","change",{target:{value:"EXAMEN_COMPLEXIVO"}});
 trigger("actas-ejemplo","click");
 assert.match(elem("actas-alert").textContent,/exclusivamente al período Octubre 2025 a Marzo 2026/);
