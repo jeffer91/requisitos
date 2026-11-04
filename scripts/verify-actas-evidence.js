@@ -1,46 +1,35 @@
 "use strict";
-/* Prueba de reglas de cierre: ocho requisitos, Titulación y notas oficiales sin inferencias. */
+/* Reglas documentales: nueve requisitos, dos aprobaciones y borradores sin notas. */
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
-const context={window:{}};vm.createContext(context);
-vm.runInContext(fs.readFileSync(path.join(__dirname,"../Actas/actas.evidence.js"),"utf8"),context);
-const model=context.window.ActasEvidence;
-const all=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
-const ok=Object.fromEntries(all.map(k=>[k,"CUMPLE"]));
-function record(mode="EXAMEN_COMPLEXIVO"){
- const evalRow=mode==="EXAMEN_COMPLEXIVO"?{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,oportunidadAplicada:"ORDINARIA"}:{modalidadTitulacion:mode,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4};
- return {mode,student:{Nombres:"PERSONA PRUEBA",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:evalRow},requirementValues:ok,remoteEvaluation:mode==="EXAMEN_COMPLEXIVO"?evalRow:null,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))};
+const ctx={window:{}};vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname,"../Actas/actas.evidence.js"),"utf8"),ctx);
+const model=ctx.window.ActasEvidence;
+const keys=["academico","documentacion","financiero","practicas","vinculacion","seguimientograduados",
+ "ingles","actualizaciondatos","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
+const complete=Object.fromEntries(keys.map(k=>[k,"CUMPLE"]));
+function assess(values=complete,mode="EXAMEN_COMPLEXIVO",student={}){
+ return model.assess({mode,student,requirementValues:values});
 }
-const a=model.assess(record());
-assert.equal(a.eligible,true);
-assert.equal(a.requirements.length,8);
-assert.equal(a.evaluation.official,8.6);
-assert.equal(a.titulationStatus,"CUMPLE");
-assert.equal(a.evaluation.rows[0].value,"8,00/10");
-assert.equal(a.evaluation.rows[2].value,"8,60/10");
-assert.match(a.nucleiText,/cuatro calificaciones individuales/);
-const direct=model.assess({...record(),requirementValues:{},student:{...record().student,...ok}});
-assert.equal(direct.eligible,true,"Puede leer los once estados directamente en matrícula");
-const nestedReqs=Object.entries(ok).map(([requisitoKey,valor])=>({requisitoKey,valor}));
-const nested=model.assess({...record(),requirementValues:{},student:{...record().student,requisitos:nestedReqs}});
-assert.equal(nested.eligible,true,"Puede leer once requisitos desde lista anidada del estudiante");
-const missing=model.assess({...record(),requirementValues:{...ok,financiero:"PENDIENTE"}});
-assert.equal(missing.eligible,false);
-assert.ok(missing.missing.some(x=>x.includes("Financiero")));
-const noTitle=model.assess({...record(),requirementValues:{...ok,titulacion:"NO CUMPLE"}});
-assert.equal(noTitle.eligible,false);
-const noEvaluation=model.assess({...record(),remoteEvaluation:null,student:{Nombres:"SIN EVALUACIÓN"}});
-assert.equal(noEvaluation.eligible,false);
-const contradictory=model.assess({...record(),remoteEvaluation:{...record().student._ncomplexEvaluation,notaOficial:9.7},student:{_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:{...record().student._ncomplexEvaluation,notaOficial:9.7}}});
-assert.equal(contradictory.eligible,false);
-assert.ok(contradictory.missing.some(x=>x.includes("Inconsistencia")));
-const work=model.assess(record("TRABAJO_TITULACION"));
-assert.equal(work.eligible,true);
-assert.equal(work.evaluation.official,8.4);
-const suplRow={modalidadTitulacion:"EXAMEN_COMPLEXIVO",estadoEvaluacion:"APROBADO",oportunidadAplicada:"SUPLETORIO",notaTeoricaSupletorio:7,notaPracticaSupletorio:8,notaOficial:7.6};
-const supl=model.assess({...record(),remoteEvaluation:suplRow,student:{_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:suplRow}});
-assert.equal(supl.eligible,true);
-assert.equal(supl.evaluation.opportunity,"SUPLETORIO");
-assert.equal(supl.evaluation.rows[2].value,"7,60/10");
-assert.equal(model.assess({...record(),nuclei:[]}).eligible,false);
-assert.equal(model.assess({...record(),remoteEvaluation:null,student:{}}).eligible,false);
-console.log("VERIFICACIÓN ACTAS EVIDENCIAS: OK (malla, ocho requisitos, núcleos, Ncomplex, supletorio y casos bloqueados)");
+const ok=assess();
+assert.equal(ok.eligible,true);assert.equal(ok.requirements.length,9);
+assert.equal(ok.titulationStatus,"CUMPLE");assert.equal(ok.finalTitleStatus,"CUMPLE");
+assert.equal(ok.finalResultStatus,"CUMPLE");assert.equal(ok.requiredCount,9);
+assert.equal(ok.missing.length,0);assert.equal(ok.draftEligible,true);
+assert.equal(Object.hasOwn(ok,"evaluation"),false,"Actas no conserva ni muestra notas");
+assert.equal(Object.hasOwn(ok,"nuclei"),false,"Actas no carga notas de núcleos");
+assert.match(ok.closureText,/nueve requisitos/);
+assert.equal(assess(complete,"EXAMEN_COMPLEXIVO",{Nombres:"SIN NOTAS"}).eligible,true,
+ "La ausencia de notas no bloquea la aprobación documental");
+assert.equal(assess({...complete,financiero:"PENDIENTE"}).eligible,false);
+assert.equal(assess({...complete,titulacion:"NO CUMPLE"}).eligible,false);
+assert.equal(assess({...complete,aprobaciontitulacion:"PENDIENTE"}).eligible,false);
+const pending=assess({});assert.equal(pending.eligible,false);
+assert.equal(pending.draftEligible,true,"Se admite borrador sin requisitos completos");
+assert.equal(assess(complete,"ARTICULO_ACADEMICO").draftEligible,false);
+assert.equal(assess({},"EXAMEN_COMPLEXIVO",{Nombres:"ESTUDIANTE",...complete}).eligible,true);
+const nested={requisitos:Object.entries(complete).map(([requisitoKey,valor])=>({requisitoKey,valor}))};
+assert.equal(assess({},"TRABAJO_TITULACION",nested).eligible,true);
+assert.equal(assess({...complete,practicas:undefined,practicasVinculacion:"CUMPLE"}).eligible,true);
+assert.equal(assess({...complete,practicas:undefined,vinculacion:undefined,practicasVinculacion:"CUMPLE"}).eligible,false,
+ "Prácticas/Vinculación combinado no acredita Vinculación por separado");
+console.log("VERIFICACIÓN ACTAS EVIDENCIAS: OK (9 requisitos, 2 aprobaciones y borradores sin notas)");
