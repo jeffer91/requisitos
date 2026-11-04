@@ -28,10 +28,10 @@ const con={
  window:{
   BDLRulesRequisitos:{},
   BDLRepoRequisitos:{list:async()=>primary},
-  BDLRepoNotas:{list:async()=>mirror},
+  BDLRepoNotas:{list:async()=>{throw Error("No consultar espejo de notas desde Actas");}},
   BDLRepositories:{storeName:()=> "requisitos",safeGetAll:async store=>store==="requisitos"?legacy:[]},
   BDLServices:{get:()=>({list:async()=>students})},
-  ConNcomplex:{ready:async()=>({ok:true}),listPeriods:async()=>[{periodoId:period}],listEvaluations:async()=>evals},
+  ConNcomplex:{ready:async()=>({ok:true}),listPeriods:async()=>[{periodoId:period}],listEvaluations:async()=>{throw Error("No consultar evaluaciones desde Actas");}},
   ConCoordi:{getRequirements:()=>fromCache}
  },
  URL,Promise,Map,Set,Date,console
@@ -41,11 +41,12 @@ vm.runInNewContext(source,con,{filename:"cone.actas.js"});
  const result=await con.window.ConActas.read({periodoId:period});
  assert.equal(result.ok,true);
  assert.equal(result.data.students.length,2);
- assert.equal(result.data.students[0]._ncomplexEvaluation.notaOficial,8.6,"Une Ncomplex por cédula normalizada de nueve dígitos");
- assert.equal(result.data.students[1]._ncomplexEvaluation.notaOficial,7.6,"Recupera respaldo de Ncomplex en notas_titulacion");
- assert.equal(result.meta.diagnostics.matchedEvaluations,1);
- assert.equal(result.meta.diagnostics.matchedMirrors,1);
- const first=result.data.requirements.filter(r=>r.cedula==="0987654321");
+ assert.equal(result.data.students[0]._ncomplexEvaluation,undefined,"Actas no carga calificaciones");
+  assert.equal(result.data.students[1]._ncomplexEvaluation,undefined,"Actas no recupera notas de respaldo");
+  assert.equal(result.meta.diagnostics.matchedEvaluations,undefined);
+  assert.equal(result.meta.diagnostics.matchedMirrors,undefined);
+  assert.match(result.meta.source,/sin calificaciones/);
+  const first=result.data.requirements.filter(r=>r.cedula==="0987654321");
  assert.equal(first.length,11,"Une campos V2, legacy y caché sin duplicar");
  const byKey=Object.fromEntries(first.map(r=>[r.requisitoKey,r.valor]));
  assert.equal(byKey.academico,"NO CUMPLE","El registro V2 prevalece sobre el legacy más antiguo");
@@ -54,5 +55,5 @@ vm.runInNewContext(source,con,{filename:"cone.actas.js"});
  assert.equal(byKey.financiero,"CUMPLE","Rechaza requisitos de otros períodos");
  assert.equal(byKey.aprobaciontitulacion,"CUMPLE");
  assert.ok(!result.data.requirements.some(r=>r.periodoId===another));
- console.log("VERIFICACIÓN CONEXIÓN ACTAS: OK (cédula/período, V2, legacy, caché, notas Ncomplex, prioridades)");
+ console.log("VERIFICACIÓN CONEXIÓN ACTAS: OK (cédula/período, V2, legacy, caché, independencia de Ncomplex, prioridades)");
 })().catch(err=>{console.error(err);process.exitCode=1;});
