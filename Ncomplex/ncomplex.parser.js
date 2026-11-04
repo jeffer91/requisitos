@@ -253,102 +253,144 @@ Función o funciones:
     return indexes;
   }
 
-  // Convierte encabezados reales de Moodle en claves estables, sin depender del orden.
+  // El esquema se obtiene de los encabezados y NO de una cantidad fija de notas.
+  // Permite versiones adicionales, supletorios opcionales y orden de columnas variable.
   function moodleColumns(lines,end){
-    var columns=[],counts={teSup:0,prSup:0};
+    var columns=[],supplementaryCounts={te:0,pr:0},unknownCount=0;
     for(var i=0;i<end;i++){
-      var k=normalized(lines[i]);
-      if(k.indexOf("cuestionario")===0&&k.indexOf("componente")>=0){
-        var kind=k.indexOf("teorico")>=0?"te":k.indexOf("practico")>=0?"pr":"";
-        if(!kind)continue;
-        var supplemental=k.indexOf("supletorio")>=0;
-        if(supplemental){var key=kind+"Sup";counts[key]++;columns.push(key+Math.min(counts[key],2));}
-        else columns.push(kind+(k.indexOf("version 2")>=0?"2":"1"));
-      }else if(k.indexOf("media de calificaciones")===0&&k.indexOf("total teorico")>=0){
-        columns.push("totalT");
-      }else if(k.indexOf("media de calificaciones")===0&&k.indexOf("total practico")>=0){
-        columns.push("totalP");
-      }else if(k.indexOf("sumatotal del curso")===0||k.indexOf("suma total del curso")===0){
-        columns.push("totalCurso");
-      }
+      splitTabs(lines[i]).forEach(function(part){
+        var header=normalized(part),component="";
+        var isActivity=/^(cuestionario|quiz|actividad|evaluacion|examen|tarea)\b/.test(header) ||
+          /^cuestionario(?=componente)/.test(header);
+        if(isActivity){
+          component=/teorico/.test(header)?"te":/practico/.test(header)?"pr":"";
+          if(component){
+            var supplementary=/supletorio|recuperacion|repechaje/.test(header);
+            var versionMatch=header.match(/version\s*(\d+)|(?:^|[\s(])v\s*(\d+)(?:\b|[)])/);
+            var version=versionMatch?Number(versionMatch[1]||versionMatch[2]):1;
+            if(supplementary){
+              supplementaryCounts[component]++;
+              columns.push(component+"Sup"+supplementaryCounts[component]);
+            }else if(version>=1 && version<=99){
+              columns.push(component+version);
+            }else{
+              columns.push("unknown"+(++unknownCount));
+            }
+          }else{
+            // Una actividad desconocida ocupa una columna: no mover las notas.
+            columns.push("unknown"+(++unknownCount));
+          }
+        }else if(/total\s*teorico|subtotal\s*teorico/.test(header)){
+          columns.push("totalT");
+        }else if(/total\s*practico|subtotal\s*practico/.test(header)){
+          columns.push("totalP");
+        }else if(/(?:suma\s*total|total\s*del\s*curso|calificacion\s*final\s*del\s*curso)/.test(header)){
+          columns.push("totalCurso");
+        }
+      });
     }
     return columns;
   }
 
-  // Esquemas: Moodle básico (5), clásico con supletorio (7) y multiversión (11).
-  // Una posición desconocida nunca se asigna a otra calificación.
-  function moodleRow(lines,emailEntry,nextIndex,rowNumber,columns){
-    var tokens=gradeTokens(lines,emailEntry.index+1,nextIndex),warnings=[],issues=[];
-    var layout=tokens.length===11?"moodle_11":tokens.length===7?"moodle_7":tokens.length===5?"moodle_5":"";
-    if(!layout)issues.push("Estructura desconocida: "+tokens.length+" columnas; se requieren 5, 7 u 11.");
-    if(!columns||columns.length!==tokens.length)issues.push("Encabezados Moodle incompletos o desalineados con las "+tokens.length+" columnas.");
-    var required=layout==="moodle_5"?["te1","totalT","pr1","totalP","totalCurso"]:
-      layout==="moodle_7"?["te1","teSup1","totalT","pr1","prSup1","totalP","totalCurso"]:
-      layout==="moodle_11"?["te1","te2","teSup1","teSup2","totalT",
-        "pr1","pr2","prSup1","prSup2","totalP","totalCurso"]:[];
-    if(layout && (!columns||required.some(function(key){
-      return columns.filter(function(col){return col===key;}).length!==1;
-    })))issues.push("Encabezados de teórico, práctico y subtotales incompatibles con "+layout+".");
-    function index(key,fallback){return columns&&columns.length===tokens.length?columns.indexOf(key):fallback;}
-    function raw(i){return rawNumber(tokens[i]);}
-    function noteAt(i,field){
-      var v=raw(i);
-      if(v!==null&&(v<0||v>100)){issues.push(field+" fuera de escala 0-100.");return null;}
-      return scoreToTen(tokens[i]);
-    }
-    function version(a,b,field){
-      var first=noteAt(a,field),second=b==null?null:noteAt(b,field+" versión 2");
-      if(first!==null&&second!==null){issues.push("Dos notas activas en "+field+"; requiere selección de versión.");return null;}
-      return first!==null?first:second;
-    }
-    var te=null,pr=null,tes=null,prs=null,totalT=null,totalP=null,totalCurso=null;
-    if(layout==="moodle_11"){
-      te=version(index("te1",0),index("te2",1),"Teórico ordinario");
-      tes=version(index("teSup1",2),index("teSup2",3),"Teórico supletorio");
-      totalT=noteAt(index("totalT",4),"Total teórico");
-      pr=version(index("pr1",5),index("pr2",6),"Práctico ordinario");
-      prs=version(index("prSup1",7),index("prSup2",8),"Práctico supletorio");
-      totalP=noteAt(index("totalP",9),"Total práctico");
-      totalCurso=noteAt(index("totalCurso",10),"Total curso");
-    }else if(layout==="moodle_7"){
-      te=noteAt(index("te1",0),"Teórico");tes=noteAt(index("teSup1",1),"Teórico supletorio");totalT=noteAt(index("totalT",2),"Total teórico");
-      pr=noteAt(index("pr1",3),"Práctico");prs=noteAt(index("prSup1",4),"Práctico supletorio");totalP=noteAt(index("totalP",5),"Total práctico");totalCurso=noteAt(index("totalCurso",6),"Total curso");
-    }else if(layout==="moodle_5"){
-      // Formato ordinario: 5 columnas (teoría, subtotal, práctica, subtotal, curso).
-      te=noteAt(index("te1",0),"Teórico");
-      totalT=noteAt(index("totalT",1),"Subtotal teórico (40 %)");
-      pr=noteAt(index("pr1",2),"Práctico");
-      totalP=noteAt(index("totalP",3),"Subtotal práctico (60 %)");
-      totalCurso=noteAt(index("totalCurso",4),"Total del curso");
-      function checkSubtotal(label,actual,expected){
-        if(actual!==null&&expected!==null&&Math.abs(actual-expected)>.015){
-          issues.push(label+" de Moodle ("+actual.toFixed(2)+
-            ") no coincide con el cálculo ("+expected.toFixed(2)+").");
-        }
+  function moodleRow(lines,emailEntry,nextEntry,rowNumber,columns){
+    var tokens=gradeTokens(lines,emailEntry,nextEntry),issues=[],warnings=[];
+    var layout="moodle_dinamico",count=Array.isArray(columns)?columns.length:0;
+    var aligned=count>0&&count===tokens.length;
+    if(!aligned)issues.push("Desalineación: "+tokens.length+" valores frente a "+count+
+      " encabezados. Revise si hay notas o columnas vacías.");
+    var positions=Object.create(null);
+    (columns||[]).forEach(function(key,index){
+      if(!positions[key])positions[key]=[];
+      positions[key].push(index);
+    });
+    if(!Object.keys(positions).some(function(key){return /^te\d+$/.test(key);}) ||
+       !Object.keys(positions).some(function(key){return /^pr\d+$/.test(key);}))
+      issues.push("No se identificaron ambos componentes: teórico y práctico.");
+    function at(index,description){
+      if(!aligned||index<0||index>=tokens.length)return null;
+      var value=rawNumber(tokens[index]);
+      if(value!==null&&(value<0||value>100)){
+        issues.push(description+" fuera de escala 0–100: "+text(tokens[index]));
+        return null;
       }
+      return scoreToTen(tokens[index]);
+    }
+    function single(key,label){
+      var indexes=positions[key]||[],chosen=[];
+      indexes.forEach(function(index){
+        var grade=at(index,label);
+        if(grade!==null)chosen.push(grade);
+      });
+      if(chosen.length>1)issues.push(label+": más de una calificación activa en columnas repetidas.");
+      return chosen.length===1?chosen[0]:null;
+    }
+    function component(prefix,supplementary,label){
+      var keys=Object.keys(positions).filter(function(key){
+        return supplementary?
+          key.indexOf(prefix+"Sup")===0:
+          new RegExp("^"+prefix+"[0-9]+$").test(key);
+      });
+      var active=[];
+      keys.forEach(function(key){
+        var note=single(key,label+" "+key);
+        if(note!==null)active.push({key:key,note:note});
+      });
+      if(active.length>1)issues.push(label+": versiones simultáneas con notas; seleccione la aplicable.");
+      return active.length===1?active[0].note:null;
+    }
+    (columns||[]).forEach(function(key,index){
+      if(/^unknown\d+$/.test(key)&&aligned&&rawNumber(tokens[index])!==null)
+        issues.push("Actividad sin encabezado académico reconocido en la columna "+(index+1)+".");
+    });
+    var te=component("te",false,"Teórico ordinario");
+    var pr=component("pr",false,"Práctico ordinario");
+    var tes=component("te",true,"Teórico supletorio");
+    var prs=component("pr",true,"Práctico supletorio");
+    var totalT=single("totalT","Subtotal teórico");
+    var totalP=single("totalP","Subtotal práctico");
+    var totalCurso=single("totalCurso","Total del curso");
+    var ordinary=te!==null&&pr!==null?Math.round((te*.4+pr*.6)*100)/100:null;
+    var supl=tes!==null&&prs!==null?Math.round((tes*.4+prs*.6)*100)/100:null;
+
+    if((tes!==null||prs!==null)&&supl===null)
+      issues.push("Supletorio incompleto: faltan componentes.");
+    if(supl!==null&&ordinary!==null&&ordinary>=7)
+      issues.push("Supletorio registrado junto con una nota ordinaria aprobatoria.");
+
+    function checkSubtotal(label,actual,expected){
+      if(actual!==null&&expected!==null&&Math.abs(actual-expected)>.025)
+        issues.push(label+" de Moodle ("+actual.toFixed(2)+") no coincide con el cálculo ("+
+          expected.toFixed(2)+").");
+    }
+    // Sin supletorio, los subtotales Moodle permiten verificar los pesos 40/60.
+    if(tes===null&&prs===null){
       checkSubtotal("Teórico 40 %",totalT,te===null?null:Math.round(te*.4*100)/100);
       checkSubtotal("Práctico 60 %",totalP,pr===null?null:Math.round(pr*.6*100)/100);
-      checkSubtotal("Total del curso",totalCurso,totalT===null||totalP===null?null:
-        Math.round((totalT+totalP)*100)/100);
     }
-    var ordinary=te!==null&&pr!==null?Math.round((te*.4+pr*.6)*100)/100:null;
-    var sup=tes!==null&&prs!==null?Math.round((tes*.4+prs*.6)*100)/100:null;
-    if((tes!==null||prs!==null)&&sup===null)issues.push("Supletorio incompleto: faltan componentes.");
-    if(sup!==null&&ordinary!==null&&ordinary>=7)issues.push("Supletorio después de nota ordinaria aprobada: requiere conciliación.");
-    var current=sup!==null&&(ordinary===null||ordinary<7)?sup:ordinary;
-    if(totalCurso!==null&&current!==null&&Math.abs(totalCurso-current)>.025){
-      var explanation="Total Moodle "+totalCurso.toFixed(2)+"/10 distinto del cálculo "+current.toFixed(2)+"/10; puede existir una media interna de versiones.";
-      if(layout==="moodle_11"||layout==="moodle_5")issues.push(explanation);else warnings.push(explanation);
+    if(totalCurso!==null&&totalT!==null&&totalP!==null&&tes===null&&prs===null)
+      checkSubtotal("Total del curso",totalCurso,Math.round((totalT+totalP)*100)/100);
+
+    var applied=supl!==null&&(ordinary===null||ordinary<7)?supl:ordinary;
+    if(totalCurso!==null&&applied!==null&&Math.abs(totalCurso-applied)>.025){
+      var discrepancy="Total Moodle "+totalCurso.toFixed(2)+
+        "/10 distinto del resultado académico calculado "+applied.toFixed(2)+"/10.";
+      // Compatibilidad con el libro Moodle clásico de 7 columnas, donde
+      // categorías promedian intentos y el total NO equivale al supletorio.
+      if(count===7&&supl!==null)warnings.push(discrepancy);
+      else issues.push(discrepancy);
     }
-    var studentName=previousName(lines,emailEntry.index);
-    if(!studentName)issues.push("Nombre de estudiante no encontrado.");
+    var name=previousName(lines,emailEntry);
+    if(!name)issues.push("No se encontró el nombre del estudiante.");
     warnings=warnings.concat(issues);
-    return {rowNumber:rowNumber,format:"moodle_gradebook",layout:layout,
-      codigoTitulacion:"",cedula:"",correo:emailEntry.email,nombreCompleto:studentName,horario:"",
-      notaTeorica:te,notaPractica:pr,notaTeoricaSupletorio:tes,notaPracticaSupletorio:prs,
+    return {
+      rowNumber:rowNumber,format:"moodle_gradebook",layout:layout,
+      codigoTitulacion:"",cedula:"",correo:emailEntry.email,nombreCompleto:name,horario:"",
+      notaTeorica:te,notaPractica:pr,
+      notaTeoricaSupletorio:tes,notaPracticaSupletorio:prs,
       moodleTotalTeorico:totalT,moodleTotalPractico:totalP,moodleTotalCurso:totalCurso,
       rawValues:tokens.slice(),rawScores:tokens.map(rawNumber),
-      rawText:lines.slice(Math.max(0,emailEntry.index-2),nextIndex).join("\n"),
+      columnRoles:(columns||[]).slice(),
+      rawText:lines.slice(Math.max(0,emailEntry.index-2),nextEntry.index).join("\n"),
       issues:issues,warnings:warnings,blocked:issues.length>0,
       suggestedModality:Config.modalidades&&Config.modalidades.COMPLEXIVO
     };
@@ -360,7 +402,10 @@ Función o funciones:
     if(!emails.length){result.errors.push("No se detectaron correos institucionales.");return result;}
     var columns=moodleColumns(lines,emails[0].index);
     result.headers=columns.slice();
-    emails.forEach(function(e,i){result.rows.push(moodleRow(lines,e,i+1<emails.length?emails[i+1].index:lines.length,i+1,columns));});
+    emails.forEach(function(e,i){
+      var next=i+1<emails.length?emails[i+1]:{index:lines.length};
+      result.rows.push(moodleRow(lines,e,next,i+1,columns));
+    });
     result.total=result.rows.length;
     var blocked=result.rows.filter(function(r){return r.blocked;}).length;
     if(blocked)result.warnings.push(blocked+" estudiante(s) bloqueado(s) hasta resolver discrepancias.");
@@ -467,7 +512,7 @@ Función o funciones:
   }
 
   window.NcomplexParser = {
-    version: "2.1.0-moodle-5-7-11-columns",
+    version: "2.2.0-moodle-dynamic-schema",
     parse: parse,
     parseMoodle: parseMoodle,
     normalizeCedula: normalizeCedula,
