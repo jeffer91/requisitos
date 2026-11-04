@@ -42,7 +42,7 @@ function bodyPage(data){
  '<h3 class="stage-title">1. Culminación de la malla curricular</h3><p class="stage-text">'+safe(p.mallaText)+'</p>'+
  '<h3 class="stage-title">2. Verificación de los ocho requisitos institucionales</h3><table class="stage-rows">'+rows+'</table>'+
  '<h3 class="stage-title">'+safe(title3)+'</h3><p class="stage-text">'+safe(p.nucleiText)+'</p>'+
- '<table class="stage-rows">'+item("Requisito Titulación",p.titulationStatus)+'</table>'+
+ '<table class="stage-rows">'+item("Requisito Titulación",p.titulationStatus)+(data.mode==="EXAMEN_COMPLEXIVO"?p.nuclei.map(n=>item("Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10")).join(""):"")+'</table>'+
  '<h3 class="stage-title">'+safe(title4)+'</h3><p class="stage-text">Fuente: Ncomplex. Oportunidad aplicada: '+safe(p.evaluation.opportunity)+'.</p>'+
  '<table class="stage-rows">'+grades+'</table>'+
  '<h3 class="stage-title">5. Constancia de culminación y aprobación</h3>'+
@@ -52,7 +52,7 @@ function bodyPage(data){
  '<p class="stage-small">Borrador sujeto a revisión, contraste con evidencias académicas y legalización institucional.</p>'+
  '<div class="footer"><span>'+safe(data.record.codigo)+'</span><span>Borrador para legalización · '+safe(fecha(data.issue))+'</span></div></section>';
 }
-function render(items){const all=Array.isArray(items)?items:[items];return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
+function render(items){const all=Array.isArray(items)?items:[items];if(all.some(x=>!x.evidence||!x.evidence.eligible))throw Error('Acta bloqueada: faltan notas de núcleos y complexivo.');return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
 function preview(items){const win=w.open("","_blank");if(!win)throw Error("Habilita ventanas emergentes para ver las actas.");win.document.open();win.document.write(render(items));win.document.close();win.focus();}
 
 w.ActasDocument=Object.freeze({render,preview});
