@@ -187,6 +187,7 @@ Con qué se conecta:
       Pagination.render(paged, function(){ render(); });
     }
     if(Save.updateButton){ Save.updateButton(); }
+    if(window.NcomplexReportPDF&&window.NcomplexReportPDF.refresh){window.NcomplexReportPDF.refresh();}
 
     var visible = element("ncomplex-visible-count");
     if(visible){ visible.textContent = filtered.length + " visible(s)"; }
@@ -410,6 +411,7 @@ Con qué se conecta:
 
     if(Table.bind){ Table.bind(); }
     if(Modal.bind){ Modal.bind(); }
+    if(window.NcomplexReportPDF&&window.NcomplexReportPDF.bind){window.NcomplexReportPDF.bind();}
   }
 
   function init(){
