@@ -18,9 +18,9 @@ assert.ok(item.evidence.eligible);
 const blob=await context.window.ActasDocx.build(item);assert.equal(blob.type,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");const parts=readZip(await blob.arrayBuffer());for(const filename of ["[Content_Types].xml","_rels/.rels","word/document.xml","word/_rels/document.xml.rels","word/media/logo.png"])assert.ok(parts.has(filename),"Existe "+filename);
 assert.ok(parts.get("word/media/logo.png").length>1000,"Logo institucional incrustado en DOCX");assert.equal(parts.get("word/media/logo.png").subarray(0,8).toString("hex"),"89504e470d0a1a0a","Logotipo es PNG auténtico");
 const xml=parts.get("word/document.xml").toString("utf8");
-assert.match(xml,/<w:document/);assert.match(xml,/Acta de Titulación por Examen Complexivo/);assert.match(xml,/Unidad de Titulación y/);assert.match(xml,/Fecha de emisión: 29\/05\/2026/);assert.match(xml,/RESULTADO FINAL: APROBADO/);assert.match(xml,/Aprobación de titulación/);
+assert.match(xml,/<w:document/);assert.match(xml,/Acta de Titulación por Examen Complexivo/);assert.match(xml,/Unidad de Titulación y/);assert.match(xml,/Fecha de emisión: 29\/05\/2026/);assert.match(xml,/ESTADO DOCUMENTAL: APROBACIONES INSTITUCIONALES ACREDITADAS/);assert.match(xml,/Aprobación de titulación/);
 assert.match(xml,/N.º DE ACTA: 2026-0000-10-0001/,"Número al inicio del cuerpo del Word");assert.match(xml,/Aprobación complexivo\/proyecto/);
-assert.match(xml,/Prácticas preprofesionales/);assert.match(xml,/Núcleos formativos y requisito de Titulación/);assert.match(xml,/8,60\/10/);
+assert.match(xml,/Prácticas preprofesionales/);assert.match(xml,/Verificación de los nueve requisitos institucionales/);assert.doesNotMatch(xml,new RegExp("8,60/10|Nota final oficial|Evaluación teórica"),"DOCX no contiene calificaciones");
 assert.doesNotMatch(xml,/Calificación numérica:\s*\d/i);
 for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(xml.includes(signer),"DOCX conserva firmante: "+signer);
 assert.match(xml,/<w:tblW w:w="10200" w:type="dxa"\/>/,"Encabezado y firmas de 18 cm");
@@ -37,6 +37,15 @@ assert.match(parts.get("[Content_Types].xml").toString("utf8"),/wordprocessingml
 const workStudent={...item.student,_ncomplexEvaluation:{modalidadTitulacion:"TRABAJO_TITULACION",estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};
 const workItem={...item,student:workStudent,mode:"TRABAJO_TITULACION",evidence:context.window.ActasEvidence.assess({student:workStudent,mode:"TRABAJO_TITULACION",requirementValues})};
 const work=await context.window.ActasDocx.build(workItem),workParts=readZip(await work.arrayBuffer());
+ const draftItem={...item,student:{Nombres:"ESTUDIANTE SIN NOTAS",cedula:"0000000099",NombreCarrera:"EDUCACIÓN INICIAL"},
+  record:{...item.record,numeroActa:""},evidence:context.window.ActasEvidence.assess({
+   mode:"EXAMEN_COMPLEXIVO",student:{Nombres:"ESTUDIANTE SIN NOTAS"},requirementValues:{}
+  })};
+ const draft=await context.window.ActasDocx.build(draftItem);
+ const draftXML=readZip(await draft.arrayBuffer()).get("word/document.xml").toString("utf8");
+ assert.match(draftXML,/BORRADOR SIN NÚMERO OFICIAL/);
+ assert.doesNotMatch(draftXML,new RegExp("8,60/10|Nota final oficial"));
+
 assert.match(workParts.get("word/document.xml").toString("utf8"),/Acta de Titulación por Trabajo de Titulación/);
 console.log("VERIFICACIÓN DOCX ACTAS: OK (ZIP OOXML, logotipo incrustado, formato por modalidad, sin notas)");}
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
