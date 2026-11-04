@@ -115,6 +115,6 @@ const fullPages=window.NcomplexReportPDF.contentPages(full,"Abril 2026 a Septiem
 assert.equal(full.summary.qualified,57,"No limitar el informe a las primeras 25 filas");
 const roster=fullPages.filter(p=>p.title==="EDUCACIÓN INICIAL · finales · tabla");
 assert.equal(roster.length,5,"Cohorte larga dividida en cinco páginas finales");
-assert.equal((roster.map(p=>p.body).join("").match(/9,28/g)||[]).length,57);
+assert.equal((roster.map(p=>p.body).join("").match(/92,80/g)||[]).length,57,"La nota 9,28/10 se presenta como 92,80/100 en el informe");
 assert.ok(fullPages.some(p=>p.kind==="cover"));
 console.log("VERIFICACIÓN INFORME COMPLEXIVOS: OK (9/9, excluidos, 40/60, 57 estudiantes, gráficos, logo y páginas)");
