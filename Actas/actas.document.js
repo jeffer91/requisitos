@@ -28,31 +28,30 @@ const rows=[];(groups||[]).forEach(g=>(g.actividades||[]).forEach(a=>{if(allowed
 return rows;
 }
 function bodyPage(data){
- const p=data.evidence||w.ActasEvidence.assess({student:data.student,mode:data.mode,requirementValues:data.requirementValues||{},evaluation:data.evaluation});
- const student=data.student||{},nm=safe(txt(student,["Nombres","nombres","nombreCompleto","nombre","Nombre"])),ced=safe(txt(student,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"])),car=safe(txt(student,["NombreCarrera","nombreCarrera","carrera","Carrera"]));
+ const p=data.evidence||w.ActasEvidence.assess({student:data.student,mode:data.mode,requirementValues:data.requirementValues||{}});
+ const student=data.student||{},nm=safe(txt(student,["Nombres","nombres","nombreCompleto","nombre","Nombre"])),
+  ced=safe(txt(student,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"])),
+  car=safe(txt(student,["NombreCarrera","nombreCarrera","carrera","Carrera"]));
  const item=(label,value)=>'<tr><td>'+safe(label)+'</td><td>'+safe(value)+'</td></tr>';
- const rows=p.requirements.map((r,i)=>item((i+1)+". "+r.label,r.status)).join("");
- const grades=p.evaluation.rows.map(r=>item(r.label,r.value)).join("");
- const title3=data.mode==="TRABAJO_TITULACION"?"3. Cumplimiento del componente de titulación":"3. Núcleos formativos y requisito de Titulación";
- const title4=data.mode==="TRABAJO_TITULACION"?"4. Evaluación del trabajo de titulación":"4. Resultado del examen complexivo";
+ const requirements=p.requirements.map((r,i)=>item((i+1)+". "+r.label,r.status)).join("");
+ const official=!!data.record.numeroActa&&p.eligible;
  return '<section class="page page2">'+head(data.mode,data.record,data.periodLabel,2,data.issue)+
- '<h2 class="stage-heading">CONSTANCIA DE CULMINACIÓN Y TITULACIÓN</h2>'+
- '<p class="stage-result"><b>'+safe(data.record.numeroActa?'N.º DE ACTA: '+data.record.numeroActa:'BORRADOR SIN NÚMERO OFICIAL')+'</b></p>'+
- '<table class="stage-identity">'+item("Estudiante",nm)+item("Cédula",ced)+item("Carrera",car)+item("Modalidad",nombreModo(data.mode))+'</table>'+
- '<h3 class="stage-title">1. Culminación de la malla curricular</h3><p class="stage-text">'+safe(p.mallaText)+'</p>'+
- '<h3 class="stage-title">2. Verificación de los ocho requisitos institucionales</h3><table class="stage-rows">'+rows+'</table>'+
- '<h3 class="stage-title">'+safe(title3)+'</h3><p class="stage-text">'+safe(p.nucleiText)+'</p>'+
- '<table class="stage-rows">'+item("Requisito Titulación",p.titulationStatus)+(data.mode==="EXAMEN_COMPLEXIVO"?p.nuclei.map(n=>item("Núcleo "+n.nucleo,n.nota===null?"NO REGISTRADA":n.nota.toFixed(2)+"/10")).join(""):"")+'</table>'+
- '<h3 class="stage-title">'+safe(title4)+'</h3><p class="stage-text">Fuente: Ncomplex. Oportunidad aplicada: '+safe(p.evaluation.opportunity)+'.</p>'+
- '<table class="stage-rows">'+grades+'</table>'+
- '<h3 class="stage-title">5. Constancia de culminación y aprobación</h3>'+
- '<p class="stage-text">Aprobación de titulación: <b>'+safe(p.finalTitleStatus)+'</b>; Aprobación complexivo/proyecto: <b>'+safe(p.finalResultStatus)+'</b>.</p>'+
- '<p class="stage-text">'+safe(p.closureText)+'</p>'+
- '<p class="stage-result"><b>RESULTADO FINAL: '+(p.eligible?"APROBADO":"PENDIENTE DE VALIDACIÓN")+'</b></p>'+
- '<p class="stage-small">Borrador sujeto a revisión, contraste con evidencias académicas y legalización institucional.</p>'+
- '<div class="footer"><span>'+safe(data.record.codigo)+'</span><span>Borrador para legalización · '+safe(fecha(data.issue))+'</span></div></section>';
+  '<h2 class="stage-heading">CONSTANCIA DOCUMENTAL DE TITULACIÓN</h2>'+
+  '<p class="stage-result"><b>'+safe(data.record.numeroActa?'N.º DE ACTA: '+data.record.numeroActa:'BORRADOR SIN NÚMERO OFICIAL')+'</b></p>'+
+  '<table class="stage-identity">'+item("Estudiante",nm)+item("Cédula",ced)+item("Carrera",car)+item("Modalidad",nombreModo(data.mode))+'</table>'+
+  '<h3 class="stage-title">1. Cumplimiento curricular</h3><p class="stage-text">'+safe(p.mallaText)+'</p>'+
+  '<h3 class="stage-title">2. Verificación de nueve requisitos institucionales</h3><table class="stage-rows">'+requirements+'</table>'+
+  '<h3 class="stage-title">3. Modalidad y estado del proceso</h3><p class="stage-text">'+safe(p.componentText)+'</p>'+
+  '<h3 class="stage-title">4. Aprobaciones institucionales</h3>'+
+  '<table class="stage-rows">'+item("Aprobación de titulación",p.finalTitleStatus)+item("Aprobación complexivo/proyecto",p.finalResultStatus)+'</table>'+
+  '<h3 class="stage-title">5. Constancia documental</h3><p class="stage-text">'+safe(p.closureText)+'</p>'+
+  '<p class="stage-result"><b>ESTADO DOCUMENTAL: '+(official?'APROBACIONES INSTITUCIONALES ACREDITADAS':'BORRADOR · PENDIENTE DE EMISIÓN OFICIAL')+'</b></p>'+
+  (!p.eligible?'<p class="stage-small">Pendientes: '+safe(p.missing.join("; "))+'</p>':'')+
+  '<p class="stage-small">'+(official?'Sujeta a firmas para su legalización definitiva.':
+    'BORRADOR SIN VALIDEZ DE ACTA NUMERADA. No acredita por sí mismo la aprobación definitiva.')+'</p>'+
+  '<div class="footer"><span>'+safe(data.record.codigo)+'</span><span>'+safe(fecha(data.issue))+'</span></div></section>';
 }
-function render(items){const all=Array.isArray(items)?items:[items];if(all.some(x=>!x.evidence||!x.evidence.eligible))throw Error('Acta bloqueada: faltan notas de núcleos y complexivo.');return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
+function render(items){const all=Array.isArray(items)?items:[items];if(all.some(x=>!x.evidence||x.evidence.draftEligible===false))throw Error("El borrador requiere un expediente documental válido.");return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
 function preview(items){const win=w.open("","_blank");if(!win)throw Error("Habilita ventanas emergentes para ver las actas.");win.document.open();win.document.write(render(items));win.document.close();win.focus();}
 
 w.ActasDocument=Object.freeze({render,preview});
