@@ -60,6 +60,19 @@ await tick();await tick();
 assert.equal(elem("actas-aprobados").textContent,4,"Autoriza borradores con ambas aprobaciones, aunque falten registros de Ncomplex");
 assert.match(elem("actas-estudiantes").innerHTML,/EXAMEN APROBADO/);
 assert.match(elem("actas-estudiantes").innerHTML,/EXAMEN FALTANTE/,"El buscador/listado muestra pendientes");
+win.ActasNumbering.listDetailed=async()=>({
+ entries:[{cedula:"0001",periodoId:per1,numeroActa:"2026-0001-05-0001"}],
+ verified:false,source:"cache",warning:"Failed to get documents from server"
+});
+trigger("actas-recargar","click");await tick();await tick();
+assert.match(elem("actas-alert").textContent,/Libro central NO VERIFICADO/,"Aviso diferenciado cuando falla el servidor");
+assert.equal(elem("actas-registrar-lote").disabled,true,"No habilitar numeración masiva con caché");
+assert.match(elem("actas-estudiantes").innerHTML,/Libro central no verificado/,"El estado nominal revela falta de verificación");
+assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/N.º 2026-0001-05-0001/,"Un número en caché no aparece como folio oficial");
+assert.ok(elem("actas-estudiantes").innerHTML.includes("data-register=\"0\" disabled"),"No registrar número individual cuando el libro está sin verificar");
+delete win.ActasNumbering.listDetailed;
+trigger("actas-recargar","click");await tick();await tick();
+assert.doesNotMatch(elem("actas-alert").textContent,/NO VERIFICADO/,"La reconexión restaura el estado del libro central");
 assert.match(elem("actas-estudiantes").innerHTML,/RETIRADO/,"Muestra retirados sin permitir descargar");
 assert.match(elem("actas-estudiantes").innerHTML,/NOTA REPROBADA/,"Muestra evaluaciones pendientes de revisión");
 trigger("actas-seleccionar","click");
