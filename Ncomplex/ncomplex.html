@@ -102,7 +102,7 @@ Función o funciones:
     <section class="ncomplex-card ncomplex-firebase-sync" aria-label="Sincronización de Ncomplex con Firebase">
       <div class="ncomplex-firebase-copy">
         <strong>Ncomplex en Firebase</strong>
-        <span>Analiza y sube las calificaciones, importaciones y auditoría de Ncomplex. No modifica estudiantes, matrículas, requisitos ni Telegram.</span>
+        <span><strong>Guardar cambios</strong> conserva las notas en Base Local. Para crear documentos en Firestore, seleccione el grupo y use <strong>Publicar en complexivo</strong> (también se ofrece tras Guardar). Solo se publican evaluaciones verificadas con 9/9 requisitos. Los controles de análisis/subida corresponden al flujo de notas e historial, no crean la colección complexivo.</span>
       </div>
       <div class="ncomplex-firebase-controls">
         <div class="ncomplex-firebase-stats">
@@ -114,7 +114,7 @@ Función o funciones:
         </div>
         <div class="ncomplex-firebase-actions">
           <label>Grupo <select id="ncomplex-complexivo-grupo"><option value="">Seleccionar</option><option value="PRESENCIAL">Presencial</option><option value="ONLINE">Online</option><option value="PVC">PVC</option></select></label>
-          <button id="ncomplex-btn-complexivo-sync" type="button">Publicar en complexivo</button>
+          <button id="ncomplex-btn-complexivo-sync" type="button" title="Crear documentos nuevos en Firebase /complexivo, tras verificar los nueve requisitos">Publicar notas en complexivo</button>
           <button id="ncomplex-btn-firebase-analyze" type="button" disabled>Analizar diferencias</button>
           <button id="ncomplex-btn-firebase-push" type="button" disabled>Subir Ncomplex</button>
           <span id="ncomplex-firebase-status" class="ncomplex-firebase-status">Seleccione un período.</span>
