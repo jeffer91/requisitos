@@ -1,0 +1,67 @@
+/* Vista de selección de logo e impresión del informe de exámenes complexivos. */
+.ncomplex-report-toolbar{padding:10px 13px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.ncomplex-report-copy{display:flex;align-items:center;gap:11px;min-width:290px;flex:1}
+.ncomplex-report-copy>img{display:block;width:106px;max-height:48px;object-fit:contain;border:1px solid #e0e6ee;border-radius:5px;background:#fff;padding:3px}
+.ncomplex-report-copy>div{display:grid;gap:3px}
+.ncomplex-report-copy strong{color:#102a43;font-size:13px}
+.ncomplex-report-copy small{color:#66788a;font-size:11px;line-height:1.4}
+.ncomplex-report-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ncomplex-report-message{font-size:11px;color:#526777;flex-basis:100%;min-height:14px}
+.ncomplex-report-message.is-error{color:#b42318;font-weight:700}
+#ncomplex-report-render-host{position:fixed;left:0;top:0;z-index:-1;pointer-events:none;width:794px}
+.nr-pdf-page,.nr-pdf-page *{box-sizing:border-box}
+.nr-pdf-page{position:relative;display:block;width:794px;height:1123px;min-width:794px;max-width:794px;background:#fff;color:#203040;padding:36px 46px 46px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.35;overflow:hidden}
+.nr-header{height:83px;display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:3px solid #14334f;padding-bottom:12px;margin-bottom:22px}
+.nr-logo{width:215px;height:65px;display:flex;align-items:center;justify-content:flex-start}
+.nr-logo img{max-width:100%;max-height:65px;object-fit:contain}
+.nr-head-copy{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-end;text-align:right;gap:4px;color:#19344c}
+.nr-head-copy span{font-size:10px;letter-spacing:.11em;font-weight:700}
+.nr-head-copy strong{font-size:9px;letter-spacing:.04em}
+.nr-head-copy small{font-size:9px;color:#627b91}
+.nr-page-main{width:100%;height:925px;overflow:hidden}
+.nr-eyebrow{font-size:10px;color:#245783;font-weight:800;letter-spacing:.12em;margin-bottom:9px}
+.nr-pdf-page h1{font-size:23px;line-height:1.12;margin:0 0 7px;color:#122e49;font-weight:800}
+.nr-pdf-page h2{font-size:14px;line-height:1.25;color:#14334f;margin:16px 0 8px;padding-left:8px;border-left:3px solid #b0c0d5}
+.nr-subtitle{font-size:11px;color:#60778c;margin-bottom:15px}
+.nr-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:15px 0 18px}
+.nr-kpis-three{grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0 15px}
+.nr-kpi{border:1px solid #dce5ef;border-radius:6px;padding:9px 10px;min-height:74px;background:#f8fafc;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.nr-kpi span{font-size:9px;font-weight:700;color:#62768a}
+.nr-kpi b{font-size:20px;color:#123a5d}
+.nr-kpi small{font-size:9px;color:#718399}
+.nr-findings{padding-left:20px;margin:9px 0 20px}
+.nr-findings li{margin-bottom:11px;color:#27394a;font-size:11px;line-height:1.5}
+.nr-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:10px;margin:12px 0}
+.nr-table th{background:#173852;color:#fff;font-weight:700;font-size:9px;text-align:left;padding:8px 6px;border:1px solid #173852}
+.nr-table td{padding:6px 6px;border:1px solid #d7e1ec;vertical-align:top;word-break:break-word;line-height:1.22}
+.nr-table tbody tr:nth-child(even){background:#f6f8fb}
+.nr-table .nr-num{text-align:right;white-space:nowrap}
+.nr-table.nr-compact th:first-child,.nr-table.nr-compact td:first-child{width:38%}
+.nr-table.nr-compact th:not(:first-child),.nr-table.nr-compact td:not(:first-child){width:auto}
+.nr-table.nr-detail th:nth-child(1){width:5%}
+.nr-table.nr-detail th:nth-child(2){width:34%}
+.nr-table.nr-detail th:nth-child(3){width:14%}
+.nr-table.nr-detail th:nth-child(4){width:9%}
+.nr-table.nr-detail th:nth-child(5){width:9%}
+.nr-table.nr-detail th:nth-child(6){width:9%}
+.nr-table.nr-detail th:nth-child(7){width:20%}
+.nr-table.nr-detail{font-size:9px}
+.nr-table.nr-detail td{padding:6px 4px;font-size:9px}
+.nr-caption{font-size:9px;color:#65788a;line-height:1.45;margin-top:10px}
+.nr-note{background:#f1f6fa;border-left:3px solid #315e83;padding:11px 13px;font-size:10px;line-height:1.55;color:#45596c;margin-top:14px}
+.nr-bar-row{display:grid;grid-template-columns:215px 1fr 53px 53px;gap:9px;align-items:center;min-height:29px;border-bottom:1px solid #ecf1f6}
+.nr-bar-name{font-size:10px;color:#273f56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nr-bar-track{background:#e8edf4;border-radius:4px;height:12px;overflow:hidden}
+.nr-bar-fill{height:100%;background:#1e5b81;border-radius:4px}
+.nr-bar-number{font-size:10px;font-weight:700;color:#25435e;text-align:right}
+.nr-bar-count{font-size:9px;color:#61798e;text-align:right}
+.nr-hist{display:grid;gap:4px;padding-left:8px;margin-bottom:7px}
+.nr-hist-row{display:grid;grid-template-columns:66px 1fr 35px;gap:8px;align-items:center;min-height:17px;font-size:9px}
+.nr-hist-row>span{color:#5d7185}
+.nr-hist-row>b{text-align:right;color:#244a67}
+.nr-hist-track{height:10px;background:#e9f0f6;border-radius:3px;overflow:hidden}
+.nr-hist-fill{height:100%;background:#255d82;border-radius:3px}
+.nr-method{padding-left:20px;font-size:12px;line-height:1.65;color:#293e50}
+.nr-method li{margin-bottom:11px}
+.nr-footer{position:absolute;bottom:19px;left:46px;right:46px;border-top:1px solid #cfd9e3;padding-top:7px;display:flex;justify-content:space-between;gap:10px;color:#6f8193;font-size:8px}
+@media(max-width:760px){.ncomplex-report-toolbar{align-items:stretch}.ncomplex-report-copy{min-width:220px}.ncomplex-report-actions{width:100%}}
