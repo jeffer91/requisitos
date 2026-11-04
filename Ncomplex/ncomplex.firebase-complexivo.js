@@ -91,7 +91,14 @@ async function publish(options){
   const batch=pending.slice(0,25);
   if(!w.confirm("Publicar "+batch.length+" notas nuevas en complexivo?\n9/9 requisitos verificados.\nBloqueados: "+blocked.length+"; iguales: "+same+"; conflictos: "+conflicts.length+"; inválidas: "+invalid.length+".\nNo se sobrescribirán notas de otro equipo."))return {ok:false,reason:"Cancelado por usuario"};
   let saved=0;
-  for(const doc of batch){await repo.writeChecked("complexivo",doc,{expected:{exists:false}});saved++;}
+  for(const doc of batch){
+    const response=await repo.writeChecked("complexivo",doc,{expected:{exists:false}});
+    if(!response||response.ok!==true)throw new Error("Firebase no confirmó escritura para "+doc.cedula+".");
+    const confirmed=await repo.getById("complexivo",period+"__"+doc.cedula);
+    if(!confirmed||!confirmed.data||confirmed.data.dataHash!==doc.dataHash)
+      throw new Error("No se pudo verificar en Firebase el documento recién publicado de "+doc.cedula+".");
+    saved++;
+  }
   status("Firebase complexivo: "+saved+" documentos creados; iguales: "+same+"; conflictos: "+conflicts.length+
    "; inválidos: "+invalid.length+"; bloqueados 9/9: "+blocked.length+
    (pending.length>25?"; siguientes por publicar: "+(pending.length-25):"")+
