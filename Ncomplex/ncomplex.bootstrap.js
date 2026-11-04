@@ -45,6 +45,7 @@ Función:
     {path:"ncomplex.modal.js",test:function(){return window.NcomplexModal;}},
     {path:"ncomplex.save.js",test:function(){return window.NcomplexSave;}},
     {path:"ncomplex.report.model.js",test:function(){return window.NcomplexReportModel;}},
+    {path:"ncomplex.report.document.js",test:function(){return window.NcomplexReportDocument;}},
     {path:"ncomplex.report.pdf.js",test:function(){return window.NcomplexReportPDF;}},
     {path:"ncomplex.simple-ui.js",test:function(){return window.NcomplexSimpleUI;}},
     {path:"ncomplex.app.js",test:function(){return window.NcomplexApp;}}

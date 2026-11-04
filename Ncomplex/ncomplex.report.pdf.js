@@ -229,8 +229,18 @@ function loadEngine(){
  return engineTask;
 }
 function afterPaint(){return new Promise(function(resolve){window.requestAnimationFrame(function(){window.requestAnimationFrame(resolve);});});}
+function selectedContentPages(report,period,date){
+ var layout=window.NcomplexReportDocument;
+ return layout&&typeof layout.contentPages==="function"?
+   layout.contentPages(report,period,date):contentPages(report,period,date);
+}
+function selectedPageHtml(page,index,count,meta,logoSource){
+ var layout=window.NcomplexReportDocument;
+ return layout&&typeof layout.pageHtml==="function"?
+   layout.pageHtml(page,index,count,meta,logoSource):pageHtml(page,index,count,meta,logoSource);
+}
 async function renderPDF(report,meta){
- var engine=await loadEngine(),chunksHtml=contentPages(report,meta.period,meta.date);
+ var engine=await loadEngine(),chunksHtml=selectedContentPages(report,meta.period,meta.date);
  if(!chunksHtml.length)throw Error("No se pudieron construir las páginas.");
  var host=document.createElement("div");host.id="ncomplex-report-render-host";
  document.body.appendChild(host);var pdf=null;
@@ -239,7 +249,7 @@ async function renderPDF(report,meta){
    jsPDF:{unit:"mm",format:"a4",orientation:"portrait",compress:true}};
  try{
    for(var i=0;i<chunksHtml.length;i++){
-     host.innerHTML=pageHtml(chunksHtml[i],i+1,chunksHtml.length,meta,logo());
+     host.innerHTML=selectedPageHtml(chunksHtml[i],i+1,chunksHtml.length,meta,logo());
      var element=host.firstElementChild;if(!element)throw Error("No se pudo preparar la página "+(i+1));
      await new Promise(function(resolve,reject){
        var images=Array.prototype.slice.call(element.querySelectorAll("img")||[]);
@@ -326,5 +336,5 @@ function bind(){
  });}
  updateLogo();refresh();
 }
-window.NcomplexReportPDF=Object.freeze({bind:bind,refresh:refresh,exportReport:exportReport,renderPDF:renderPDF,contentPages:contentPages,pageHtml:pageHtml});
+window.NcomplexReportPDF=Object.freeze({bind:bind,refresh:refresh,exportReport:exportReport,renderPDF:renderPDF,contentPages:selectedContentPages,pageHtml:selectedPageHtml});
 })(window,document);
