@@ -155,5 +155,5 @@
     document.addEventListener("keydown",function(event){if(event.key==="Escape")closeModal();});
   }
   function start(){if(state.started)return Promise.resolve();state.started=true;bind();return loadPeriods().then(loadStudents);}
-  window.StatNotApp={version:"1.0.0",start:start,state:state,render:renderAll};
+  window.StatNotApp={version:"1.0.1-global-period",start:start,loadPeriods:loadPeriods,state:state,render:renderAll};
 })(window,document);
