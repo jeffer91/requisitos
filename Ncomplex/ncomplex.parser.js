@@ -313,7 +313,8 @@ Función o funciones:
 
   function moodleRow(lines,emailEntry,nextEntry,rowNumber,columns){
     var tokens=gradeTokens(lines,emailEntry,nextEntry),issues=[],warnings=[];
-    var layout="moodle_dinamico",count=Array.isArray(columns)?columns.length:0;
+    var count=Array.isArray(columns)?columns.length:0;
+    var layout=count===5?"moodle_5":count===7?"moodle_7":count===11?"moodle_11":"moodle_dinamico";
     var aligned=count>0&&count===tokens.length;
     if(!aligned)issues.push("Desalineación: "+tokens.length+" valores frente a "+count+
       " encabezados. Revise si hay notas o columnas vacías.");
