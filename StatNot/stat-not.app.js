@@ -14,6 +14,13 @@
   function periodId(p){return text(p&&(p.id||p.periodoId||p.periodId||p.codigo||p.value));}
   function periodLabel(p){return text(p&&(p.nombre||p.label||p.periodo||p.NombrePeriodo||p.descripcion||p.name||periodId(p)))||"Período";}
   function isActivePeriod(p){var v=text(p&&(p.estado||p.status||p.activo||p.active)).toLowerCase();return p&&(p.activo===true||p.active===true||v==="activo"||v==="true"||v==="1");}
+  function globalPeriodId(){
+    try{
+      var source=window.BDLPeriodoGlobal||window.RequisitosPeriodoGlobal;
+      var current=source&&typeof source.status==="function"?source.status():null;
+      return periodId(current&&current.period||{});
+    }catch(error){return "";}
+  }
   function studentHaystack(x){return model().norm([x._snCedula,x._snNombre,x._snCarrera,x._snDivision,x._snSede].join(" "));}
   function unique(items,key){var map=Object.create(null);(items||[]).forEach(function(x){var v=text(x[key]);if(v)map[v]=true;});return Object.keys(map).sort(function(a,b){return a.localeCompare(b,"es",{sensitivity:"base"});});}
   function setOptions(node,values,allLabel,keep){if(!node)return;var previous=keep===undefined?node.value:keep;node.innerHTML='<option value="">'+esc(allLabel)+"</option>"+values.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+"</option>";}).join("");if(values.indexOf(previous)>=0)node.value=previous;}
@@ -43,7 +50,11 @@
     return con().listPeriods().then(function(periods){
       state.periods=Array.isArray(periods)?periods:[];var node=el("statnot-period");node.innerHTML=state.periods.map(function(p){return '<option value="'+esc(periodId(p))+'">'+esc(periodLabel(p))+'</option>';}).join("");
       if(!state.periods.length){node.innerHTML='<option value="">Sin períodos</option>';return;}
-      var active=state.periods.find(isActivePeriod);node.value=periodId(active||state.periods[0]);
+      // El período global tiene prioridad sobre períodos marcados activos en históricos.
+      var globalId=globalPeriodId();
+      var institutional=state.periods.find(function(p){return periodId(p)===globalId;});
+      var active=state.periods.find(isActivePeriod);
+      node.value=periodId(institutional||active||state.periods[0]);
     });
   }
 
