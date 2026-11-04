@@ -70,7 +70,11 @@ Con qué se conecta:
         : state === "INCOMPLETO"
           ? "is-warning"
           : "is-muted";
-    return "<span class=\"ncomplex-status " + className + "\">" + esc(label) + "</span>";
+    var check=row._ncomplexRequirements;
+    var blocked=check&&check.eligible===false
+      ? "<span class=\"ncomplex-status is-danger\" title=\"" + esc(check.reason||"Faltan requisitos institucionales") + "\">Bloqueado "+Number(check.complete||0)+"/9</span>"
+      : "";
+    return "<span class=\"ncomplex-status " + className + "\">" + esc(label) + "</span>" + blocked;
   }
 
   function modalityBadge(row){
