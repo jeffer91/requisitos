@@ -314,7 +314,76 @@ Función o funciones:
     return columns;
   }
 
-  function moodleRow(lines,emailEntry,nextEntry,rowNumber,columns){
+
+  function inferMoodleScales(lines,emails,columns){
+    // Una columna Moodle conserva su escala para todos los estudiantes.
+    // Se aceptan 0–10 y 0–100 solo cuando otra evidencia distingue ambas.
+    var evidence=Object.create(null),errors=Object.create(null),raws=[];
+    var nameKeys=(columns||[]).filter(function(key){return /^(te|pr)\d+$/.test(key)||/^(te|pr)Sup\d+$/.test(key);});
+    nameKeys.forEach(function(key){evidence[key]={10:0,100:0};});
+    function add(key,scale){if(evidence[key])evidence[key][scale]++;}
+    function isGradeKey(key){return /^(te|pr)\d+$/.test(key)||/^(te|pr)Sup\d+$/.test(key);}
+    function active(record,prefix){
+      var out=[];
+      columns.forEach(function(key,i){
+        if(new RegExp("^"+prefix+"[0-9]+$").test(key)&&Number.isFinite(record[i]))out.push({key:key,v:record[i]});
+      });
+      return out;
+    }
+    function value(record,key){
+      var index=columns.indexOf(key);
+      return index<0?null:record[index];
+    }
+    emails.forEach(function(e,i){
+      var next=i+1<emails.length?emails[i+1]:{index:lines.length};
+      var record=gradeTokens(lines,e,next).map(rawNumber);
+      raws.push(record);
+      if(record.length!==columns.length)return;
+      columns.forEach(function(key,j){
+        if(isGradeKey(key)&&record[j]>10&&record[j]<=100)add(key,100);
+      });
+      var theoretical=active(record,"te"),practical=active(record,"pr");
+      var hasSupplementary=columns.some(function(key,j){
+        return /^(te|pr)Sup\d+$/.test(key)&&Number.isFinite(record[j]);
+      });
+      if(!hasSupplementary){
+        [[theoretical,"totalT",4,.4],[practical,"totalP",6,.6]].forEach(function(group){
+          var selected=group[0],subtotal=value(record,group[1]);
+          if(selected.length!==1||subtotal===null)return;
+          var candidate=selected[0];
+          // Moodle pondera 40/60 sobre 100, aunque la actividad pueda estar sobre 10.
+          var close10=Math.abs(subtotal-candidate.v*group[2])<=.055;
+          var close100=Math.abs(subtotal-candidate.v*group[3])<=.055;
+          if(close10!==close100)add(candidate.key,close10?10:100);
+        });
+        var course=value(record,"totalCurso");
+        if(theoretical.length===1&&practical.length===1&&course!==null){
+          var pairs=[];
+          [10,100].forEach(function(a){[10,100].forEach(function(b){
+            var calc=theoretical[0].v*(40/a)+practical[0].v*(60/b);
+            if(Math.abs(calc-course)<=.06)pairs.push([a,b]);
+          });});
+          if(pairs.length){
+            [0,1].forEach(function(index){
+              var all=pairs.map(function(pair){return pair[index];});
+              if(all.every(function(v){return v===all[0];}))
+                add(index===0?theoretical[0].key:practical[0].key,all[0]);
+            });
+          }
+        }
+      }
+    });
+    var scales=Object.create(null);
+    Object.keys(evidence).forEach(function(key){
+      var votes=evidence[key];
+      if(votes[10]&&votes[100])errors[key]="Escala contradictoria entre estudiantes (10/100)";
+      else if(votes[10])scales[key]=10;
+      else if(votes[100])scales[key]=100;
+    });
+    return {scales:scales,errors:errors};
+  }
+
+  function moodleRow(lines,emailEntry,nextEntry,rowNumber,columns,scaleInfo){
     var tokens=gradeTokens(lines,emailEntry,nextEntry),issues=[],warnings=[];
     var count=Array.isArray(columns)?columns.length:0;
     var layout=count===5?"moodle_5":count===7?"moodle_7":count===11?"moodle_11":"moodle_dinamico";
@@ -329,12 +398,24 @@ Función o funciones:
     if(!Object.keys(positions).some(function(key){return /^te\d+$/.test(key);}) ||
        !Object.keys(positions).some(function(key){return /^pr\d+$/.test(key);}))
       issues.push("No se identificaron ambos componentes: teórico y práctico.");
+    scaleInfo=scaleInfo||{scales:{},errors:{}};
     function at(index,description){
       if(!aligned||index<0||index>=tokens.length)return null;
-      var value=rawNumber(tokens[index]);
-      if(value!==null&&(value<0||value>100)){
+      var value=rawNumber(tokens[index]),role=columns[index]||"";
+      if(value===null)return null;
+      if(value<0||value>100){
         issues.push(description+" fuera de escala 0–100: "+text(tokens[index]));
         return null;
+      }
+      if(/^(te|pr)(Sup)?[0-9]+$/.test(role)){
+        if(scaleInfo.errors[role]){issues.push(description+": "+scaleInfo.errors[role]);return null;}
+        var maximum=scaleInfo.scales[role];
+        if(!maximum){
+          if(value===0)return 0;
+          issues.push(description+": escala 0–10 o 0–100 no verificable; confirme la escala en Moodle.");
+          return null;
+        }
+        return Math.round(value/maximum*1000)/100;
       }
       return scoreToTen(tokens[index]);
     }
@@ -413,6 +494,7 @@ Función o funciones:
       moodleTotalTeorico:totalT,moodleTotalPractico:totalP,moodleTotalCurso:totalCurso,
       rawValues:tokens.slice(),rawScores:tokens.map(rawNumber),
       columnRoles:(columns||[]).slice(),
+      componentScales:Object.assign({},scaleInfo.scales),
       rawText:lines.slice(Math.max(0,emailEntry.index-2),nextEntry.index).join("\n"),
       issues:issues,warnings:warnings,blocked:issues.length>0,
       suggestedModality:Config.modalidades&&Config.modalidades.COMPLEXIVO
@@ -424,10 +506,12 @@ Función o funciones:
     var result={ok:false,format:"moodle_gradebook",headers:[],rows:[],errors:[],warnings:[],rawText:source,total:0};
     if(!emails.length){result.errors.push("No se detectaron correos institucionales.");return result;}
     var columns=moodleColumns(lines,emails[0].index);
+    var scales=inferMoodleScales(lines,emails,columns);
     result.headers=columns.slice();
+    result.componentScales=Object.assign({},scales.scales);
     emails.forEach(function(e,i){
       var next=i+1<emails.length?emails[i+1]:{index:lines.length};
-      result.rows.push(moodleRow(lines,e,next,i+1,columns));
+      result.rows.push(moodleRow(lines,e,next,i+1,columns,scales));
     });
     result.total=result.rows.length;
     var blocked=result.rows.filter(function(r){return r.blocked;}).length;
@@ -535,7 +619,7 @@ Función o funciones:
   }
 
   window.NcomplexParser = {
-    version: "2.2.0-moodle-dynamic-schema",
+    version: "2.3.0-moodle-component-scales",
     parse: parse,
     parseMoodle: parseMoodle,
     normalizeCedula: normalizeCedula,
