@@ -169,6 +169,70 @@ check(withConflict.totalConflicts===1,"Una nota local diferente se presenta como
 check(withConflict.conflicts[0].conflicts[0].field==="notaTeorica","El conflicto identifica el campo exacto.");
 check(sandbox.NcomplexMatcher.apply(withConflict.matches,conflictStudents,{}).changed.length===2,"Los conflictos no se sobrescriben automáticamente.");
 
+
+// La exportación Moodle de Administración usa 11 columnas con versiones.
+const modern=`Examen Complexivo Administración octubre marzo 2026
+Nombre / Apellido(s)
+Dirección de correo
+Cuestionario COMPONENTE TEÓRICO EXAMEN COMPLEXIVO
+Cuestionario COMPONENTE TEÓRICO EXAMEN COMPLEXIVO (VERSION 2)
+Cuestionario COMPONENTE TEÓRICO EXAMEN COMPLEXIVO Supletorio
+Cuestionario COMPONENTE TEÓRICO EXAMEN COMPLEXIVO -SUPLETORIO
+Media de calificacionesTotal Teórico
+Cuestionario COMPONENTE PRACTICO EXAMEN COMPLEXIVO
+Cuestionario COMPONENTE PRACTICO EXAMEN COMPLEXIVO (VERSION 2)
+Cuestionario COMPONENTE PRACTICO EXAMEN COMPLEXIVO Supletorio
+Cuestionario COMPONENTE PRACTICO EXAMEN COMPLEXIVO -SUPLETORIO
+Media de calificacionesTotal Práctico
+SumaTotal del curso
+CARLOS EDUARDO ACOSTA CHICA
+caacosta@itsqmet.edu.ec
+96,00
+-
+-
+-
+38,40
+60,00
+-
+-
+-
+36,00
+74,40
+YMYAJAIRA MARILIN MOROCHO MUÑOZ
+ymorocho@itsqmet.edu.ec
+-
+96,00
+-
+-
+38,40
+-
+95,00
+-
+-
+57,00
+95,40
+EDISON FRANCISCO MEDINA VEGA
+edmedina@itsqmet.edu.ec
+72,00
+-
+96,00
+-
+33,60
+50,00
+-
+95,00
+-
+43,50
+77,10
+Promedio general
+89,00
+96,00`;
+const modernParsed=sandbox.NcomplexParser.parse(modern);
+check(modernParsed.rows.length===3,"El Moodle de 11 columnas reconoce tres estudiantes.");
+check(modernParsed.rows[0].notaTeorica===9.6&&modernParsed.rows[0].notaPractica===6,"Carlos: notas ordinarias correctas.");
+check(modernParsed.rows[1].notaTeorica===9.6&&modernParsed.rows[1].notaPractica===9.5,"Yajaira: versión 2 se interpreta como ordinaria.");
+check(modernParsed.rows[2].blocked===true,"Edison requiere conciliación de Moodle y supletorio.");
+
 if(errors.length){
   console.error(`\nVERIFICACIÓN IMPORTACIÓN MOODLE NCOMPLEX: ERROR (${errors.length})`);
   errors.forEach((error,index)=>console.error(`${index+1}. ${error}`));

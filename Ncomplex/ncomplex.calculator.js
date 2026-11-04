@@ -37,7 +37,7 @@ Con qué se conecta:
     if(!raw){ return null; }
     var number = Number(raw);
     if(!Number.isFinite(number)){ return null; }
-    return round(Math.max(0, Math.min(10, number)));
+    return number>=0&&number<=10?round(number):null;
   }
 
   function weighted(first, second, firstWeight, secondWeight){
@@ -95,7 +95,7 @@ Con qué se conecta:
     }else{
       var ordinary = row.notaComplexivo;
       var supplementary = row.notaSupletorio;
-      var useSupplementary = supplementary != null && ordinary != null && ordinary < passing;
+      var useSupplementary = supplementary != null && (ordinary == null || ordinary < passing);
       row.oportunidadAplicada = useSupplementary ? "SUPLETORIO" : "ORDINARIA";
       row.notaOficial = useSupplementary ? supplementary : ordinary;
     }

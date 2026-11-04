@@ -208,8 +208,8 @@ Función o funciones:
   function scoreToTen(value){
     var number = rawNumber(value);
     if(number == null){ return null; }
+    if(number < 0 || number > 100){return null;}
     var converted = number / 10;
-    converted = Math.max(0, Math.min(10, converted));
     return Math.round(converted * 100) / 100;
   }
 
@@ -234,7 +234,8 @@ Función o funciones:
     var output = [];
     for(var index = startIndex; index < endIndex; index += 1){
       var line = text(lines[index]);
-      if(!line || isNoiseLine(line)){ continue; }
+      if(normalized(line).indexOf("promedio general")===0){break;}
+    if(!line || isNoiseLine(line)){ continue; }
       splitTabs(line).forEach(function(part){
         if(isGradeToken(part)){ output.push(part); }
       });
@@ -252,103 +253,68 @@ Función o funciones:
     return indexes;
   }
 
-  function moodleRow(lines, emailEntry, nextIndex, rowNumber){
-    var tokens = gradeTokens(lines, emailEntry.index + 1, nextIndex);
-    var warnings = [];
-    if(tokens.length < 7){
-      warnings.push("Solo se detectaron " + tokens.length + " de las 7 calificaciones esperadas.");
+  // Dos esquemas detectados: Moodle clásico (7 columnas), Moodle multiversión (11).
+  // Una posición desconocida nunca se asigna a otra calificación.
+  function moodleRow(lines,emailEntry,nextIndex,rowNumber){
+    var tokens=gradeTokens(lines,emailEntry.index+1,nextIndex),warnings=[],issues=[];
+    var layout=tokens.length===11?"moodle_11":tokens.length===7?"moodle_7":"";
+    if(!layout)issues.push("Estructura desconocida: "+tokens.length+" columnas; se requieren 7 u 11.");
+    function raw(i){return rawNumber(tokens[i]);}
+    function noteAt(i,field){
+      var v=raw(i);
+      if(v!==null&&(v<0||v>100)){issues.push(field+" fuera de escala 0-100.");return null;}
+      return scoreToTen(tokens[i]);
     }
-    if(tokens.length > 7){
-      warnings.push("Se detectaron valores adicionales; se utilizaron los primeros 7.");
+    function version(a,b,field){
+      var first=noteAt(a,field),second=b==null?null:noteAt(b,field+" versión 2");
+      if(first!==null&&second!==null){issues.push("Dos notas activas en "+field+"; requiere selección de versión.");return null;}
+      return first!==null?first:second;
     }
-    while(tokens.length < 7){ tokens.push("-"); }
-
-    var name = previousName(lines, emailEntry.index);
-    if(!name){ warnings.push("Nombre no detectado antes del correo."); }
-
-    var item = {
-      rowNumber: rowNumber,
-      format: "moodle_gradebook",
-      codigoTitulacion: "",
-      cedula: "",
-      correo: emailEntry.email,
-      nombreCompleto: name,
-      horario: "",
-      notaTeorica: scoreToTen(tokens[0]),
-      notaTeoricaSupletorio: scoreToTen(tokens[1]),
-      notaPractica: scoreToTen(tokens[3]),
-      notaPracticaSupletorio: scoreToTen(tokens[4]),
-      moodleTotalTeorico: scoreToTen(tokens[2]),
-      moodleTotalPractico: scoreToTen(tokens[5]),
-      moodleTotalCurso: scoreToTen(tokens[6]),
-      rawScores: {
-        teorico: rawNumber(tokens[0]),
-        teoricoSupletorio: rawNumber(tokens[1]),
-        totalTeorico: rawNumber(tokens[2]),
-        practico: rawNumber(tokens[3]),
-        practicoSupletorio: rawNumber(tokens[4]),
-        totalPractico: rawNumber(tokens[5]),
-        totalCurso: rawNumber(tokens[6])
-      },
-      rawValues: tokens.slice(0, 7),
-      rawText: lines.slice(Math.max(0, emailEntry.index - 2), nextIndex).join("\n"),
-      warnings: warnings,
-      suggestedModality: Config.modalidades && Config.modalidades.COMPLEXIVO
+    var te=null,pr=null,tes=null,prs=null,totalT=null,totalP=null,totalCurso=null;
+    if(layout==="moodle_11"){
+      te=version(0,1,"Teórico ordinario");
+      tes=version(2,3,"Teórico supletorio");
+      totalT=noteAt(4,"Total teórico");
+      pr=version(5,6,"Práctico ordinario");
+      prs=version(7,8,"Práctico supletorio");
+      totalP=noteAt(9,"Total práctico");
+      totalCurso=noteAt(10,"Total curso");
+    }else if(layout==="moodle_7"){
+      te=noteAt(0,"Teórico");tes=noteAt(1,"Teórico supletorio");totalT=noteAt(2,"Total teórico");
+      pr=noteAt(3,"Práctico");prs=noteAt(4,"Práctico supletorio");totalP=noteAt(5,"Total práctico");totalCurso=noteAt(6,"Total curso");
+    }
+    var ordinary=te!==null&&pr!==null?Math.round((te*.4+pr*.6)*100)/100:null;
+    var sup=tes!==null&&prs!==null?Math.round((tes*.4+prs*.6)*100)/100:null;
+    if((tes!==null||prs!==null)&&sup===null)issues.push("Supletorio incompleto: faltan componentes.");
+    if(sup!==null&&ordinary!==null&&ordinary>=7)issues.push("Supletorio después de nota ordinaria aprobada: requiere conciliación.");
+    var current=sup!==null&&(ordinary===null||ordinary<7)?sup:ordinary;
+    if(totalCurso!==null&&current!==null&&Math.abs(totalCurso-current)>.025){
+      var explanation="Total Moodle "+totalCurso.toFixed(2)+"/10 distinto del cálculo "+current.toFixed(2)+"/10; puede existir una media interna de versiones.";
+      if(layout==="moodle_11")issues.push(explanation);else warnings.push(explanation);
+    }
+    var studentName=previousName(lines,emailEntry.index);
+    if(!studentName)issues.push("Nombre de estudiante no encontrado.");
+    warnings=warnings.concat(issues);
+    return {rowNumber:rowNumber,format:"moodle_gradebook",layout:layout,
+      codigoTitulacion:"",cedula:"",correo:emailEntry.email,nombreCompleto:studentName,horario:"",
+      notaTeorica:te,notaPractica:pr,notaTeoricaSupletorio:tes,notaPracticaSupletorio:prs,
+      moodleTotalTeorico:totalT,moodleTotalPractico:totalP,moodleTotalCurso:totalCurso,
+      rawValues:tokens.slice(),rawScores:tokens.map(rawNumber),
+      rawText:lines.slice(Math.max(0,emailEntry.index-2),nextIndex).join("\n"),
+      issues:issues,warnings:warnings,blocked:issues.length>0,
+      suggestedModality:Config.modalidades&&Config.modalidades.COMPLEXIVO
     };
-
-    if(
-      item.notaTeorica == null &&
-      item.notaTeoricaSupletorio == null &&
-      item.notaPractica == null &&
-      item.notaPracticaSupletorio == null
-    ){
-      item.warnings.push("No se detectaron notas de los componentes.");
-    }
-
-    return item;
   }
 
-  function parseMoodle(lines, source){
-    var emails = findEmailIndexes(lines);
-    var result = {
-      ok: false,
-      format: "moodle_gradebook",
-      headers: [
-        "nombreCompleto",
-        "correo",
-        "notaTeorica",
-        "notaTeoricaSupletorio",
-        "moodleTotalTeorico",
-        "notaPractica",
-        "notaPracticaSupletorio",
-        "moodleTotalPractico",
-        "moodleTotalCurso"
-      ],
-      rows: [],
-      errors: [],
-      warnings: [],
-      rawText: source,
-      total: 0
-    };
-
-    if(!emails.length){
-      result.errors.push("No se detectaron correos institucionales en el texto pegado.");
-      return result;
-    }
-
-    emails.forEach(function(entry, index){
-      var nextIndex = index + 1 < emails.length ? emails[index + 1].index : lines.length;
-      result.rows.push(moodleRow(lines, entry, nextIndex, index + 1));
-    });
-
-    result.total = result.rows.length;
-    var incomplete = result.rows.filter(function(row){
-      return !row.nombreCompleto || row.rawValues.filter(function(value){ return value !== "-"; }).length < 3;
-    }).length;
-    if(incomplete){
-      result.warnings.push(incomplete + " fila(s) requieren revisión porque tienen datos incompletos.");
-    }
-    result.ok = result.rows.length > 0;
+  function parseMoodle(lines,source){
+    var emails=findEmailIndexes(lines);
+    var result={ok:false,format:"moodle_gradebook",headers:[],rows:[],errors:[],warnings:[],rawText:source,total:0};
+    if(!emails.length){result.errors.push("No se detectaron correos institucionales.");return result;}
+    emails.forEach(function(e,i){result.rows.push(moodleRow(lines,e,i+1<emails.length?emails[i+1].index:lines.length,i+1));});
+    result.total=result.rows.length;
+    var blocked=result.rows.filter(function(r){return r.blocked;}).length;
+    if(blocked)result.warnings.push(blocked+" estudiante(s) bloqueado(s) hasta resolver discrepancias.");
+    result.ok=result.total>0;
     return result;
   }
 

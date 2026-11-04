@@ -7,7 +7,7 @@
   var Config=window.BL2Config||{};
   function text(v){return String(v==null?"":v).trim();}
   function round(v){return Math.round(Number(v)*100)/100;}
-  function note(v){var raw=text(v).replace(/,/g,".");if(!raw){return null;}var n=Number(raw);return Number.isFinite(n)?round(Math.max(0,Math.min(10,n))):null;}
+  function note(v){var raw=text(v).replace(/,/g,".");if(!raw){return null;}var n=Number(raw);return Number.isFinite(n)&&n>=0&&n<=10?round(n):null;}
   function cedula(v){var p=window.BDLRulesPersona;if(p&&typeof p.normalizeCedula==="function"){return p.normalizeCedula(v);}var u=Config.utils||{};if(typeof u.normalizeCedula==="function"){return u.normalizeCedula(v);}var raw=text(v).replace(/[^0-9A-Za-z]/g,"").toUpperCase();return /^\d{9}$/.test(raw)?"0"+raw:raw;}
   function period(v){v=text(v);var m=v.match(/^(\d{4})-(\d{2})_+(\d{4})-(\d{2})$/);return m?m[1]+"-"+m[2]+"__"+m[3]+"-"+m[4]:v.replace(/_+/g,"__");}
   function makeId(periodoId,id){periodoId=period(periodoId);id=cedula(id);return periodoId&&id?id+"__"+periodoId:"";}
@@ -31,7 +31,7 @@
     var ne=note(first(row,["notaEscrito","escrito","trabajoEscrito"]));
     var nd=note(first(row,["notaDefensaTrabajo","defensaTrabajo","defensa"]));
     var nw=trabajo(ne,nd);if(nw==null){nw=note(first(row,["notaTrabajoTitulacion","trabajoTitulacion","Trabajo Titulación"]));}
-    var op=text(row.oportunidadAplicada||ctx.oportunidadAplicada).toUpperCase();if(op!=="SUPLETORIO"&&op!=="ORDINARIA"){op=nc!=null&&nc<pass&&ns!=null?"SUPLETORIO":"ORDINARIA";}
+    var op=text(row.oportunidadAplicada||ctx.oportunidadAplicada).toUpperCase();if(op!=="SUPLETORIO"&&op!=="ORDINARIA"){op=ns!=null&&(nc==null||nc<pass)?"SUPLETORIO":"ORDINARIA";}
     var oficial=mode===MOD_TRABAJO?nw:(op==="SUPLETORIO"?ns:nc);
     var any=[nt,np,nc,nts,nps,ns,ne,nd,nw].some(function(v){return v!=null;});
     var estado=!any?"SIN_NOTAS":oficial==null?"INCOMPLETO":oficial>=pass?"APROBADO":"NO_APROBADO";

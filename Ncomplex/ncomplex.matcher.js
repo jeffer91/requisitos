@@ -262,6 +262,9 @@ Función o funciones:
     };
 
     parsedRows.forEach(function(imported){
+      if(imported.blocked===true || imported.issues && imported.issues.length){
+        result.unmatched.push({imported:imported,label:importedLabel(imported),reason:(imported.issues||[]).join(" | ")||"Notas pendientes de conciliación"});return;
+      }
       var resolved = resolveStudent(imported, indexes);
       var student = resolved.student;
 

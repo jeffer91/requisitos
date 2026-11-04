@@ -393,6 +393,9 @@ Con qué se conecta:
     }).then(function(periods){
       if(State.patch){ State.patch({ ready: true, loading: false }, "ready"); }
       status("Ncomplex listo. Seleccione un período.", "success");
+      if(window.location&&/actasImport=1/.test(window.location.search||"")){
+        var popup=element("ncomplex-import-modal");if(popup){popup.hidden=false;popup.setAttribute("aria-hidden","false");}
+      }
       return periods;
     }).catch(function(error){
       if(State.patch){ State.patch({ ready: false, loading: false, error: error.message || String(error) }, "boot-error"); }
