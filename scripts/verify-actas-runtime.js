@@ -2,6 +2,11 @@
 /* Verifica flujo del módulo Actas con datos simulados y sin bases de estudiantes reales. */
 const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm"),assert=require("node:assert/strict");
 const root=path.resolve(__dirname,".."),read=p=>fs.readFileSync(path.join(root,p),"utf8");
+const html=read("Actas/actas.html");
+const issueLoaded=html.indexOf('src="actas.issue-date.js"');
+const appLoaded=html.indexOf('src="actas.app.js"');
+assert.ok(issueLoaded>=0&&appLoaded>issueLoaded,
+ "Actas debe cargar actas.issue-date.js antes de actas.app.js para generar PDF sin error forPeriod");
 const context={URL,Promise,Set,Map,JSON,Date,console,Blob,setTimeout,clearTimeout};
 const storage=new Map(),elements=new Map(),printed=[],zips=[],modalityWrites=[],delays=new Map(),calls=[];
 const centralNumbers=new Map();let centralCounter=0;
