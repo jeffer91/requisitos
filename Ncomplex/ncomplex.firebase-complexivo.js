@@ -24,15 +24,16 @@ function normalize(row,period,group){
  data.dataHash="complexivo_"+hash(JSON.stringify(data));
  return data;
 }
-async function publish(){
- if(working)return;
+async function publish(options){
+ options=options||{};
+ if(working)return {ok:false,reason:"Publicación en curso"};
  const period=t($("ncomplex-filter-periodo")&&$("ncomplex-filter-periodo").value).replace(/_+/g,"__");
  const group=t($("ncomplex-complexivo-grupo")&&$("ncomplex-complexivo-grupo").value);
- if(!period||!group){status("Seleccione período y grupo académico.",true);return;}
+ if(!period||!group){status("Solo se guardó en BDLocal. Para crear complexivo en Firebase, seleccione período y Grupo (Presencial/Online/PVC) y pulse Publicar en complexivo.",true);return {ok:false,reason:"Seleccione período y grupo"};}
  const state=w.NcomplexState&&w.NcomplexState.get&&w.NcomplexState.get();
- if(state&&Object.keys(state.dirty||{}).length){status("Primero guarde las calificaciones pendientes en Base Local.",true);return;}
+ if(state&&Object.keys(state.dirty||{}).length){status("Primero guarde las calificaciones pendientes en Base Local.",true);return {ok:false,reason:"Cambios locales pendientes"};}
  const con=w.ConNcomplex,center=w.RequisitosFirebaseOperationCenter;
- if(!con||!center){status("Sin conexión al centro Firebase.",true);return;}
+ if(!con||!center){status("Sin conexión al centro Firebase.",true);return {ok:false,reason:"Centro Firebase no disponible"};}
  const btn=$("ncomplex-btn-complexivo-sync");working=true;if(btn)btn.disabled=true;
  try{
   await center.ensure();
@@ -45,34 +46,66 @@ async function publish(){
     if(!studentsByCed.has(ced))studentsByCed.set(ced,[]);
     studentsByCed.get(ced).push(st);
   });
-  const valid=[],invalid=[];
-  (rows||[]).filter(r=>t(r.periodoId).replace(/_+/g,"__")===period&&t(r.modalidadTitulacion)==="EXAMEN_COMPLEXIVO").forEach(r=>{
+  const valid=[],invalid=[],blocked=[];
+  const scope=Array.isArray(options.onlyCedulas)?new Set(options.onlyCedulas.map(c=>t(c).replace(/\D/g,""))):null;
+  const selected=(rows||[]).filter(r=>{
+    const ced=t(r.cedula||r.numeroIdentificacion).replace(/\D/g,"");
+    return t(r.periodoId).replace(/_+/g,"__")===period &&
+      t(r.modalidadTitulacion)==="EXAMEN_COMPLEXIVO" && (!scope||scope.has(ced));
+  });
+  for(const r of selected){
    const ced=t(r.cedula||r.numeroIdentificacion).replace(/\D/g,"");
    const found=studentsByCed.get(ced)||[];
-   if(found.length!==1){invalid.push(ced+": matrícula no identificada unívocamente");return;}
+   if(found.length!==1){invalid.push(ced+": matrícula no identificada unívocamente");continue;}
    const st=found[0];
    const study=t(st.modalidadEstudio||st.Modalidad||st.modalidad||st.tipoModalidad).toLowerCase();
    const inferred=/online|en.linea|virtual/.test(study)?"ONLINE":/presencial/.test(study)?"PRESENCIAL":/pvc/.test(study)?"PVC":"";
-   if(inferred&&inferred!==group){invalid.push(ced+": grupo distinto de la matrícula");return;}
+   if(inferred&&inferred!==group){invalid.push(ced+": grupo distinto de la matrícula");continue;}
+   if(typeof con.checkRequirements!=="function"){
+     blocked.push(ced+": verificador de requisitos no disponible");continue;
+   }
+   const eligibility=await con.checkRequirements(period,ced);
+   if(!eligibility||eligibility.eligible!==true||eligibility.complete!==9||eligibility.total!==9){
+     blocked.push(ced+": "+t(eligibility&&eligibility.reason||"9 requisitos no verificados"));continue;
+   }
    const doc=normalize(Object.assign({},st,r),period,group);
    if(doc)valid.push(doc);else invalid.push(ced+": calificaciones incompletas o discordantes");
-  });
+  }
   const pending=[],conflicts=[];let same=0;
   for(const doc of valid){
    const remote=await repo.getById("complexivo",period+"__"+doc.cedula);
    if(remote){if(remote.data&&remote.data.dataHash===doc.dataHash)same++;else conflicts.push(doc.cedula);}
    else pending.push(doc);
   }
-  if(!pending.length){status("Sin nuevos registros. Iguales: "+same+"; conflictos: "+conflicts.length+"; incompletos: "+invalid.length,!!conflicts.length);return;}
+  if(!pending.length){
+   const detail=blocked.slice(0,3).join(" | ");
+   const message="No se crearon documentos en complexivo. Iguales: "+same+"; conflictos: "+conflicts.length+
+     "; notas inválidas: "+invalid.length+"; bloqueados por requisitos: "+blocked.length+
+     (detail?". "+detail:"")+
+     (selected.length===0?". No hay evaluaciones guardadas de Examen Complexivo en el período.":"");
+   status(message,blocked.length>0||conflicts.length>0||invalid.length>0);
+   return {ok:true,published:0,same,conflicts,invalid,blocked};
+  }
   const batch=pending.slice(0,25);
-  if(!w.confirm("Publicar "+batch.length+" notas nuevas en complexivo?\nIguales: "+same+"; conflictos: "+conflicts.length+"; incompletas: "+invalid.length+".\nNo se sobrescribirán notas de otro equipo."))return;
+  if(!w.confirm("Publicar "+batch.length+" notas nuevas en complexivo?\n9/9 requisitos verificados.\nBloqueados: "+blocked.length+"; iguales: "+same+"; conflictos: "+conflicts.length+"; inválidas: "+invalid.length+".\nNo se sobrescribirán notas de otro equipo."))return {ok:false,reason:"Cancelado por usuario"};
   let saved=0;
   for(const doc of batch){await repo.writeChecked("complexivo",doc,{expected:{exists:false}});saved++;}
-  status("Publicados: "+saved+"; iguales: "+same+"; conflictos: "+conflicts.length+"; incompletos: "+invalid.length+(pending.length>25?"; siguiente lote: "+(pending.length-25):""),!!conflicts.length);
- }catch(error){status("No se pudo publicar complexivo: "+(error.message||error),true);}
+  status("Firebase complexivo: "+saved+" documentos creados; iguales: "+same+"; conflictos: "+conflicts.length+
+   "; inválidos: "+invalid.length+"; bloqueados 9/9: "+blocked.length+
+   (pending.length>25?"; siguientes por publicar: "+(pending.length-25):"")+
+   (blocked.length?". "+blocked.slice(0,2).join(" | "):""),!!conflicts.length||!!blocked.length);
+  return {ok:true,published:saved,same,conflicts,invalid,blocked};
+ }catch(error){
+   const detail=t(error&&error.message||error);
+   status("Firebase complexivo NO guardado: "+detail+
+    (/permission-denied|insufficient permissions/i.test(detail)?
+      ". Revise las reglas Firestore desplegadas y los permisos del proyecto UTET.":""),
+    true);
+   return {ok:false,error:detail};
+ }
  finally{working=false;if(btn)btn.disabled=false;}
 }
-function bind(){const btn=$("ncomplex-btn-complexivo-sync");if(btn)btn.addEventListener("click",publish);}
+function bind(){const btn=$("ncomplex-btn-complexivo-sync");if(btn)btn.addEventListener("click",function(){publish();});}
 w.NcomplexFirebaseComplexivo=Object.freeze({publish,normalize});
 if(d.readyState==="loading")d.addEventListener("DOMContentLoaded",bind);else bind();
 })(window,document);
