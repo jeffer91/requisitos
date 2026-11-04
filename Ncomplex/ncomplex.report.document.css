@@ -54,3 +54,5 @@
 .nr-outcome-row strong{text-align:right;color:#1d425f}
 .nr-pdf-document .nr-method{font-size:11px;line-height:1.55}
 .nr-pdf-document .nr-method li{margin-bottom:12px}
+
+.nr-pdf-document .nr-figure{font-size:10px;color:#546f83;font-style:italic;margin:8px 0 10px}
