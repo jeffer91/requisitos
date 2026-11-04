@@ -98,6 +98,33 @@ jobs:
           code="$(cat artifacts/npm-test.exit)"
           exit "$code"
 
+  ncomplex-pdf-smoke:
+    name: Ncomplex PDF real rendering smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    needs: static-audit
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+      - name: Prepare Electron sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/electron/install.js
+          executable="$(node -p "require('electron')")"
+          helper="$(dirname "$executable")/chrome-sandbox"
+          test -x "$executable"
+          sudo chown root:root "$helper"
+          sudo chmod 4755 "$helper"
+      - name: Render and validate a real PDF
+        run: xvfb-run --auto-servernum npm run test:ncomplex:pdf
+
   electron-smoke:
     name: Electron, IndexedDB and navigation smoke tests
     runs-on: ubuntu-latest
