@@ -196,7 +196,7 @@ $("actas-estudiantes").addEventListener("change",async e=>{
   const el=e.target,r=S.visible[Number(el.dataset.mode)];if(!r||r.mode===el.value)return;
   const old=r.mode,requested=el.value;el.disabled=true;notify("Guardando modalidad en Base Local…");
   try{
-    if(r.student._ncomplexHasSavedEvaluation&&w.confirm&&!w.confirm("Esta persona tiene una evaluación guardada en Ncomplex. El cambio requerirá revisar allí las notas y la modalidad. ¿Continuar?")){el.value=old;return;}
+    if(w.confirm&&!w.confirm("Vas a cambiar la modalidad de titulación en Ficha. Actas no consulta las calificaciones de Ncomplex; si existen evaluaciones guardadas tendrás que revisarlas en Ncomplex, pues el cambio no las convierte ni las elimina. ¿Confirmas el cambio?")){el.value=old;return;}
     await w.ConActas.setModality({studentId:r.student.idEstudiantePeriodo||r.identity,cedula:ced(r.student),periodoId:S.periodo,periodoLabel:periodLabel(),mode:requested});
     S.selected.delete(r.identity);await load();const updated=rows().find(x=>x.identity===r.identity);
     notify(updated&&updated.conflict?"Modalidad guardada. Revisa la evaluación en Ncomplex antes de emitir el acta.":"Modalidad guardada en Base Local. Ficha y Actas utilizarán el nuevo valor.",false);
