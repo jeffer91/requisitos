@@ -62,6 +62,7 @@
     "test:autosync": "node scripts/verify-autosync.js",
     "test:electron": "node scripts/run-test-with-report.js electron",
     "test:ncomplex:pdf": "electron electron/smoke-ncomplex-report-main.js",
+    "test:actas:pdf": "electron electron/smoke-actas-pdf-main.js",
     "test:electron:core": "electron electron/smoke-main.js",
     "test:electron:navigation": "electron electron/smoke-navigation-main.js",
     "diagnostico:bdlocal": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/diagnostico-bdlocal.ps1",
