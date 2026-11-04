@@ -1,4 +1,4 @@
-/* Actas lee estudiantes, requisitos y evaluaciones de Base Local; la única escritura académica permitida es modalidad a través de Ficha. */
+/* Actas lee estudiantes y requisitos; Ncomplex gestiona todas las calificaciones. */
 (function(w,d){"use strict";
 const base=d.currentScript&&d.currentScript.src||d.baseURI;
 let promise=null,loaded=false,error="",stamp="";
@@ -62,54 +62,21 @@ function joinRequirements(periodoId,primary,supplementary){
  }));
  return {rows:[...map.values()],counts};
 }
-function usableNcomplexNote(row){
- if(!row)return false;
- const origin=compact(row.origen||row.source||"");
- return origin.includes("ncomplex")||[
-  "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
-  "notaPracticaSupletorio","notaEscrito","notaDefensaTrabajo","notaOficial"
- ].some(k=>row[k]!==undefined&&row[k]!==null&&text(row[k])!=="");
-}
+/* Consulta documental exclusiva. Ncomplex conserva sus notas y no se consultan aquí. */
 async function read(opts){
  opts=opts||{};await ready();
  const periodId=normPeriod(opts.periodoId||opts.periodId||"");
- const notas=w.BDLRepoNotas||(w.BDLRepositories&&typeof w.BDLRepositories.get==="function"?w.BDLRepositories.get("notas"):null);
- const notesPromise=notas&&typeof notas.list==="function"?notas.list({periodoId:periodId}).catch(()=>[]):Promise.resolve([]);
- const [periods,students,evaluations,primaryRequirements,supplementary,notes]=await Promise.all([
+ const [periods,students,primaryRequirements,supplementary]=await Promise.all([
   w.ConNcomplex.listPeriods(),
-  localStudents({periodoId:periodId}),
-  w.ConNcomplex.listEvaluations({periodoId:periodId}),
-  w.BDLRepoRequisitos.list({periodoId:periodId}),
-  supplementaryRequirements(periodId),
-  notesPromise
+  localStudents({periodoId}),
+  w.BDLRepoRequisitos.list({periodoId}),
+  supplementaryRequirements(periodId)
  ]);
  const joinedRequirements=joinRequirements(periodId,primaryRequirements,supplementary);
- const evaluationIndex=new Map(),notesIndex=new Map();
- asRows(evaluations).forEach(row=>{const k=keyOf(row);if(k&&row&&!row.eliminado)evaluationIndex.set(k,row);});
- asRows(notes).forEach(row=>{const k=keyOf(row);if(k&&!notesIndex.has(k)&&usableNcomplexNote(row))notesIndex.set(k,row);});
- let matchedEvaluations=0,matchedMirrors=0;
- const joined=asRows(students).map(student=>{
-  const k=keyOf(student);
-  const official=evaluationIndex.get(k)||null;
-  const mirrored=!official?notesIndex.get(k)||null:null;
-  const evaluation=official||mirrored||student._ncomplexHasSavedEvaluation&&student._ncomplexEvaluation||null;
-  if(official)matchedEvaluations++;
-  else if(mirrored)matchedMirrors++;
-  return Object.assign({},student,{
-   _ncomplexHasSavedEvaluation:!!evaluation,
-   _ncomplexEvaluation:evaluation,
-   estadoEvaluacion:evaluation?evaluation.estadoEvaluacion||"":""
-  });
- });
- let enriched=joined,gradeError="";
- try{if(!w.ActasGrades)throw Error("Consulta de notas no disponible");enriched=await w.ActasGrades.enrich(periodId,joined);}
- catch(err){gradeError=err.message||String(err);enriched=joined.map(s=>Object.assign({},s,{_actasNuclei:[],_actasComplexivo:null}));}
- return {ok:true,data:{periods:asRows(periods),students:enriched,requirements:joinedRequirements.rows},meta:{gradeError,
-  source:"BDLocal requisitos_estudiante + requisitos legacy + Ncomplex",readOnly:true,
-  diagnostics:{students:joined.length,requirements:joinedRequirements.rows.length,
-   requirementSources:joinedRequirements.counts,evaluations:asRows(evaluations).length,
-   mirroredNotes:notesIndex.size,matchedEvaluations,matchedMirrors}
- }};
+ return {ok:true,data:{periods:asRows(periods),students:asRows(students),requirements:joinedRequirements.rows},
+  meta:{source:"BDLocal estudiantes + requisitos (sin calificaciones)",readOnly:true,
+   diagnostics:{students:asRows(students).length,requirements:joinedRequirements.rows.length,
+    requirementSources:joinedRequirements.counts}}};
 }
 async function setModality(opts){opts=opts||{};await ready();const mode=text(opts.mode);if(!["EXAMEN_COMPLEXIVO","TRABAJO_TITULACION"].includes(mode))throw Error("Modalidad inválida.");
 await load("cone.ficha.js",()=>!!w.ConFicha);
@@ -120,6 +87,6 @@ if(!periodId||!ced(opts.cedula))throw Error("El estudiante necesita cédula y pe
 return w.ConFicha.updateGraduationModality(identity,mode,{periodoId,periodId,cedula:ced(opts.cedula),periodoLabel:text(opts.periodoLabel),source:"actas.selector"});
 }
 function status(){return {ok:loaded&&!error,ready:loaded,error,loadedAt:stamp};}
-const api={version:"2.0",screen:"actas",ready,read,setModality,listPeriods:()=>ready().then(()=>w.ConNcomplex.listPeriods()),status,diagnose:()=>({ok:loaded&&!error,source:"BDLocal + Ncomplex",canRead:true,canWrite:true,writeScope:"modalidad únicamente",error}),refresh:read};
+const api={version:"2.0",screen:"actas",ready,read,setModality,listPeriods:()=>ready().then(()=>w.ConNcomplex.listPeriods()),status,diagnose:()=>({ok:loaded&&!error,source:"BDLocal documental",canRead:true,canWrite:true,writeScope:"modalidad únicamente",error}),refresh:read};
 w.ConActas=w.BDLocalConeActas=api;const hub=w.BDLocalConexiones;if(hub&&typeof hub.register==="function")hub.register("actas",api);
 })(window,document);
