@@ -245,10 +245,22 @@ async function renderPDF(report,meta){
        var images=Array.prototype.slice.call(element.querySelectorAll("img")||[]);
        if(!images.length){resolve();return;}
        Promise.all(images.map(function(img){
+         var src=img.getAttribute("src")||"";
+         function verify(){
+           if(!img.naturalWidth||!img.naturalHeight)
+             throw Error("Logotipo no disponible para el PDF: "+src);
+         }
+         // Se espera la decodificación, no solamente el indicador img.complete.
+         if(typeof img.decode==="function"){
+           return img.decode().then(verify).catch(function(error){
+             throw Error("No se pudo cargar el logotipo institucional: "+src+
+               " ("+(error&&error.message||error)+")");
+           });
+         }
          return new Promise(function(done,rejectImage){
-           if(img.complete){img.naturalWidth?done():rejectImage(Error("No se pudo cargar el logotipo institucional."));return;}
-           img.addEventListener("load",done,{once:true});
-           img.addEventListener("error",function(){rejectImage(Error("No se pudo cargar el logotipo institucional."));},{once:true});
+           if(img.complete&&img.naturalWidth){done();return;}
+           img.addEventListener("load",function(){try{verify();done();}catch(e){rejectImage(e);}},{once:true});
+           img.addEventListener("error",function(){rejectImage(Error("Logotipo no disponible: "+src));},{once:true});
          });
        })).then(resolve,reject);
      });
