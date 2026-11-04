@@ -238,13 +238,13 @@ Con qué se conecta:
 
     if(Summary.renderImport){ Summary.renderImport(matched); }
     var applyButton = element("ncomplex-btn-apply-import");
-    if(applyButton){ applyButton.disabled = !matched.totalMatched; }
+    if(applyButton){ applyButton.disabled = !(matched.matches||[]).some(function(item){return !item.hasConflict&&item.apply!==false;}); }
 
     status(
       matched.totalMatched + " estudiante(s) encontrado(s); " +
       matched.totalUnmatched + " no encontrado(s); " +
-      matched.totalConflicts + " conflicto(s).",
-      matched.totalUnmatched || matched.totalConflicts ? "warning" : "success"
+      (matched.totalReview||0) + " por conciliar; " + matched.totalConflicts + " conflicto(s).",
+      matched.totalUnmatched || matched.totalConflicts || matched.totalReview ? "warning" : "success"
     );
   }
 
