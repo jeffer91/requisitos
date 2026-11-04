@@ -138,6 +138,15 @@ assert.equal(modalityWrites[0].mode,"TRABAJO_TITULACION");
 trigger("actas-ejemplo","click");
 assert.match(elem("actas-alert").textContent,/exclusivamente al período Octubre 2025 a Marzo 2026/);
 assert.equal(elem("actas-cronograma-estado").textContent,"Sin fechas guardadas","No inyecta fechas de otro periodo");
+dataset2.students.push(student("0010","MODALIDAD CONTRADICTORIA","EXAMEN_COMPLEXIVO",{
+ periodoId:per2,tipoTitulacion:"TRABAJO_TITULACION"
+}));
+trigger("actas-recargar","click");await tick();await tick();
+assert.match(elem("actas-estudiantes").innerHTML,/MODALIDAD CONTRADICTORIA/);
+assert.match(elem("actas-estudiantes").innerHTML,/Revisar identidad, matrícula o modalidad/,
+ "Dos modalidades contradictorias se reportan como conflicto");
+assert.ok(elem("actas-estudiantes").innerHTML.includes('data-register="1" disabled'),
+ "No registrar folio cuando Ficha y expediente registran modalidades diferentes");
 console.log("VERIFICACIÓN ACTAS V2: OK (búsqueda global, selector, PDF, ZIP, bloqueo de actas, cronograma y carrera de carga)");
 }
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
