@@ -15,6 +15,56 @@
   function weighted(a,b,wa,wb){a=note(a);b=note(b);return a==null||b==null?null:round(a*wa+b*wb);}
   function complexivo(a,b){return weighted(a,b,0.40,0.60);}
   function trabajo(a,b){return weighted(a,b,0.60,0.40);}
+  var REQUIRED=Object.freeze([
+    {key:"academico",label:"Académico",aliases:["academico"]},
+    {key:"documentacion",label:"Documentación",aliases:["documentacion","documentacionacademica"]},
+    {key:"financiero",label:"Financiero",aliases:["financiero"]},
+    {key:"practicas",label:"Prácticas",aliases:["practicas","practicaspreprofesionales","practicasvinculacion"]},
+    {key:"vinculacion",label:"Vinculación",aliases:["vinculacion","vinculacionconlasociedad"]},
+    {key:"seguimientograduados",label:"Seguimiento graduados",aliases:["seguimientograduados","seguimientoagraduados","seguimiento"]},
+    {key:"ingles",label:"Inglés",aliases:["ingles","segundalengua"]},
+    {key:"actualizaciondatos",label:"Actualización de datos",aliases:["actualizaciondatos","actualizaciondedatos"]},
+    {key:"titulacion",label:"Titulación",aliases:["titulacion"]}
+  ]);
+  function requirementKey(value){
+    return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  }
+  function requirementStatus(value){
+    if(value&&typeof value==="object")value=value.valor!==undefined?value.valor:value.estado!==undefined?value.estado:value.value;
+    var key=requirementKey(value);
+    return key==="cumple"?"CUMPLE":key==="nocumple"?"NO CUMPLE":key==="pendiente"?"PENDIENTE":"SIN DATO";
+  }
+  function evaluateRequirements(student,rows){
+    var entries=Object.create(null);
+    function take(key,value,source){
+      var normalized=requirementKey(key);
+      var def=REQUIRED.filter(function(r){return r.aliases.some(function(alias){return normalized===alias;});})[0];
+      if(!def)return;
+      var status=requirementStatus(value),previous=entries[def.key];
+      if(!previous || source==="requisitos_estudiante" || previous.source!=="requisitos_estudiante")
+        entries[def.key]={status:status,source:source};
+    }
+    student=student||{};
+    Object.keys(student).forEach(function(key){take(key,student[key],"estudiante");});
+    (Array.isArray(student.requisitos)?student.requisitos:[]).forEach(function(row){
+      take(row.requisitoKey||row.requirementKey||row.key||row.nombre,
+        row.valor!==undefined?row.valor:row.estado,"estudiante");
+    });
+    (Array.isArray(rows)?rows:[]).forEach(function(row){
+      take(row.requisitoKey||row.requirementKey||row.key||row.nombre||row.campo,
+        row.valor!==undefined?row.valor:row.estado!==undefined?row.estado:row.value,
+        "requisitos_estudiante");
+    });
+    var items=REQUIRED.map(function(r){
+      var entry=entries[r.key]||{status:"SIN DATO",source:"sin registro"};
+      return {key:r.key,label:r.label,status:entry.status,source:entry.source};
+    });
+    var missing=items.filter(function(item){return item.status!=="CUMPLE";});
+    return {eligible:missing.length===0,complete:items.length-missing.length,total:items.length,
+      requirements:items,missing:missing,
+      reason:missing.map(function(r){return r.label+" ("+r.status+")";}).join(", ")};
+  }
+
   function first(row,names){for(var i=0;i<names.length;i+=1){var v=row[names[i]];if(v!==undefined&&v!==null&&text(v)!==""){return v;}}return null;}
   function build(input,context){
     var row=Object.assign({},input||{}),ctx=context||{};
@@ -40,5 +90,5 @@
   }
   function apply(payload,ctx){return Array.isArray(payload)?payload.map(function(r){return build(r,ctx);}):build(payload,ctx);}
   if(window.BDLRules&&typeof window.BDLRules.register==="function"){window.BDLRules.register("evaluaciones_titulacion.normalize",apply);window.BDLRules.register("ncomplex.normalize",apply);}
-  window.BDLRulesEvaluacionesTitulacion={version:VERSION,MOD_COMPLEXIVO:MOD_COMPLEXIVO,MOD_TRABAJO:MOD_TRABAJO,parseNota:note,normalizeCedula:cedula,canonicalPeriodId:period,makeId:makeId,modality:modality,complexivo:complexivo,trabajo:trabajo,build:build,apply:apply};
+  window.BDLRulesEvaluacionesTitulacion={version:VERSION,MOD_COMPLEXIVO:MOD_COMPLEXIVO,MOD_TRABAJO:MOD_TRABAJO,parseNota:note,normalizeCedula:cedula,canonicalPeriodId:period,makeId:makeId,modality:modality,complexivo:complexivo,trabajo:trabajo,REQUIRED:REQUIRED,evaluateRequirements:evaluateRequirements,requirementStatus:requirementStatus,build:build,apply:apply};
 })(window);
