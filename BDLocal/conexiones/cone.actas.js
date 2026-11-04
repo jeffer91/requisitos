@@ -84,7 +84,7 @@ if(typeof w.ConFicha.ready==="function")await w.ConFicha.ready();
 if(typeof w.ConFicha.updateGraduationModality!=="function")throw Error("El conector Ficha no permite actualizar modalidad.");
 const periodId=normPeriod(opts.periodoId),identity=text(opts.studentId)||ced(opts.cedula)+"__"+periodId;
 if(!periodId||!ced(opts.cedula))throw Error("El estudiante necesita cédula y período.");
-return w.ConFicha.updateGraduationModality(identity,mode,{periodoId,periodId,cedula:ced(opts.cedula),periodoLabel:text(opts.periodoLabel),source:"actas.selector"});
+return w.ConFicha.updateGraduationModality(identity,mode,{periodoId:periodId,periodId:periodId,cedula:ced(opts.cedula),periodoLabel:text(opts.periodoLabel),source:"actas.selector"});
 }
 function status(){return {ok:loaded&&!error,ready:loaded,error,loadedAt:stamp};}
 const api={version:"2.0",screen:"actas",ready,read,setModality,listPeriods:()=>ready().then(()=>w.ConNcomplex.listPeriods()),status,diagnose:()=>({ok:loaded&&!error,source:"BDLocal documental",canRead:true,canWrite:true,writeScope:"modalidad únicamente",error}),refresh:read};
