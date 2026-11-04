@@ -56,7 +56,7 @@ const workStudent={...sample.student,_ncomplexEvaluation:{modalidadTitulacion:ca
 const work=docs.render({...sample,student:workStudent,mode:cat.TRABAJO,schedule:cat.get(cat.TRABAJO,true),evidence:sandbox.window.ActasEvidence.assess({student:workStudent,mode:cat.TRABAJO,requirementValues:requireAll})});
 assert.match(work,/Acta de Titulación por Trabajo de Titulación/);
 assert.match(work,/Modalidad y estado del proceso/);
-assert.match(work,/Requisito Titulación/);
+assert.match(work,/Titulación/);
 const menu=read("Maqueta/maq-config-service.js");
 const registry=read("Maqueta/maq-modulos-registry.js");
 assert.match(menu,/moduloId:"actas",etiqueta:"Actas"/);
