@@ -43,16 +43,31 @@ function indexReqs(){
  return map;
 }
 function approval(value){return value==="cumple";}
+function parseModality(value){
+ const k=norm(value);
+ if(!k)return "";
+ if(k.includes("articulo"))return "ARTICULO_ACADEMICO";
+ if(k.includes("trabajo")||k==="proyecto")return TT;
+ if(k.includes("complexivo"))return CX;
+ return "";
+}
+function explicitModalities(s){
+ return {
+  type:parseModality(s.tipoTitulacion||s.TipoTitulacion||s._raw&&s._raw.tipoTitulacion||s._raw&&s._raw.TipoTitulacion),
+  declared:parseModality(s._modalidadTitulacion||s.modalidadTitulacion||s.ModalidadTitulacion||s._raw&&s._raw.modalidadTitulacion||s._raw&&s._raw.ModalidadTitulacion)
+ };
+}
 function modality(s){
-  const parse=value=>{const k=norm(value);if(!k)return "";if(k.includes("articulo"))return "ARTICULO_ACADEMICO";if(k.includes("trabajo")||k==="proyecto")return TT;if(k.includes("complexivo"))return CX;return "";};
-  const fixed=parse(s.tipoTitulacion||s.TipoTitulacion||s._raw&&s._raw.tipoTitulacion||s._raw&&s._raw.TipoTitulacion);if(fixed==="ARTICULO_ACADEMICO")return fixed;
-  const declared=parse(s._modalidadTitulacion||s.modalidadTitulacion||s.ModalidadTitulacion||s._raw&&s._raw.modalidadTitulacion||s._raw&&s._raw.ModalidadTitulacion);
-  // La modalidad procede de Ficha/expediente, no se deduce desde una nota.
-  // Un expediente sin modalidad debe exigir selección explícita.
-  return declared||fixed||"";
+ const m=explicitModalities(s);
+ if(m.type==="ARTICULO_ACADEMICO")return m.type;
+ // Actas no infiere modalidad a partir de evaluaciones de Ncomplex.
+ return m.declared||m.type||"";
 }
 function inactive(s){return text(s.estadoMatricula||s._estadoMatricula).toUpperCase()==="RETIRADO"||s.retirado===true||s.eliminado===true;}
-function errorConflict(s){return inactive(s)||modality(s)==="ARTICULO_ACADEMICO";}
+function errorConflict(s){
+ const m=explicitModalities(s);
+ return inactive(s)||m.type==="ARTICULO_ACADEMICO"||!!(m.type&&m.declared&&m.type!==m.declared);
+}
 function rows(){
  const idx=indexReqs(),duplicates=new Map();
  S.students.filter(s=>period(s)===S.periodo).forEach(s=>{
@@ -156,7 +171,7 @@ function renderTable(){
   const article=r.mode==="ARTICULO_ACADEMICO",inactive=text(st.estadoMatricula||st._estadoMatricula).toUpperCase()==="RETIRADO";
   const selected=article?'<select class="mode-select" disabled><option>ARTÍCULO PVC</option></select>':
    '<select class="mode-select" data-mode="'+i+'" aria-label="Modalidad de '+esc(name(st))+'" '+(inactive?'disabled':'')+'><option value="" '+(!r.mode?'selected':'')+' disabled>Seleccione modalidad</option><option value="'+CX+'" '+(r.mode===CX?'selected':'')+'>COMPLEX</option><option value="'+TT+'" '+(r.mode===TT?'selected':'')+'>TRAB</option></select>';
-  const documentState=number?"N.º "+number.numeroActa:r.conflict?"Revisar identidad o matrícula":article?"Artículo PVC":!r.draftAllowed?"Borrador no disponible":r.verified&&!S.numberingVerified?"Borrador listo · servidor no verificado":r.verified?"Habilitado para emisión":"Borrador sin notas · pendiente de cierre";
+  const documentState=number?"N.º "+number.numeroActa:r.conflict?"Revisar identidad, matrícula o modalidad":article?"Artículo PVC":!r.draftAllowed?"Borrador no disponible":r.verified&&!S.numberingVerified?"Borrador listo · servidor no verificado":r.verified?"Habilitado para emisión":"Borrador sin notas · pendiente de cierre";
   return '<tr><td><input type="checkbox" class="actas-check" data-i="'+i+'" '+(S.selected.has(r.identity)?"checked ":"")+(r.draftAllowed?"":"disabled ")+'aria-label="Seleccionar '+esc(name(st))+'"></td><td><strong>'+esc(name(st))+'</strong></td><td>'+esc(ced(st))+'</td><td>'+esc(career(st))+'</td><td>'+selected+'</td><td><span class="status '+(r.a?"ok":"warn")+'">'+(r.a?"CUMPLE":"PENDIENTE")+'</span></td><td><span class="status '+(r.b?"ok":"warn")+'">'+(r.b?"CUMPLE":"PENDIENTE")+'</span></td><td title="'+esc(r.proof.missing.join("; ")||"Aprobaciones verificadas")+'"><span class="status '+(number?"ok":rec?"draft":"warn")+'">'+esc(documentState)+'</span></td><td><div class="actas-number-actions"><button class="mini secondary" data-register="'+i+'" '+(r.verified&&!number&&S.numberingVerified?"":"disabled")+'>Registrar N.º</button><button class="mini" data-pdf="'+i+'" '+(r.draftAllowed?"":"disabled")+'>Descargar PDF</button></div></td></tr>';
  }).join(""):'<tr><td colspan="9" class="empty">No existen estudiantes para estos filtros.</td></tr>';
  S.visible=list;
@@ -234,7 +249,7 @@ $("actas-zip").addEventListener("click",async()=>{
  if(!S.periodo)return;
  const all=rows(),approved=all.filter(r=>r.draftAllowed),button=$("actas-zip");
  if(!approved.length){notify("No existen estudiantes habilitados.",true);return;}
- const summary=all.map(r=>({cedula:ced(r.student),nombre:name(r.student),carrera:career(r.student),modalidad:r.mode===TT?"TRAB":r.mode===CX?"COMPLEX":"ARTICULO",estado:r.draftAllowed?"EN_PROCESO":"EXCLUIDO",motivo:r.draftAllowed?"":r.conflict?"Revisar identidad o matrícula":r.proof.missing.join("; "),archivo:""}));
+ const summary=all.map(r=>({cedula:ced(r.student),nombre:name(r.student),carrera:career(r.student),modalidad:r.mode===TT?"TRAB":r.mode===CX?"COMPLEX":"ARTICULO",estado:r.draftAllowed?"EN_PROCESO":"EXCLUIDO",motivo:r.draftAllowed?"":r.conflict?"Revisar identidad, matrícula o modalidad":r.proof.missing.join("; "),archivo:""}));
  button.disabled=true;
  try{
   const group=await assignToRows(approved,p=>notify("Verificando números oficiales: "+p.done+"/"+p.total+"…"));
