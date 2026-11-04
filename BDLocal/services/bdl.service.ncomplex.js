@@ -39,6 +39,7 @@ Función:
   function rules(){return window.BDLRulesEvaluacionesTitulacion||null;}
   function evaluationRepo(){return window.BDLRepoEvaluacionesTitulacion||Services.repo("evaluaciones_titulacion")||Services.repo("ncomplex");}
   function notesRepo(){return window.BDLRepoNotas||Services.repo("notas")||Services.repo("notas_titulacion");}
+  function requirementsRepo(){return window.BDLRepoRequisitos||Services.repo("requisitos_estudiante")||Services.repo("requisitos");}
   function importsRepo(){return window.BDLRepoImportaciones||Services.repo("importaciones");}
   function changesRepo(){return Services.repo("cambios_pendientes")||window.BDLRepoCambios||Services.repo("cambios");}
   function logsRepo(){return window.BDLRepoLogs||Services.repo("logs");}
@@ -78,6 +79,32 @@ Función:
       _ncomplexHasSavedEvaluation:!!evaluation,_ncomplexEvaluation:current
     });
   }
+  function deniedRequirements(reason){
+    return {eligible:false,complete:0,total:9,missing:[],
+      reason:reason||"No se pueden verificar los nueve requisitos institucionales."};
+  }
+  function validateRequirements(student,rows){
+    var helper=rules();
+    return helper&&typeof helper.evaluateRequirements==="function"
+      ? helper.evaluateRequirements(student||{},rows||[])
+      : deniedRequirements("El validador de requisitos no está disponible.");
+  }
+  function readRequirements(options){
+    var repo=requirementsRepo();
+    if(!repo||typeof repo.list!=="function")
+      return Promise.reject(new Error("Repositorio de requisitos no disponible."));
+    return repo.list(options||{});
+  }
+  function checkRequirements(periodoId,cedula){
+    var period=studentPeriod({periodoId:periodoId}),id=studentCedula({cedula:cedula});
+    if(!period||!id)return Promise.resolve(deniedRequirements("Período o cédula incompleto."));
+    return Promise.all([loadStudents({periodoId:period}),readRequirements({periodoId:period,cedula:id})])
+      .then(function(out){
+        var students=(out[0]||[]).filter(function(st){return studentCedula(st)===id&&studentPeriod(st)===period;});
+        if(students.length!==1)return deniedRequirements("Matrícula no identificada de forma única.");
+        return validateRequirements(students[0],out[1]||[]);
+      }).catch(function(error){return deniedRequirements(error.message||String(error));});
+  }
   function loadStudents(options){
     var service=studentsService();options=options||{};
     if(service&&typeof service.list==="function"){
@@ -108,10 +135,26 @@ Función:
   }
   function list(options){
     options=options||{};
-    return Promise.all([loadStudents(options),loadEvaluations(options)]).then(function(result){
-      var students=result[0]||[],evaluations=result[1]||[],map=Object.create(null);
+    return Promise.all([loadStudents(options),loadEvaluations(options),
+      readRequirements({periodoId:options.periodoId||options.periodId||""})
+        .then(function(rows){return {rows:rows||[],error:""};})
+        .catch(function(err){return {rows:[],error:err.message||String(err)};})
+    ]).then(function(result){
+      var students=result[0]||[],evaluations=result[1]||[],req=result[2]||{rows:[],error:""},map=Object.create(null),reqByCed=Object.create(null);
+      req.rows.forEach(function(item){
+        var ced=studentCedula(item),period=studentPeriod(item);
+        if(ced&&(!options.periodoId||period===studentPeriod({periodoId:options.periodoId}))){
+          if(!reqByCed[ced])reqByCed[ced]=[];
+          reqByCed[ced].push(item);
+        }
+      });
       evaluations.forEach(function(row){var id=studentPeriodId(row.periodoId,row.cedula)||text(row.idEstudiantePeriodo||row.id);if(id&&!row.eliminado){map[id]=row;}});
-      return applyFilters(students.map(function(student){var id=studentPeriodId(studentPeriod(student),studentCedula(student));return mergeStudentEvaluation(student,map[id]||null,options);}),options)
+      return applyFilters(students.map(function(student){
+        var id=studentPeriodId(studentPeriod(student),studentCedula(student));
+        var row=mergeStudentEvaluation(student,map[id]||null,options);
+        var check=req.error?deniedRequirements(req.error):validateRequirements(student,reqByCed[studentCedula(student)]||[]);
+        return Object.assign({},row,{_ncomplexRequirements:check,requisitosCompletos:check.eligible,requisitosFaltantes:check.reason});
+      }),options)
         .sort(function(a,b){var career=norm(studentCareer(a)).localeCompare(norm(studentCareer(b)));return career||norm(studentName(a)).localeCompare(norm(studentName(b)));});
     });
   }
@@ -215,7 +258,7 @@ Función:
     version:VERSION,
     outbox:OUTBOX_DESCRIPTOR,
     list:list,getPage:getPage,page:getPage,getSummary:getSummary,summary:getSummary,
-    getByPeriodoCedula:getByPeriodoCedula,saveEvaluation:saveEvaluation,save:saveEvaluation,
+    getByPeriodoCedula:getByPeriodoCedula,checkRequirements:checkRequirements,saveEvaluation:saveEvaluation,save:saveEvaluation,
     saveMany:saveMany,changeModality:changeModality,listPeriods:listPeriods,
     saveImport:saveImport,listImports:listImports,applyFilters:applyFilters,
     studentPeriodId:studentPeriodId,noteMirror:noteMirror,changeFromEvaluation:changeFromEvaluation
