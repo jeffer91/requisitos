@@ -29,8 +29,9 @@ assert.match(word,/Acta de Titulación por Examen Complexivo/);
 assert.match(html,/Unidad de Titulación y Eficiencia Terminal/);
 assert.match(html,/\.head \.center\{[^}]*font-weight:normal/);
 assert.match(html,/Acta de Titulación por Examen Complexivo/);
-assert.match(app,/const issue=w\\.ActasIssueDate\\.forPeriod\\(S\\.periodo\\)\\.date/);
-assert.match(app,/documentCode="AT-ITSQMET-UTET-"\\+issue\\.slice\\(0,7\\)/,
- "El código documental utiliza el mes de emisión, sin día ni consecutivo");
+assert.ok(app.includes('const issue=w.ActasIssueDate.forPeriod(S.periodo).date'),
+ "La fecha para el código se obtiene del período académico");
+assert.ok(app.includes('documentCode="AT-ITSQMET-UTET-"+issue.slice(0,7)'),
+ "El encabezado usa AAAA-MM de emisión, sin día ni consecutivo");
 assert.match(app,/fechaEmision:w\.ActasIssueDate\.forPeriod\(S\.periodo\)\.date/);
 console.log("VERIFICACIÓN FECHA ACTAS: OK (títulos, tipografía, dos meses, días hábiles, emisión no anticipada)");
