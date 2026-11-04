@@ -221,33 +221,52 @@ Función o funciones:
     return words.length >= 2 && /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(raw);
   }
 
-  function previousName(lines, emailIndex){
-    for(var index = emailIndex - 1; index >= 0; index -= 1){
-      var candidate = text(lines[index]);
-      if(looksLikeName(candidate)){ return candidate; }
-      if(isEmail(candidate)){ break; }
+  function previousName(lines,emailEntry){
+    var emailIndex=emailEntry.index;
+    var pieces=splitTabs(lines[emailIndex]);
+    if(pieces.length>1){
+      for(var p=(emailEntry.partIndex||0)-1;p>=0;p--){
+        if(looksLikeName(pieces[p]))return pieces[p];
+      }
+    }
+    for(var index=emailIndex-1;index>=0;index--){
+      var candidate=text(lines[index]);
+      if(looksLikeName(candidate)){return candidate;}
+      if(isEmail(candidate)){break;}
     }
     return "";
   }
 
-  function gradeTokens(lines, startIndex, endIndex){
-    var output = [];
-    for(var index = startIndex; index < endIndex; index += 1){
-      var line = text(lines[index]);
-      if(normalized(line).indexOf("promedio general")===0){break;}
-    if(!line || isNoiseLine(line)){ continue; }
-      splitTabs(line).forEach(function(part){
-        if(isGradeToken(part)){ output.push(part); }
-      });
+  function gradeTokens(lines,emailEntry,nextEntry){
+    var output=[],start=emailEntry.index,end=nextEntry.index;
+    for(var index=start;index<end;index++){
+      var line=text(lines[index]);
+      if(normalized(line).indexOf("promedio general")===0)break;
+      if(!line||isNoiseLine(line))continue;
+      var parts=splitTabs(line);
+      // Moodle en TSV coloca nombre, correo y notas en la misma fila.
+      if(index===start){
+        if(parts.length<=1)continue;
+        parts=parts.slice((emailEntry.partIndex||0)+1);
+      }
+      // TSV conserva columnas vacías; las notas en líneas verticales
+      // conservan los guiones como datos explícitos, no como ceros.
+      if(parts.length>1){
+        parts.forEach(function(part){
+          if(part===""||isGradeToken(part))output.push(part);
+        });
+      }else if(isGradeToken(parts[0])){
+        output.push(parts[0]);
+      }
     }
     return output;
   }
 
   function findEmailIndexes(lines){
-    var indexes = [];
-    lines.forEach(function(line, index){
-      splitTabs(line).forEach(function(part){
-        if(isEmail(part)){ indexes.push({ index: index, email: normalizeEmail(part) }); }
+    var indexes=[];
+    lines.forEach(function(line,index){
+      splitTabs(line).forEach(function(part,partIndex){
+        if(isEmail(part))indexes.push({index:index,partIndex:partIndex,email:normalizeEmail(part)});
       });
     });
     return indexes;
