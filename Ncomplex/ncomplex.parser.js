@@ -279,6 +279,8 @@ Función o funciones:
     for(var i=0;i<end;i++){
       splitTabs(lines[i]).forEach(function(part){
         var header=normalized(part),component="";
+        // El título del CURSO (Examen Complexivo ...) no es una columna de notas.
+        if(/^examen\s+complexivo\b/.test(header) && !/componente\s+(teorico|practico)/.test(header))return;
         var isActivity=/^(cuestionario|quiz|actividad|evaluacion|examen|tarea)\b/.test(header) ||
           /^cuestionario(?=componente)/.test(header);
         if(isActivity){
