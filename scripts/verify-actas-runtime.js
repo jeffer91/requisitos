@@ -96,6 +96,8 @@ assert.equal(printed[0][0].student.cedula,"0001");
 assert.equal(printed[0].filter(x=>x.record.numeroActa).length,0,"Descargar borradores no asigna folios automáticamente");
 assert.equal(printed[0].filter(x=>!x.record.numeroActa).length,6,"Antes de numerar, todos son borradores sin folio");
 assert.ok(printed[0].every(x=>x.issue==="2026-05-29"),"Fecha común de emisión según el período seleccionado");
+ assert.ok(printed[0].every(x=>x.record.codigo==="AT-ITSQMET-UTET-2026-05"),
+  "El código del encabezado corresponde al año y mes de emisión, sin día ni consecutivo");
  assert.ok(printed[0].some(x=>x.student.cedula==="0008"&&x.evidence.eligible===false),"Incluye borradores con aprobaciones pero requisitos pendientes");
 assert.equal(printed[0][0].evidence.requirements.length,9,"Acta muestra nueve requisitos");
 assert.ok(printed[0][0].evidence.requirements.every(r=>r.status==="CUMPLE"),"Lee nueve requisitos del expediente");
@@ -111,7 +113,17 @@ assert.equal(centralNumbers.size,1,"Registrar nuevamente no duplica el número")
  await trigger("actas-estudiantes","change",{target:registeredSelector});await tick();
  assert.equal(modalityWrites.length,beforeLocked,"Un acta numerada no permite cambio de modalidad");
  assert.match(elem("actas-alert").textContent,/número oficial/);
-trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");assert.equal(zips[0].items.length,6,"ZIP incorpora borradores sin notas");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
+// La presentación de un borrador antiguo usa el código normalizado sin modificar el folio.
+const earlier=JSON.parse(storage.get("UTET_ACTAS_BORRADORES_V1"));
+const oldEntry=earlier[per1+"__0001"];
+assert.ok(oldEntry,"Existe el borrador previo para comprobar compatibilidad");
+oldEntry.codigo="AT-ITSQMET-UTET-2026-10-02";
+storage.set("UTET_ACTAS_BORRADORES_V1",JSON.stringify(earlier));
+trigger("actas-zip","click");await tick();assert.equal(zips.length,1,"Genera ZIP del período");
+assert.equal(zips[0].items[0].record.codigo,"AT-ITSQMET-UTET-2026-05",
+ "El ZIP corrige en pantalla el código de un borrador antiguo");
+assert.equal(JSON.parse(storage.get("UTET_ACTAS_BORRADORES_V1"))[per1+"__0001"].codigo,
+ "AT-ITSQMET-UTET-2026-10-02","El registro local histórico permanece sin modificar");assert.equal(zips[0].items.length,6,"ZIP incorpora borradores sin notas");assert.equal(zips[0].summary.length,8,"ZIP registra también excluidos");
 assert.equal(centralNumbers.size,1,"El ZIP no crea números nuevos");
 assert.equal(zips[0].items[0].record.numeroActa,centralNumbers.get(per1+"__0001").numeroActa,"El ZIP reutiliza el número previamente registrado");
 assert.equal(zips[0].items.filter(x=>!x.record.numeroActa).length,5,"Los demás PDF siguen como borradores sin folio");

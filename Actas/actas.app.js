@@ -188,7 +188,7 @@ function renderTable(){
  $("actas-zip").disabled=!all.some(r=>r.draftAllowed);
  $("actas-registrar-lote").disabled=!S.numberingVerified||!all.some(r=>r.verified&&!registeredNumber(r));
 }
-function prepare(r){if(!r.draftAllowed)throw Error("No se puede generar el borrador: identidad, matrícula o modalidad requieren revisión.");if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");let map=registry(),rec=map[r.identity];
+function prepare(r){if(!r.draftAllowed)throw Error("No se puede generar el borrador: identidad, matrícula o modalidad requieren revisión.");if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");const issue=w.ActasIssueDate.forPeriod(S.periodo).date;const documentCode="AT-ITSQMET-UTET-"+issue.slice(0,7);let map=registry(),rec=map[r.identity];
  if(rec&&rec.periodId!==S.periodo)throw Error("Existe un borrador de otro período. Revise el expediente.");
  if(rec&&rec.mode!==r.mode){
    // Preservar el borrador anterior como histórico local; la nueva modalidad
@@ -197,7 +197,7 @@ function prepare(r){if(!r.draftAllowed)throw Error("No se puede generar el borra
    map[previousKey]=Object.assign({},rec,{status:"REEMPLAZADO_POR_CAMBIO_MODALIDAD",replacedAt:new Date().toISOString()});
    delete map[r.identity];rec=null;
  }
- if(!rec){const stamp=new Date().toISOString(),prefix=stamp.slice(0,7),next=Object.values(map).filter(x=>x.month===prefix).reduce((m,x)=>Math.max(m,Number(x.consecutivo)||0),0)+1;rec={consecutivo:String(next).padStart(2,"0"),codigo:"AT-ITSQMET-UTET-"+prefix+"-"+String(next).padStart(2,"0"),createdAt:stamp,month:prefix,mode:r.mode,periodId:S.periodo,status:"BORRADOR"};map[r.identity]=rec;if(!store(regKey(),map))throw Error("No se pudo guardar el registro del borrador.");}return {student:r.student,mode:r.mode,record:rec,periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue:w.ActasIssueDate.forPeriod(S.periodo).date,evidence:r.proof};}
+ if(!rec){const stamp=new Date().toISOString(),prefix=stamp.slice(0,7),next=Object.values(map).filter(x=>x.month===prefix).reduce((m,x)=>Math.max(m,Number(x.consecutivo)||0),0)+1;rec={consecutivo:String(next).padStart(2,"0"),codigo:documentCode,createdAt:stamp,month:prefix,mode:r.mode,periodId:S.periodo,status:"BORRADOR"};map[r.identity]=rec;if(!store(regKey(),map))throw Error("No se pudo guardar el registro del borrador.");}return {student:r.student,mode:r.mode,record:Object.assign({},rec,{codigo:documentCode}),periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue,evidence:r.proof};}
 async function action(r){
  try{
   const item=await prepareWithNumber(r);
