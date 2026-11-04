@@ -113,6 +113,8 @@ Función o funciones:
           <div><span>Conflictos</span><strong id="ncomplexFirebaseConflicts">0</strong></div>
         </div>
         <div class="ncomplex-firebase-actions">
+          <label>Grupo <select id="ncomplex-complexivo-grupo"><option value="">Seleccionar</option><option value="PRESENCIAL">Presencial</option><option value="ONLINE">Online</option><option value="PVC">PVC</option></select></label>
+          <button id="ncomplex-btn-complexivo-sync" type="button">Publicar en complexivo</button>
           <button id="ncomplex-btn-firebase-analyze" type="button" disabled>Analizar diferencias</button>
           <button id="ncomplex-btn-firebase-push" type="button" disabled>Subir Ncomplex</button>
           <span id="ncomplex-firebase-status" class="ncomplex-firebase-status">Seleccione un período.</span>
@@ -218,6 +220,6 @@ Función o funciones:
 
   <script src="ncomplex.bootstrap.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
-  <script src="ncomplex.firebase-sync.js"></script>
+  <script src="ncomplex.firebase-sync.js"></script><script src="ncomplex.firebase-complexivo.js"></script>
 </body>
 </html>

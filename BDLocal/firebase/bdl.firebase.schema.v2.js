@@ -26,6 +26,7 @@ Función o funciones:
       matriculas:"matriculas",
       requisitos:"requisitos",
       notas:"notas",
+      complexivo:"complexivo",
       periodos:"periodos",
       carreras:"carreras",
       historial:"historial",
@@ -37,6 +38,7 @@ Función o funciones:
       matriculas:"periodoId__cedula",
       requisitos:"periodoId__cedula",
       notas:"periodoId__cedula",
+      complexivo:"periodoId__cedula",
       periodos:"periodoId",
       carreras:"codigoCarrera",
       historial:"auto",
@@ -48,6 +50,7 @@ Función o funciones:
       matriculas:"cedula__periodoId",
       requisitos:"cedula__periodoId",
       notas:"cedula__periodoId",
+      complexivo:"cedula__periodoId",
       periodos:"periodoId",
       carreras:"codigoCarrera",
       historial:"auto",
@@ -100,6 +103,13 @@ Función o funciones:
           "notaArticulo","notaDefensa","notaFinal","notaOficial","estadoEvaluacion",
           "createdAt","updatedAt","version","dataHash"
         ]
+      },
+      complexivo:{
+        description:"Calificaciones de examen complexivo por estudiante y período.",
+        fields:["periodoId","cedula","grupoInforme","nombre","carrera","modalidadTitulacion",
+          "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
+          "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
+          "oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
       periodos:{
         description:"Catálogo oficial de períodos disponibles.",

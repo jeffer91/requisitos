@@ -22,6 +22,7 @@ Función o funciones:
     matriculas:["periodoId","cedula"],
     requisitos:["periodoId","cedula","valores"],
     notas:["periodoId","cedula"],
+    complexivo:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
     periodos:["periodoId","label"],
     carreras:["codigoCarrera","nombreCarrera"],
     historial:["entidad","entidadId","accion","createdAt"],
@@ -157,7 +158,7 @@ Función o funciones:
       errors.push("valores debe ser un objeto con los requisitos.");
     }
 
-    if(entity === "notas"){
+    if(entity === "notas" || entity === "complexivo"){
       NOTE_FIELDS.forEach(function(field){
         var value = document[field];
         if(value === undefined || value === null || text(value) === ""){ return; }
@@ -168,6 +169,16 @@ Función o funciones:
       });
     }
 
+    if(entity === "complexivo"){
+      if(["PRESENCIAL","ONLINE","PVC"].indexOf(text(document.grupoInforme))<0)errors.push("grupoInforme inválido.");
+      if(text(document.modalidadTitulacion)!=="EXAMEN_COMPLEXIVO")errors.push("Modalidad de evaluación incorrecta.");
+      if(["ORDINARIA","SUPLETORIO"].indexOf(text(document.oportunidadAplicada))<0)errors.push("Oportunidad inválida.");
+      var sup=document.oportunidadAplicada==="SUPLETORIO";
+      var a=sup?document.notaTeoricaSupletorio:document.notaTeorica;
+      var b=sup?document.notaPracticaSupletorio:document.notaPractica;
+      if(a==null||b==null)errors.push("Faltan componentes teórico y práctico.");
+      else if(Math.abs(Number(document.notaOficial)-Math.round((Number(a)*.4+Number(b)*.6)*100)/100)>.025)errors.push("Nota oficial distinta del desglose.");
+    }
     if(entity === "matriculas"){
       var status = text(document.estadoMatricula).toUpperCase();
       if(status && ["ACTIVO","RETIRADO","NO_APARECE_EN_ULTIMA_CARGA"].indexOf(status) < 0){

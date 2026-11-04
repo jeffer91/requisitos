@@ -168,7 +168,7 @@ Función o funciones:
       return cedulaOf(row);
     }
 
-    if(["matriculas","requisitos","notas"].indexOf(entity) >= 0){
+    if(["matriculas","requisitos","notas","complexivo"].indexOf(entity) >= 0){
       return identityFromRow(row).remoteId;
     }
 
@@ -193,7 +193,7 @@ Función o funciones:
       return cedulaOf(row);
     }
 
-    if(["matriculas","requisitos","notas"].indexOf(entity) >= 0){
+    if(["matriculas","requisitos","notas","complexivo"].indexOf(entity) >= 0){
       return identityFromRow(row).localId;
     }
 
