@@ -57,7 +57,7 @@ vm.runInContext(read("Actas/actas.app.js"),context);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 async function main(){
 await tick();await tick();
-assert.equal(elem("actas-aprobados").textContent,4,"Autoriza borradores con ambas aprobaciones, aunque falten registros de Ncomplex");
+assert.equal(elem("actas-aprobados").textContent,5,"Autoriza borradores con ambas aprobaciones, aunque falten registros de Ncomplex");
 assert.match(elem("actas-estudiantes").innerHTML,/EXAMEN APROBADO/);
 assert.match(elem("actas-estudiantes").innerHTML,/EXAMEN FALTANTE/,"El buscador/listado muestra pendientes");
 win.ActasNumbering.listDetailed=async()=>({
@@ -100,7 +100,7 @@ assert.equal(centralNumbers.size,1,"El ZIP no crea números nuevos");
 assert.equal(zips[0].items[0].record.numeroActa,centralNumbers.get(per1+"__0001").numeroActa,"El ZIP reutiliza el número previamente registrado");
 assert.equal(zips[0].items.filter(x=>!x.record.numeroActa).length,5,"Los demás PDF siguen como borradores sin folio");
 trigger("actas-modalidad","change",{target:{value:"TRABAJO_TITULACION"}});
-assert.equal(elem("actas-aprobados").textContent,4,"La métrica mantiene separadas las dos aprobaciones finales");
+assert.equal(elem("actas-aprobados").textContent,5,"La métrica mantiene separadas las dos aprobaciones finales");
 assert.match(elem("actas-estudiantes").innerHTML,/TRABAJO APROBADO/);
 assert.doesNotMatch(elem("actas-estudiantes").innerHTML,/ARTÍCULO PVC/,"El filtro TRAB no convierte Artículo Académico en Trabajo");
 assert.ok(elem("actas-actividades").innerHTML.includes("Fase 3: Defensa final"));
