@@ -46,11 +46,13 @@
     }
     student=student||{};
     Object.keys(student).forEach(function(key){take(key,student[key],"estudiante");});
+    if(student.valores&&typeof student.valores==="object")Object.keys(student.valores).forEach(function(key){take(key,student.valores[key],"estudiante");});
     (Array.isArray(student.requisitos)?student.requisitos:[]).forEach(function(row){
       take(row.requisitoKey||row.requirementKey||row.key||row.nombre,
         row.valor!==undefined?row.valor:row.estado,"estudiante");
     });
     (Array.isArray(rows)?rows:[]).forEach(function(row){
+      if(row.valores&&typeof row.valores==="object")Object.keys(row.valores).forEach(function(key){take(key,row.valores[key],"requisitos_estudiante");});
       take(row.requisitoKey||row.requirementKey||row.key||row.nombre||row.campo,
         row.valor!==undefined?row.valor:row.estado!==undefined?row.estado:row.value,
         "requisitos_estudiante");
