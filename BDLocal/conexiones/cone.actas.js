@@ -68,8 +68,8 @@ async function read(opts){
  const periodId=normPeriod(opts.periodoId||opts.periodId||"");
  const [periods,students,primaryRequirements,supplementary]=await Promise.all([
   w.ConNcomplex.listPeriods(),
-  localStudents({periodoId}),
-  w.BDLRepoRequisitos.list({periodoId}),
+  localStudents({periodoId:periodId}),
+  w.BDLRepoRequisitos.list({periodoId:periodId}),
   supplementaryRequirements(periodId)
  ]);
  const joinedRequirements=joinRequirements(periodId,primaryRequirements,supplementary);
