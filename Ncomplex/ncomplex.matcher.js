@@ -262,6 +262,30 @@ Función o funciones:
     return { student: null, method: "", key: "", ambiguous: false };
   }
 
+  // Sugerencias basadas en nombres, nunca equivalen a una identidad confirmada.
+  function suggestCandidates(imported,students,limit){
+    var words=normalized(imported.nombreCompleto||imported.nombre).split(" ").filter(Boolean);
+    var variants=[words];
+    if(words.length>=3&&words[0].length>=5){
+      for(var n=1;n<=3;n++)if(words[0].length-n>=3)
+        variants.push([words[0].slice(n)].concat(words.slice(1)));
+    }
+    return (students||[]).map(function(st){
+      var target=normalized(studentName(st)).split(" ").filter(Boolean);
+      if(target.length<2||!recordId(st)){return null;}
+      var score=0;
+      variants.forEach(function(tokens){
+        var a=Object.create(null),b=Object.create(null),union=Object.create(null),intersection=0;
+        tokens.forEach(function(v){a[v]=true;union[v]=true;});
+        target.forEach(function(v){b[v]=true;union[v]=true;});
+        Object.keys(a).forEach(function(v){if(b[v])intersection++;});
+        if(intersection>=2)score=Math.max(score,intersection/Object.keys(union).length);
+      });
+      return score>0?{id:recordId(st),cedula:studentCedula(st),nombre:studentName(st),score:Math.round(score*100)}:null;
+    }).filter(Boolean).sort(function(a,b){return b.score-a.score||a.nombre.localeCompare(b.nombre);})
+      .slice(0,Math.max(1,Math.min(10,Number(limit)||6)));
+  }
+
   function importedLabel(imported){
     var nombre=text(imported.nombreCompleto||imported.nombre);
     var correo=text(imported.correo||imported.email);
@@ -309,20 +333,26 @@ Función o funciones:
       matchedByCedula: 0,
       matchedByEmail: 0,
       matchedByName: 0,
-      matchedByInitials: 0
+      matchedByInitials: 0,
+      matchedByManual: 0
     };
 
     parsedRows.forEach(function(imported){
       if(imported.blocked===true || imported.issues && imported.issues.length){
         result.review.push({imported:imported,label:importedLabel(imported),reason:(imported.issues||[]).join(" | ")||"Notas pendientes de conciliación"});return;
       }
-      var resolved = resolveStudent(imported, indexes);
-      var student = resolved.student;
+      var manual=options.manualOverrides&&options.manualOverrides[Number(imported.rowNumber)];
+      var resolved=manual?{
+        student:students.filter(function(st){return recordId(st)===String(manual);})[0]||null,
+        method:"manual",key:String(manual),ambiguous:true
+      }:resolveStudent(imported,indexes);
+      var student=resolved.student;
 
       if(!student){
         result.unmatched.push({
           imported: imported,
           label: importedLabel(imported),
+          suggestions:suggestCandidates(imported,students,6),
           reason: resolved.ambiguous
             ? "La coincidencia por " + resolved.method + " es ambigua"
             : "No existe en el período seleccionado o no hay una coincidencia única"
@@ -352,6 +382,7 @@ Función o funciones:
       seenStudents[id] = imported;
 
       if(resolved.method === "cedula"){ result.matchedByCedula += 1; }
+      else if(resolved.method === "manual"){result.matchedByManual += 1;}
       else if(resolved.method === "correo"){ result.matchedByEmail += 1; }
       else if(resolved.method === "nombre"){
         result.matchedByName += 1;
@@ -444,6 +475,7 @@ Función o funciones:
     studentEmail: studentEmail,
     studentEmails: studentEmails,
     studentName: studentName,
+    suggestCandidates: suggestCandidates,
     incomingFields: incomingFields,
     conflicts: conflicts
   };
