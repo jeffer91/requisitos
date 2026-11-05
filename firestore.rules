@@ -108,6 +108,25 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* Evaluaciones individuales: diferentes de los agregados existentes en /nucleos.
+       Solo usuarios autenticados pueden leer o escribir estas notas. */
+    match /evaluaciones_nucleos/{documentId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && validPeriod(request.resource.data.periodoId)
+        && validIdentification(request.resource.data.cedula)
+        && request.resource.data.nucleo is int
+        && request.resource.data.nucleo >= 1
+        && request.resource.data.nucleo <= 4
+        && validReportGroup(request.resource.data)
+        && request.resource.data.evaluaciones is list
+        && request.resource.data.evaluaciones.size() == 4
+        && documentId == request.resource.data.periodoId + '__' +
+          request.resource.data.cedula + '__N' + string(request.resource.data.nucleo)
+        && validMetadata(request.resource.data);
+      allow delete: if false;
+    }
+
     match /complexivo/{documentId} {
       allow read: if true;
       allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)

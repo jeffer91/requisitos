@@ -23,6 +23,7 @@ Función o funciones:
     requisitos:["periodoId","cedula","valores"],
     notas:["periodoId","cedula"],
     complexivo:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
+    evaluaciones_nucleos:["periodoId","cedula","grupoInforme","nucleo","evaluaciones","estadoCarga"],
     periodos:["periodoId","label"],
     carreras:["codigoCarrera","nombreCarrera"],
     historial:["entidad","entidadId","accion","createdAt"],
@@ -169,6 +170,25 @@ Función o funciones:
       });
     }
 
+    if(entity === "evaluaciones_nucleos"){
+      var n=Number(document.nucleo);
+      if(!Number.isInteger(n)||n<1||n>4)errors.push("El núcleo debe estar entre 1 y 4.");
+      if(["PRESENCIAL","ONLINE","PVC"].indexOf(text(document.grupoInforme))<0)
+        errors.push("Grupo de núcleo inválido.");
+      if(!Array.isArray(document.evaluaciones)||document.evaluaciones.length!==4)
+        errors.push("Se requieren cuatro posiciones de evaluación (pueden estar pendientes).");
+      (document.evaluaciones||[]).forEach(function(value,i){
+        if(value===null)return;
+        if(!Number.isFinite(value)||value<0||value>10)errors.push("Evaluación "+(i+1)+" fuera de escala 0–10.");
+      });
+      ["taller","prueba","totalMoodle"].forEach(function(field){
+        var g=document[field];
+        if(g!==null&&g!==undefined&&(!Number.isFinite(g)||g<0||g>10))
+          errors.push(field+" fuera de escala 0–10.");
+      });
+      if(["PENDIENTE","CONCILIADO","INHABILITADO"].indexOf(text(document.estadoCarga))<0)
+        errors.push("Estado de carga no reconocido.");
+    }
     if(entity === "complexivo"){
       if(["PRESENCIAL","ONLINE","PVC"].indexOf(text(document.grupoInforme))<0)errors.push("grupoInforme inválido.");
       if(text(document.modalidadTitulacion)!=="EXAMEN_COMPLEXIVO")errors.push("Modalidad de evaluación incorrecta.");

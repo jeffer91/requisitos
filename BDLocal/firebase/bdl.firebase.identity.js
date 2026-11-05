@@ -168,6 +168,13 @@ Función o funciones:
       return cedulaOf(row);
     }
 
+    if(entity === "evaluaciones_nucleos"){
+      var identity = identityFromRow(row);
+      var nucleus = Number(row.nucleo);
+      return identity.remoteId && Number.isInteger(nucleus) && nucleus >= 1 && nucleus <= 4
+        ? identity.remoteId + "__N" + nucleus : "";
+    }
+
     if(["matriculas","requisitos","notas","complexivo"].indexOf(entity) >= 0){
       return identityFromRow(row).remoteId;
     }
@@ -191,6 +198,20 @@ Función o funciones:
 
     if(entity === "estudiantes"){
       return cedulaOf(row);
+    }
+
+    if(entity === "evaluaciones_nucleos"){
+      var identity = identityFromRow(row);
+      var nucleus = Number(row.nucleo);
+      return identity.remoteId && Number.isInteger(nucleus) && nucleus >= 1 && nucleus <= 4
+        ? identity.remoteId + "__N" + nucleus : "";
+    }
+
+    if(entity === "evaluaciones_nucleos"){
+      var current = identityFromRow(row);
+      var nucleus = Number(row.nucleo);
+      return current.localId && Number.isInteger(nucleus) && nucleus >= 1 && nucleus <= 4
+        ? current.localId + "__N" + nucleus : "";
     }
 
     if(["matriculas","requisitos","notas","complexivo"].indexOf(entity) >= 0){

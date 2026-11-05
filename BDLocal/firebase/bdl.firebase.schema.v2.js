@@ -27,6 +27,7 @@ Función o funciones:
       requisitos:"requisitos",
       notas:"notas",
       complexivo:"complexivo",
+      evaluaciones_nucleos:"evaluaciones_nucleos",
       periodos:"periodos",
       carreras:"carreras",
       historial:"historial",
@@ -39,6 +40,7 @@ Función o funciones:
       requisitos:"periodoId__cedula",
       notas:"periodoId__cedula",
       complexivo:"periodoId__cedula",
+      evaluaciones_nucleos:"periodoId__cedula__Nnucleo",
       periodos:"periodoId",
       carreras:"codigoCarrera",
       historial:"auto",
@@ -51,6 +53,7 @@ Función o funciones:
       requisitos:"cedula__periodoId",
       notas:"cedula__periodoId",
       complexivo:"cedula__periodoId",
+      evaluaciones_nucleos:"cedula__periodoId__Nnucleo",
       periodos:"periodoId",
       carreras:"codigoCarrera",
       historial:"auto",
@@ -110,6 +113,13 @@ Función o funciones:
           "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
           "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
           "oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+      },
+      evaluaciones_nucleos:{
+        description:"Cuatro evaluaciones por núcleo y estudiante, separadas del total oficial del examen complexivo.",
+        fields:["periodoId","cedula","codigoCarrera","nombreCarrera","grupoInforme","nucleo","nombreNucleo",
+          "cursoMoodle","evaluaciones","taller","prueba","totalMoodle","estadoCarga","habilitado",
+          "requisitosPendientes","observaciones","origen","sourceHash","importacionId","createdAt","updatedAt",
+          "version","dataHash"]
       },
       periodos:{
         description:"Catálogo oficial de períodos disponibles.",
