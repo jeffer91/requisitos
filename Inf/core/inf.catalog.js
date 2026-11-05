@@ -96,17 +96,222 @@
       {
         "number": "3.4",
         "title": "Metodología de los núcleos estructurantes",
-        "sections": []
+        "sections": [
+          {
+            "number": "3.4.1",
+            "title": "Finalidad de los núcleos estructurantes",
+            "sections": []
+          },
+          {
+            "number": "3.4.2",
+            "title": "Organización académica",
+            "sections": []
+          },
+          {
+            "number": "3.4.3",
+            "title": "Estrategias metodológicas de repaso",
+            "sections": []
+          },
+          {
+            "number": "3.4.4",
+            "title": "Descripción de los núcleos estructurantes por carrera",
+            "sections": [
+              {
+                "number": "3.4.4.1",
+                "title": "Administración",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.2",
+                "title": "Contabilidad",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.3",
+                "title": "Desarrollo de Software",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.4",
+                "title": "Educación Inicial",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.5",
+                "title": "Enfermería",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.6",
+                "title": "Marketing Digital y Comercio Electrónico",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.7",
+                "title": "Redes y Telecomunicaciones",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.8",
+                "title": "Gestión de Talento Humano",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.9",
+                "title": "Seguridad Ciudadana y Orden Público",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.10",
+                "title": "Ventas",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.11",
+                "title": "Multimedia",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.12",
+                "title": "Educación Básica",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.13",
+                "title": "Mecánica Automotriz",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.14",
+                "title": "Seguridad y Prevención de Riesgos Laborales",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.15",
+                "title": "Estética Integral",
+                "sections": []
+              },
+              {
+                "number": "3.4.4.16",
+                "title": "Procesamiento en Alimentos",
+                "sections": []
+              }
+            ]
+          },
+          {
+            "number": "3.4.5",
+            "title": "Representación gráfica de los núcleos estructurantes",
+            "sections": []
+          },
+          {
+            "number": "3.4.6",
+            "title": "Evaluación y seguimiento de los núcleos estructurantes",
+            "sections": []
+          },
+          {
+            "number": "3.4.7",
+            "title": "Consideraciones metodológicas",
+            "sections": []
+          }
+        ]
       },
       {
         "number": "3.5",
         "title": "Metodología de evaluación del examen complexivo",
-        "sections": []
+        "sections": [
+          {
+            "number": "3.5.1",
+            "title": "Componente teórico",
+            "sections": []
+          },
+          {
+            "number": "3.5.2",
+            "title": "Componente práctico",
+            "sections": []
+          },
+          {
+            "number": "3.5.3",
+            "title": "Consolidación de calificaciones",
+            "sections": []
+          },
+          {
+            "number": "3.5.4",
+            "title": "Clasificación de resultados",
+            "sections": []
+          },
+          {
+            "number": "3.5.5",
+            "title": "Análisis de los resultados del examen complexivo",
+            "sections": []
+          }
+        ]
       },
       {
         "number": "3.6",
         "title": "Procedimiento de análisis de resultados",
-        "sections": []
+        "sections": [
+          {
+            "number": "3.6.1",
+            "title": "Organización y depuración",
+            "sections": []
+          },
+          {
+            "number": "3.6.2",
+            "title": "Consolidación por componente",
+            "sections": []
+          },
+          {
+            "number": "3.6.3",
+            "title": "Indicadores estadísticos",
+            "sections": []
+          },
+          {
+            "number": "3.6.4",
+            "title": "Análisis por carrera",
+            "sections": []
+          },
+          {
+            "number": "3.6.5",
+            "title": "Consolidación institucional",
+            "sections": []
+          },
+          {
+            "number": "3.6.6",
+            "title": "Representación gráfica",
+            "sections": []
+          },
+          {
+            "number": "3.6.7",
+            "title": "Interpretación de hallazgos",
+            "sections": []
+          },
+          {
+            "number": "3.6.8",
+            "title": "Formulación de conclusiones y recomendaciones",
+            "sections": []
+          }
+        ]
+      },
+      {
+        "number": "3.7",
+        "title": "Cronogramas del proceso de titulación",
+        "sections": [
+          {
+            "number": "3.7.1",
+            "title": "Cronograma del Examen Complexivo",
+            "sections": []
+          },
+          {
+            "number": "3.7.2",
+            "title": "Cronograma del Trabajo de Titulación",
+            "sections": []
+          },
+          {
+            "number": "3.7.3",
+            "title": "Seguimiento del cumplimiento de los cronogramas",
+            "sections": []
+          }
+        ]
       }
     ]
   },

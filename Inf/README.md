@@ -44,3 +44,7 @@ Desde la raíz del repositorio: node Inf/tests/verify-inf.js
 - Los textos jurídicos se incorporan tal como fueron suministrados; los artículos y la vigencia normativa requieren verificación antes de emisión oficial.
 - Se incluye un visor Markdown seguro que presenta subtítulos, negritas y enumeraciones de los originales.
 - Los capítulos 3 a 8 permanecen pendientes. El módulo continúa sin integrarse al menú ni consultar calificaciones.
+
+## Tercera entrega: capítulo 3
+
+Se incorporó íntegramente la Metodología y su numeración 3.1–3.7, con 16 descripciones de carreras (3.4.4.1–3.4.4.16). El texto fijo se separa de los cronogramas editables por período. La Base Legal se conserva pendiente de revisión normativa antes de emisión oficial.
