@@ -24,9 +24,12 @@ function role(value){
  if(/^(cuestionario|tarea|actividad|quiz|evaluacion)/.test(key)){
   var parcial=key.match(/evaluacion parcial ([1-4])\b/);
   if(parcial)return "e"+parcial[1];
+  var roman=key.match(/evaluacion parcial (i|ii|iii|iv)$/);
+  if(roman)return "e"+({i:1,ii:2,iii:3,iv:4}[roman[1]]);
   if(/taller practico(?: 1)?$/.test(key))return "taller";
+  if(/caso de estudio$/.test(key))return "casoEstudio";
   if(/prueba$/.test(key))return "prueba";
-  return "desconocida";
+  return key.length>12?"extra:"+key:"desconocida";
  }
  if(/^(media de calificaciones|suma|total)\s*total del curso/.test(key))return "totalMoodle";
  return "";
@@ -53,6 +56,8 @@ function parse(input){
  expected.forEach(function(k){if(headers.indexOf(k)<0)errors.push("Falta la columna "+k.toUpperCase()+".");});
  if(headers.indexOf("totalMoodle")<0)warnings.push("No se encontró Total del curso: se conservarán las actividades sin inventar nota final.");
  if(headers.some(function(h){return h==="desconocida";}))errors.push("Hay columnas de Moodle sin identificar; no se desplazarán las notas.");
+ if(headers.some(function(h){return h.indexOf("extra:")===0;}))
+  warnings.push("Se conservaron actividades adicionales sin atribuirles una ponderación inventada.");
  var courses=head.filter(function(t){return /\b(t-?nucleo)\b|\bnucleo\s*[-:]/i.test(normal(t));});
  var course=courses[0]||head.find(function(t){return /^\s*T-NUCLEO/i.test(t);})||"";
  var rows=[];
@@ -69,13 +74,15 @@ function parse(input){
   if(headers.length!==vals.length)issues.push("Columnas desalineadas: "+vals.length+" notas frente a "+headers.length+" encabezados.");
   if(errors.length)issues.push(errors.join(" "));
   var out={rowNumber:i+1,nombreCompleto:nameAt(parts,pos),correo:parts[pos].toLowerCase(),cedula:"",
-   evaluaciones:[null,null,null,null],taller:null,prueba:null,totalMoodle:null,
+   evaluaciones:[null,null,null,null],taller:null,prueba:null,casoEstudio:null,
+   actividadesAdicionales:[],totalMoodle:null,
    rawValues:vals.slice(),issues:issues};
   headers.forEach(function(k,c){
    var value=vals[c],parsed=num(value);
    if(value!==undefined && value!=="-" && parsed===null)out.issues.push(k+": valor inválido o fuera de 0–10.");
    if(/^e[1-4]$/.test(k))out.evaluaciones[Number(k.slice(1))-1]=parsed;
-   else if(k==="taller"||k==="prueba"||k==="totalMoodle")out[k]=parsed;
+   else if(k==="taller"||k==="prueba"||k==="casoEstudio"||k==="totalMoodle")out[k]=parsed;
+   else if(k.indexOf("extra:")===0)out.actividadesAdicionales.push({actividad:k.slice(6),nota:parsed});
   });
   if(!out.nombreCompleto)out.issues.push("Nombre sin identificar.");
   out.blocked=out.issues.length>0;

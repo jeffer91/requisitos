@@ -24,7 +24,7 @@ async function resolve(row,choice){
  var expected=w.RequisitosFirebaseValidator&&w.RequisitosFirebaseValidator.validate(entity,document,{documentId:id(row)});
  if(!expected||expected.ok!==true)throw Error("La versión Firebase no supera la validación institucional.");
  var fields=["periodoId","cedula","codigoCarrera","nombreCarrera","grupoInforme","nucleo","nombreNucleo",
-  "cursoMoodle","evaluaciones","taller","prueba","totalMoodle","estadoCarga","habilitado",
+  "cursoMoodle","evaluaciones","taller","prueba","casoEstudio","actividadesAdicionales","totalMoodle","estadoCarga","habilitado",
   "requisitosPendientes","observaciones","origen","sourceHash","importacionId","historialCambios"];
  var patch={};
  fields.forEach(function(k){if(document[k]!==undefined)patch[k]=document[k];});

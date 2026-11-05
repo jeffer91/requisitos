@@ -181,11 +181,20 @@ Función o funciones:
         if(value===null)return;
         if(!Number.isFinite(value)||value<0||value>10)errors.push("Evaluación "+(i+1)+" fuera de escala 0–10.");
       });
-      ["taller","prueba","totalMoodle"].forEach(function(field){
+      ["taller","prueba","casoEstudio","totalMoodle"].forEach(function(field){
         var g=document[field];
         if(g!==null&&g!==undefined&&(!Number.isFinite(g)||g<0||g>10))
           errors.push(field+" fuera de escala 0–10.");
       });
+      if(document.actividadesAdicionales!==undefined&&document.actividadesAdicionales!==null){
+        if(!Array.isArray(document.actividadesAdicionales))errors.push("Actividades adicionales inválidas.");
+        else document.actividadesAdicionales.forEach(function(extra){
+          if(!extra||!text(extra.actividad))errors.push("Actividad adicional sin nombre.");
+          if(extra&&extra.nota!==null&&extra.nota!==undefined&&
+            (!Number.isFinite(extra.nota)||extra.nota<0||extra.nota>10))
+            errors.push("Actividad adicional fuera de 0–10.");
+        });
+      }
       if(["PENDIENTE","CONCILIADO","INHABILITADO"].indexOf(text(document.estadoCarga))<0)
         errors.push("Estado de carga no reconocido.");
     }

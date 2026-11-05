@@ -117,7 +117,7 @@ Función o funciones:
       evaluaciones_nucleos:{
         description:"Cuatro evaluaciones por núcleo y estudiante, separadas del total oficial del examen complexivo.",
         fields:["periodoId","cedula","codigoCarrera","nombreCarrera","grupoInforme","nucleo","nombreNucleo",
-          "cursoMoodle","evaluaciones","taller","prueba","totalMoodle","estadoCarga","habilitado",
+          "cursoMoodle","evaluaciones","taller","prueba","casoEstudio","actividadesAdicionales","totalMoodle","estadoCarga","habilitado",
           "requisitosPendientes","observaciones","origen","sourceHash","importacionId","historialCambios","createdAt","updatedAt",
           "version","dataHash"]
       },
