@@ -31,5 +31,28 @@
       }
     };
   }
-  window.InfReport = Object.freeze({ build: build });
+  /* PDF progresivo: incluir exclusivamente nodos con texto incorporado y
+     sus antecesores. Los capítulos restantes siguen en el índice de pantalla,
+     pero no interrumpen ni rellenan con contenido ficticio la exportación. */
+  function buildAvailable() {
+    var all = build();
+    function available(node) {
+      var children = (node.sections || []).map(available).filter(Boolean);
+      if (!node.content.trim() && !children.length) { return null; }
+      return Object.assign({}, node, { sections: children });
+    }
+    var chapters = all.chapters.map(available).filter(Boolean);
+    var included = chapters.map(function (chapter) { return chapter.number; });
+    var excluded = all.chapters.filter(function (chapter) {
+      return included.indexOf(chapter.number) < 0;
+    }).map(function (chapter) {
+      return {number: chapter.number, title: chapter.title};
+    });
+    return Object.assign({}, all, {
+      chapters: chapters, partial: true, canExportDraft: chapters.length > 0,
+      includedChapters: included, excludedChapters: excluded,
+      coverage: Object.assign({}, all.coverage, { includedChapters: chapters.length })
+    });
+  }
+  window.InfReport = Object.freeze({ build: build, buildAvailable: buildAvailable });
 })(window);

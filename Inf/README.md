@@ -70,3 +70,7 @@ Las comprobaciones validan el índice completo, los textos incorporados, los 16 
 ## Actualizaciones futuras
 
 Cada texto genérico nuevo se incorpora exclusivamente a `Inf/sections` y su clave numerada. Los títulos no se reescriben sin instrucción explícita. No se debe mezclar un texto fijo con registros cambiantes por período.
+
+## Exportación progresiva — capítulos disponibles
+
+El botón **Descargar PDF con lo avanzado** utiliza `InfReport.buildAvailable()`. El reporte completo (`build()`) conserva el índice de ocho capítulos en pantalla; la exportación toma solamente capítulos o subapartados que ya tengan texto incorporado, preservando sus encabezados antecesores. Por ahora genera capítulos 1, 2 y 3, los diagramas y cronogramas disponibles. Los capítulos 4–8 no se incluyen ni bloquean la exportación. `canExport` sigue siendo `false` para la emisión oficial y `canExportDraft` permanece `true` mientras exista texto. Un problema de presentación de diagramas no bloquea los controles del módulo. El PDF conserva la identificación BORRADOR PARCIAL NO LEGALIZADO; no contiene cifras académicas inventadas.

@@ -159,15 +159,26 @@ async function downloadPdf(){
   if(state.dirty&&!window.confirm("Hay cambios sin guardar. ¿Generar el PDF con la versión actualmente visible?"))return;
   button.disabled=true;
   message("Preparando el PDF con las figuras de núcleos, los cronogramas y el texto institucional…");
-  var report=window.InfReport.build();
+  var report=window.InfReport.buildAvailable();
+  if(!report.canExportDraft)throw Error("Todavía no hay capítulos disponibles para exportar.");
   await window.InfPDF.download({report:report,schedule:state.schedule,careers:state.careers});
-  message("PDF de avance generado. No es documento oficial: los capítulos restantes y los resultados académicos aún deben completarse.");
+  message("PDF de avance generado con los capítulos "+report.includedChapters.join(", ")+
+    ". Los demás capítulos no se incluyen hasta disponer de su contenido.");
  }catch(e){message("No se generó el PDF: "+e.message,true);}
  finally{button.disabled=false;}
 }
 function boot(){
  try{
-  var r=showIndex();showDiagrams();fillPeriods();loadPeriod();
+  var r=showIndex();
+  /* Un diagrama faltante nunca debe impedir abrir el módulo o descargar
+     un borrador con los textos que ya están disponibles. */
+  try { showDiagrams(); }
+  catch(diagramError) {
+    state.careers=[];
+    el("inf-nuc-count").textContent="Diagramas pendientes de revisión";
+    el("inf-diagrams").textContent="No se pudieron completar los diagramas: "+diagramError.message;
+  }
+  fillPeriods();loadPeriod();
   el("inf-period-load").addEventListener("click",loadPeriod);
   el("inf-period").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();loadPeriod();}});
   el("inf-add-complexivo").addEventListener("click",function(){addRow("complexivo");});

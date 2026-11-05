@@ -225,9 +225,7 @@ function build(doc,payload,logoImage){
  function chapter(node,level){
   heading(node.number+". "+node.title,level);
   if(node.content)markdown(node.content);
-  if(!node.sections.length&&!node.content){
-   write("Apartado pendiente de información académica o texto institucional verificado.",{style:"italic",fontSize:10,color:[118,124,134]});
-  }
+  /* El informe progresivo omite los apartados que todavía no tienen contenido. */
   if(/^3\.4\.4\.\d+$/.test(node.number)){
    var career=careers.find(function(c){return c.section===node.number;});
    if(career)diagram(career);
@@ -250,7 +248,10 @@ function build(doc,payload,logoImage){
  });
  page();
  write("Período académico: "+period,{style:"bold"});
- write("Estado del documento: BORRADOR. Se incorporaron los capítulos proporcionados; los apartados de resultados, síntesis y recomendaciones pendientes no contienen datos simulados.",{fontSize:9.5,leading:6});
+ write("Estado del documento: BORRADOR PARCIAL. Únicamente se incorporan los capítulos y apartados con texto cargado en Inf. No incluye resultados académicos que no estén verificados.",{fontSize:9.5,leading:6});
+ if(report.excludedChapters&&report.excludedChapters.length){
+   write("Capítulos aún no incorporados: "+report.excludedChapters.map(function(c){return c.number+". "+c.title;}).join("; ")+".",{fontSize:9,leading:6,style:"italic"});
+ }
  report.chapters.forEach(function(c){chapter(c,1);});
  var total=doc.internal.getNumberOfPages();
  for(var n=1;n<=total;n++){
@@ -266,13 +267,15 @@ function build(doc,payload,logoImage){
 }
 async function download(payload){
  if(!payload||!payload.report||!payload.schedule||!payload.careers)throw Error("Faltan los datos del borrador.");
+ if(!Array.isArray(payload.report.chapters)||!payload.report.chapters.length)
+   throw Error("No hay capítulos con contenido para generar el PDF de avance.");
  var errors=window.InfSchedules.validate(payload.schedule);
  if(errors.length)throw Error("Corrige las fechas antes de exportar: "+errors.join("; "));
  var JsPDF=await ensureLibrary();
  var doc=new JsPDF({unit:"mm",format:"a4",compress:true,putOnlyUsedFonts:true});
  var logoImage=await logo();
  var stats=build(doc,payload,logoImage);
- doc.save("INF_BORRADOR_"+safe(payload.schedule.period)+".pdf");
+ doc.save("INF_AVANCE_"+safe(payload.schedule.period)+".pdf");
  return stats;
 }
 window.InfPDF=Object.freeze({download:download,build:build,ensureLibrary:ensureLibrary});

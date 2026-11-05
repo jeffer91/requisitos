@@ -28,6 +28,18 @@ assert.equal(report.coverage.completed, 53, "Introducción, Base Legal y Metodol
 assert.equal(report.coverage.pending, 23);
 assert.equal(report.canExport, false, "No se permite un informe final oficial incompleto.");
 assert.equal(report.canExportDraft, true, "Debe poder generarse un PDF de avance.");
+const current = w.InfReport.buildAvailable();
+assert.equal(current.canExportDraft, true);
+assert.equal(current.partial, true);
+assert.deepEqual(Array.from(current.includedChapters), ["1","2","3"]);
+assert.deepEqual(Array.from(current.excludedChapters.map(c=>c.number)), ["4","5","6","7","8"]);
+assert.equal(current.chapters.length, 3);
+assert.ok(current.chapters.every(c=>c.content.trim() || c.sections.length));
+function requireText(node) {
+  assert.ok(node.content.trim() || node.sections.length);
+  node.sections.forEach(requireText);
+}
+current.chapters.forEach(requireText);
 assert.equal(report.dataConnected, false);
 assert.equal(report.documentCode, null);
 assert.deepEqual(Array.from(w.InfRegistry.registeredChapters()), ["1", "2", "3", "4", "5", "6", "7", "8"]);
