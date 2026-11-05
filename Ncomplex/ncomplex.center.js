@@ -331,6 +331,21 @@ async function analyze(){
  }
  if(!courseCorrect)issues.push("Confirma la carrera y el núcleo antes de guardar.");
  if(!data.group&&data.mode==="nucleos")issues.push("Selecciona el grupo (Presencial, Online o PVC) para guardar. Las notas ya fueron analizadas.");
+ if(data.mode==="nucleos"&&data.career&&data.students.length>selected.length){
+  var globally=w.NcomplexNucleosParser.match(parsed.rows||[],data.students,data.overrides);
+  var outside=(globally.matches||[]).filter(function(item){
+   return studentCode(item.student)!==data.career;
+  });
+  if(outside.length){
+   var alternative=Object.create(null);
+   outside.forEach(function(item){
+    var name=studentCareer(item.student)||studentCode(item.student);
+    alternative[name]=(alternative[name]||0)+1;
+   });
+   ui.review.appendChild(el("p",outside.length+" filas de Moodle parecen corresponder a otras matrículas del período: "+
+    Object.keys(alternative).map(function(name){return name+" ("+alternative[name]+")";}).join(", ")+". No se mezclarán las carreras."));
+  }
+ }
  var additional=(matched.review||[]).map(function(r){return r.reason;})
   .concat((matched.unmatched||[]).map(function(r){return r.label+": "+r.reason;}))
   .concat((matched.conflicts||[]).map(function(r){return r.nombre+": conflicto con la nota local.";}));
@@ -429,8 +444,11 @@ async function save(){
      nombreCarrera:studentCareer(st),grupoInforme:data.group,nucleo:data.nucleus,nombreNucleo:nucleusTitle(data.nucleus),
      cursoMoodle:p.parsed.course||"",evaluaciones:inc.evaluaciones.slice(),taller:inc.taller,prueba:inc.prueba,
      totalMoodle:inc.totalMoodle,habilitado:eligible,requisitosPendientes:missing.slice(),
-     estadoCarga:!eligible?"INHABILITADO":complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
-     observaciones:discrepancy?"El total Moodle difiere de la media simple. Revisar ponderación del curso.":complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
+     estadoCarga:!eligible?(check.verified?"INHABILITADO":"PENDIENTE"):
+      complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
+     observaciones:!check.verified?"No se ha podido verificar toda la documentación de requisitos.":
+      discrepancy?"El total Moodle difiere de la media simple. Revisar ponderación del curso.":
+      complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
      sourceHash:currentHash,importacionId:digest([data.period,p.source]),
      historialCambios:history,
      estadoSync:"PENDIENTE",remoteHash:previous&&previous.remoteHash||"",cloudError:"",
@@ -603,7 +621,8 @@ async function boot(){
   button.addEventListener("click",function(){nucleus(Number(button.dataset.ncNucleus));});
  });
  $("nc-open-import").addEventListener("click",function(){promptImport(true);});
- $("nc-next-task").addEventListener("click",function(){
+ var taskButton=$("nc-next-task");
+ if(taskButton)taskButton.addEventListener("click",function(){
   if(!this.dataset.career)return;
   data.career=this.dataset.career;ui.career.value=data.career;showGroup();
   mode("nucleos");nucleus(Number(this.dataset.nucleus||1));syncClassic();render();

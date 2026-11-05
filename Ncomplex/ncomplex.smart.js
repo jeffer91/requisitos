@@ -7,7 +7,12 @@
  function baseCareer(v){return norm(v).replace(/\b(?:online|on line|en linea|virtual|pvc|presencial)\b/g,"")
    .replace(/\s+/g," ").trim();}
  function periodId(input){
-  var s=norm(input),short=s.match(/\b(oct|octubre)\s*(?:a|al|mar|marzo|[-– ])*\s*(?:mar|marzo)\s*(20\d{2}|\d{2})\b/);
+  var s=norm(input);
+  var months={enero:"01",febrero:"02",marzo:"03",abril:"04",mayo:"05",junio:"06",
+    julio:"07",agosto:"08",septiembre:"09",octubre:"10",noviembre:"11",diciembre:"12"};
+  var long=s.match(/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(20\d{2})\s+(?:a|al|hasta)\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(20\d{2})\b/);
+  if(long)return long[2]+"-"+months[long[1]]+"__"+long[4]+"-"+months[long[3]];
+  var short=s.match(/\b(oct|octubre)\s*(?:a|al|mar|marzo|[-– ])*\s*(?:mar|marzo)\s*(20\d{2}|\d{2})\b/);
   if(short){var y=Number(short[2]);if(y<100)y+=2000;return (y-1)+"-10__"+y+"-03";}
   var april=s.match(/\b(?:abr|abril)\s*(?:a|al|sep|septiembre|[-– ])*\s*(?:sep|sept|septiembre)\s*(20\d{2}|\d{2})\b/);
   if(april){var a=Number(april[1]);if(a<100)a+=2000;return a+"-04__"+a+"-09";}
@@ -61,7 +66,7 @@
     return text(s.CodigoCarrera||s.codigoCarrera||s.NombreCarrera||s.nombreCarrera)===target.code;
    });
    if(!roster.length)continue;
-   for(var n=(i===0&&target.code===careerId?(nucleus||1):1);n<=4;n++){
+   for(var n=1;n<=4;n++){
     var actual=(notes||[]).filter(function(r){return r.codigoCarrera===target.code&&Number(r.nucleo)===n;});
     var complete=actual.filter(function(r){return Array.isArray(r.evaluaciones)&&r.evaluaciones.length===4&&
       r.evaluaciones.every(function(v){return v!==null&&v!==undefined;})&&r.totalMoodle!==null&&r.totalMoodle!==undefined;});

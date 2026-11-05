@@ -75,3 +75,7 @@ body:not(.nc-advanced-open) #ncomplex-btn-save{display:none}
 .nc-duplicate-group select{max-width:460px;min-width:245px;font-size:12px}
 .nc-center-statuses .nc-cloud-pill{white-space:normal;text-align:center}
 @media(max-width:760px){.nc-center-head{align-items:flex-start}.nc-center-statuses{justify-content:flex-start}.nc-guide{align-items:flex-start;flex-direction:column}}
+
+.nc-context-action{background:#fff;color:#1e5388;border:1px solid #b6cfe3;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600}
+.nc-review-conflict button:hover,.nc-context-action:hover,.nc-context-options button:hover{border-color:#24649b;background:#eef5fc}
+.nc-table-scroll .nc-tag{white-space:nowrap}
