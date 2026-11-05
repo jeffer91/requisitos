@@ -6,7 +6,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const root = path.resolve(__dirname, "..");
 const store = {};
-const context = vm.createContext({window: {localStorage: {getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=String(v)}}}});
+const context = vm.createContext({window: {localStorage: {getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=String(v)}}}, document: {}});
 function load(relative) {
   const code = fs.readFileSync(path.join(root, relative), "utf8");
   vm.runInContext(code, context, {filename: relative});
@@ -21,6 +21,7 @@ load("core/inf.report.js");
 load("core/inf.nuclei.js");
 load("core/inf.schedules.js");
 load("core/inf.results.js");
+load("export/inf.pdf.js");
 const w = context.window;
 const report = w.InfReport.build();
 assert.equal(report.coverage.chapters, 8, "Deben existir ocho capítulos.");
@@ -83,4 +84,42 @@ const first=valid.careers.find(c=>c.career==="Administración").nuclei[0];
 assert.equal(first.rows.length,1);
 assert.equal(first.rows[0].evaluations[0],0,"Conservar evaluación válida de cero.");
 assert.equal(first.average,8);
-console.log("Inf: índice, 16 diagramas, cronogramas, consulta sin duplicar notas y sección 4.2 verificados.");
+// Prueba estructural del PDF sin instalar paquetes ni emitir documentos oficiales.
+const linesRendered=[];
+const mockPDF={
+ pages:1, selected:1, badPositions:[],
+ setFont(){},setFontSize(){},setTextColor(){},setDrawColor(){},setLineWidth(){},
+ setFillColor(){},setLineDashPattern(){},line(){},rect(){},roundedRect(){},circle(){},addImage(){},
+ splitTextToSize(value,width){
+   const words=String(value||"").split(/\\s+/),max=Math.max(8,Math.floor(width/2.4));
+   let output=[],line="";
+   words.forEach(function(word){
+     if((line+" "+word).trim().length>max&&line){output.push(line);line=word;}
+     else line=(line+" "+word).trim();
+   });
+   if(line)output.push(line);
+   return output;
+ },
+ text(value,x,y){
+   if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>210||y<0||y>297){
+     this.badPositions.push({value:String(value),x:x,y:y,page:this.selected});
+   }
+   linesRendered.push({value:String(value),page:this.selected});
+ },
+ addPage(){this.pages++;this.selected=this.pages;},
+ setPage(page){this.selected=page;},
+ internal:{getNumberOfPages(){return mockPDF.pages;}}
+};
+const sampleReport=w.InfReport.buildAvailable();
+const audit=w.InfPDF.build(mockPDF,{
+ report:sampleReport,schedule:sample,careers:w.InfNuclei.careers(),results:valid
+},null);
+assert.equal(audit.pages,mockPDF.pages);
+assert.ok(audit.figures>=23,"Debe haber figuras por carrera y metodología.");
+assert.equal(mockPDF.badPositions.length,0,"No dibujar fuera de la página.");
+assert.equal(linesRendered.filter(x=>x.value==="Unidad de Titulación y").length,
+ mockPDF.pages,"Encabezado institucional completo en cada página.");
+assert.ok(linesRendered.some(x=>x.value.includes("PROCESO DE TITULACIÓN")));
+assert.ok(linesRendered.some(x=>x.value.includes("4.2.3. Consolidado general")));
+assert.ok(!linesRendered.some(x=>x.value.includes("BORRADOR DE AVANCE")));
+console.log("Inf: índice, datos 4.2, 16 diagramas y PDF completo de prueba verificados.");
