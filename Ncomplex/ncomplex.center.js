@@ -2,7 +2,7 @@
  * No utiliza nombres de estudiante como clave y nunca certifica notas incompletas. */
 (function(w,d){"use strict";
 var ui={},data={mode:"nucleos",period:"",career:"",group:"",nucleus:1,
- periods:[],students:[],nuclei:[],exams:[],preview:null,working:false,started:false};
+ periods:[],students:[],nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null};
 function t(v){return String(v==null?"":v).trim();}
 function norm(v){return t(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function $(id){return d.getElementById(id);}
@@ -16,6 +16,13 @@ function studentCode(r){return t(r.CodigoCarrera||r.codigoCarrera||r.codigo_carr
 function studentMode(r){return t(r.modalidadTitulacion);}
 function currentRows(){return data.students.filter(function(s){return studentCode(s)===data.career;});}
 function cloudCount(){return data.nuclei.filter(function(r){return r.estadoSync!=="SINCRONIZADO";}).length;}
+function currentConflicts(){return data.nuclei.filter(function(r){
+ return r.estadoSync==="CONFLICTO" && r.codigoCarrera===data.career && (!data.group||r.grupoInforme===data.group);
+});}
+function nucleusRequirements(student){
+ var check=student&&student._ncomplexRequirements;
+ return w.NcomplexNucleosPolicy&&w.NcomplexNucleosPolicy.check(check,"nucleos");
+}
 function careerInfo(){
  var first=currentRows()[0];return first?{name:studentCareer(first),code:studentCode(first)}:null;
 }
@@ -65,7 +72,7 @@ async function refresh(){
  ui.career.value=data.career;showGroup();syncClassic();render();
 }
 async function loadPeriod(){
- data.period=ui.period.value;data.career="";data.preview=null;ui.review.textContent="";
+ data.period=ui.period.value;data.career="";data.preview=null;data.lastCloud=null;ui.review.textContent="";
  if(!data.period){data.students=[];data.nuclei=[];data.exams=[];render();return;}
  syncClassic();
  msg("Consultando estudiantes y calificaciones…");
@@ -102,10 +109,8 @@ function showPending(){
  currentRows().forEach(function(st){
   var row=ids[studentId(st)],reasons=[];
   var checked=st._ncomplexRequirements,requirements=checked&&checked.requirements||[];
-  if(requirements.length){
-   requirements.filter(function(req){return (data.mode==="complexivo"||req.key!=="titulacion")&&req.status!=="CUMPLE";})
-    .forEach(function(req){reasons.push(req.label+" ("+req.status+")");});
-  }
+  var check=w.NcomplexNucleosPolicy.check(checked,data.mode);
+  if(!check.eligible)reasons=reasons.concat(check.missing);
   if(!row)reasons.push("Sin calificaciones");
   else if(data.mode==="nucleos"){
    row.evaluaciones.forEach(function(g,i){if(g===null||g===undefined)reasons.push("Falta E"+(i+1));});
@@ -131,14 +136,20 @@ function summary(){
    ?data.nuclei.filter(function(r){return Number(r.nucleo)===data.nucleus && r.codigoCarrera===data.career;})
    :data.exams.filter(function(r){return !!ids[studentId(r)]&&studentMode(r)==="EXAMEN_COMPLEXIVO";});
  var eligible=scoreRows.filter(function(r){return data.mode==="nucleos"
-  ?r.habilitado!==false&&r.evaluaciones.every(function(x){return x!==null&&x!==undefined;})
+  ?r.habilitado===true&&r.estadoCarga==="CONCILIADO" &&
+     r.evaluaciones.every(function(x){return x!==null&&x!==undefined;})
   :r.notaOficial!==null&&r.notaOficial!==undefined;});
  $("nc-students").textContent=students.length;
  $("nc-loaded").textContent=eligible.length;
  $("nc-missing").textContent=Math.max(0,students.length-eligible.length);
  $("nc-sync-pending").textContent=cloudCount();
- ui.cloud.textContent=cloudCount()?"Núcleos pendientes: "+cloudCount():"Núcleos: sincronizados";
- ui.cloud.className="nc-cloud-pill"+(cloudCount()?" is-warn":" is-ok");
+ var cloud=data.lastCloud,exam=cloud&&cloud.period===data.period&&cloud.group===data.group?cloud.exam:null;
+ var count=cloudCount(),bad=exam&&(exam.errors||exam.conflicts||exam.blocked||exam.invalid);
+ ui.cloud.textContent=(count?count+" núcleos por sincronizar":"Núcleos locales al día")+
+   (exam?" · Complexivo "+(bad?"con incidencias":"verificado"):" · Complexivo por verificar");
+ ui.cloud.className="nc-cloud-pill"+(!count&&exam&&!bad?" is-ok":" is-warn");
+ var conflictBtn=$("nc-show-conflicts");
+ if(conflictBtn){conflictBtn.hidden=currentConflicts().length===0;conflictBtn.textContent="Conflictos ("+currentConflicts().length+")";}
 }
 function td(value,css){var n=el("td",value,css);return n;}
 function label(status){
@@ -172,8 +183,14 @@ function render(){
   }else{
    [row&&row.notaTeorica,row&&row.notaPractica,row&&row.notaOficial].forEach(function(v){line.appendChild(td(fmt(v),v==null?"nc-muted":""));});
   }
-  var state=label(row&&(data.mode==="nucleos"?(row.estadoSync==="CONFLICTO"?"CONFLICTO":row.estadoCarga):row.estadoEvaluacion));
-  var cell=el("td"),chip=el("span",state[0],"nc-tag "+state[1]);cell.appendChild(chip);line.appendChild(cell);
+  var checks=data.mode==="nucleos"?nucleusRequirements(st):
+   w.NcomplexNucleosPolicy.check(st._ncomplexRequirements,"complexivo");
+  var needs=checks&&!checks.eligible?checks.missing:[];
+  var rawState=row&&(data.mode==="nucleos"?(row.estadoSync==="CONFLICTO"?"CONFLICTO":row.estadoCarga):row.estadoEvaluacion);
+  var state=label(needs.length?"INHABILITADO":rawState);
+  var cell=el("td"),chip=el("span",state[0],"nc-tag "+state[1]);
+  if(needs.length){chip.title=needs.join("; ");}
+  cell.appendChild(chip);line.appendChild(cell);
   tbody.appendChild(line);
  });
  ui.more.textContent=rows.length>80?"Mostrando los primeros 80 de "+rows.length+". Usa Buscar para filtrar.":"";
@@ -318,6 +335,50 @@ async function sync(){
  }catch(error){msg("Firebase no confirmó la sincronización: "+(error.message||error),"error");}
  finally{data.working=false;ui.publish.disabled=false;}
 }
+function openLogin(){
+ var form=$("nc-firebase-login");form.hidden=!form.hidden;
+ if(!form.hidden)$("nc-login-email").focus();
+}
+async function signInFirebase(event){
+ event.preventDefault();
+ var button=$("nc-firebase-login").querySelector('button[type="submit"]'),password=$("nc-login-password");
+ button.disabled=true;
+ try{
+  var user=await w.NcomplexFirebaseAuth.signIn($("nc-login-email").value,password.value);
+  $("nc-firebase-login").hidden=true;
+  msg("Firebase conectado: "+user.email,"ok");
+ }catch(error){msg("No se pudo autenticar en Firebase: "+(error.message||error),"error");}
+ finally{password.value="";button.disabled=false;}
+}
+async function showConflicts(){
+ var panel=$("nc-conflict-panel");panel.hidden=!panel.hidden;
+ if(panel.hidden)return;
+ panel.textContent="";
+ var entries=currentConflicts();panel.appendChild(el("strong",entries.length+" conflictos por revisar"));
+ if(!entries.length)return;
+ try{await w.NcomplexFirebaseAuth.requireUser();await w.RequisitosFirebaseOperationCenter.ensure();}
+ catch(error){panel.appendChild(el("p","Primero conecta Firebase: "+error.message));return;}
+ for(const row of entries){
+  var card=el("div",null,"nc-review-conflict");
+  card.appendChild(el("div",(row.nombreCarrera||row.codigoCarrera)+" · Núcleo "+row.nucleo+" · "+row.cedula));
+  card.appendChild(el("small","Local: "+row.evaluaciones.map(fmt).join(" / ")+" · Total "+fmt(row.totalMoodle)));
+  var remote=null;
+  try{remote=await w.RequisitosFirebaseRepository.getById("evaluaciones_nucleos",row.periodoId+"__"+row.cedula+"__N"+row.nucleo);}
+  catch(error){card.appendChild(el("small","Firebase: "+error.message));panel.appendChild(card);continue;}
+  if(!remote||!remote.data){card.appendChild(el("small","No se encontró el documento remoto."));panel.appendChild(card);continue;}
+  card.appendChild(el("small","Firebase: "+(remote.data.evaluaciones||[]).map(fmt).join(" / ")+" · Total "+fmt(remote.data.totalMoodle)));
+  for(const choice of [{key:"local",label:"Conservar local"},{key:"firebase",label:"Conservar Firebase"}]){
+   var b=el("button",choice.label,"nc-conflict-action");b.type="button";
+   b.addEventListener("click",(function(selected,entry){return async function(){
+    if(!w.confirm("¿"+(selected==="local"?"Preparar las notas locales para volver a publicar":"Reemplazar la copia local por la versión actual de Firebase")+"?"))return;
+    try{await w.NcomplexNucleosResolver.resolve(entry,selected);await refresh();panel.hidden=true;msg("Conflicto conciliado. "+(selected==="local"?"Sincroniza para publicar.":"Se conservó Firebase."),"ok");}
+    catch(error){msg(error.message||String(error),"error");}
+   };})(choice.key,row));
+   card.appendChild(b);
+  }
+  panel.appendChild(card);
+ }
+}
 async function boot(){
  if(data.started)return;
  data.started=true;
@@ -329,7 +390,7 @@ async function boot(){
  });
  ui.period.addEventListener("change",loadPeriod);
  ui.career.addEventListener("change",function(){data.career=ui.career.value;data.preview=null;showGroup();syncClassic();render();});
- ui.group.addEventListener("change",function(){data.group=ui.group.value;data.preview=null;syncClassic();});
+ ui.group.addEventListener("change",function(){data.group=ui.group.value;data.preview=null;data.lastCloud=null;syncClassic();render();});
  ui.tabN.addEventListener("click",function(){mode("nucleos");});
  ui.tabE.addEventListener("click",function(){mode("complexivo");});
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(button){
@@ -337,6 +398,10 @@ async function boot(){
  });
  $("nc-open-import").addEventListener("click",function(){promptImport(true);});
  $("nc-show-pending").addEventListener("click",showPending);
+ $("nc-show-conflicts").addEventListener("click",function(){showConflicts().catch(function(e){msg(e.message,"error");});});
+ $("nc-connect-firebase").addEventListener("click",openLogin);
+ $("nc-login-cancel").addEventListener("click",function(){$("nc-firebase-login").hidden=true;$("nc-login-password").value="";});
+ $("nc-firebase-login").addEventListener("submit",signInFirebase);
  $("nc-close-import").addEventListener("click",function(){promptImport(false);});
  $("nc-analyze").addEventListener("click",analyze);
  ui.save.addEventListener("click",function(){save().catch(function(err){msg(err.message||String(err),"error");ui.save.disabled=false;});});
