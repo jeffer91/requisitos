@@ -5,7 +5,7 @@
  "use strict";
  var DB_NAME="REQUISITOS_BL2";
  var STORES=["periodos","matriculas_periodo","personas","estudiantes","requisitos_estudiante",
-   "requisitos","evaluaciones_titulacion","notas_titulacion","notas","nucleos_estructurantes"];
+   "requisitos","evaluaciones_titulacion","notas_titulacion","notas","nucleos_estructurantes","evaluaciones_nucleos"];
  var state={reads:0,ready:false,source:"",lastError:"",lastReadAt:"",stores:[]};
  function copy(a){return JSON.parse(JSON.stringify(a||[]));}
  function text(v){return String(v==null?"":v).trim();}
@@ -70,7 +70,7 @@
      requirements:copy(filter(requirements,period)),
      evaluations:copy(filter(raw.evaluaciones_titulacion||[],period)),
      notes:copy(filter(notes,period)),
-     nuclei:copy(filter(raw.nucleos_estructurantes||[],period)),
+     nuclei:copy(filter((raw.evaluaciones_nucleos||[]).concat(raw.nucleos_estructurantes||[]),period)),
      availableStores:Object.keys(raw),generatedAt:new Date().toISOString()
    };
  }

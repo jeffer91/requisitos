@@ -101,7 +101,7 @@ function summary(){
  $("nc-loaded").textContent=eligible.length;
  $("nc-missing").textContent=Math.max(0,students.length-eligible.length);
  $("nc-sync-pending").textContent=cloudCount();
- ui.cloud.textContent=cloudCount()?"Pendiente Firebase: "+cloudCount():"Firebase: núcleos al día";
+ ui.cloud.textContent=cloudCount()?"Núcleos pendientes: "+cloudCount():"Núcleos: sincronizados";
  ui.cloud.className="nc-cloud-pill"+(cloudCount()?" is-warn":" is-ok");
 }
 function td(value,css){var n=el("td",value,css);return n;}

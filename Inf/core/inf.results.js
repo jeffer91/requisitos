@@ -38,6 +38,7 @@
      }
      var single=Number(value(row,["nucleoNumero","numeroNucleo","nucleo","núcleo"]));
      if(single>=1&&single<=4&&(
+       (Array.isArray(row.evaluaciones)&&row.evaluaciones.length===4)||
        text(row.origen||row.tipo||row.fuente).toLowerCase().includes("nucle")||
        text(row.tipoEvaluacion||"").toLowerCase().includes("nucle"))){
        items.push({num:single,raw:row});
@@ -52,6 +53,8 @@
       });
       var caseGrade=grade(value(source,["casoEstudio","notaCasoEstudio","notaCaso","caso"]));
       var final=grade(value(source,["notaFinal","promedioFinal","promedioNucleo","calificacionFinal","notaNucleo"]));
+      if(final===null && source.estadoCarga==="CONCILIADO" && source.habilitado===true)
+        final=grade(source.totalMoodle);
       if(final===null&&controls.every(function(v){return v===null;})&&caseGrade===null)return null;
       return {number:x.num,evaluations:controls,caseGrade:caseGrade,finalGrade:final,
         source:text(source.fuente||source.origen||row.origen||"registro BDLocal")};
