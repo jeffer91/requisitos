@@ -89,7 +89,7 @@ async function publish(options){
    return {ok:true,published:0,same,conflicts,invalid,blocked};
   }
   const batch=pending.slice(0,25);
-  if(!w.confirm("Publicar "+batch.length+" notas nuevas en complexivo?\n9/9 requisitos verificados.\nBloqueados: "+blocked.length+"; iguales: "+same+"; conflictos: "+conflicts.length+"; inválidas: "+invalid.length+".\nNo se sobrescribirán notas de otro equipo."))return {ok:false,reason:"Cancelado por usuario"};
+  if(options.confirmedByCenter!==true&&!w.confirm("Publicar "+batch.length+" notas nuevas en complexivo?\n9/9 requisitos verificados.\nBloqueados: "+blocked.length+"; iguales: "+same+"; conflictos: "+conflicts.length+"; inválidas: "+invalid.length+".\nNo se sobrescribirán notas de otro equipo."))return {ok:false,reason:"Cancelado por usuario"};
   let saved=0;
   for(const doc of batch){
     const response=await repo.writeChecked("complexivo",doc,{expected:{exists:false}});

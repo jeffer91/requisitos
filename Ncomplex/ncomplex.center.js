@@ -194,22 +194,28 @@ async function save(){
     var previous=existing[id]||null;
     var priorHash=digest(previous&&[previous.evaluaciones,previous.taller,previous.prueba,previous.totalMoodle]);
     var currentHash=digest([inc.evaluaciones,inc.taller,inc.prueba,inc.totalMoodle]);
-    if(previous&&priorHash!==currentHash){skipped++;continue;}
+    if(previous&&priorHash!==currentHash){
+     if(!w.confirm("La calificación de "+studentName(st)+" es diferente de la guardada. ¿Actualizar únicamente la copia local? Firebase comprobará versiones antes de publicar.")){skipped++;continue;}
+    }
     if(previous&&priorHash===currentHash){skipped++;continue;}
     var eligibility=await con.checkRequirements(data.period,ced);
     var req=eligibility&&Array.isArray(eligibility.requirements)?eligibility.requirements:[];
     var missing=req.filter(function(r){return r.key!=="titulacion"&&r.status!=="CUMPLE";});
     var eligible=req.length===9&&missing.length===0;
     var complete=inc.evaluaciones.every(function(v){return v!==null;})&&inc.totalMoodle!==null;
+    var grades=inc.evaluaciones.concat([inc.taller,inc.prueba]).filter(function(v){return v!==null;});
+    var arithmetic=grades.length?Math.round(grades.reduce(function(a,b){return a+b;},0)/grades.length*100)/100:null;
+    var discrepancy=arithmetic!==null&&inc.totalMoodle!==null&&Math.abs(arithmetic-inc.totalMoodle)>0.03;
     stored.push({id:id,periodoId:data.period,cedula:ced,codigoCarrera:data.career,
      nombreCarrera:studentCareer(st),grupoInforme:data.group,nucleo:data.nucleus,nombreNucleo:nucleusTitle(data.nucleus),
      cursoMoodle:p.parsed.course||"",evaluaciones:inc.evaluaciones.slice(),taller:inc.taller,prueba:inc.prueba,
      totalMoodle:inc.totalMoodle,habilitado:eligible,requisitosPendientes:missing.map(function(r){return r.label+" ("+r.status+")";}),
-     estadoCarga:!eligible?"INHABILITADO":complete?"CONCILIADO":"PENDIENTE",
-     observaciones:complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
+     estadoCarga:!eligible?"INHABILITADO":complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
+     observaciones:discrepancy?"El total Moodle difiere de la media simple. Revisar ponderación del curso.":complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
      sourceHash:currentHash,importacionId:digest([data.period,p.source]),
-     estadoSync:"PENDIENTE",remoteHash:"",cloudError:"",
-     createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),version:1});
+     estadoSync:"PENDIENTE",remoteHash:previous&&previous.remoteHash||"",cloudError:"",
+     createdAt:previous&&previous.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),
+     version:previous?Number(previous.version||1)+1:1});
    }
    if(stored.length)await w.NcomplexNucleosStore.saveMany(stored);
   }else{

@@ -35,7 +35,7 @@ async function push(options){
   var repo=repository();
   if(!repo||typeof repo.writeChecked!=="function")throw Error("Repositorio Firebase no disponible.");
   var records=(await local.list(period)).filter(function(r){
-   return r.estadoSync!=="SINCRONIZADO" && (!group||r.grupoInforme===group);
+   return r.estadoSync!=="SINCRONIZADO" && r.estadoSync!=="CONFLICTO" && (!group||r.grupoInforme===group);
   });
   summary.pending=records.length;
   var limit=Math.max(1,Math.min(25,Number(options.limit||25)));
