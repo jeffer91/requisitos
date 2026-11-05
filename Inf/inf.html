@@ -1,38 +1,68 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inf — Informe Final del Proceso de Titulación</title>
-  <link rel="stylesheet" href="inf.css">
-  <script defer src="core/inf.catalog.js"></script>
-  <script defer src="core/inf.registry.js"></script>
-  <script defer src="sections/01-introduccion/section.js"></script>
-  <script defer src="sections/02-base-legal/section.js"></script>
-  <script defer src="sections/03-metodologia/section.js"></script>
-  <script defer src="sections/04-resultados/section.js"></script>
-  <script defer src="sections/05-resumen-ejecutivo/section.js"></script>
-  <script defer src="sections/06-conclusiones/section.js"></script>
-  <script defer src="sections/07-recomendaciones/section.js"></script>
-  <script defer src="sections/08-referencias/section.js"></script>
-  <script defer src="core/inf.report.js"></script>
-  <script defer src="core/inf.markdown.js"></script>
-  <script defer src="inf.app.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inf — Informe Final del Proceso de Titulación</title>
+<link rel="stylesheet" href="inf.css">
+<script defer src="core/inf.catalog.js"></script>
+<script defer src="core/inf.registry.js"></script>
+<script defer src="sections/01-introduccion/section.js"></script>
+<script defer src="sections/02-base-legal/section.js"></script>
+<script defer src="sections/03-metodologia/section.js"></script>
+<script defer src="sections/04-resultados/section.js"></script>
+<script defer src="sections/05-resumen-ejecutivo/section.js"></script>
+<script defer src="sections/06-conclusiones/section.js"></script>
+<script defer src="sections/07-recomendaciones/section.js"></script>
+<script defer src="sections/08-referencias/section.js"></script>
+<script defer src="core/inf.report.js"></script>
+<script defer src="core/inf.markdown.js"></script>
+<script defer src="core/inf.nuclei.js"></script>
+<script defer src="core/inf.schedules.js"></script>
+<script defer src="core/inf.visuals.js"></script>
+<script defer src="export/inf.pdf.js"></script>
+<script defer src="inf.app.js"></script>
 </head>
 <body>
-  <main class="inf-layout">
-    <header class="inf-head">
-      <p class="inf-eyebrow">Unidad de Titulación y Eficiencia Terminal</p>
-      <h1>Inf · Informe Final del Proceso de Titulación</h1>
-      <p class="inf-subtitle">Índice institucional de ocho capítulos · estilo APA 7 · portada INF ITSQMET</p>
-      <div class="inf-info" id="inf-status" role="status">Comprobando estructura…</div>
-    </header>
-    <section class="inf-index" aria-labelledby="inf-index-title">
-      <h2 id="inf-index-title">Secciones del informe</h2>
-      <p class="inf-help">Los textos se incorporan por entregas en los archivos de cada capítulo. Las secciones vacías permanecen pendientes; no se generan resultados ficticios.</p>
-      <ol class="inf-chapters" id="inf-chapters"></ol>
-    </section>
-    <footer>Etapa de preparación · sin conexión a datos ni emisión oficial.</footer>
-  </main>
+<main class="inf-layout">
+<header class="inf-head">
+<div class="inf-kicker">UNIDAD DE TITULACIÓN Y EFICIENCIA TERMINAL · ITSQMET</div>
+<h1>Inf · Informe Final del Proceso de Titulación</h1>
+<p>Informe con texto institucional fijo, cronogramas por período y figuras académicas. La generación disponible es un <strong>borrador PDF</strong>; no constituye informe legalizado.</p>
+<div class="inf-toolbar">
+<label for="inf-period">Período académico
+<input id="inf-period" list="inf-period-options" type="text" value="Octubre 2025 a Marzo 2026" maxlength="110" autocomplete="off" placeholder="Ej.: Octubre 2025 a Marzo 2026"></label>
+<datalist id="inf-period-options"></datalist>
+<button type="button" id="inf-period-load" class="inf-button">Cargar período</button>
+<button type="button" id="inf-pdf" class="inf-button inf-button-primary">Descargar PDF de avance</button>
+</div>
+<p id="inf-status" class="inf-statusbar" role="status">Preparando informe…</p>
+</header>
+<section class="inf-panel" aria-labelledby="inf-cal-title">
+<div class="inf-panel-head"><div><h2 id="inf-cal-title">Cronogramas del período</h2><p>Modifica actividades y fechas del período seleccionado; las fechas no acreditan por sí solas ejecución.</p></div><button type="button" id="inf-schedule-save" class="inf-button inf-button-primary">Guardar cronogramas</button></div>
+<p id="inf-schedule-origin" class="inf-hint"></p>
+<div class="inf-period-boards">
+<article class="inf-board">
+<div class="inf-board-head"><h3>Examen Complexivo</h3><button type="button" id="inf-add-complexivo" class="inf-button inf-small">Añadir actividad</button></div>
+<div class="inf-table-scroll"><table><thead><tr><th>Actividad</th><th>Fecha inicio</th><th>Fecha fin</th><th>Estado verificado</th><th></th></tr></thead><tbody id="inf-rows-complexivo"></tbody></table></div>
+<div class="inf-chart" id="inf-gantt-complexivo"></div>
+</article>
+<article class="inf-board">
+<div class="inf-board-head"><h3>Trabajo de Titulación</h3><button type="button" id="inf-add-trabajo" class="inf-button inf-small">Añadir actividad</button></div>
+<div class="inf-table-scroll"><table><thead><tr><th>Fase</th><th>Actividad</th><th>Fecha inicio</th><th>Fecha fin</th><th>Estado verificado</th><th></th></tr></thead><tbody id="inf-rows-trabajo"></tbody></table></div>
+<div class="inf-chart" id="inf-gantt-trabajo"></div>
+</article>
+</div>
+</section>
+<section class="inf-panel" aria-labelledby="inf-nuc-title">
+<div class="inf-panel-head"><div><h2 id="inf-nuc-title">Diagramas de núcleos estructurantes</h2><p>Un esquema de cuatro núcleos por carrera, construido a partir del apartado 3.4.4.</p></div><span class="inf-pill" id="inf-nuc-count">16 carreras</span></div>
+<div id="inf-diagrams" class="inf-diagram-grid"></div>
+</section>
+<section class="inf-panel" aria-labelledby="inf-index-title">
+<div class="inf-panel-head"><div><h2 id="inf-index-title">Contenido del informe</h2><p>Los capítulos incompletos quedan marcados. Los datos académicos no se simulan.</p></div></div>
+<div class="inf-chapters" id="inf-chapters"></div>
+</section>
+<footer>Inf · edición local por período · borrador académico, no emisión oficial</footer>
+</main>
 </body>
 </html>
