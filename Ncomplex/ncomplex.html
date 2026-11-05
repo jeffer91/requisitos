@@ -13,6 +13,7 @@ Función o funciones:
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ncomplex</title>
   <link rel="stylesheet" href="ncomplex.css" />
+  <link rel="stylesheet" href="ncomplex.center.css" />
   <link rel="stylesheet" href="ncomplex.firebase-sync.css" />
   <link rel="stylesheet" href="ncomplex.report.css" />
   <link rel="stylesheet" href="ncomplex.report.document.css" />
@@ -29,6 +30,53 @@ Función o funciones:
       </div>
     </header>
 
+    <section class="nc-center" aria-label="Centro de carga de notas">
+      <div class="nc-center-head">
+        <div><h2>Centro de calificaciones</h2><span>Núcleos y examen complexivo</span></div>
+        <span id="nc-cloud-state" class="nc-cloud-pill">Sincronización pendiente</span>
+      </div>
+      <div class="nc-filters">
+        <label>Período<select id="nc-period"><option value="">Seleccionar período</option></select></label>
+        <label>Carrera<select id="nc-career"><option value="">Seleccionar carrera</option></select></label>
+        <label>Grupo<select id="nc-group"><option value="">Seleccionar</option><option value="PRESENCIAL">Presencial</option><option value="ONLINE">Online</option><option value="PVC">PVC</option></select></label>
+      </div>
+      <div class="nc-tabs" role="tablist" aria-label="Tipo de evaluación">
+        <button id="nc-tab-nucleos" class="is-active" role="tab" aria-selected="true" type="button">Núcleos</button>
+        <button id="nc-tab-complexivo" role="tab" aria-selected="false" type="button">Examen complexivo</button>
+      </div>
+      <div id="nc-nucleus-picker" class="nc-nucleus-picker" role="group" aria-label="Seleccionar núcleo">
+        <button type="button" data-nc-nucleus="1" class="is-active">Núcleo 1</button>
+        <button type="button" data-nc-nucleus="2">Núcleo 2</button>
+        <button type="button" data-nc-nucleus="3">Núcleo 3</button>
+        <button type="button" data-nc-nucleus="4">Núcleo 4</button>
+      </div>
+      <div class="nc-metrics">
+        <div><span>Estudiantes</span><strong id="nc-students">—</strong></div>
+        <div><span>Con notas</span><strong id="nc-loaded">—</strong></div>
+        <div><span>Por completar</span><strong id="nc-missing">—</strong></div>
+        <div><span>Pendientes Firebase</span><strong id="nc-sync-pending">—</strong></div>
+      </div>
+      <div class="nc-actions">
+        <button type="button" id="nc-open-import" class="nc-primary">Importar Moodle</button>
+        <button type="button" id="nc-publish">Sincronizar Firebase</button>
+        <button type="button" id="nc-show-advanced">Herramientas avanzadas</button>
+      </div>
+      <div id="nc-message" class="nc-message" role="status" aria-live="polite">Selecciona un período y una carrera.</div>
+      <section id="nc-import" class="nc-import" hidden aria-label="Importar calificaciones">
+        <div class="nc-import-head"><strong>Importar desde Moodle</strong><button id="nc-close-import" type="button" aria-label="Cerrar importación">×</button></div>
+        <textarea id="nc-paste" rows="8" placeholder="Pega aquí el libro de calificaciones de Moodle"></textarea>
+        <div class="nc-import-actions">
+          <button id="nc-analyze" type="button" class="nc-primary">Analizar</button>
+          <button id="nc-save" type="button" disabled>Guardar calificaciones</button>
+        </div>
+        <div id="nc-review" aria-live="polite"></div>
+      </section>
+      <div class="nc-table-bar"><strong id="nc-table-title">Núcleo 1</strong><input id="nc-search" type="search" placeholder="Buscar estudiante" aria-label="Buscar estudiante"></div>
+      <div class="nc-table-scroll"><table id="nc-table"><thead></thead><tbody></tbody></table></div>
+      <div id="nc-table-more" class="nc-table-more"></div>
+    </section>
+    <details id="nc-legacy" class="nc-legacy">
+      <summary>Edición avanzada, reportes y conciliación clásica</summary>
     <section class="ncomplex-card ncomplex-toolbar" aria-label="Filtros de Ncomplex">
       <div class="ncomplex-toolbar-main">
         <label class="ncomplex-field">
@@ -159,6 +207,7 @@ Función o funciones:
     </section>
 
     <div id="ncomplex-career-summary" hidden aria-hidden="true"></div>
+    </details>
   </main>
 
   <button id="ncomplex-btn-save" class="ncomplex-floating-save" type="button" disabled>
@@ -237,6 +286,14 @@ Función o funciones:
     </div>
   </section>
 
+  <script src="../Inf/core/inf.catalog.js"></script>
+  <script src="../Inf/core/inf.registry.js"></script>
+  <script src="../Inf/sections/03-metodologia/section.js"></script>
+  <script src="../Inf/core/inf.nuclei.js"></script>
+  <script src="ncomplex.nucleos.parser.js"></script>
+  <script src="ncomplex.nucleos.store.js"></script>
+  <script src="ncomplex.nucleos.firebase.js"></script>
+  <script src="ncomplex.center.js"></script>
   <script src="ncomplex.bootstrap.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
   <script src="ncomplex.firebase-sync.js"></script><script src="ncomplex.firebase-complexivo.js"></script>

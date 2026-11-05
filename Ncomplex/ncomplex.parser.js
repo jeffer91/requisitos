@@ -480,7 +480,9 @@ Función o funciones:
         "/10 distinto del resultado académico calculado "+applied.toFixed(2)+"/10.";
       // Compatibilidad con el libro Moodle clásico de 7 columnas, donde
       // categorías promedian intentos y el total NO equivale al supletorio.
-      if(count===7&&supl!==null)warnings.push(discrepancy);
+      var moodleAverage=ordinary!==null&&supl!==null?Math.round((ordinary+supl)*50)/100:null;
+      if(supl!==null && (count===7 || (moodleAverage!==null && Math.abs(totalCurso-moodleAverage)<.025)))
+        warnings.push(discrepancy+" Moodle podría promediar dos oportunidades; se conserva el cálculo oficial.");
       else issues.push(discrepancy);
     }
     var name=previousName(lines,emailEntry);
