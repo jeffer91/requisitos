@@ -1,7 +1,7 @@
 /* Módulo Inf: textos fijos, cronogramas editables y PDF de avance. */
 (function(window,document){
 "use strict";
-var state={schedule:null,dirty:false,careers:[]};
+var state={schedule:null,dirty:false,careers:[],results:null,periods:[],loadingResults:false};
 function el(id){return document.getElementById(id);}
 function text(s){return String(s==null?"":s).trim();}
 function make(tag,cls,content){
@@ -122,6 +122,81 @@ function renderGantts(){
   e.appendChild(window.InfVisuals.gantt(state.schedule[mode],mode==="complexivo"?"Examen Complexivo":"Trabajo de Titulación"));
  });
 }
+function periodIdFor(label){
+ var clean=function(v){return text(v).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();};
+ var wanted=clean(label);
+ var found=state.periods.find(function(row){
+  return wanted===clean(row.nombre||row.label||row.periodoLabel||row.nombrePeriodo||"")||
+    wanted===clean(row.id||row.periodoId||"");
+ });
+ return found?text(found.periodoId||found.id):"";
+}
+function showResults(){
+ var container=el("inf-results-table"),info=el("inf-results-summary");
+ if(!container||!info)return;
+ container.textContent="";
+ var result=state.results;
+ if(!result){info.textContent="Sin resultados cargados del período seleccionado.";return;}
+ if(result.missingGradeSource){
+  info.textContent="BDLocal consultada en modo solo lectura. No se localizaron notas específicamente identificadas por núcleo para este período. No se muestran promedios ni estudiantes ficticios.";
+  return;
+ }
+ info.textContent="Se identificaron "+result.students+" estudiantes en el período; "+
+   result.observations+" registros de núcleo y "+result.gradedNucleusRecords+" notas finales por núcleo. "+
+   "Los resultados se obtienen de registros identificados como núcleos, no de las notas del examen complexivo.";
+ var table=make("table"),thead=make("thead"),tr=make("tr");
+ ["Carrera","Estudiantes","Núcleo 1","Núcleo 2","Núcleo 3","Núcleo 4"].forEach(function(t){tr.appendChild(make("th",null,t));});
+ thead.appendChild(tr);table.appendChild(thead);
+ var body=make("tbody");
+ result.careers.forEach(function(c){
+  var line=make("tr");
+  line.appendChild(make("td",null,c.career));
+  line.appendChild(make("td",null,c.students.length));
+  c.nuclei.forEach(function(n){
+   line.appendChild(make("td",null,n.average===null?"Sin nota":"Prom.: "+n.average.toFixed(2)+" · n="+n.graded));
+  });
+  body.appendChild(line);
+ });
+ table.appendChild(body);
+ var scroll=make("div","inf-table-scroll");scroll.appendChild(table);container.appendChild(scroll);
+}
+async function loadResults(){
+ if(!state.schedule)return;
+ state.results=null;showResults();
+ if(!window.ConInf||typeof window.ConInf.read!=="function"){
+  el("inf-results-summary").textContent="El conector ConInf no está disponible. Los cronogramas y el PDF parcial siguen habilitados.";return;
+ }
+ state.loadingResults=true;
+ try{
+  var dbPeriod=periodIdFor(state.schedule.period);
+  if(!dbPeriod){
+   el("inf-results-summary").textContent="El período "+state.schedule.period+
+    " no coincide con un identificador de período de BDLocal. No se mezclarán datos de otros períodos.";
+   return;
+  }
+  var snapshot=await window.ConInf.read({periodoId:dbPeriod});
+  if(state.schedule.period!==text(el("inf-period").value))return;
+  state.results=window.InfResults.build(snapshot,state.careers);
+  showResults();
+ }catch(error){
+  el("inf-results-summary").textContent="No se pudieron consultar resultados de BDLocal: "+error.message+
+   ". El PDF parcial de los capítulos anteriores permanece disponible.";
+ }finally{state.loadingResults=false;}
+}
+async function loadPeriodsFromBD(){
+ if(!window.ConInf||typeof window.ConInf.listPeriods!=="function")return;
+ try{
+  var rows=await window.ConInf.listPeriods();
+  state.periods=Array.isArray(rows)?rows:[];
+  var d=el("inf-period-options");
+  var existing=Array.from(d.children).map(function(o){return o.value;});
+  state.periods.forEach(function(p){
+   var name=text(p.label||p.nombre||p.periodoLabel||p.nombrePeriodo||p.id||p.periodoId);
+   if(name&&existing.indexOf(name)<0){var opt=make("option");opt.value=name;d.appendChild(opt);existing.push(name);}
+  });
+  await loadResults();
+ }catch(error){el("inf-results-summary").textContent="No fue posible listar los períodos de BDLocal: "+error.message;}
+}
 function loadPeriod(){
  if(state.dirty&&!window.confirm("Hay cambios sin guardar. ¿Deseas cambiar de período?"))return;
  try {
@@ -129,6 +204,7 @@ function loadPeriod(){
   state.dirty=false;showRows("complexivo");showRows("trabajo");renderGantts();
   el("inf-schedule-origin").textContent=state.schedule.source+". Estados inicialmente sin verificar; confirma el cumplimiento con evidencias.";
   message("Período: "+state.schedule.period+". Revisa los cronogramas antes de generar el PDF.");
+  if(state.periods.length)loadResults();
  }catch(e){message(e.message,true);}
 }
 function savePeriod(){
@@ -161,7 +237,7 @@ async function downloadPdf(){
   message("Preparando el PDF con las figuras de núcleos, los cronogramas y el texto institucional…");
   var report=window.InfReport.buildAvailable();
   if(!report.canExportDraft)throw Error("Todavía no hay capítulos disponibles para exportar.");
-  await window.InfPDF.download({report:report,schedule:state.schedule,careers:state.careers});
+  await window.InfPDF.download({report:report,schedule:state.schedule,careers:state.careers,results:state.results});
   message("PDF de avance generado con los capítulos "+report.includedChapters.join(", ")+
     ". Los demás capítulos no se incluyen hasta disponer de su contenido.");
  }catch(e){message("No se generó el PDF: "+e.message,true);}
@@ -179,6 +255,7 @@ function boot(){
     el("inf-diagrams").textContent="No se pudieron completar los diagramas: "+diagramError.message;
   }
   fillPeriods();loadPeriod();
+  loadPeriodsFromBD();
   el("inf-period-load").addEventListener("click",loadPeriod);
   el("inf-period").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();loadPeriod();}});
   el("inf-add-complexivo").addEventListener("click",function(){addRow("complexivo");});
@@ -188,6 +265,7 @@ function boot(){
   message("Inf preparado: "+r.coverage.completed+" apartados con texto; "+r.coverage.pending+" pendientes. Los resultados de estudiantes aún no están conectados.");
   window.InfApp=Object.freeze({getDraft:function(){return window.InfReport.build();},
     getSchedules:function(){return JSON.parse(JSON.stringify(state.schedule));},
+    getResults:function(){return state.results;},
     loadPeriod:loadPeriod,savePeriod:savePeriod,downloadPdf:downloadPdf});
  }catch(e){message("Error al iniciar Inf: "+e.message,true);}
 }
