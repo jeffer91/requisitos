@@ -164,7 +164,7 @@ function summary(){
  data.exams.filter(function(r){return ids[studentId(r)]&&studentMode(r)==="EXAMEN_COMPLEXIVO";});
  records.forEach(function(r){
   var id=studentId(r);if(!ids[id])return;
-  var grades=data.mode==="nucleos"?(r.evaluaciones||[]).concat([r.taller,r.prueba,r.totalMoodle]):
+  var grades=data.mode==="nucleos"?(r.evaluaciones||[]).concat([r.taller,r.prueba,r.casoEstudio,r.totalMoodle]):
     [r.notaTeorica,r.notaPractica,r.notaOficial];
   if(grades.some(function(v){return v!==null&&v!==undefined;}))loaded[id]=true;
   if(data.mode==="nucleos" &&r.estadoCarga==="CONCILIADO"&&r.habilitado===true&&
@@ -202,7 +202,11 @@ function render(){
  if(!ui.table)return;
  ui.picker.hidden=data.mode!=="nucleos";
  ui.title.textContent=data.mode==="nucleos"?"Núcleo "+data.nucleus+" · "+nucleusTitle(data.nucleus):"Examen Complexivo · Teórico 40 % / Práctico 60 %";
- var names=data.mode==="nucleos"?["Estudiante","E1","E2","E3","E4","Taller","Prueba","Total Moodle","Requisitos","Estado"]:
+ var hasCase=data.mode==="nucleos"&&data.nuclei.some(function(r){
+  return r.codigoCarrera===data.career&&Number(r.nucleo)===data.nucleus&&r.casoEstudio!=null;
+ });
+ var names=data.mode==="nucleos"?["Estudiante","E1","E2","E3","E4","Taller","Prueba"]
+  .concat(hasCase?["Caso"]:[]).concat(["Total Moodle","Requisitos","Estado"]):
   ["Estudiante","Teórico","Práctico","Final","Requisitos","Estado"];
  var thead=ui.table.querySelector("thead"),tbody=ui.table.querySelector("tbody");
  thead.textContent="";tbody.textContent="";var tr=el("tr");
@@ -217,7 +221,9 @@ function render(){
   line.appendChild(td(studentName(st)||studentId(st)));
   if(data.mode==="nucleos"){
    var numbers=row&&row.evaluaciones||[null,null,null,null];
-   numbers.concat([row&&row.taller,row&&row.prueba,row&&row.totalMoodle]).forEach(function(v){line.appendChild(td(fmt(v),v==null?"nc-muted":""));});
+   numbers.concat([row&&row.taller,row&&row.prueba])
+    .concat(hasCase?[row&&row.casoEstudio]:[]).concat([row&&row.totalMoodle])
+    .forEach(function(v){line.appendChild(td(fmt(v),v==null?"nc-muted":""));});
   }else{
    [row&&row.notaTeorica,row&&row.notaPractica,row&&row.notaOficial].forEach(function(v){line.appendChild(td(fmt(v),v==null?"nc-muted":""));});
   }
@@ -302,6 +308,8 @@ async function analyze(){
  var report=el("p",(parsed.rows||[]).length+" filas Moodle · "+selected.length+
   " matrículas BDLocal · "+(matched.matches||[]).length+" vinculadas · "+toReview+" por revisar");
  ui.review.appendChild(report);
+ if(data.mode==="nucleos"&&(parsed.rows||[]).some(function(r){return r.casoEstudio!==null&&r.casoEstudio!==undefined;}))
+  ui.review.appendChild(el("p","Caso de estudio identificado y conservado junto con las cuatro evaluaciones."));
  if(!periodCorrect){
   ui.review.appendChild(el("p","El curso corresponde a otro período ("+headerPeriod+"). No se guardarán notas en el período equivocado.","nc-message is-error"));
   var possible=data.periods.some(function(p){return t(p.id||p.periodoId||p.periodId).replace(/_+/g,"__")===headerPeriod;});
@@ -417,8 +425,10 @@ async function save(){
    for(var item of p.matched.matches){
     var st=item.student,inc=item.imported,ced=studentId(st),id=w.NcomplexNucleosStore.id(data.period,ced,data.nucleus);
     var previous=existing[id]||null;
-    var priorHash=digest(previous&&[previous.evaluaciones,previous.taller,previous.prueba,previous.totalMoodle]);
-    var currentHash=digest([inc.evaluaciones,inc.taller,inc.prueba,inc.totalMoodle]);
+    var priorHash=digest(previous&&[previous.evaluaciones,previous.taller,previous.prueba,
+     previous.casoEstudio==null?null:previous.casoEstudio,previous.actividadesAdicionales||[],previous.totalMoodle]);
+    var currentHash=digest([inc.evaluaciones,inc.taller,inc.prueba,
+     inc.casoEstudio==null?null:inc.casoEstudio,inc.actividadesAdicionales||[],inc.totalMoodle]);
     if(previous&&priorHash!==currentHash){
      if(!w.confirm("La calificación de "+studentName(st)+" es diferente de la guardada. ¿Actualizar únicamente la copia local? Firebase comprobará versiones antes de publicar.")){skipped++;continue;}
     }
@@ -428,7 +438,9 @@ async function save(){
     var missing=check.missing;
     var eligible=check.eligible;
     var complete=inc.evaluaciones.every(function(v){return v!==null;})&&inc.totalMoodle!==null;
-    var grades=inc.evaluaciones.concat([inc.taller,inc.prueba]).filter(function(v){return v!==null;});
+    var grades=inc.evaluaciones.concat([inc.taller,inc.prueba,inc.casoEstudio])
+     .concat((inc.actividadesAdicionales||[]).map(function(r){return r.nota;}))
+     .filter(function(v){return v!==null&&v!==undefined;});
     var arithmetic=grades.length?Math.round(grades.reduce(function(a,b){return a+b;},0)/grades.length*100)/100:null;
     var discrepancy=arithmetic!==null&&inc.totalMoodle!==null&&Math.abs(arithmetic-inc.totalMoodle)>0.03;
     var stamp=new Date().toISOString();
@@ -438,11 +450,14 @@ async function save(){
      evaluaciones:previous.evaluaciones||[null,null,null,null],
      taller:previous.taller==null?null:previous.taller,
      prueba:previous.prueba==null?null:previous.prueba,
+     casoEstudio:previous.casoEstudio==null?null:previous.casoEstudio,
+     actividadesAdicionales:previous.actividadesAdicionales||[],
      totalMoodle:previous.totalMoodle==null?null:previous.totalMoodle
     });
     stored.push({id:id,periodoId:data.period,cedula:ced,codigoCarrera:data.career,
      nombreCarrera:studentCareer(st),grupoInforme:data.group,nucleo:data.nucleus,nombreNucleo:nucleusTitle(data.nucleus),
      cursoMoodle:p.parsed.course||"",evaluaciones:inc.evaluaciones.slice(),taller:inc.taller,prueba:inc.prueba,
+     casoEstudio:inc.casoEstudio,actividadesAdicionales:(inc.actividadesAdicionales||[]).slice(),
      totalMoodle:inc.totalMoodle,habilitado:eligible,requisitosPendientes:missing.slice(),
      estadoCarga:!eligible?(check.verified?"INHABILITADO":"PENDIENTE"):
       complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
