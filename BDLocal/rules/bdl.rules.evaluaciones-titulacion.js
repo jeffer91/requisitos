@@ -32,7 +32,7 @@
   function requirementStatus(value){
     if(value&&typeof value==="object")value=value.valor!==undefined?value.valor:value.estado!==undefined?value.estado:value.value;
     var key=requirementKey(value);
-    return key==="cumple"?"CUMPLE":key==="nocumple"?"NO CUMPLE":key==="pendiente"?"PENDIENTE":"SIN DATO";
+    return key==="cumple"?"CUMPLE":key==="noaplica"?"NO APLICA":key==="nocumple"?"NO CUMPLE":key==="pendiente"?"PENDIENTE":"SIN DATO";
   }
   function evaluateRequirements(student,rows){
     var entries=Object.create(null);

@@ -235,9 +235,9 @@ async function save(){
     }
     if(previous&&priorHash===currentHash){skipped++;continue;}
     var eligibility=await con.checkRequirements(data.period,ced);
-    var req=eligibility&&Array.isArray(eligibility.requirements)?eligibility.requirements:[];
-    var missing=req.filter(function(r){return r.key!=="titulacion"&&r.status!=="CUMPLE";});
-    var eligible=req.length===9&&missing.length===0;
+    var check=w.NcomplexNucleosPolicy.check(eligibility,"nucleos");
+    var missing=check.missing;
+    var eligible=check.eligible;
     var complete=inc.evaluaciones.every(function(v){return v!==null;})&&inc.totalMoodle!==null;
     var grades=inc.evaluaciones.concat([inc.taller,inc.prueba]).filter(function(v){return v!==null;});
     var arithmetic=grades.length?Math.round(grades.reduce(function(a,b){return a+b;},0)/grades.length*100)/100:null;
@@ -245,7 +245,7 @@ async function save(){
     stored.push({id:id,periodoId:data.period,cedula:ced,codigoCarrera:data.career,
      nombreCarrera:studentCareer(st),grupoInforme:data.group,nucleo:data.nucleus,nombreNucleo:nucleusTitle(data.nucleus),
      cursoMoodle:p.parsed.course||"",evaluaciones:inc.evaluaciones.slice(),taller:inc.taller,prueba:inc.prueba,
-     totalMoodle:inc.totalMoodle,habilitado:eligible,requisitosPendientes:missing.map(function(r){return r.label+" ("+r.status+")";}),
+     totalMoodle:inc.totalMoodle,habilitado:eligible,requisitosPendientes:missing.slice(),
      estadoCarga:!eligible?"INHABILITADO":complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
      observaciones:discrepancy?"El total Moodle difiere de la media simple. Revisar ponderación del curso.":complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
      sourceHash:currentHash,importacionId:digest([data.period,p.source]),

@@ -56,17 +56,25 @@ function saveMany(entries){
   tx.onabort=function(){reject(tx.error||Error("Guardado de núcleos cancelado."));};
  });});
 }
-function update(idValue,fields){
+function update(idValue,fields,guards){
+ guards=guards||{};
  return ready().then(function(db){return new Promise(function(resolve,reject){
-  var tx=db.transaction(STORE,"readwrite"),store=tx.objectStore(STORE),result=null;
+  var tx=db.transaction(STORE,"readwrite"),store=tx.objectStore(STORE),result=null,rejected=null;
   var request=store.get(idValue);
   request.onsuccess=function(){
-   if(!request.result)return;
-   result=Object.assign({},request.result,fields||{});
+   var existing=request.result;
+   if(!existing){rejected=Error("El registro de núcleos ya no existe.");return;}
+   if((guards.updatedAt!==undefined&&existing.updatedAt!==guards.updatedAt)||
+      (guards.sourceHash!==undefined&&existing.sourceHash!==guards.sourceHash)){
+     rejected=Error("Las notas locales cambiaron durante la sincronización. Vuelve a comparar.");
+     rejected.code="LOCAL_CHANGED";return;
+   }
+   result=Object.assign({},existing,fields||{});
    store.put(result);
   };
-  tx.oncomplete=function(){resolve(result);};
+  tx.oncomplete=function(){if(rejected)reject(rejected);else resolve(result);};
   tx.onerror=function(){reject(tx.error||Error("No se pudo actualizar el estado de sincronización."));};
+  tx.onabort=function(){reject(tx.error||Error("Actualización de núcleos cancelada."));};
  });});
 }
 w.NcomplexNucleosStore=Object.freeze({ready:ready,list:list,saveMany:saveMany,update:update,id:id,store:STORE});
