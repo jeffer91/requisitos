@@ -2,7 +2,7 @@
  * No utiliza nombres de estudiante como clave y nunca certifica notas incompletas. */
 (function(w,d){"use strict";
 var ui={},data={mode:"nucleos",period:"",career:"",group:"",nucleus:1,
- periods:[],students:[],nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null};
+ periods:[],students:[],nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null,overrides:{}};
 function t(v){return String(v==null?"":v).trim();}
 function norm(v){return t(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function $(id){return d.getElementById(id);}
@@ -72,7 +72,7 @@ async function refresh(){
  ui.career.value=data.career;showGroup();syncClassic();render();
 }
 async function loadPeriod(){
- data.period=ui.period.value;data.career="";data.preview=null;data.lastCloud=null;ui.review.textContent="";
+ data.period=ui.period.value;data.career="";data.preview=null;data.overrides={};data.lastCloud=null;ui.review.textContent="";
  if(!data.period){data.students=[];data.nuclei=[];data.exams=[];render();return;}
  syncClassic();
  msg("Consultando estudiantes y calificaciones…");
@@ -80,7 +80,7 @@ async function loadPeriod(){
  catch(e){msg(e.message||String(e),"error");}
 }
 function mode(v){
- data.mode=v;data.preview=null;ui.review.textContent="";
+ data.mode=v;data.preview=null;data.overrides={};ui.review.textContent="";
  ui.save.disabled=true;
  ui.tabN.classList.toggle("is-active",v==="nucleos");
  ui.tabE.classList.toggle("is-active",v==="complexivo");
@@ -89,7 +89,7 @@ function mode(v){
  ui.picker.hidden=v!=="nucleos";render();
 }
 function nucleus(number){
- data.nucleus=number;data.preview=null;ui.review.textContent="";ui.save.disabled=true;
+ data.nucleus=number;data.preview=null;data.overrides={};ui.review.textContent="";ui.save.disabled=true;
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(b){
   b.classList.toggle("is-active",Number(b.dataset.ncNucleus)===number);
  });
@@ -199,6 +199,14 @@ function render(){
 function promptImport(open){
  ui.importBox.hidden=!open;if(open)ui.paste.focus();
 }
+function moodlePeriodHint(value){
+ var source=t(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ var end=source.match(/\b(?:oct|octubre)\s*[-– ]+\s*(?:mar|marzo)\s*(20\d{2}|\d{2})\b/);
+ if(end){var year=Number(end[1]);if(year<100)year+=2000;return (year-1)+"-10__"+year+"-03";}
+ var same=source.match(/\b(?:abr|abril)\s*[-– ]+\s*(?:sep|sept|septiembre)\s*(20\d{2}|\d{2})\b/);
+ if(same){var y=Number(same[1]);if(y<100)y+=2000;return y+"-04__"+y+"-09";}
+ return "";
+}
 function analyze(){
  if(!data.period||!data.career){msg("Selecciona primero período y carrera.","error");return;}
  if(data.mode==="nucleos"&&!data.group){msg("Confirma el grupo antes de cargar notas.","error");return;}
@@ -207,13 +215,15 @@ function analyze(){
  var parsed=parser.parse(raw);
  var selected=currentRows();
  var matched=data.mode==="nucleos"?
-  w.NcomplexNucleosParser.match(parsed.rows,selected):
+  w.NcomplexNucleosParser.match(parsed.rows,selected,data.overrides):
   w.NcomplexMatcher.match(parsed.rows,selected);
  var suggestions=data.mode==="nucleos"?w.NcomplexNucleosParser.detect(parsed.course,nucleusCatalog()):[];
  var exact=suggestions.length===1?suggestions[0]:null;
  var matchCorrect=!exact||norm(exact.career)===norm(careerInfo()&&careerInfo().name)&&exact.number===data.nucleus;
+ var indicatedPeriod=moodlePeriodHint(data.mode==="nucleos"?parsed.course:(parsed.rawText||"").split("\n").slice(0,8).join(" "));
+ var periodCorrect=!indicatedPeriod||indicatedPeriod===data.period;
  data.preview={kind:data.mode,period:data.period,career:data.career,nucleus:data.nucleus,group:data.group,
-  parsed:parsed,matched:matched,courseMatch:matchCorrect,source:raw};
+  parsed:parsed,matched:matched,courseMatch:matchCorrect,periodMatch:periodCorrect,source:raw};
  ui.review.textContent="";
  var total=el("p",parsed.rows.length+" filas · "+matched.matches.length+" coincidencias · "+
   ((matched.review||[]).length+(matched.unmatched||[]).length+(matched.duplicates||[]).length+(matched.conflicts||[]).length)+" pendientes.");
@@ -221,6 +231,7 @@ function analyze(){
  if(exact&&!matchCorrect){
   ui.review.appendChild(el("p","Moodle parece corresponder a "+exact.career+" · Núcleo "+exact.number+". Selecciona ese núcleo antes de guardar.","nc-message is-error"));
  }
+ if(!periodCorrect)ui.review.appendChild(el("p","El curso indica el período "+indicatedPeriod+" pero seleccionaste "+data.period+". Cambia el período antes de guardar.","nc-message is-error"));
  var errs=(parsed.errors||[]).concat((matched.review||[]).map(function(x){return x.reason;}))
    .concat((matched.unmatched||[]).map(function(x){return x.label+": sin coincidencia";}))
    .concat((matched.duplicates||[]).map(function(x){return x.label+": duplicado";}))
@@ -228,14 +239,15 @@ function analyze(){
  if(errs.length){
   var list=el("ul");errs.slice(0,20).forEach(function(v){list.appendChild(el("li",v));});ui.review.appendChild(list);
  }
- ui.save.disabled=!parsed.ok||!matchCorrect||matched.matches.length===0||
+ ui.save.disabled=!parsed.ok||!matchCorrect||!periodCorrect||matched.matches.length===0||
   (data.mode==="complexivo" && !matched.matches.some(function(x){return x.apply&&!x.hasConflict;}));
  msg(ui.save.disabled?"Revisa las advertencias antes de guardar.":"Carga analizada. Puedes guardar los registros conciliados.",ui.save.disabled?"error":"ok");
 }
 function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return "moodle_"+(h>>>0).toString(16);}
 async function save(){
  var p=data.preview;if(!p||p.period!==data.period||p.career!==data.career||p.kind!==data.mode||
- (data.mode==="nucleos"&&(p.nucleus!==data.nucleus||p.group!==data.group)))throw Error("El contexto cambió. Analiza nuevamente la importación.");
+ (data.mode==="nucleos"&&(p.nucleus!==data.nucleus||p.group!==data.group))||
+ p.periodMatch!==true||p.courseMatch!==true)throw Error("El contexto o período cambió. Analiza nuevamente la importación.");
  ui.save.disabled=true;data.working=true;
  try{
   var con=w.ConNcomplex,stored=[],skipped=0;
@@ -432,7 +444,7 @@ async function boot(){
   ui[k]=$(names[k]||"nc-"+k);
  });
  ui.period.addEventListener("change",loadPeriod);
- ui.career.addEventListener("change",function(){data.career=ui.career.value;data.preview=null;showGroup();syncClassic();render();});
+ ui.career.addEventListener("change",function(){data.career=ui.career.value;data.preview=null;data.overrides={};showGroup();syncClassic();render();});
  ui.group.addEventListener("change",function(){data.group=ui.group.value;data.preview=null;data.lastCloud=null;syncClassic();render();});
  ui.tabN.addEventListener("click",function(){mode("nucleos");});
  ui.tabE.addEventListener("click",function(){mode("complexivo");});

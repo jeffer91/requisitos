@@ -92,7 +92,8 @@ function uniqueMap(rows,fn){
 function studentId(st){return txt(st.cedula||st.numeroIdentificacion||st.NumeroIdentificacion||st._cedula);}
 function studentName(st){return txt(st.Nombres||st.nombres||st.nombreCompleto||st.nombre);}
 function studentEmails(st){return [st.correoInstitucional,st.CorreoInstitucional,st.correoPersonal,st.CorreoPersonal,st.Correos,st.correo].filter(Boolean).map(function(v){return txt(v).toLowerCase();});}
-function match(rows,students){
+function match(rows,students,overrides){
+ overrides=overrides||{};
  students=Array.isArray(students)?students:[];
  var byCed=uniqueMap(students,studentId),byName=uniqueMap(students,function(st){return fingerprint(studentName(st));}),byMail=Object.create(null),seen=Object.create(null),matched=[],review=[];
  students.forEach(function(st){studentEmails(st).forEach(function(mail){(byMail[mail]||(byMail[mail]=[])).push(st);});});
@@ -106,20 +107,26 @@ function match(rows,students){
     var options=distinct(byName[fingerprint(tokens.join(" "))]);if(options.length===1){nameMatches=options;break;}
    }
   }
-  var found=null;
-  if(row.cedula){
+  var selected=txt(overrides[String(row.rowNumber)]);
+  var found=null,manual=false;
+  if(selected){
+   var verified=distinct(byCed[selected]);
+   if(verified.length===1){found=verified[0];manual=true;}
+   else {review.push({row:row,reason:"La cédula seleccionada no identifica una matrícula única."});return;}
+  }
+  if(row.cedula&&!found){
    var ident=distinct(byCed[txt(row.cedula)]);if(ident.length===1)found=ident[0];
   }
   if(!found&&emailStudents.length===1)found=emailStudents[0];
   if(!found&&!emailStudents.length&&nameMatches.length===1)found=nameMatches[0];
   if(!found){review.push({row:row,reason:"Estudiante no encontrado o coincidencia ambigua."});return;}
-  if(emailStudents.length>1 || nameMatches.length>1 ||
-    (emailStudents.length===1 && nameMatches.length===1 && studentId(emailStudents[0])!==studentId(nameMatches[0]))){
+  if(!manual&&(emailStudents.length>1 || nameMatches.length>1 ||
+    (emailStudents.length===1 && nameMatches.length===1 && studentId(emailStudents[0])!==studentId(nameMatches[0])))){
    review.push({row:row,reason:"El correo y el nombre no coinciden de manera unívoca."});return;
   }
   var key=studentId(found);
   if(seen[key]){review.push({row:row,reason:"Registro duplicado del mismo estudiante en Moodle."});return;}
-  seen[key]=true;matched.push({student:found,imported:row});
+  seen[key]=true;matched.push({student:found,imported:row,matchMethod:manual?"manual":"verificado"});
  });
  return {matches:matched,review:review,total:rows.length,matched:matched.length,pending:review.length};
 }
