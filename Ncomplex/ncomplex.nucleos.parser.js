@@ -91,7 +91,9 @@ function uniqueMap(rows,fn){
 }
 function studentId(st){return txt(st.cedula||st.numeroIdentificacion||st.NumeroIdentificacion||st._cedula);}
 function studentName(st){return txt(st.Nombres||st.nombres||st.nombreCompleto||st.nombre);}
-function studentEmails(st){return [st.correoInstitucional,st.CorreoInstitucional,st.correoPersonal,st.CorreoPersonal,st.Correos,st.correo].filter(Boolean).map(function(v){return txt(v).toLowerCase();});}
+function studentEmails(st){return [st.correoInstitucional,st.CorreoInstitucional,st.correoPersonal,
+ st.CorreoPersonal,st.Correos,st.correo,st.Correo,st.email,st.Email,
+ st.direccionCorreo,st.direccionCorreoInstitucional].filter(Boolean).map(function(v){return txt(v).toLowerCase();});}
 function match(rows,students,overrides){
  overrides=overrides||{};
  students=Array.isArray(students)?students:[];
@@ -125,10 +127,26 @@ function match(rows,students,overrides){
    review.push({row:row,reason:"El correo y el nombre no coinciden de manera unívoca."});return;
   }
   var key=studentId(found);
-  if(seen[key]){review.push({row:row,reason:"Registro duplicado del mismo estudiante en Moodle."});return;}
-  seen[key]=true;matched.push({student:found,imported:row,matchMethod:manual?"manual":"verificado"});
+  seen[key]=(seen[key]||0)+1;
+  matched.push({student:found,imported:row,matchMethod:manual?"manual":"verificado"});
  });
- return {matches:matched,review:review,total:rows.length,matched:matched.length,pending:review.length};
+ var duplicates=Object.create(null);
+ matched.forEach(function(item){if(seen[studentId(item.student)]>1)
+  (duplicates[studentId(item.student)]||(duplicates[studentId(item.student)]=[])).push(item);
+ });
+ var choices=overrides._rows||{},accepted=[];
+ matched.forEach(function(item){
+  var ced=studentId(item.student),repeated=duplicates[ced];
+  if(!repeated){accepted.push(item);return;}
+  var selected=Number(choices[ced]);
+  if(!selected || !repeated.some(function(other){return other.imported.rowNumber===selected;})){
+   review.push({row:item.imported,cedula:ced,candidates:repeated.map(function(c){return c.imported;}),
+    reason:"Dos o más registros Moodle para la misma matrícula. Elige cuál conservar."});return;
+  }
+  if(item.imported.rowNumber===selected)accepted.push(item);
+ });
+ return {matches:accepted,review:review,duplicates:duplicates,total:rows.length,
+   matched:accepted.length,pending:review.length};
 }
 function detect(course,catalog){
  var label=normal(course);
