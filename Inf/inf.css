@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #172b48;
+  background: #f3f6fa;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.inf-layout { margin: 0 auto; max-width: 1080px; padding: 26px 24px 44px; }
+.inf-head, .inf-index {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 26px 30px;
+  margin-bottom: 18px;
+}
+.inf-eyebrow { margin: 0 0 10px; color: #516884; font-size: 13px; font-weight: bold; }
+h1 { font-size: 24px; margin: 0 0 8px; }
+h2 { font-size: 19px; margin: 0 0 8px; }
+.inf-subtitle, .inf-help { color: #50657e; line-height: 1.55; }
+.inf-info { background: #ecf3fc; padding: 12px 14px; border-radius: 8px; margin-top: 18px; }
+.inf-info.error { background: #fff0f0; color: #8e2525; }
+.inf-chapters, .inf-nodes { list-style: none; padding-left: 0; margin: 16px 0 0; }
+.inf-chapter { border-top: 1px solid #dbe3ef; padding: 18px 0; }
+.inf-node { margin: 12px 0 12px 18px; }
+.inf-line { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.inf-title { font-weight: bold; }
+.inf-status { color: #6c7280; font-size: 12px; }
+.inf-status.ready { color: #175b3c; }
+.inf-preview { white-space: pre-wrap; font-size: 14px; line-height: 1.55; color: #43556c; margin: 8px 0 0; }
+footer { color: #6c7280; font-size: 12px; text-align: center; }
+@media (max-width: 650px) {
+  .inf-layout { padding: 12px; }
+  .inf-head, .inf-index { padding: 18px; }
+  .inf-node { margin-left: 10px; }
+}
