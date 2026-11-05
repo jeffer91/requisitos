@@ -2,7 +2,7 @@
  * No utiliza nombres de estudiante como clave y nunca certifica notas incompletas. */
 (function(w,d){"use strict";
 var ui={},data={mode:"nucleos",period:"",career:"",group:"",nucleus:1,
- periods:[],students:[],nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null,overrides:{}};
+ periods:[],students:[],nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null,overrides:{},nucleusWarning:""};
 function t(v){return String(v==null?"":v).trim();}
 function norm(v){return t(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function $(id){return d.getElementById(id);}
@@ -58,7 +58,12 @@ async function refresh(){
  var result=await Promise.all([
   con.listStudents({periodoId:period,estadoMatricula:"ACTIVO"}),
   con.listEvaluations({periodoId:period}),
-  w.NcomplexNucleosStore.list(period)
+  w.NcomplexNucleosStore.list(period).then(function(rows){
+   data.nucleusWarning="";return rows;
+  }).catch(function(error){
+   data.nucleusWarning="No se pudieron leer las notas de núcleos: "+(error.message||error);
+   return [];
+  })
  ]);
  if(data.period!==period)return;
  data.students=(result[0]||[]).filter(function(row){return row.eliminado!==true&&row.retirado!==true;});
@@ -76,7 +81,8 @@ async function loadPeriod(){
  if(!data.period){data.students=[];data.nuclei=[];data.exams=[];render();return;}
  syncClassic();
  msg("Consultando estudiantes y calificaciones…");
- try{await refresh();msg("Período cargado. Elige una carrera y pega las notas cuando estén disponibles.","ok");}
+ try{await refresh();msg(data.nucleusWarning||"Período cargado. Elige una carrera para consultar las notas.",
+ data.nucleusWarning?"error":"ok");}
  catch(e){msg(e.message||String(e),"error");}
 }
 function mode(v){
