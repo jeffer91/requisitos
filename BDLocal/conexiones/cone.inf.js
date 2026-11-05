@@ -105,8 +105,15 @@
  }
  function periods(){
    return existingDB().then(function(db){
-     return tables(db).then(function(raw){db.close();return copy(raw.periodos||[]);})
-       .catch(function(error){db.close();throw error;});
+     if(!db.objectStoreNames.contains("periodos")){db.close();return [];}
+     return new Promise(function(resolve,reject){
+       var tx=db.transaction(["periodos"],"readonly");
+       var request=tx.objectStore("periodos").getAll(),rows=[];
+       request.onsuccess=function(){rows=request.result||[];};
+       tx.oncomplete=function(){db.close();resolve(copy(rows));};
+       tx.onerror=function(){db.close();reject(tx.error||new Error("No se pudieron leer períodos."));};
+       tx.onabort=function(){db.close();reject(tx.error||new Error("Lectura de períodos cancelada."));};
+     });
    }).catch(function(e){
      var topWindow;try{topWindow=window.top;}catch(err){topWindow=null;}
      var u=window.BDLocalConUtils||(topWindow&&topWindow.BDLocalConUtils);

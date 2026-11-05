@@ -41,7 +41,7 @@ function coreDiagram(career){
   root.appendChild(svg("line",{x1:p[0],y1:p[1],x2:p[2],y2:p[3],stroke:"#8196a8","stroke-width":4,"stroke-dasharray":"6 8"}));
  });
  root.appendChild(svg("rect",{x:282,y:214,width:196,height:90,rx:18,fill:"#34465c"}));
- var lines=[],words=career.career.toUpperCase().split(/\\s+/),current="";
+ var lines=[],words=career.career.toUpperCase().split(/\s+/),current="";
  words.forEach(function(word){
   if((current+" "+word).trim().length>18&&current){lines.push(current);current=word;}
   else current=(current+" "+word).trim();
@@ -57,7 +57,7 @@ function coreDiagram(career){
   var p=places[i],name=n.name||"";
   root.appendChild(svg("circle",{cx:p.x,cy:p.y,r:76,fill:p.fill,stroke:p.stroke,"stroke-width":2.5}));
   root.appendChild(svg("text",{x:p.x,y:p.y-34,"text-anchor":"middle","font-family":"Arial","font-size":15,fill:"#263b55","font-weight":"bold"},"Núcleo "+n.number));
-  var words=name.split(/\\s+/),wrap=[],piece="",max= name.length>62?16:18;
+  var words=name.split(/\s+/),wrap=[],piece="",max= name.length>62?16:18;
   words.forEach(function(word){if((piece+" "+word).trim().length>max&&piece){wrap.push(piece);piece=word;}else piece=(piece+" "+word).trim();});
   if(piece)wrap.push(piece);
   var fontsize=wrap.length>5?11:wrap.length>3?12:14,lineHeight=wrap.length>5?12.8:15;
