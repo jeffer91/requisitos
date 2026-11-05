@@ -22,6 +22,7 @@ Función o funciones:
     {tipo:"modulo",moduloId:"stat_not",etiqueta:"Stat Not"},
     {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"actas",etiqueta:"Actas"}
+    ,{tipo:"modulo",moduloId:"inf",etiqueta:"Inf"}
   ];
   var state={items:[],initial:"carga_excel",rendered:false,started:false,boundCore:false};
   var floating=null,owner=null;

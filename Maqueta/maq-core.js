@@ -37,6 +37,7 @@ Función:
     stat_not:{id:"stat_not",nombre:"Stat Not",ruta:"../StatNot/stat-not.html",estado:"activo"},
     ncomplex:{id:"ncomplex",nombre:"Ncomplex",ruta:"../Ncomplex/ncomplex.html",estado:"activo"},
     actas:{id:"actas",nombre:"Actas",ruta:"../Actas/actas.html",estado:"activo"},
+    inf:{id:"inf",nombre:"Inf",ruta:"../Inf/inf.html",estado:"activo"},
     cr_def:{id:"cr_def",nombre:"Cr-def",ruta:"../Cr-def/cr-def.html",estado:"activo"},
     titulacion:{id:"titulacion",nombre:"InPVC",ruta:"../InPVC/inpvc.html",estado:"activo"}
   };
@@ -48,6 +49,7 @@ Función:
     global:"global",globals:"global",reporte:"modulo_reporte",reportes:"modulo_reporte",repor:"modulo_reporte",
     defensas:"defart",defensa:"defart",defart:"defart",statnot:"stat_not","stat not":"stat_not","estadisticas notas":"stat_not",ncomplex:"ncomplex",complexivo:"ncomplex",
     actas:"actas","actas de titulacion":"actas","actas de titulación":"actas",
+    inf:"inf","informe final":"inf","informes de titulación":"inf",
     "cr-def":"cr_def","cr def":"cr_def",crdef:"cr_def",infor:"titulacion",inpvc:"titulacion",titulacion:"titulacion",titulación:"titulacion"
   };
 

@@ -52,3 +52,7 @@ Se incorporó íntegramente la Metodología y su numeración 3.1–3.7, con 16 d
 ## Cronogramas editables
 
 El archivo `core/inf.schedules.js` contiene el cronograma inicial de octubre de 2025 a marzo de 2026 facilitado por el usuario: seis actividades de Examen Complexivo y veinte de Trabajo de Titulación, agrupadas en tres fases. Para otros períodos el calendario inicia vacío. Los cambios son locales en `localStorage`, independientes por nombre de período y no modifican datos académicos. Se validan fechas reales e intervalos antes de guardar o generar el PDF. Ninguna fecha se interpreta automáticamente como ejecución.
+
+## Navegación principal
+
+El módulo se incorpora al menú superior como **Inf** y abre `Inf/inf.html`. El conector único `ConInf` es una reserva explícita sin lectura ni escritura de BDLocal: su estado indica `dataConnected:false`. Esto evita confundir los gráficos estructurales y los calendarios locales con los resultados académicos, que se incorporarán cuando exista fuente validada.
