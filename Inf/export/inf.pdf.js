@@ -305,7 +305,7 @@ function build(doc,payload,logoImage){
  function scheduleTable(name,rows){
   space(32);heading("Cronograma de "+name+" · "+period,2);
   if(!rows.length){write("No se ha registrado un cronograma para esta modalidad y período.",{style:"italic"});return;}
-  write("Tabla. Actividades programadas por la unidad responsable; el estado exige evidencia de cumplimiento.",{fontSize:9,leading:5,gap:3});
+  write("Tabla. Actividades y fechas registradas para el período académico seleccionado.",{fontSize:9,leading:5,gap:3});
   function header(){
    space(11);doc.setFillColor(232,237,246);doc.rect(left,y-5,width,9,"F");
    setFont("bold",8);doc.text("Actividad",left+2,y);doc.text("Fecha de inicio",left+113,y);doc.text("Fecha de fin",left+141,y);y+=7;

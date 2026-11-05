@@ -1,61 +1,48 @@
-# Inf — Informe Final del Proceso de Titulación
+# Inf — Informes de Titulación
 
-Módulo independiente en la rama **main** de `jeffer91/requisitos`, accesible desde el menú superior de la aplicación como **Inf**.
+Módulo de la aplicación Requisitos, desarrollado directamente en la rama `main`. El menú principal abre `Inf/inf.html`.
 
-## Estado de desarrollo
+## Secciones incorporadas
 
-- **Capítulo 1. Introducción:** texto fijo entregado por el usuario.
-- **Capítulo 2. Base Legal:** texto fijo entregado por el usuario, incluidos 2.5–2.9. Debe verificarse jurídicamente antes de emitir un documento oficial.
-- **Capítulo 3. Metodología:** texto fijo completo entregado por el usuario, incluidos 3.7 (cronogramas) y 16 carreras (3.4.4.1–3.4.4.16).
-- **Capítulos 4–8:** estructura creada, pero todavía sin resultados reales ni textos genéricos de estas secciones.
-- **Gráficos:** 16 esquemas visuales de cuatro núcleos por carrera, generados desde el texto de 3.4.4; diagramas Gantt editables de las dos modalidades.
-- **PDF:** botón «Descargar PDF de avance», que genera un documento A4 local mediante jsPDF, con portada INF en condición de borrador, capítulos disponibles, gráficos y cronogramas. No es una emisión institucional legalizada.
-- **Cronogramas:** período seleccionado, dos tablas editables y guardado local independiente por período.
-- **BDLocal:** `ConInf` es un conector de reserva que declara `dataConnected:false`. Inf aún no lee notas ni requisitos; los análisis estadísticos del capítulo 4 se habilitarán cuando sus fuentes estén disponibles y verificadas.
+- **1. Introducción**: texto institucional suministrado por el usuario.
+- **2. Base Legal**: texto institucional suministrado por el usuario (apartados 2.1 a 2.9); sus artículos y vigencia deberán contrastarse antes de emisión oficial.
+- **3. Metodología**: texto completo con 16 carreras y 64 núcleos estructurantes (3.4.4.1 a 3.4.4.16), más cronogramas por período (3.7).
+- **4.2. Resultados de Núcleos Estructurantes**: texto genérico de 4.2.1–4.2.3 y motor dinámico. Cuando BDLocal contenga notas finales explícitamente asociadas a núcleos, se generan listados individuales, cuatro evaluaciones, caso de estudio, notas finales, promedios por núcleo y gráficos comparativos.
+- **4.1 y 4.3, capítulos 5 a 8**: permanecen pendientes de incorporación completa de sus textos y/o fuentes de resultados. No se generan datos ficticios.
 
-## Arquitectura
+## PDF
 
-```text
-Inf/
-├── inf.html, inf.css, inf.app.js
-├── core/
-│   ├── inf.catalog.js       Índice numerado
-│   ├── inf.registry.js      Textos fijos por capítulo
-│   ├── inf.report.js        Modelo del informe
-│   ├── inf.markdown.js      Vista segura de los textos
-│   ├── inf.nuclei.js        Nombres de núcleos desde 3.4.4.x
-│   ├── inf.schedules.js     Cronogramas por período
-│   └── inf.visuals.js       Diagramas SVG de núcleos y Gantt
-├── sections/
-│   ├── 01-introduccion/section.js
-│   ├── 02-base-legal/section.js
-│   ├── 03-metodologia/section.js
-│   ├── 04-resultados/section.js
-│   ├── 05-resumen-ejecutivo/section.js
-│   ├── 06-conclusiones/section.js
-│   ├── 07-recomendaciones/section.js
-│   └── 08-referencias/section.js
-├── export/inf.pdf.js
-└── tests/verify-inf.js
-```
+`Inf/export/inf.pdf.js` crea un PDF A4 progresivo mediante jsPDF, reutilizando dependencias instaladas del proyecto.
 
-El menú registra `inf` en `Maqueta` y el conector de reserva `BDLocal/conexiones/cone.inf.js` sin permisos de lectura/escritura de datos académicos.
+- Portada con título completo y período en **23 pt y negrita**, sin letreros de borrador.
+- Encabezado institucional completo, logo, código pendiente, versión pendiente, fecha y paginación **en todas las páginas**.
+- Firmas distribuidas en tres columnas con celdas independientes y cargos ajustados a varias líneas.
+- Texto académico con márgenes de 2,54 cm, sangría inicial de 1,27 cm e interlineado aproximado doble; las normas de portada institucional se respetan separadamente.
+- Metodología ilustrada con **16 diagramas de cuatro núcleos**, con sus nombres dentro de los círculos, y **7 diagramas de procedimientos** adicionales.
+- Cronogramas de Complexivo y Trabajo de Titulación por período: tablas sin columna Estado, y figuras Gantt.
+- Sección 4.2 con tablas y gráficos únicamente cuando existan calificaciones explícitas y verificables; si no están, el PDF informa la carencia sin inventar resultados.
 
-## Cronogramas
+La posibilidad de descargar el PDF **no requiere completar los ocho capítulos**. El registro interno conserva `canExport:false` para una emisión oficialmente legalizada; quitar los letreros de la portada no autoriza asumir firmas o números de acta aprobados. No se genera un código documental ficticio.
 
-La primera vez que se selecciona **Octubre 2025 a Marzo 2026** se muestran los cronogramas entregados por el usuario: 6 actividades para Examen Complexivo y 20 para Trabajo de Titulación, dividido en tres fases. Las fechas se preservan literalmente, aunque la ejecución del proceso se extienda más allá de marzo de 2026.
+## Conexión BDLocal exclusivamente de lectura
 
-Los demás períodos comienzan con sus dos cronogramas vacíos. Cada actividad puede modificarse o eliminarse; se pueden agregar nuevas actividades. El usuario debe pulsar **Guardar cronogramas**. El guardado usa solamente `localStorage`, en la clave `ITSQMET_INF_CRONOGRAMAS_V1`, y no altera BDLocal, Firebase ni actas.
+El conector `BDLocal/conexiones/cone.inf.js` expone `canRead:true` y `canWrite:false`. Su lectura utiliza la base local `REQUISITOS_BL2` **solo si ya existe** y mediante transacciones IndexedDB `readonly`. No ejecuta migraciones, actualización de esquema, sincronizaciones o escrituras. Si el entorno no permite abrir la base existente, puede utilizar una caché central preexistente únicamente para consultas; esa fuente limitada no aporta notas de núcleos.
 
-Los estados se registran como **NO_VERIFICADO** salvo indicación fundamentada del usuario. Una fecha pasada no constituye evidencia de cumplimiento. No se calculan tasas de ejecución sin comprobación.
+La pantalla obtiene los períodos institucionales desde BDLocal y exige la coincidencia del identificador real de período para analizar estudiantes. Los cronogramas se guardan independientemente en `localStorage` por período y no alteran los registros de la base académica.
 
-## PDF y gráficos
+`Inf/core/inf.results.js` conserva el cero como calificación válida, distingue las cuatro evaluaciones y el caso de estudio, y **no calcula notas definitivas con ponderaciones no definidas**. También evita convertir notas teóricas/prácticas del examen complexivo en notas de núcleos.
 
-El PDF se produce a partir de jsPDF ya utilizado en otros módulos de la aplicación (`node_modules/html2pdf.js/node_modules/jspdf` o instalación directa). Incluye esquemas estructurales reales (4 núcleos por cada una de las 16 carreras) y cronogramas editados con barras Gantt. Las fechas se validan antes de exportar.
+## Estructura principal
 
-El documento presenta **BORRADOR DE AVANCE - NO LEGALIZADO** y no se puede confundir con un informe oficial final. Los capítulos 4 a 8 no se rellenan con números inventados. Los gráficos estadísticos de estudiantes, aprobados, supletorios, medias y comparaciones por carrera se incorporarán al conectar datos verificados.
-
-La maquetación se orienta a la guía ITSQMET INF v1.1 (portada A4 y bloque de firmas) y el estilo de texto académico APA 7. El código documental debe aprobarse externamente: no generar códigos o firmas falsas.
+- `Inf/inf.html`, `Inf/inf.css`, `Inf/inf.app.js`: interfaz y controles
+- `Inf/core/inf.catalog.js`, `Inf/core/inf.registry.js`: índice y textos fijos
+- `Inf/core/inf.nuclei.js`, `Inf/core/inf.visuals.js`: diagramas
+- `Inf/core/inf.schedules.js`: cronogramas editables
+- `Inf/core/inf.results.js`: consolidado académico de núcleos
+- `Inf/export/inf.pdf.js`: exportación A4
+- `Inf/sections/*/section.js`: capítulos y apartados del informe
+- `BDLocal/conexiones/cone.inf.js`: consulta académica exclusiva
+- `Inf/tests/verify-inf.js`: pruebas de índice, cronogramas, separación de notas y representación PDF
 
 ## Verificación
 
@@ -65,24 +52,4 @@ Desde la raíz del repositorio:
 node Inf/tests/verify-inf.js
 ```
 
-Las comprobaciones validan el índice completo, los textos incorporados, los 16 diagramas/64 nombres de núcleos, los 2 cronogramas y el aislamiento por período. La ejecución gráfica y de PDF debe verificarse también en Electron antes de emitir un informe institucional.
-
-## Actualizaciones futuras
-
-Cada texto genérico nuevo se incorpora exclusivamente a `Inf/sections` y su clave numerada. Los títulos no se reescriben sin instrucción explícita. No se debe mezclar un texto fijo con registros cambiantes por período.
-
-## Exportación progresiva — capítulos disponibles
-
-El botón **Descargar PDF con lo avanzado** utiliza `InfReport.buildAvailable()`. El reporte completo (`build()`) conserva el índice de ocho capítulos en pantalla; la exportación toma solamente capítulos o subapartados que ya tengan texto incorporado, preservando sus encabezados antecesores. Por ahora genera capítulos 1, 2 y 3, los diagramas y cronogramas disponibles. Los capítulos 4–8 no se incluyen ni bloquean la exportación. `canExport` sigue siendo `false` para la emisión oficial y `canExportDraft` permanece `true` mientras exista texto. Un problema de presentación de diagramas no bloquea los controles del módulo. El PDF conserva la identificación BORRADOR PARCIAL NO LEGALIZADO; no contiene cifras académicas inventadas.
-
-## Revisión editorial del PDF (5 noviembre 2026)
-
-El PDF tiene un encabezado institucional completo y repetido en todas las páginas, título central de 23 pt en negrita con período académico, bloque de firmas con celdas y renglones independientes, sangría de primera línea de 1,27 cm para párrafos ordinarios, sin columna de estado en cronogramas ni textos de borrador en la portada. Los 16 diagramas de núcleos incluyen el nombre dentro de cada círculo, y la metodología suma siete figuras de flujo adicionales. El archivo continúa siendo una exportación progresiva sin certificación ni firma institucional efectiva; su estado interno se mantiene como no oficial.
-
-## Resultados 4.2 y lectura BDLocal
-
-El conector `ConInf` abre exclusivamente una **BDLocal existente**, sin indicar versión (sin migración), con transacciones IndexedDB `readonly`. Si el entorno no permite comprobar la existencia previa de la base, no intenta crearla: utiliza únicamente una caché central preexistente, si la hay, y señaliza que los resultados son parciales. No invoca ninguna función de escritura o sincronización.
-
-Las notas de núcleos se reconocen solo por registros explícitos de núcleos. La aplicación **no toma los resultados teórico/práctico de Ncomplex como notas de preparación**. La sección 4.2 contiene el texto general y generará tablas de estudiantes, cuatro controles, caso y final, promedios por núcleo y gráficos comparativos cuando se encuentren datos verificables. Si faltan, lo indica, sin inventarlos. Los capítulos 1–3 permanecen iguales.
-
-Comprobación rápida: `node Inf/tests/verify-inf.js`.
+El test simula la composición del PDF y valida cabeceras repetidas, paginación, texto disponible y coordenadas. No reemplaza la revisión visual final dentro de Electron, especialmente de tablas grandes o carreras cuyos nombres de núcleos sean extensos.
