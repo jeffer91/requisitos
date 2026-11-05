@@ -84,11 +84,65 @@ function signatures(doc){
  });
 }
 function center(doc,value,y,size,bold){doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(size);const lines=doc.splitTextToSize(value,165);doc.text(lines,LETTER_W/2,y,{align:"center"});return y+lines.length*size*.45;}
-function nextPage(doc,x,logo,pos){doc.addPage();header(doc,x,logo);pos.y=58;}
-function lines(doc,x,logo,value,pos,opts){opts=opts||{};const size=opts.size||9,step=size*.48;doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(size);
-const result=doc.splitTextToSize(txt(value),174);for(const line of result){if(pos.y+step>BODY_BOTTOM){nextPage(doc,x,logo,pos);doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(size);}doc.text(line,18,pos.y);pos.y+=step;}pos.y+=opts.after===undefined?3:opts.after;}
-function section(doc,x,logo,title,pos){lines(doc,x,logo,title,pos,{bold:true,size:10.5,after:1.7});}
-function pair(doc,x,logo,key,value,pos){if(pos.y+12>BODY_BOTTOM)nextPage(doc,x,logo,pos);doc.setDrawColor(188,197,206);doc.rect(18,pos.y,174,11);doc.setFillColor(241,245,249);doc.rect(18,pos.y,46,11,"F");doc.setFontSize(8);doc.setFont("helvetica","bold");doc.text(key,20,pos.y+6.2,{maxWidth:42});doc.setFont("helvetica","normal");doc.text(doc.splitTextToSize(txt(value),121).slice(0,2),67,pos.y+4.5);pos.y+=11;}
+/* Diseño editorial aplicado exclusivamente al cuerpo; portada y cuadro de firmas intactos. */
+const BODY_THEME=Object.freeze({navy:[27,68,102],blue:[40,91,133],ink:[38,53,67],
+ muted:[91,111,130],line:[213,225,237],soft:[239,245,250],stripe:[246,249,252],
+ green:[34,111,79],greenFill:[230,245,237]});
+function rgb(doc,method,values){doc[method](...values);}
+function bodyInk(doc){rgb(doc,"setTextColor",BODY_THEME.ink);}
+function nextPage(doc,x,logo,pos){
+ doc.addPage();
+ doc.setTextColor(0,0,0); // Encabezado institucional sin cambios
+ header(doc,x,logo);
+ pos.y=58;
+ bodyInk(doc);
+}
+/* Para textos cortos, la paginación conserva el párrafo completo. */
+function lines(doc,x,logo,value,pos,opts){
+ opts=opts||{};
+ const size=opts.size||9,step=size*.48,after=opts.after===undefined?3:opts.after;
+ doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(size);
+ const result=doc.splitTextToSize(txt(value),172);
+ if(pos.y+Math.min(result.length*step+after,76)>BODY_BOTTOM&&result.length*step+after<=76){
+  nextPage(doc,x,logo,pos);
+ }
+ for(const line of result){
+  if(pos.y+step>BODY_BOTTOM){
+   nextPage(doc,x,logo,pos);
+   doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(size);
+  }
+  bodyInk(doc);doc.text(line,20,pos.y);pos.y+=step;
+ }
+ pos.y+=after;
+}
+function intro(doc,x,pos){
+ const boxH=x.record.fechaRegistro?24:20;
+ doc.setFillColor(...BODY_THEME.soft);doc.rect(18,pos.y,174,boxH,"F");
+ doc.setFillColor(...BODY_THEME.blue);doc.rect(18,pos.y,2.1,boxH,"F");
+ doc.setTextColor(...BODY_THEME.navy);doc.setFont("helvetica","bold");doc.setFontSize(11.3);
+ doc.text("CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",23,pos.y+7);
+ doc.setFontSize(10.5);doc.text("N.º DE ACTA: "+txt(x.record.numeroActa),23,pos.y+14.4);
+ if(x.record.fechaRegistro){
+  doc.setTextColor(...BODY_THEME.muted);doc.setFont("helvetica","normal");doc.setFontSize(8.1);
+  doc.text("Fecha de registro: "+formatDate(x.record.fechaRegistro),23,pos.y+20);
+ }
+ pos.y+=boxH+4;bodyInk(doc);
+}
+function pair(doc,x,logo,key,value,pos){
+ doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+ const pieces=doc.splitTextToSize(txt(value),120);
+ const h=Math.max(9,pieces.length*4.2+3);
+ if(pos.y+h>BODY_BOTTOM)nextPage(doc,x,logo,pos);
+ doc.setFillColor(...BODY_THEME.soft);doc.rect(18,pos.y,46,h,"F");
+ doc.setFillColor(255,255,255);doc.rect(64,pos.y,128,h,"F");
+ doc.setDrawColor(...BODY_THEME.line);doc.setLineWidth(.17);
+ doc.rect(18,pos.y,174,h);doc.line(64,pos.y,64,pos.y+h);
+ doc.setTextColor(...BODY_THEME.navy);doc.setFont("helvetica","bold");doc.setFontSize(8.2);
+ doc.text(key,21,pos.y+5.6,{maxWidth:41});
+ bodyInk(doc);doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+ doc.text(pieces,68,pos.y+Math.min(5.4,h/2));
+ pos.y+=h;
+}
 function milestones(x){const ids=x.mode==="TRABAJO_TITULACION"?["induccion","tema","entrega","defensa","cierre"]:["nucleo1","nucleo4","examen","supletorio"];return (x.schedule||[]).flatMap(g=>g.actividades||[]).filter(a=>ids.includes(a.id)&&(a.inicio||a.fin));}
 function timeline(doc,x,logo,rows,pos){if(!rows.length){lines(doc,x,logo,"Cronograma sin fechas registradas.",pos,{size:8.5});return;}for(const a of rows){if(pos.y+11>BODY_BOTTOM)nextPage(doc,x,logo,pos);doc.setDrawColor(196,203,214);doc.rect(18,pos.y,174,10);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text(doc.splitTextToSize(txt(a.nombre),91).slice(0,2),20,pos.y+4.2);doc.text(formatDate(a.inicio),116,pos.y+6);doc.text(formatDate(a.fin),157,pos.y+6);pos.y+=10;}pos.y+=3;}
 /* Cuerpo documental: fuentes verificadas (BDLocal + Ncomplex). No modifica la portada. */
@@ -98,53 +152,84 @@ function academicEvidence(x){
  return proof;
 }
 function dataRow(doc,x,logo,left,right,pos,opts){
- opts=opts||{};const widthLeft=opts.widthLeft||132;
- doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(8.5);
- const leftLines=doc.splitTextToSize(txt(left),widthLeft);
- const rightLines=doc.splitTextToSize(txt(right),37);
- const h=Math.max(7.5,Math.max(leftLines.length,rightLines.length)*4+2.5);
+ opts=opts||{};
+ const widthLeft=opts.widthLeft||132;
+ doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(8.4);
+ const leftLines=doc.splitTextToSize(txt(left),widthLeft-4);
+ const rightLines=doc.splitTextToSize(txt(right),34);
+ const h=Math.max(7.2,Math.max(leftLines.length,rightLines.length)*4.1+2.7);
  if(pos.y+h>BODY_BOTTOM)nextPage(doc,x,logo,pos);
- doc.setDrawColor(120,120,120);doc.setLineWidth(.12);doc.rect(18,pos.y,174,h);
- doc.line(18+widthLeft+3,pos.y,18+widthLeft+3,pos.y+h);
- doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(8.5);
- doc.text(leftLines,20,pos.y+4.4);
- doc.text(rightLines,21+widthLeft+3,pos.y+4.4);
- pos.y+=h;
+ const stripe=opts.index%2===1;
+ doc.setFillColor(...(stripe?BODY_THEME.stripe:[255,255,255]));doc.rect(18,pos.y,174,h,"F");
+ const approved=txt(right).toUpperCase()==="CUMPLE";
+ if(approved){
+  doc.setFillColor(...BODY_THEME.greenFill);doc.rect(154,pos.y+.5,38,h-1,"F");
+ }
+ doc.setDrawColor(...BODY_THEME.line);doc.setLineWidth(.14);
+ doc.line(18,pos.y+h,192,pos.y+h);doc.line(154,pos.y,154,pos.y+h);
+ bodyInk(doc);doc.setFont("helvetica",opts.bold?"bold":"normal");doc.setFontSize(8.4);
+ doc.text(leftLines,21,pos.y+4.5);
+ doc.setTextColor(...(approved?BODY_THEME.green:BODY_THEME.navy));
+ doc.setFont("helvetica","bold");doc.setFontSize(8.2);
+ doc.text(rightLines,157,pos.y+4.5);
+ pos.y+=h;bodyInk(doc);
 }
-function heading(doc,x,logo,t,pos){if(pos.y+12>BODY_BOTTOM)nextPage(doc,x,logo,pos);section(doc,x,logo,t,pos);}
+function followHeight(doc,value,size,after=3){
+ doc.setFont("helvetica","normal");doc.setFontSize(size);
+ return Math.min(30,Math.max(10,doc.splitTextToSize(txt(value),172).length*size*.48+after));
+}
+/* Evita títulos huérfanos: comprueba título + primer párrafo/fila, incluidas líneas largas. */
+function heading(doc,x,logo,title,pos,minFollowing=11){
+ doc.setFont("helvetica","bold");doc.setFontSize(10.1);
+ const titleLines=doc.splitTextToSize(txt(title),161);
+ const h=Math.max(8,titleLines.length*4.9+3.3);
+ if(pos.y+h+2.3+minFollowing+1.5>BODY_BOTTOM)nextPage(doc,x,logo,pos);
+ doc.setFillColor(...BODY_THEME.soft);doc.rect(18,pos.y,174,h,"F");
+ doc.setFillColor(...BODY_THEME.blue);doc.rect(18,pos.y,1.3,h,"F");
+ doc.setTextColor(...BODY_THEME.navy);doc.setFont("helvetica","bold");doc.setFontSize(10.1);
+ doc.text(titleLines,22,pos.y+5.4);
+ pos.y+=h+2.3;bodyInk(doc);
+}
 function paint(doc,x,logo){if(doc.getNumberOfPages()>1||doc.__actasCount){doc.addPage();}const start=doc.getNumberOfPages();doc.__actasCount=(doc.__actasCount||0)+1;
 header(doc,x,logo);
 let y=center(doc,x.mode==="TRABAJO_TITULACION"?"Acta de Titulación por Trabajo de Titulación":"Acta de Titulación por Examen Complexivo",126,23,true);
 center(doc,"Período académico: "+txt(x.periodLabel),y+13,23,true);
 signatures(doc);
 doc.addPage();header(doc,x,logo);const pos={y:54};
+bodyInk(doc);
 const proof=academicEvidence(x);
-heading(doc,x,logo,"CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",pos);
-lines(doc,x,logo,"N.º DE ACTA: "+x.record.numeroActa,pos,{size:11.5,bold:true,after:3});
-if(x.record.numeroActa&&x.record.fechaRegistro)lines(doc,x,logo,"Fecha de registro: "+formatDate(x.record.fechaRegistro),pos,{size:8.5,after:2});
+intro(doc,x,pos);
 pair(doc,x,logo,"Estudiante",studentName(x),pos);
 pair(doc,x,logo,"Cédula",studentId(x),pos);
 pair(doc,x,logo,"Carrera",career(x),pos);
 pair(doc,x,logo,"Modalidad",label(x.mode),pos);
-pos.y+=2;
-heading(doc,x,logo,"1. Culminación de la malla curricular",pos);
-lines(doc,x,logo,proof.mallaText,pos,{size:9,after:3});
-dataRow(doc,x,logo,"Requisito Académico",proof.academicStatus,pos,{bold:true});
 pos.y+=4;
-heading(doc,x,logo,"2. Verificación de los nueve requisitos institucionales",pos);
-lines(doc,x,logo,"Se presentan los estados documentales registrados para el estudiante y su período; no se incluyen calificaciones numéricas.",pos,{size:8.5,after:2});
-proof.requirements.forEach((r,i)=>dataRow(doc,x,logo,(i+1)+". "+r.label,r.status,pos));
+heading(doc,x,logo,"1. Culminación de la malla curricular",pos,followHeight(doc,proof.mallaText,8.7,2.8));
+lines(doc,x,logo,proof.mallaText,pos,{size:8.7,after:2.8});
+dataRow(doc,x,logo,"Requisito Académico",proof.academicStatus,pos,{bold:true,index:0});
 pos.y+=4;
-heading(doc,x,logo,"3. Modalidad y estado del proceso de titulación",pos);
-lines(doc,x,logo,proof.componentText,pos,{size:8.8,after:3});
-heading(doc,x,logo,"4. Aprobaciones institucionales",pos);
-dataRow(doc,x,logo,"Aprobación de titulación",proof.finalTitleStatus,pos,{bold:true});
-dataRow(doc,x,logo,"Aprobación complexivo/proyecto",proof.finalResultStatus,pos,{bold:true});
+heading(doc,x,logo,"2. Verificación de los nueve requisitos institucionales",pos,followHeight(doc,"Se presentan los estados documentales registrados para el estudiante y su período; no se incluyen calificaciones numéricas.",8.2,2)+8);
+lines(doc,x,logo,"Se presentan los estados documentales registrados para el estudiante y su período; no se incluyen calificaciones numéricas.",pos,{size:8.2,after:2});
+proof.requirements.forEach((r,i)=>dataRow(doc,x,logo,(i+1)+". "+r.label,r.status,pos,{index:i}));
 pos.y+=4;
-heading(doc,x,logo,"5. Constancia documental",pos);
-lines(doc,x,logo,proof.closureText,pos,{size:9,after:3});
-lines(doc,x,logo,"ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS",pos,{size:10.5,bold:true,after:3});
- lines(doc,x,logo,"La presente acta registra el cumplimiento de los nueve requisitos y de las dos aprobaciones finales que constan en el expediente institucional.",pos,{size:8.5});
+heading(doc,x,logo,"3. Modalidad y estado del proceso de titulación",pos,followHeight(doc,proof.componentText,8.7,4));
+lines(doc,x,logo,proof.componentText,pos,{size:8.7,after:4});
+heading(doc,x,logo,"4. Aprobaciones institucionales",pos,9);
+dataRow(doc,x,logo,"Aprobación de titulación",proof.finalTitleStatus,pos,{bold:true,index:0});
+dataRow(doc,x,logo,"Aprobación complexivo/proyecto",proof.finalResultStatus,pos,{bold:true,index:1});
+pos.y+=4;
+heading(doc,x,logo,"5. Constancia documental",pos,followHeight(doc,proof.closureText,8.7,4));
+lines(doc,x,logo,proof.closureText,pos,{size:8.7,after:4});
+const statement="REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS";
+doc.setFont("helvetica","bold");doc.setFontSize(9);
+const statementLines=doc.splitTextToSize(statement,164),statementH=statementLines.length*4.7+8;
+if(pos.y+statementH+9>BODY_BOTTOM)nextPage(doc,x,logo,pos);
+doc.setFillColor(...BODY_THEME.greenFill);doc.rect(18,pos.y,174,statementH,"F");
+doc.setFillColor(...BODY_THEME.green);doc.rect(18,pos.y,2,statementH,"F");
+doc.setTextColor(...BODY_THEME.green);doc.setFont("helvetica","bold");doc.setFontSize(9);
+doc.text(statementLines,22,pos.y+5.8);
+pos.y+=statementH+2.4;bodyInk(doc);
+lines(doc,x,logo,"La presente acta registra el cumplimiento de los nueve requisitos y de las dos aprobaciones finales que constan en el expediente institucional.",pos,{size:8.4,after:2});
 footer(doc,x,start,doc.getNumberOfPages());}
 async function build(items){const list=Array.isArray(items)?items:[items];if(!list.length)throw Error("No hay actas para generar.");if(list.some(x=>!x.evidence||x.evidence.eligible!==true||!/^(?:(?:CX|TT)-)?[0-9]{4}-[0-9]{4}-(0[1-9]|1[0-2])-[0-9]{4}$/.test(txt(x.record&&x.record.numeroActa))))throw Error("El acta final exige expediente completo y número único registrado en el libro central.");const [JsPDF,logo]=await Promise.all([pdfReady(),w.ActasBrand.resolve()]);if(!logo||!logo.dataUrl)throw Error("No se encontró un logo institucional. Usa «Configurar logo» para subirlo.");
 const doc=new JsPDF({unit:"mm",format:"letter",compress:true,putOnlyUsedFonts:true});for(const x of list)paint(doc,x,logo);return doc.output("blob");}

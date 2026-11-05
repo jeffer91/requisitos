@@ -7,13 +7,48 @@ function dmy(v){const x=String(v||"").slice(0,10).split("-");return x.length===3
 function title(mode){return mode==="TRABAJO_TITULACION"?"Acta de Titulación por Trabajo de Titulación":"Acta de Titulación por Examen Complexivo";}
 function label(mode){return mode==="TRABAJO_TITULACION"?"Trabajo de Titulación":"Examen Complexivo";}
 function para(s,opts){opts=opts||{};const size=Number(opts.size||20),jc=opts.align||"left";
-const props='<w:pPr><w:jc w:val="'+jc+'"/><w:spacing w:before="'+(opts.before||0)+'" w:after="'+(opts.after===undefined?90:opts.after)+'"/>'+(opts.keep?'<w:keepNext/>':'')+'</w:pPr>';
-const rp='<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="'+size+'"/>'+(opts.bold?'<w:b/>':'')+'</w:rPr>';
+const props='<w:pPr><w:jc w:val="'+jc+'"/><w:spacing w:before="'+(opts.before||0)+'" w:after="'+(opts.after===undefined?90:opts.after)+'"/>'+(opts.keep?'<w:keepNext/>':'')+(opts.keepLines?'<w:keepLines/>':'')+(opts.fill?'<w:shd w:val="clear" w:color="auto" w:fill="'+opts.fill+'"/>':'')+(opts.accent?'<w:pBdr><w:left w:val="single" w:sz="20" w:space="8" w:color="285B85"/></w:pBdr>':'')+'</w:pPr>';
+const rp='<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="'+size+'"/>'+(opts.bold?'<w:b/>':'')+(opts.color?'<w:color w:val="'+opts.color+'"/>':'')+'</w:rPr>';
 const content=String(s==null?"":s).split(/\r?\n/).map((line,i)=>(i?'<w:r><w:br/></w:r>':'')+'<w:r>'+rp+'<w:t xml:space="preserve">'+q(line||" ")+'</w:t></w:r>').join('');return '<w:p>'+props+content+'</w:p>';}
 function rawPara(inner){return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'+inner+'</w:p>';}
 function imageTag(){return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="1368000" cy="567720"/><wp:docPr id="1" name="Logotipo ITSQMET"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="Logo institucional"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1368000" cy="567720"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';}
-function cell(value,width,opts){opts=opts||{};const content=opts.xml?value:para(value,{size:opts.size||18,align:opts.align||"left",bold:!!opts.bold,after:0});return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/>'+(opts.span?'<w:gridSpan w:val="'+opts.span+'"/>':'')+(opts.vm?'<w:vMerge w:val="'+opts.vm+'"/>':'')+'<w:vAlign w:val="center"/>'+'</w:tcPr>'+content+'</w:tc>';}
-function table(rows,widths){const total=widths.reduce((a,b)=>a+b,0);return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:tblBorders>'+["top","left","bottom","right","insideH","insideV"].map(k=>'<w:'+k+' w:val="single" w:sz="4" w:color="454545"/>').join('')+'</w:tblBorders><w:tblCellMar><w:top w:w="75" w:type="dxa"/><w:bottom w:w="75" w:type="dxa"/><w:left w:w="75" w:type="dxa"/><w:right w:w="75" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>'+widths.map(x=>'<w:gridCol w:w="'+x+'"/>').join('')+'</w:tblGrid>'+rows.map(row=>'<w:tr>'+row.map((value,i)=>{if(value&&typeof value==="object")return cell(value.text||value.xml,widths[i],value);return cell(value,widths[i]);}).join('')+'</w:tr>').join('')+'</w:tbl>';}
+/* Estilos exclusivos de tablas interiores: nunca se aplican a la portada ACT. */
+function cell(value,width,opts){
+ opts=opts||{};
+ const content=opts.xml?value:para(value,{size:opts.size||18,align:opts.align||"left",bold:!!opts.bold,color:opts.color,after:0,keepLines:opts.body===true});
+ return '<w:tc><w:tcPr><w:tcW w:w="'+width+'" w:type="dxa"/>'+
+  (opts.fill?'<w:shd w:val="clear" w:color="auto" w:fill="'+opts.fill+'"/>':'')+
+  (opts.span?'<w:gridSpan w:val="'+opts.span+'"/>':'')+
+  (opts.vm?'<w:vMerge w:val="'+opts.vm+'"/>':'')+
+  '<w:vAlign w:val="center"/></w:tcPr>'+content+'</w:tc>';
+}
+function table(rows,widths,style){
+ const total=widths.reduce((a,b)=>a+b,0);
+ const tags=['top','left','bottom','right','insideH','insideV'];
+ const border=tags.map(k=>'<w:'+k+' w:val="single" w:sz="3" w:color="D5E1EB"/>').join('');
+ return '<w:tbl><w:tblPr><w:tblW w:w="'+total+'" w:type="dxa"/><w:tblLayout w:type="fixed"/>'+
+  '<w:tblBorders>'+border+'</w:tblBorders>'+
+  '<w:tblCellMar><w:top w:w="85" w:type="dxa"/><w:bottom w:w="85" w:type="dxa"/>'+
+  '<w:left w:w="110" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr>'+
+  '<w:tblGrid>'+widths.map(x=>'<w:gridCol w:w="'+x+'"/>').join('')+'</w:tblGrid>'+
+  rows.map((row,i)=>'<w:tr><w:trPr><w:cantSplit/></w:trPr>'+row.map((value,j)=>{
+   const opts=value&&typeof value==="object"?{...value}:{text:value};
+   if(style==="identity"){
+    opts.fill=j===0?"EFF5FA":"FFFFFF";
+    opts.color=j===0?"1B4466":"263543";
+    opts.bold=j===0;
+   }else if(style==="requirements"||style==="approvals"){
+    if(style==="requirements"&&i===0){
+     opts.fill="E5EFF8";opts.color="1B4466";opts.bold=true;
+    }else{
+     opts.fill=i%2===0?"F6F9FC":"FFFFFF";
+     if(j===1&&String(opts.text||"").toUpperCase()==="CUMPLE"){
+      opts.fill="E6F5ED";opts.color="226F4F";opts.bold=true;
+     }else opts.color="263543";
+    }
+   }
+   opts.body=true;return cell(opts.text||opts.xml,widths[j],opts);
+  }).join('')+'</w:tr>').join('')+'</w:tbl>';}
 /* ACT v1.1: tablas de ancho fijo, márgenes A4 de 15 mm, celdas verticales combinadas. */
 function actTable(rows,widths,heights){
  const total=widths.reduce((a,b)=>a+b,0);
@@ -75,26 +110,34 @@ function cover(x){return encabezado(x,1)+
  signatures();}
 function body(x){
  const p=x.evidence||w.ActasEvidence.assess({student:x.student,mode:x.mode,requirementValues:x.requirementValues||{},evaluation:x.evaluation});
- const s=x.student||{},nm=first(s,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),ced=first(s,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),car=first(s,["NombreCarrera","nombreCarrera","carrera","Carrera"]);
- const section=(t)=>para(t,{size:20,bold:true,before:100,after:60});
- let out=encabezado(x,2)+para("CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",{bold:true,size:24,align:"center",before:220,after:100});
- out+=para("N.º DE ACTA: "+x.record.numeroActa,{bold:true,size:23,align:"center",after:90});
- out+=table([[{text:"Estudiante",bold:true},nm],[{text:"Cédula",bold:true},ced],[{text:"Carrera",bold:true},car],[{text:"Modalidad",bold:true},label(x.mode)]],[2300,6700]);
+ const st=x.student||{},nm=first(st,["Nombres","nombres","nombreCompleto","nombre","Nombre"]),
+  ced=first(st,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]),
+  car=first(st,["NombreCarrera","nombreCarrera","carrera","Carrera"]);
+ const section=t=>para(t,{size:20,bold:true,color:"1B4466",fill:"EFF5FA",accent:true,before:145,after:95,keep:true,keepLines:true});
+ let out=encabezado(x,2)+para("CONSTANCIA DE CULMINACIÓN Y TITULACIÓN",
+   {bold:true,size:23,color:"1B4466",align:"center",before:240,after:125,keep:true,keepLines:true});
+ out+=para("N.º DE ACTA: "+x.record.numeroActa,{bold:true,size:21,color:"285B85",align:"center",after:85,keep:true,keepLines:true});
+ if(x.record.fechaRegistro)out+=para("Fecha de registro: "+dmy(x.record.fechaRegistro),{size:16,color:"667789",align:"center",after:140,keep:true});
+ out+=table([[{text:"Estudiante",bold:true},nm],[{text:"Cédula",bold:true},ced],[{text:"Carrera",bold:true},car],[{text:"Modalidad",bold:true},label(x.mode)]],[2300,6700],"identity");
  out+=section("1. Culminación de la malla curricular");
- out+=para(p.mallaText,{size:17,after:80});
+ out+=para(p.mallaText,{size:17,color:"263543",after:100,keepLines:true});
  out+=section("2. Verificación de los nueve requisitos institucionales");
- out+=para("Se consignan los estados documentales registrados para el estudiante y su período; no se presentan calificaciones numéricas.",{size:17,after:80});
- out+=table([[{text:"Requisito",bold:true,size:16},{text:"Estado",bold:true,size:16}],...p.requirements.map((r,i)=>[{text:(i+1)+". "+r.label,size:16},{text:r.status,size:16}])],[6900,2100]);
+ out+=para("Se consignan los estados documentales registrados para el estudiante y su período; no se presentan calificaciones numéricas.",
+  {size:17,color:"526779",after:90,keep:true,keepLines:true});
+ out+=table([[{text:"Requisito",bold:true,size:16},{text:"Estado",bold:true,size:16}],
+  ...p.requirements.map((r,i)=>[{text:(i+1)+". "+r.label,size:16},{text:r.status,size:16}])],[6900,2100],"requirements");
  out+=section("3. Modalidad y estado del proceso de titulación");
- out+=para(p.componentText,{size:17,after:90});
+ out+=para(p.componentText,{size:17,color:"263543",after:100,keepLines:true});
  out+=section("4. Aprobaciones institucionales");
  out+=table([[{text:"Aprobación de titulación",bold:true,size:16},{text:p.finalTitleStatus,size:16}],
-   [{text:"Aprobación complexivo/proyecto",bold:true,size:16},{text:p.finalResultStatus,size:16}]],[6900,2100]);
+  [{text:"Aprobación complexivo/proyecto",bold:true,size:16},{text:p.finalResultStatus,size:16}]],[6900,2100],"approvals");
  out+=section("5. Constancia documental");
- out+=para(p.closureText,{size:17,after:85});
- out+=para("ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS",{bold:true,size:20,align:"center",after:90});
- out+=para("La presente acta registra el cumplimiento de los nueve requisitos y de las dos aprobaciones finales que constan en el expediente institucional.",{size:16});
-return out;
+ out+=para(p.closureText,{size:17,color:"263543",after:95,keepLines:true});
+ out+=para("ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS",
+  {bold:true,size:19,color:"226F4F",fill:"E6F5ED",after:90,keep:true,keepLines:true});
+ out+=para("La presente acta registra el cumplimiento de los nueve requisitos y de las dos aprobaciones finales que constan en el expediente institucional.",
+  {size:16,color:"526779",keepLines:true});
+ return out;
 }
 function documentXML(items){const pages=items.map(x=>cover(x)+'<w:p><w:r><w:br w:type="page"/></w:r></w:p>'+body(x));return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
 '<w:document xmlns:w="'+NS+'" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'+pages.join('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')+

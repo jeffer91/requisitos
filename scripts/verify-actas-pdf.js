@@ -5,10 +5,10 @@ const root=path.resolve(__dirname,".."),source=fs.readFileSync(path.join(root,"A
 new vm.Script(source);
 let lastDoc=null,lastZip=null,downloads=[];
 class Pdf{
- constructor(options){this.options=options;this.pages=1;this.index=1;this.images=0;this.texts=[];this.rects=[];this.segments=[];this.fontSizes=[];lastDoc=this;}
+ constructor(options){this.options=options;this.pages=1;this.index=1;this.images=0;this.texts=[];this.events=[];this.rects=[];this.segments=[];this.fontSizes=[];lastDoc=this;}
  setDrawColor(){return this;}setLineWidth(){return this;}rect(x,y,w,h){this.rects.push({x,y,w,h,page:this.index});return this;}setFont(){return this;}setFontSize(v){this.fontSizes.push(v);return this;}
- setFillColor(){return this;}line(x1,y1,x2,y2){this.segments.push({x1,y1,x2,y2,page:this.index});return this;}
- text(value){assert.ok(value!==undefined);this.texts.push(Array.isArray(value)?value.join(" "):String(value));return this;}
+ setFillColor(){return this;}setTextColor(){return this;}line(x1,y1,x2,y2){this.segments.push({x1,y1,x2,y2,page:this.index});return this;}
+ text(value,x,y){assert.ok(value!==undefined);const label=Array.isArray(value)?value.join(" "):String(value);this.texts.push(label);this.events.push({label,page:this.index,x,y});return this;}
  splitTextToSize(value){const content=String(value);return content.match(/.{1,95}/g)||[""];}
  addImage(value){assert.match(value,/^data:image\//);this.images++;return this;}
  addPage(){this.pages++;this.index=this.pages;return this;}
@@ -70,6 +70,22 @@ assert.ok(lastDoc.texts.some(t=>t.includes("Acta de Titulación por Examen Compl
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("TRAB/")&&f.endsWith(".pdf")));
  assert.equal(new Set([...lastZip.files.keys()].filter(f=>f.endsWith(".pdf"))).size,2,"Los archivos individuales tienen números distintos");
  assert.ok(lastZip.files.has("Resumen_exportacion.csv"));assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("EXCLUIDO"));
+ const longCase={...exam,evidence:{...exam.evidence,
+  componentText:exam.evidence.componentText+" Verificación adicional de paginación.".repeat(22)}};
+ await api.build(longCase);
+ for(const label of ["1. Culminación","2. Verificación","3. Modalidad","4. Aprobaciones","5. Constancia"]){
+  const at=lastDoc.events.findIndex(e=>e.label.startsWith(label));
+  assert.ok(at>=0,"Existe el encabezado "+label);
+  assert.equal(lastDoc.events[at+1].page,lastDoc.events[at].page,
+   "No puede quedar un título huérfano: "+label);
+ }
+ assert.ok(lastDoc.events.some(e=>e.label.includes("REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS")),
+  "El resultado final permanece visible");
+ const ttNumber=sample("0000000099","TRABAJO_TITULACION");
+ ttNumber.record.numeroActa="TT-2026-0000-10-0099";
+ await api.build(ttNumber);
+ assert.ok(lastDoc.texts.some(t=>t.includes("N.º DE ACTA: TT-2026-0000-10-0099")),
+  "Admite el folio de Trabajo de Titulación con prefijo TT");
  assert.ok(downloads.length>=1,"ZIP dispara una descarga");
  ["actas-busqueda","actas-zip","actas-config-logo","actas-logo-modal","actas-logo-file","actas-logo-guardar"].forEach(id=>assert.match(html,new RegExp('id="'+id+'"')));
  assert.match(html,/actas\.pdf\.js/);assert.match(html,/actas\.brand\.js/);assert.match(html,/actas\.numbering\.js/);

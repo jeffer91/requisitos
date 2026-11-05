@@ -29,7 +29,10 @@ assert.throws(()=>docs.render({...sample,record:{...sample.record,numeroActa:""}
  evidence:sandbox.window.ActasEvidence.assess({student:{Nombres:"SIN NOTAS"},mode:cat.COMPLEXIVO,requirementValues:{}})}),
  /acta final requiere/,"La vista previa rechaza actas sin requisitos y folio");
  assert.doesNotMatch(exam,/borrador/i,"Un acta final no imprime etiquetas de borrador");
-assert.match(exam,/Acta de Titulación por Examen Complexivo/);assert.match(exam,/Unidad de Titulación y Eficiencia Terminal/);assert.match(exam,/Fecha de emisión: 29\/05\/2026/);
+const tagged=docs.render({...sample,mode:cat.TRABAJO,record:{...sample.record,numeroActa:"TT-2026-1234-10-0002"}});
+ assert.match(tagged,/TT-2026-1234-10-0002/,"La vista previa admite folios TT");
+ assert.match(tagged,/class="stage-keep"/,"Los apartados interiores se mantienen unidos");
+ assert.match(exam,/Acta de Titulación por Examen Complexivo/);assert.match(exam,/Unidad de Titulación y Eficiencia Terminal/);assert.match(exam,/Fecha de emisión: 29\/05\/2026/);
 assert.match(exam,/Aprobación de titulación/);
 assert.match(exam,/Aprobación complexivo\/proyecto/);
 assert.match(exam,/ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS/);
@@ -49,6 +52,7 @@ assert.match(exam,/Versión: 1.0/);
 assert.match(read("Actas/actas.document.js"),/\.cover-title\{[^}]*font-size:23pt/,"Título de 23 pt en vista previa");
 assert.match(read("Actas/actas.document.js"),/\.cover-sub\{[^}]*font-size:23pt/,"Período de 23 pt en vista previa");
 assert.match(exam,/Fecha de emisión:/);
+assert.match(exam,/break-after:avoid-page/,"Estilo de impresión evita títulos aislados");
 assert.doesNotMatch(exam,/NOMBRE: __________________|CARGO: __________________/);
 
 const workStudent={...sample.student,_ncomplexEvaluation:{modalidadTitulacion:cat.TRABAJO,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};

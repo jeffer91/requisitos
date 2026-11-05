@@ -44,7 +44,12 @@ const institutionLogo=fs.readFileSync(path.join(__dirname,"../Global/assets/bran
  inspectPng(parts.get("word/media/logo.png"));
  const xml=parts.get("word/document.xml").toString("utf8");
 assert.match(xml,/<w:document/);assert.match(xml,/Acta de Titulación por Examen Complexivo/);assert.match(xml,/Unidad de Titulación y/);assert.match(xml,/Fecha de emisión: 29\/05\/2026/);assert.match(xml,/ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS/);assert.match(xml,/Aprobación de titulación/);
-assert.match(xml,/N.º DE ACTA: 2026-0000-10-0001/,"Número al inicio del cuerpo del Word");assert.match(xml,/Aprobación complexivo\/proyecto/);
+assert.match(xml,/N.º DE ACTA: 2026-0000-10-0001/,"Número al inicio del cuerpo del Word");
+ assert.match(xml,/<w:keepNext\/>/,"Los títulos se mantienen con el contenido siguiente");
+ assert.match(xml,/<w:keepLines\/>/,"Los párrafos cortos evitan saltos huérfanos");
+ assert.match(xml,/<w:cantSplit\/>/,"Las filas no se dividen entre páginas");
+ assert.match(xml,/w:fill="E6F5ED"/,"Los estados CUMPLE tienen resaltado suave");
+ assert.match(xml,/w:color w:val="1B4466"/,"Encabezados interiores con color institucional");assert.match(xml,/Aprobación complexivo\/proyecto/);
 assert.match(xml,/Prácticas preprofesionales/);assert.match(xml,/Verificación de los nueve requisitos institucionales/);assert.doesNotMatch(xml,new RegExp("8,60/10|Nota final oficial|Evaluación teórica"),"DOCX no contiene calificaciones");
 assert.doesNotMatch(xml,/Calificación numérica:\s*\d/i);
 for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(xml.includes(signer),"DOCX conserva firmante: "+signer);
