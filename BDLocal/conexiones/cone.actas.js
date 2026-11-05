@@ -87,7 +87,7 @@ if(typeof w.ConFicha.updateGraduationModality!=="function")throw Error("El conec
 const periodId=normPeriod(opts.periodoId),identity=text(opts.studentId)||ced(opts.cedula)+"__"+periodId;
 if(!periodId||!ced(opts.cedula))throw Error("El estudiante necesita cédula y período.");
 const result=await w.ConFicha.updateGraduationModality(identity,mode,{periodoId:periodId,periodId:periodId,cedula:ced(opts.cedula),periodoLabel:text(opts.periodoLabel),source:"actas.selector"});
-const current=asRows(await localStudents({periodoId})).find(row=>keyOf(row)===ced(opts.cedula)+"__"+periodId);
+const current=asRows(await localStudents({periodoId:periodId})).find(row=>keyOf(row)===ced(opts.cedula)+"__"+periodId);
 const persisted=first(current,["modalidadTitulacion","_modalidadTitulacion","ModalidadTitulacion"]);
 if(persisted!==mode)throw Error("Ficha recibió el cambio, pero la matrícula V2 todavía devuelve "+(persisted||"SIN MODALIDAD")+". No se ha confirmado la actualización.");
 return Object.assign({},result,{verified:true,mode});
