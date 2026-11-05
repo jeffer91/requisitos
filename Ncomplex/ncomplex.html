@@ -59,9 +59,11 @@ Función o funciones:
       <div class="nc-actions">
         <button type="button" id="nc-open-import" class="nc-primary">Importar Moodle</button>
         <button type="button" id="nc-publish">Sincronizar Firebase</button>
+        <button type="button" id="nc-show-pending">Ver pendientes</button>
         <button type="button" id="nc-show-advanced">Herramientas avanzadas</button>
       </div>
       <div id="nc-message" class="nc-message" role="status" aria-live="polite">Selecciona un período y una carrera.</div>
+      <div id="nc-pending-panel" class="nc-import" hidden aria-live="polite"></div>
       <section id="nc-import" class="nc-import" hidden aria-label="Importar calificaciones">
         <div class="nc-import-head"><strong>Importar desde Moodle</strong><button id="nc-close-import" type="button" aria-label="Cerrar importación">×</button></div>
         <textarea id="nc-paste" rows="8" placeholder="Pega aquí el libro de calificaciones de Moodle"></textarea>
