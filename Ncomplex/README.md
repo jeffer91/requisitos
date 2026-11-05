@@ -90,3 +90,22 @@ node scripts/verify-ncomplex-period-selector.js
 ```
 
 Estas pruebas simulan IndexedDB, el conector académico y la interfaz; demuestran que la creación de la tabla de núcleos no bloquea el selector. Aún se requiere probar la aplicación instalada en Electron con su base específica para confirmar el funcionamiento visual.
+
+## Flujo guiado inteligente (actualización)
+
+- **Encabezado único:** Ncomplex muestra el contexto académico, las matrículas y el estado local/Firebase en una vista compacta.
+- **Período y carrera:** se leen de BDLocal. Al seleccionar un período, propone la primera carrera con matrículas y el Núcleo 1. Cada núcleo conserva acceso directo para cargar fuera de orden.
+- **Reconocimiento automático:** al pegar Moodle antes de escoger grupo, se reconoce primero la modalidad de carga (núcleo o complexivo), el período indicado, el nombre del núcleo, la carrera y las columnas de calificaciones. Si el curso pertenece al Núcleo 4, cambia a ese núcleo sin atribuir `Mod 13` a un número de núcleo.
+- **Contexto ambiguo:** si Administración tiene más de una modalidad en el período, mantiene la carrera seleccionada cuando corresponda; de lo contrario ofrece las variantes en BDLocal para confirmación. No deduce presencialidad exclusivamente de la palabra `Matriz`.
+- **Conciliación:** las filas de Moodle que no aparecen en la matrícula se muestran como pendientes. Si una misma cédula tiene dos filas, ambas quedan fuera del guardado hasta que el usuario elija explícitamente cuál corresponde. No se fusionan notas incompatibles.
+- **Estados separados:** «Sin notas» describe las calificaciones; «Por verificar» indica ausencia de evidencia de requisitos; «Pendiente» señala requisitos registrados que no satisfacen la política. No se interpreta «sin registro» como «incumplimiento» confirmado.
+- **Columnas flexibles:** conserva las cuatro evaluaciones, Taller, Prueba, Caso de estudio, Total Moodle y otras actividades identificadas. Las evaluaciones romanas I–IV también se reconocen. Las actividades extras no reciben pesos inventados y los resultados de Moodle se verifican.
+- **Secuencia:** el panel indica el siguiente núcleo incompleto por carrera; solo se solicita grupo al guardar notas, no antes de interpretar el libro.
+
+### Pruebas del flujo
+```bash
+node scripts/verify-ncomplex-smart-guided.js
+node scripts/verify-ncomplex-guided-ui.js
+```
+
+Estas verificaciones emplean matrículas y notas sintéticas; la ejecución con una instalación real de Electron y la publicación de Firebase siguen siendo comprobaciones separadas.

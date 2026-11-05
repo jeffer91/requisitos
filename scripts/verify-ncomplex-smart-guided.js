@@ -27,6 +27,19 @@ assert.equal(parsed.rows.length,3);
 assert.deepEqual(Array.from(parsed.headers),["e1","e2","e3","e4","taller","prueba","totalMoodle"]);
 assert.equal(parsed.rows[2].evaluaciones[0],null);
 assert.equal(parsed.rows[2].totalMoodle,10);
+const mixed=[course,"Nombre / Apellido(s)","Dirección de correo",
+ "CuestionarioEVALUACIÓN PARCIAL I","CuestionarioEVALUACIÓN PARCIAL 2",
+ "CuestionarioEVALUACIÓN PARCIAL III","CuestionarioEVALUACIÓN PARCIAL 4",
+ "TareaCASO DE ESTUDIO","TareaTALLER PRÁCTICO 1","TareaTALLER PRÁCTICO 2",
+ "Media de calificacionesTotal del curso",
+ "ESTUDIANTE EJEMPLO","ejemplo@itsqmet.edu.ec",
+ "8,00","9,00","10,00","10,00","9,50","10,00","7,00","9,07"].join("\n");
+const extra=parser.parse(mixed);
+assert.equal(extra.ok,true,"Admitir calificaciones parciales romanas, caso y taller adicional.");
+assert.deepEqual(Array.from(extra.rows[0].evaluaciones),[8,9,10,10]);
+assert.equal(extra.rows[0].casoEstudio,9.5);
+assert.equal(extra.rows[0].actividadesAdicionales.length,1);
+assert.equal(extra.rows[0].actividadesAdicionales[0].nota,7);
 const catalog=[{career:"Administración",nuclei:[{number:1,name:"Gestión Estratégica"},{number:4,name:"Gestión Comercial"}]}];
 const careers=[{code:"ADMINISTRACION",label:"ADMINISTRACION"},
  {code:"ADMINISTRACION ONLINE",label:"ADMINISTRACION ONLINE"},

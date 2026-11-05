@@ -68,7 +68,8 @@
    if(!roster.length)continue;
    for(var n=1;n<=4;n++){
     var actual=(notes||[]).filter(function(r){return r.codigoCarrera===target.code&&Number(r.nucleo)===n;});
-    var complete=actual.filter(function(r){return Array.isArray(r.evaluaciones)&&r.evaluaciones.length===4&&
+    var complete=actual.filter(function(r){return r.estadoCarga==="CONCILIADO"&&r.habilitado===true&&
+      Array.isArray(r.evaluaciones)&&r.evaluaciones.length===4&&
       r.evaluaciones.every(function(v){return v!==null&&v!==undefined;})&&r.totalMoodle!==null&&r.totalMoodle!==undefined;});
     var ids=Object.create(null);complete.forEach(function(r){ids[r.cedula]=true;});
     var done=roster.filter(function(s){return ids[text(s.cedula||s.numeroIdentificacion)];}).length;
