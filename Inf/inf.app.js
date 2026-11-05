@@ -17,7 +17,9 @@
     }
     li.appendChild(line);
     if (item.content && item.content.trim()) {
-      li.appendChild(element("p", "inf-preview", item.content));
+      var preview = element("div", "inf-preview");
+      window.InfMarkdown.render(preview, item.content);
+      li.appendChild(preview);
     }
     if (item.sections.length) {
       var nested = element("ol", "inf-nodes");

@@ -46,6 +46,31 @@
         "number": "2.4",
         "title": "Normativa institucional de titulación",
         "sections": []
+      },
+      {
+        "number": "2.5",
+        "title": "Reglamento General a la Ley Orgánica de Educación Superior",
+        "sections": []
+      },
+      {
+        "number": "2.6",
+        "title": "Normativa de evaluación y aseguramiento de la calidad de la educación superior",
+        "sections": []
+      },
+      {
+        "number": "2.7",
+        "title": "Ley Orgánica de Protección de Datos Personales",
+        "sections": []
+      },
+      {
+        "number": "2.8",
+        "title": "Integridad académica y propiedad intelectual",
+        "sections": []
+      },
+      {
+        "number": "2.9",
+        "title": "Aplicación normativa, seguimiento y trazabilidad institucional",
+        "sections": []
       }
     ]
   },

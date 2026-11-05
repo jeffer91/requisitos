@@ -36,3 +36,11 @@ Este bloque solo establece la carpeta, el índice y la infraestructura para reci
 ## Comprobación
 
 Desde la raíz del repositorio: node Inf/tests/verify-inf.js
+
+## Entregas de contenido incorporadas (5 de noviembre de 2026)
+
+- Capítulo 1 (Introducción): texto general y apartados 1.1, 1.2 y 1.3, sin alterar la redacción suministrada.
+- Capítulo 2 (Base Legal): texto general y apartados 2.1 a 2.9. Se incorporaron los nuevos subapartados 2.5 a 2.9 al índice a partir del texto enviado.
+- Los textos jurídicos se incorporan tal como fueron suministrados; los artículos y la vigencia normativa requieren verificación antes de emisión oficial.
+- Se incluye un visor Markdown seguro que presenta subtítulos, negritas y enumeraciones de los originales.
+- Los capítulos 3 a 8 permanecen pendientes. El módulo continúa sin integrarse al menú ni consultar calificaciones.

@@ -34,3 +34,10 @@ footer { color: #6c7280; font-size: 12px; text-align: center; }
   .inf-head, .inf-index { padding: 18px; }
   .inf-node { margin-left: 10px; }
 }
+
+/* Presentación de contenido genérico: preserva subtítulos, listas y negritas. */
+.inf-preview { white-space: normal; }
+.inf-preview p { margin: 8px 0; }
+.inf-preview ul, .inf-preview ol { padding-left: 28px; margin: 8px 0; }
+.inf-preview li { margin: 5px 0; }
+.inf-preview h4 { font-size: 15px; margin: 16px 0 8px; }
