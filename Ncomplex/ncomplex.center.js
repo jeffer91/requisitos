@@ -259,6 +259,15 @@ async function save(){
     var grades=inc.evaluaciones.concat([inc.taller,inc.prueba]).filter(function(v){return v!==null;});
     var arithmetic=grades.length?Math.round(grades.reduce(function(a,b){return a+b;},0)/grades.length*100)/100:null;
     var discrepancy=arithmetic!==null&&inc.totalMoodle!==null&&Math.abs(arithmetic-inc.totalMoodle)>0.03;
+    var stamp=new Date().toISOString();
+    var history=previous&&Array.isArray(previous.historialCambios)?previous.historialCambios.slice():[];
+    if(previous&&priorHash!==currentHash)history.push({
+     at:stamp,action:"CORRECCION_DE_MOODLE",
+     evaluaciones:previous.evaluaciones||[null,null,null,null],
+     taller:previous.taller==null?null:previous.taller,
+     prueba:previous.prueba==null?null:previous.prueba,
+     totalMoodle:previous.totalMoodle==null?null:previous.totalMoodle
+    });
     stored.push({id:id,periodoId:data.period,cedula:ced,codigoCarrera:data.career,
      nombreCarrera:studentCareer(st),grupoInforme:data.group,nucleo:data.nucleus,nombreNucleo:nucleusTitle(data.nucleus),
      cursoMoodle:p.parsed.course||"",evaluaciones:inc.evaluaciones.slice(),taller:inc.taller,prueba:inc.prueba,
@@ -266,8 +275,9 @@ async function save(){
      estadoCarga:!eligible?"INHABILITADO":complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
      observaciones:discrepancy?"El total Moodle difiere de la media simple. Revisar ponderación del curso.":complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
      sourceHash:currentHash,importacionId:digest([data.period,p.source]),
+     historialCambios:history,
      estadoSync:"PENDIENTE",remoteHash:previous&&previous.remoteHash||"",cloudError:"",
-     createdAt:previous&&previous.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),
+     createdAt:previous&&previous.createdAt||stamp,updatedAt:stamp,
      version:previous?Number(previous.version||1)+1:1});
    }
    if(stored.length)await w.NcomplexNucleosStore.saveMany(stored);

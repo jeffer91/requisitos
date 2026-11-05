@@ -12,7 +12,7 @@ function hash(v){var s=stable(v),h=2166136261;for(var i=0;i<s.length;i++){h^=s.c
 function remote(record){
  var fields=["periodoId","cedula","codigoCarrera","nombreCarrera","grupoInforme","nucleo",
   "nombreNucleo","cursoMoodle","evaluaciones","taller","prueba","totalMoodle",
-  "estadoCarga","habilitado","requisitosPendientes","observaciones","origen","sourceHash","importacionId"];
+  "estadoCarga","habilitado","requisitosPendientes","observaciones","origen","sourceHash","importacionId","historialCambios"];
  var doc={};
  fields.forEach(function(k){doc[k]=record[k]===undefined?null:record[k];});
  doc.dataHash=hash(doc);
