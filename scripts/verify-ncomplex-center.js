@@ -9,6 +9,7 @@ const files=[
   "BDLocal/firebase/bdl.firebase.identity.js",
   "BDLocal/firebase/bdl.firebase.validator.v2.js",
   "Ncomplex/ncomplex.nucleos.parser.js",
+  "Ncomplex/ncomplex.nucleos.policy.js",
   "Ncomplex/ncomplex.nucleos.store.js",
   "Ncomplex/ncomplex.nucleos.firebase.js",
   "Ncomplex/ncomplex.center.js"
@@ -21,6 +22,7 @@ const context=vm.createContext({window,console,CustomEvent:function(){},Promise,
 for(const file of files.filter(p=>!p.endsWith("center.js"))){
   new vm.Script(source(file),{filename:file}).runInContext(context);
 }
+window.NcomplexFirebaseAuth={requireWriter:async()=>({email:"institucional@itsqmet.edu.ec"})};
 const parser=window.NcomplexNucleosParser;
 const moodle=[
 "T-NUCLEO - GESTIÓN COMERCIAL [Mod 13, OCT-MAR26]",
@@ -62,6 +64,11 @@ const record={
  version:1,estadoSync:"PENDIENTE",remoteHash:""
 };
 const remote=window.NcomplexNucleosFirebase.remote(record);
+const good={requirements:["academico","documentacion","financiero","practicas","vinculacion","seguimientograduados","ingles","actualizaciondatos","titulacion"].map(k=>({key:k,status:k==="titulacion"?"NO APLICA":"CUMPLE",label:k}))};
+assert.equal(window.NcomplexNucleosPolicy.check(good,"nucleos").eligible,true);
+assert.equal(window.NcomplexNucleosPolicy.check(good,"complexivo").eligible,false);
+const explicit=parser.match(parsed.rows,students,{"1":"0101010101"});
+assert.equal(explicit.matched,2);
 const identity=window.RequisitosFirebaseIdentity;
 const remoteId=identity.entityDocumentId("evaluaciones_nucleos",record);
 assert.equal(remoteId,period+"__"+cedula+"__N4");
