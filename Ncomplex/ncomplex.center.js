@@ -343,7 +343,7 @@ async function sync(){
  msg("Verificando acceso y comparando versiones de Firebase…");
  var info=[],nr={published:0,unchanged:0,conflicts:0,errors:0,remaining:0},exam=null,issues=false;
  try{
-  await w.NcomplexFirebaseAuth.requireUser();
+  await w.NcomplexFirebaseAuth.requireWriter();
   var attempted=Object.create(null),remaining=0;
   for(var i=0;i<400;i++){
    var skip=Object.keys(attempted);

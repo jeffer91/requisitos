@@ -6,6 +6,7 @@ async function resolve(row,choice){
  if(!row||row.estadoSync!=="CONFLICTO")throw Error("El registro no está marcado como conflicto.");
  if(choice!=="local"&&choice!=="firebase")throw Error("Selecciona qué versión deseas conservar.");
  await w.NcomplexFirebaseAuth.requireUser();
+ if(choice==="local")await w.NcomplexFirebaseAuth.requireWriter();
  await w.RequisitosFirebaseOperationCenter.ensure();
  var repo=w.RequisitosFirebaseRepository,local=w.NcomplexNucleosStore;
  var remote=await repo.getById(entity,id(row));

@@ -44,6 +44,15 @@ async function requireUser(){
  if(!user)throw Error("Inicia sesión en Firebase para publicar las evaluaciones de núcleos.");
  return {email:user.email||"",uid:user.uid||""};
 }
+async function requireWriter(){
+ var identity=await requireUser();
+ var user=auth.currentUser;
+ var token=await user.getIdTokenResult();
+ var claims=token&&token.claims||{};
+ if(claims.ncomplex_write!==true && claims.titulacion_admin!==true)
+  throw Error("Tu cuenta Firebase no tiene permiso de escritura de calificaciones. Solicita el rol institucional ncomplex_write.");
+ return identity;
+}
 function status(){return {ready:!!auth,authenticated:!!(auth&&auth.currentUser),email:auth&&auth.currentUser&&auth.currentUser.email||""};}
-w.NcomplexFirebaseAuth=Object.freeze({load:load,signIn:signIn,requireUser:requireUser,status:status});
+w.NcomplexFirebaseAuth=Object.freeze({load:load,signIn:signIn,requireUser:requireUser,requireWriter:requireWriter,status:status});
 })(window,document);
