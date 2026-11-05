@@ -39,31 +39,33 @@ async function logo(){
 }
 function build(doc,payload,logoImage){
  var report=payload.report,period=payload.schedule.period,calendar=payload.schedule,careers=payload.careers;
- var left=25.4,right=184.6,width=159.2,y=35,figure=0;
+ var left=25.4,right=184.6,width=159.2,y=62,figure=0;
  function setFont(style,size,color){
   doc.setFont("helvetica",style||"normal");doc.setFontSize(size||11);
   doc.setTextColor.apply(doc,color||[35,47,61]);
  }
- function page(){
-  doc.addPage();y=34;
-  doc.setDrawColor(170,184,202);doc.setLineWidth(.2);
-  doc.line(left,19,right,19);
-  setFont("normal",8,[82,95,112]);
-  doc.text("ITSQMET · UTET | Informe Final del Proceso de Titulación",left,16);
-  doc.text("BORRADOR",right,16,{align:"right"});
- }
- function space(h){if(y+h>268)page();}
- function write(text,options){
+ function page(){doc.addPage();y=62;}
+ function space(height){if(y+height>265)page();}
+ function write(value,options){
   options=options||{};
-  var s=display(text);
-  if(!s.trim())return;
-  var fontSize=options.fontSize||11,leading=options.leading||7.6,gap=options.gap===undefined?3:options.gap;
+  var s=display(value).replace(/\\t/g," ").trim();
+  if(!s)return;
+  var fontSize=options.fontSize||11,leading=options.leading||7.8,gap=options.gap===undefined?0:options.gap;
   var x=left+(options.indent||0),available=width-(options.indent||0);
+  var firstIndent=options.firstLineIndent||0;
   setFont(options.style||"normal",fontSize,options.color||[35,47,61]);
-  var lines=doc.splitTextToSize(s,available);
+  var lines;
+  if(firstIndent){
+   var initial=doc.splitTextToSize(s,available-firstIndent);
+   var first=initial.shift()||"";
+   lines=[{text:first,indent:firstIndent}];
+   doc.splitTextToSize(initial.join(" "),available).forEach(function(t){
+    lines.push({text:t,indent:0});
+   });
+  }else lines=doc.splitTextToSize(s,available).map(function(t){return {text:t,indent:0};});
   lines.forEach(function(line){
    space(leading);setFont(options.style||"normal",fontSize,options.color||[35,47,61]);
-   doc.text(line,x,y);y+=leading;
+   doc.text(line.text,x+line.indent,y);y+=leading;
   });
   y+=gap;
  }
@@ -76,58 +78,70 @@ function build(doc,payload,logoImage){
   var paragraph=[];
   function flush(){
    if(!paragraph.length)return;
-   write(paragraph.join(" "),{indent:0});paragraph=[];
+   write(paragraph.join(" "),{firstLineIndent:12.7,leading:7.8,gap:0});
+   paragraph=[];
   }
-  String(raw||"").replace(/\r\n?/g,"\n").split("\n").forEach(function(line){
-   var t=line.trim();
-   if(!t){flush();return;}
-   var sub=t.match(/^#{3,6}\s+(.+)$/);
+  String(raw||"").replace(/\\r\\n?/g,"\\n").split("\\n").forEach(function(line){
+   var t=line.trim();if(!t){flush();return;}
+   var sub=t.match(/^#{3,6}\\s+(.+)$/);
    if(sub){flush();heading(sub[1],4);return;}
-   if(/^\*\*[^*]+\*\*$/.test(t)){flush();write(t.slice(2,-2),{style:"bold",gap:3});return;}
-   if(/^(?:[-*]\s+|\d+\.\s+)/.test(t)){flush();write("• "+t.replace(/^(?:[-*]\s+|\d+\.\s+)/,""),{indent:4,leading:6.7,gap:1});return;}
+   if(/^\\*\\*[^*]+\\*\\*$/.test(t)){
+    flush();write(t.slice(2,-2),{style:"bold",gap:1});return;
+   }
+   var bullet=t.match(/^(?:[-*]\\s+|\\d+\\.\\s+)(.+)$/);
+   if(bullet){flush();write("• "+bullet[1],{indent:6,leading:7.3,gap:0});return;}
    paragraph.push(t);
   });
   flush();
  }
- function cover(){
-  doc.setDrawColor(0);doc.setLineWidth(.22);
-  doc.rect(15,15,180,33);doc.line(63,15,63,48);doc.line(158,15,158,48);
-  doc.line(158,28,195,28);doc.line(15,36,195,36);
+ function drawHeader(n,total,logoImage){
+  doc.setDrawColor(35,48,61);doc.setLineWidth(0.18);
+  doc.rect(15,12,180,38);
+  doc.line(61,12,61,50);doc.line(158,12,158,50);
+  doc.line(15,36,195,36);
+  doc.line(158,24,195,24);
   if(logoImage){
-   var maxW=41,maxH=17,ratio=logoImage.w/logoImage.h;
-   var w=Math.min(maxW,maxH*ratio),h=w/ratio;
-   doc.addImage(logoImage.data,"PNG",18+(maxW-w)/2,18+(maxH-h)/2,w,h);
-  }else{
-   setFont("bold",12);doc.text("ITSQMET",39,27,{align:"center"});
-  }
-  setFont("normal",9);doc.text("Unidad de Titulación y",110.5,25,{align:"center"});
-  doc.text("Eficiencia Terminal",110.5,31,{align:"center"});
-  setFont("normal",8);
-  doc.text("Código: pendiente de aprobación",176.5,24,{align:"center",maxWidth:33});
-  doc.text("Versión: borrador",176.5,33,{align:"center"});
-  var today=new Date(),date=("0"+today.getDate()).slice(-2)+"/"+("0"+(today.getMonth()+1)).slice(-2)+"/"+today.getFullYear();
-  doc.text("Fecha: "+date,39,42,{align:"center",maxWidth:45});
-  setFont("bold",8);doc.text("Informe Final del Proceso de Titulación",110.5,42,{align:"center",maxWidth:89});
-  /* Número total de páginas insertado tras la composición final. */
-  setFont("bold",18);doc.text(["INFORME FINAL DEL","PROCESO DE TITULACIÓN"],105,113,{align:"center"});
-  setFont("normal",13);doc.text(period,105,134,{align:"center",maxWidth:169});
-  setFont("bold",12,[140,38,38]);doc.text("BORRADOR DE AVANCE - NO LEGALIZADO",105,148,{align:"center"});
-  setFont("normal",10);doc.text("Contiene textos genéricos y cronogramas editables.",105,157,{align:"center"});
-  doc.text("No incluye resultados académicos todavía no verificados.",105,164,{align:"center"});
-  doc.setDrawColor(0);doc.rect(15,224,180,43);
-  doc.line(75,224,75,267);doc.line(135,224,135,267);doc.line(15,248,195,248);doc.line(15,256,195,256);
-  var roles=[
+   var rw=40,rh=18,ratio=logoImage.w/logoImage.h;
+   var w=Math.min(rw,rh*ratio),hh=w/ratio;
+   doc.addImage(logoImage.data,"PNG",18+(40-w)/2,15+(18-hh)/2,w,hh);
+  }else{setFont("bold",11);doc.text("ITSQMET",38,26,{align:"center"});}
+  setFont("bold",9,[34,51,71]);
+  doc.text("Unidad de Titulación y",109.5,22,{align:"center"});
+  doc.text("Eficiencia Terminal",109.5,28,{align:"center"});
+  setFont("normal",7.5);
+  doc.text("Código: pendiente",176.5,20,{align:"center"});
+  doc.text("de asignación",176.5,23.1,{align:"center"});
+  doc.text("Versión: 1",176.5,31,{align:"center"});
+  var today=new Date(),stamp=("0"+today.getDate()).slice(-2)+"/"+("0"+(today.getMonth()+1)).slice(-2)+"/"+today.getFullYear();
+  setFont("normal",7.6);
+  doc.text("Fecha: "+stamp,38,43.8,{align:"center"});
+  setFont("bold",8);
+  doc.text("Informe Final del Proceso de Titulación",109.5,43.8,{align:"center",maxWidth:92});
+  setFont("normal",7.6);
+  doc.text("Página "+n+" de "+total,176.5,43.8,{align:"center"});
+ }
+ function cover(){
+  setFont("bold",23,[30,44,62]);
+  doc.text("INFORME FINAL DEL",105,108,{align:"center"});
+  doc.text("PROCESO DE TITULACIÓN",105,124,{align:"center"});
+  doc.text(doc.splitTextToSize(period,165),105,148,{align:"center",lineHeightFactor:1.35});
+  var xs=[15,75,135],roles=[
    ["ELABORADO POR","Mgs. Jefferson Villarreal","Coordinador de Titulación y Eficiencia Terminal"],
    ["REVISADO POR","Ing. Martha Tomalá","Coordinadora General de Carreras"],
    ["APROBADO POR","Dr. Alex León","Vicerrector"]
   ];
-  roles.forEach(function(item,i){
-   var x=15+i*60;
-   setFont("bold",8);doc.text(item[0],x+30,230,{align:"center"});
-   setFont("normal",7.7);doc.text("NOMBRE: "+item[1],x+2,253,{maxWidth:57});
-   doc.text("CARGO:",x+2,260);
-   var ls=doc.splitTextToSize(item[2],46);
-   doc.text(ls.slice(0,2),x+11,259.7);
+  doc.setDrawColor(45,55,68);doc.setLineWidth(.2);
+  doc.rect(15,213,180,64);
+  doc.line(75,213,75,277);doc.line(135,213,135,277);
+  doc.line(15,230,195,230);doc.line(15,251,195,251);
+  roles.forEach(function(role,i){
+   var x=xs[i],mid=x+30;
+   setFont("bold",8);doc.text(role[0],mid,220,{align:"center"});
+   setFont("normal",8);
+   var names=doc.splitTextToSize(role[1],54);
+   doc.text(names,mid,238,{align:"center",lineHeightFactor:1.15});
+   var jobs=doc.splitTextToSize(role[2],53).slice(0,3);
+   doc.text(jobs,mid,260,{align:"center",lineHeightFactor:1.25});
   });
  }
  function figTitle(title){
@@ -135,32 +149,65 @@ function build(doc,payload,logoImage){
   write("Figura "+figure,{fontSize:10,style:"bold",leading:5.6,gap:1});
   write(title,{fontSize:10,style:"italic",leading:5.6,gap:4});
  }
- function bubble(x,cY,n,rgb){
-  doc.setFillColor.apply(doc,rgb);doc.setDrawColor(80,111,140);
-  doc.circle(x,cY,10,"FD");
-  setFont("bold",9);doc.text("N"+n,x,cY+2.5,{align:"center"});
+ function bubble(x,cy,n,name,fill){
+  var radius=24;
+  doc.setFillColor.apply(doc,fill);
+  doc.setDrawColor(70,113,151);doc.setLineWidth(.4);
+  doc.circle(x,cy,radius,"FD");
+  setFont("bold",9,[31,53,79]);
+  doc.text("Núcleo "+n,x,cy-10,{align:"center"});
+  var font=name.length>52?6.1:name.length>38?6.7:7.5;
+  setFont("bold",font,[31,53,79]);
+  var lines=doc.splitTextToSize(name,41);
+  if(lines.length>6){font=5.8;setFont("bold",font,[31,53,79]);lines=doc.splitTextToSize(name,43);}
+  doc.text(lines,x,cy-4.2,{align:"center",lineHeightFactor:1.16});
  }
  function diagram(c){
-  space(154);figTitle("Organización de los cuatro núcleos: "+c.career);
-  space(142);var top=y+4,cx=105,cy=top+49;
-  doc.setDrawColor(145,158,173);doc.setLineDashPattern([2,2],0);
-  [[cx,cy-12,cx,cy-28],[cx+23,cy,cx+37,cy],[cx,cy+12,cx,cy+28],[cx-23,cy,cx-37,cy]].forEach(function(v){doc.line.apply(doc,v);});
-  doc.setLineDashPattern([],0);
-  bubble(cx,cy-38,1,[217,233,249]);bubble(cx+48,cy,2,[210,239,229]);
-  bubble(cx,cy+38,3,[255,235,199]);bubble(cx-48,cy,4,[231,217,245]);
-  doc.setFillColor(44,65,87);doc.roundedRect(cx-23,cy-12,46,24,3,3,"F");
-  setFont("bold",8,[255,255,255]);
-  var title=doc.splitTextToSize(c.career.toUpperCase(),43).slice(0,3);
-  doc.text(title,cx,cy-1.5-(title.length-1)*2,{align:"center",lineHeightFactor:1.15});
-  setFont("normal",7,[255,255,255]);doc.text("4 núcleos",cx,cy+9,{align:"center"});
-  var vY=top+96;
-  c.nuclei.forEach(function(n){
-    setFont("bold",8.5,[37,53,72]);doc.text("Núcleo "+n.number+":",left+1,vY);
-    var lines=doc.splitTextToSize(n.name,121);
-    setFont("normal",8.5);doc.text(lines,left+26,vY);vY+=Math.max(9,lines.length*4.3);
+  space(194);
+  figTitle("Organización de los cuatro núcleos: "+c.career);
+  space(182);
+  var top=y+8,cx=105,cy=top+87;
+  doc.setDrawColor(145,159,175);doc.setLineDashPattern([2,2],0);
+  [[105,top+56,105,cy-17],[145,cy,145+0,cy],[65,cy,cy?84:84,cy],[105,cy+17,105,top+119]].forEach(function(v){
+   doc.line(v[0],v[1],v[2],v[3]);
   });
-  y=Math.max(vY+4,top+136);
-  write("Nota. Esquema académico de repaso basado en los cuatro núcleos descritos para la carrera; no representa calificaciones.",{fontSize:8,leading:5,gap:4});
+  doc.setLineDashPattern([],0);
+  doc.setFillColor(43,65,89);
+  doc.roundedRect(80,cy-16,50,32,4,4,"F");
+  setFont("bold",8,[255,255,255]);
+  doc.text(doc.splitTextToSize(c.career.toUpperCase(),45),105,cy-2,{align:"center",lineHeightFactor:1.15});
+  setFont("normal",7.5,[255,255,255]);doc.text("4 núcleos",105,cy+11,{align:"center"});
+  var places=[[105,top+30],[168,cy],[105,top+143],[42,cy]];
+  var palette=[[218,234,253],[211,243,233],[255,232,194],[236,220,250]];
+  c.nuclei.forEach(function(n,i){bubble(places[i][0],places[i][1],n.number,n.name,palette[i]);});
+  y=top+173;
+  write("Nota. Los cuatro núcleos corresponden a los campos de preparación definidos para la carrera.",{fontSize:8,leading:5,gap:3});
+ }
+ function methodFigure(key){
+  var diagrams={
+   "3.1":{title:"Secuencia general del proceso de titulación",steps:["Identificación","Requisitos","Modalidad","Evaluación","Cierre"]},
+   "3.2":{title:"Fuentes de información utilizadas",steps:["Estudiantes","Requisitos","Núcleos","Evaluaciones","Evidencias"]},
+   "3.3":{title:"Ruta de verificación de requisitos",steps:["Registro","Verificación","Validación","Consolidado","Seguimiento"]},
+   "3.4.1":{title:"Finalidad metodológica de los núcleos",steps:["Recuperar","Integrar","Aplicar","Evaluar"]},
+   "3.5":{title:"Componentes del examen complexivo",steps:["Teoría 40 %","Práctica 60 %","Resultado final"]},
+   "3.6":{title:"Proceso de análisis de resultados",steps:["Depuración","Agrupación","Indicadores","Gráficos","Interpretación"]},
+   "3.7":{title:"Planificación y seguimiento del cronograma",steps:["Actividades","Fechas","Ejecución","Evidencias","Informe"]}
+  };
+  var d=diagrams[key];if(!d)return;
+  space(63);
+  figTitle(d.title);
+  var top=y+5,steps=d.steps,xStep=width/steps.length;
+  steps.forEach(function(label,i){
+   var x=left+i*xStep+1,w=xStep-3;
+   doc.setFillColor(i%2?[224,239,246]:[219,230,247]);
+   doc.setDrawColor(133,158,183);
+   doc.roundedRect(x,top,w,21,2,2,"FD");
+   setFont("bold",8,[34,63,91]);
+   doc.text(doc.splitTextToSize(label,w-3),x+w/2,top+10,{align:"center",lineHeightFactor:1.2});
+   if(i<steps.length-1){setFont("bold",11);doc.text("›",x+w+1,top+13);}
+  });
+  y=top+29;
+  write("Nota. Representación metodológica; no corresponde a resultados cuantitativos.",{fontSize:8,leading:5,gap:4});
  }
  function scheduleTable(name,rows){
   space(32);heading("Cronograma de "+name+" · "+period,2);
@@ -168,20 +215,16 @@ function build(doc,payload,logoImage){
   write("Tabla. Actividades programadas por la unidad responsable; el estado exige evidencia de cumplimiento.",{fontSize:9,leading:5,gap:3});
   function header(){
    space(11);doc.setFillColor(232,237,246);doc.rect(left,y-5,width,9,"F");
-   setFont("bold",8);doc.text("Actividad",left+2,y);doc.text("Inicio",left+106,y);doc.text("Fin",left+129,y);
-   doc.text("Estado",left+150,y);y+=7;
+   setFont("bold",8);doc.text("Actividad",left+2,y);doc.text("Fecha de inicio",left+113,y);doc.text("Fecha de fin",left+141,y);y+=7;
   }
   header();
   rows.forEach(function(r){
    var label=(r.phase?r.phase+" · ":"")+r.activity;
-   var lines=doc.splitTextToSize(label,101);
+   var lines=doc.splitTextToSize(label,108);
    var h=Math.max(9,lines.length*4.4+3);
    if(y+h>264){page();header();}
    setFont("normal",8);doc.text(lines,left+2,y);
-   doc.text(txt(r.start),left+106,y);doc.text(txt(r.end),left+129,y);
-   var status=r.status==="EJECUTADO"?"Ejecutada":r.status==="PENDIENTE"?"Pendiente":
-       r.status==="REPROGRAMADO"?"Reprogram.":r.status==="NO_EJECUTADO"?"No ejecut.":"Sin verificar";
-   doc.text(status,left+150,y,{maxWidth:18});
+   doc.text(txt(r.start),left+113,y);doc.text(txt(r.end),left+141,y);
    doc.setDrawColor(226,230,236);doc.line(left,y+h-3,right,y+h-3);y+=h;
   });
   y+=5;
@@ -230,6 +273,7 @@ function build(doc,payload,logoImage){
    var career=careers.find(function(c){return c.section===node.number;});
    if(career)diagram(career);
   }
+  methodFigure(node.number);
   if(node.number==="3.7.1"){
    scheduleTable("Examen Complexivo",calendar.complexivo);
    gantt("Examen Complexivo",calendar.complexivo);
@@ -248,21 +292,11 @@ function build(doc,payload,logoImage){
  });
  page();
  write("Período académico: "+period,{style:"bold"});
- write("Estado del documento: BORRADOR PARCIAL. Únicamente se incorporan los capítulos y apartados con texto cargado en Inf. No incluye resultados académicos que no estén verificados.",{fontSize:9.5,leading:6});
- if(report.excludedChapters&&report.excludedChapters.length){
-   write("Capítulos aún no incorporados: "+report.excludedChapters.map(function(c){return c.number+". "+c.title;}).join("; ")+".",{fontSize:9,leading:6,style:"italic"});
- }
+ /* Los capítulos que aún no están incorporados no aparecen en el PDF. */
+
  report.chapters.forEach(function(c){chapter(c,1);});
  var total=doc.internal.getNumberOfPages();
- for(var n=1;n<=total;n++){
-  doc.setPage(n);
-  setFont("normal",8,[80,92,111]);
-  doc.text("Página "+n+" de "+total,n===1?176:right,n===1?42:283,{align:"right"});
-  if(n>1){
-   doc.setDrawColor(191,201,213);doc.line(left,275,right,275);
-   doc.text("Borrador de avance · "+period,left,282,{maxWidth:126});
-  }
- }
+ for(var n=1;n<=total;n++){doc.setPage(n);drawHeader(n,total,logoImage);}
  return {pages:total,figures:figure};
 }
 async function download(payload){

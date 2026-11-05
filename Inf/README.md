@@ -74,3 +74,7 @@ Cada texto genérico nuevo se incorpora exclusivamente a `Inf/sections` y su cla
 ## Exportación progresiva — capítulos disponibles
 
 El botón **Descargar PDF con lo avanzado** utiliza `InfReport.buildAvailable()`. El reporte completo (`build()`) conserva el índice de ocho capítulos en pantalla; la exportación toma solamente capítulos o subapartados que ya tengan texto incorporado, preservando sus encabezados antecesores. Por ahora genera capítulos 1, 2 y 3, los diagramas y cronogramas disponibles. Los capítulos 4–8 no se incluyen ni bloquean la exportación. `canExport` sigue siendo `false` para la emisión oficial y `canExportDraft` permanece `true` mientras exista texto. Un problema de presentación de diagramas no bloquea los controles del módulo. El PDF conserva la identificación BORRADOR PARCIAL NO LEGALIZADO; no contiene cifras académicas inventadas.
+
+## Revisión editorial del PDF (5 noviembre 2026)
+
+El PDF tiene un encabezado institucional completo y repetido en todas las páginas, título central de 23 pt en negrita con período académico, bloque de firmas con celdas y renglones independientes, sangría de primera línea de 1,27 cm para párrafos ordinarios, sin columna de estado en cronogramas ni textos de borrador en la portada. Los 16 diagramas de núcleos incluyen el nombre dentro de cada círculo, y la metodología suma siete figuras de flujo adicionales. El archivo continúa siendo una exportación progresiva sin certificación ni firma institucional efectiva; su estado interno se mantiene como no oficial.
