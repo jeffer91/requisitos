@@ -88,6 +88,42 @@ function nucleus(number){
  });
  render();
 }
+function showPending(){
+ var target=$("nc-pending-panel");
+ if(!target)return;
+ target.hidden=!target.hidden;
+ if(target.hidden)return;
+ target.textContent="";
+ target.appendChild(el("strong","Pendientes de "+(data.mode==="nucleos"?"Núcleo "+data.nucleus:"Examen Complexivo")));
+ var ids=Object.create(null),reports=[];
+ if(data.mode==="nucleos"){
+  data.nuclei.filter(function(r){return r.codigoCarrera===data.career&&Number(r.nucleo)===data.nucleus;}).forEach(function(r){ids[r.cedula]=r;});
+ }else data.exams.forEach(function(r){ids[studentId(r)]=r;});
+ currentRows().forEach(function(st){
+  var row=ids[studentId(st)],reasons=[];
+  var checked=st._ncomplexRequirements,requirements=checked&&checked.requirements||[];
+  if(requirements.length){
+   requirements.filter(function(req){return (data.mode==="complexivo"||req.key!=="titulacion")&&req.status!=="CUMPLE";})
+    .forEach(function(req){reasons.push(req.label+" ("+req.status+")");});
+  }
+  if(!row)reasons.push("Sin calificaciones");
+  else if(data.mode==="nucleos"){
+   row.evaluaciones.forEach(function(g,i){if(g===null||g===undefined)reasons.push("Falta E"+(i+1));});
+   if(row.totalMoodle===null)reasons.push("Falta Total Moodle");
+   if(row.estadoSync!=="SINCRONIZADO")reasons.push("Firebase: "+row.estadoSync);
+   if(row.cloudError)reasons.push(row.cloudError);
+  }else if(row.notaOficial===null||row.notaOficial===undefined)reasons.push("Falta nota final");
+  if(reasons.length)reports.push({name:studentName(st),issues:reasons});
+ });
+ target.appendChild(el("p",reports.length+" estudiantes con pendientes."));
+ if(!reports.length)return;
+ var list=el("ul");
+ reports.slice(0,35).forEach(function(item){
+  list.appendChild(el("li",item.name+": "+item.issues.join(", ")));
+ });
+ target.appendChild(list);
+ if(reports.length>35)target.appendChild(el("p","Se muestran los primeros 35; utiliza Buscar para revisar los demás."));
+}
 function summary(){
  var students=currentRows(),ids=Object.create(null);
  students.forEach(function(s){ids[studentId(s)]=true;});
@@ -300,6 +336,7 @@ async function boot(){
   button.addEventListener("click",function(){nucleus(Number(button.dataset.ncNucleus));});
  });
  $("nc-open-import").addEventListener("click",function(){promptImport(true);});
+ $("nc-show-pending").addEventListener("click",showPending);
  $("nc-close-import").addEventListener("click",function(){promptImport(false);});
  $("nc-analyze").addEventListener("click",analyze);
  ui.save.addEventListener("click",function(){save().catch(function(err){msg(err.message||String(err),"error");ui.save.disabled=false;});});
