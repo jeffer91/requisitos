@@ -71,3 +71,22 @@ npm run test:core
 ```
 
 Las pruebas de código y sincronización usan dobles simulados de BDLocal y Firestore; **no equivalen a una prueba en producción dentro de Electron**, ni comprueban que las reglas y cuentas estén ya configuradas en Firebase.
+
+## Solución al bloqueo del selector de períodos (noviembre 2026)
+
+El Centro Ncomplex **consulta los períodos directamente desde `ConNcomplex.listPeriods()`**, con respaldo de lectura en la tabla `periodos`. La operación ya no depende de crear `evaluaciones_nucleos`. Al seleccionar un período, las matrículas y evaluaciones se cargan aunque la lectura de notas de núcleos produzca una advertencia.
+
+`NcomplexNucleosStore` ya **no llama a `indexedDB.open` con una versión nueva ni ejecuta migraciones**. Para preservar la estructura y los registros académicos de instalaciones existentes:
+- Si `evaluaciones_nucleos` ya existe, sigue pudiendo leerse.
+- Las cargas nuevas se guardan en `settings`, con claves exclusivas `ncomplex:nucleo:<cedula>__<periodoId>__N<núcleo>` (salvo que solo exista la tabla especializada), sin sobrescribir otras configuraciones.
+- `list()` combina ambos orígenes y toma la versión local más reciente de cada registro.
+- `Inf/ConInf` puede leer las notas con transacciones `readonly`, incluyendo las guardadas en `settings`.
+- Las notas siguen sincronizándose con la entidad remota `evaluaciones_nucleos` de Firestore. Este cambio **no altera los documentos de Firebase ni ejecuta ninguna publicación**.
+
+Se agregaron pruebas sin datos reales:
+```bash
+node scripts/verify-ncomplex-bdlocal-nonblocking.js
+node scripts/verify-ncomplex-period-selector.js
+```
+
+Estas pruebas simulan IndexedDB, el conector académico y la interfaz; demuestran que la creación de la tabla de núcleos no bloquea el selector. Aún se requiere probar la aplicación instalada en Electron con su base específica para confirmar el funcionamiento visual.
