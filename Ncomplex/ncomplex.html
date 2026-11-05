@@ -20,25 +20,22 @@ Función o funciones:
 </head>
 <body>
   <main class="ncomplex-app">
-    <header class="ncomplex-page-head">
-      <div class="ncomplex-page-title">
-        <h1>Ncomplex</h1>
-        <p>Importa y sincroniza calificaciones de titulación.</p>
-      </div>
-      <div id="ncomplex-status" class="ncomplex-statusbar is-info" aria-live="polite">
-        Conectando con BDLocal...
-      </div>
-    </header>
-
     <section class="nc-center" aria-label="Centro de carga de notas">
       <div class="nc-center-head">
-        <div><h2>Centro de calificaciones</h2><span>Núcleos y examen complexivo</span></div>
-        <span id="nc-cloud-state" class="nc-cloud-pill">Sincronización pendiente</span>
+        <div><h1>Ncomplex</h1><span>Centro de calificaciones</span></div>
+        <div class="nc-center-statuses">
+          <span id="ncomplex-status" class="ncomplex-statusbar is-info" aria-live="polite">Conectando con BDLocal...</span>
+          <span id="nc-cloud-state" class="nc-cloud-pill">Sin notas cargadas</span>
+        </div>
       </div>
       <div class="nc-filters">
         <label>Período<select id="nc-period"><option value="">Seleccionar período</option></select></label>
         <label>Carrera<select id="nc-career"><option value="">Seleccionar carrera</option></select></label>
         <label>Grupo<select id="nc-group"><option value="">Seleccionar</option><option value="PRESENCIAL">Presencial</option><option value="ONLINE">Online</option><option value="PVC">PVC</option></select></label>
+      </div>
+      <div id="nc-guide" class="nc-guide" aria-live="polite">
+        <div class="nc-guide-text"><span id="nc-guide-title">Selecciona el período para comenzar</span><span id="nc-guide-detail">Continuaremos carrera por carrera, desde el Núcleo 1</span></div>
+        <button id="nc-next-task" type="button" hidden>Siguiente pendiente</button>
       </div>
       <div class="nc-tabs" role="tablist" aria-label="Tipo de evaluación">
         <button id="nc-tab-nucleos" class="is-active" role="tab" aria-selected="true" type="button">Núcleos</button>
@@ -305,6 +302,7 @@ Función o funciones:
   <script src="../Inf/sections/03-metodologia/section.js"></script>
   <script src="../Inf/core/inf.nuclei.js"></script>
   <script src="ncomplex.nucleos.parser.js"></script>
+  <script src="ncomplex.smart.js"></script>
   <script src="ncomplex.nucleos.store.js"></script>
   <script src="ncomplex.nucleos.firebase.js"></script>
   <script src="ncomplex.nucleos.policy.js"></script>

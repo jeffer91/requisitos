@@ -8,15 +8,15 @@
    .replace(/\s+/g," ").trim();}
  function periodId(input){
   var s=norm(input),short=s.match(/\b(oct|octubre)\s*(?:a|al|mar|marzo|[-– ])*\s*(?:mar|marzo)\s*(20\d{2}|\d{2})\b/);
-  if(short){var y=Number(short[3]);if(y<100)y+=2000;return (y-1)+"-10__"+y+"-03";}
+  if(short){var y=Number(short[2]);if(y<100)y+=2000;return (y-1)+"-10__"+y+"-03";}
   var april=s.match(/\b(?:abr|abril)\s*(?:a|al|sep|septiembre|[-– ])*\s*(?:sep|sept|septiembre)\s*(20\d{2}|\d{2})\b/);
-  if(april){var a=Number(april[2]);if(a<100)a+=2000;return a+"-04__"+a+"-09";}
+  if(april){var a=Number(april[1]);if(a<100)a+=2000;return a+"-04__"+a+"-09";}
   return "";
  }
  function kind(raw){
   var s=norm(raw.slice(0,2800));
-  var nucleus=/evaluacion parcial [1-4]/.test(s)&&/\bt nucleo\b/.test(s);
-  var complexivo=/componente (?:teorico|practico) examen complexivo/.test(s);
+  var nucleus=/\bt nucleo\b/.test(s)||/evaluacion parcial [1-4]/.test(s);
+  var complexivo=/\bexamen complexivo\b/.test(s)&&!(/\bt nucleo\b/.test(s));
   return nucleus&&!complexivo?"nucleos":complexivo&&!nucleus?"complexivo":
     nucleus&&complexivo?"ambiguous":"";
  }

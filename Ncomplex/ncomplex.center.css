@@ -57,3 +57,21 @@ body:not(.nc-advanced-open) #ncomplex-btn-save{display:none}
 .nc-review-conflict small{font-size:11px;color:#65798b}
 .nc-conflict-action,#nc-firebase-login button{border:1px solid #c9d6e2;border-radius:8px;padding:8px 12px;background:#fff;color:#25445c;font-size:12px;font-weight:600}
 #nc-firebase-login button.nc-primary{background:#1e5388;border-color:#1e5388;color:#fff}
+
+/* Encabezado único y guía de carga sin contenido redundante. */
+.nc-center-head h1{font-size:23px;margin:0 0 4px;color:#192d47;font-weight:700;line-height:1.25}
+.nc-center-statuses{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.nc-center-statuses .ncomplex-statusbar{font-size:11px;padding:5px 10px;margin:0;border-radius:999px;max-width:280px}
+.nc-guide{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #dce6ef;
+ border-radius:10px;background:#fafcff;padding:12px 14px;margin:0 0 12px}
+.nc-guide-text{display:flex;flex-direction:column;gap:3px}
+.nc-guide-title,.nc-guide-text span:first-child{font-weight:650;font-size:13px;color:#25405d}
+.nc-guide-text span:last-child{font-size:12px;color:#718096}
+.nc-guide button{padding:7px 12px;border:1px solid #c6d8e7;border-radius:8px;background:#fff;color:#22547d;font-weight:600;font-size:12px;white-space:nowrap}
+.nc-context-options{display:flex;flex-wrap:wrap;gap:8px;padding-top:7px}
+.nc-context-options button{padding:7px 10px;border:1px solid #bed2e6;border-radius:8px;background:#fff;color:#26547e;font-size:12px}
+.nc-duplicate-group{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:7px 0;border-top:1px solid #e4eaf0;padding-top:9px}
+.nc-duplicate-group strong{font-size:12px}
+.nc-duplicate-group select{max-width:460px;min-width:245px;font-size:12px}
+.nc-center-statuses .nc-cloud-pill{white-space:normal;text-align:center}
+@media(max-width:760px){.nc-center-head{align-items:flex-start}.nc-center-statuses{justify-content:flex-start}.nc-guide{align-items:flex-start;flex-direction:column}}
