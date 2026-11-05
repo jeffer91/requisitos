@@ -44,11 +44,13 @@ const api=context.window.ActasNumbering;
 const period="2025-10__2026-03";
 const input=(cedula,modalidad="EXAMEN_COMPLEXIVO")=>({cedula,periodoId:period,modalidad,nombre:"ESTUDIANTE PRUEBA",carrera:"ADMINISTRACIÓN"});
 async function main(){
- const a=input("1313806919"),b=input("1313888877"),c=input("1724999911");
+ const a=input("1313806919"),b=input("1313888877","TRABAJO_TITULACION"),c=input("1724999911");
  const [one,two,oneAgain,three]=await Promise.all([api.getOrAssign(a),api.getOrAssign(b),api.getOrAssign(a),api.getOrAssign(c)]);
  assert.equal(one.numeroActa,oneAgain.numeroActa,"El mismo estudiante conserva su número al registrar simultáneamente");
  assert.equal(new Set([one.numeroActa,two.numeroActa,three.numeroActa]).size,3,"Dos equipos concurrentes no repiten números");
- assert.ok([one,two,three].every(x=>/^\d{4}-\d{4}-\d{2}-\d{4}$/.test(x.numeroActa)),"Formato año-cédula-mes-consecutivo");
+ assert.ok(/^CX-2026-1313-05-\d{4}$/.test(one.numeroActa),"Complexivo lleva CX");
+ assert.ok(/^TT-2026-1313-05-\d{4}$/.test(two.numeroActa),"Trabajo lleva TT");
+ assert.ok(/^CX-2026-1724-05-\d{4}$/.test(three.numeroActa),"Correlativo compartido");
  assert.ok([one,two,three].every(x=>x.mesClave==="2026-05"&&x.fechaEmision==="2026-05-29"),"El año y mes del folio coinciden con la fecha institucional, no con el día actual");
  assert.equal((await api.lookup(a)).numeroActa,one.numeroActa);
  assert.equal((await api.list(period)).length,3);

@@ -20,9 +20,11 @@ function monthNow(){
  if(!/^\d{4}$/.test(year)||!/^(0[1-9]|1[0-2])$/.test(month))throw Error("No se pudo determinar el mes de registro.");
  return {year,month,key:year+"-"+month};
 }
-function code(year,cedula,month,next){
+function code(year,cedula,month,next,modalidad){
  if(!Number.isSafeInteger(next)||next<1||next>9999)throw Error("El consecutivo mensual agotó los cuatro dígitos. Requiere intervención del administrador.");
- return year+"-"+ced(cedula).slice(0,4)+"-"+month+"-"+String(next).padStart(4,"0");
+ const prefix=modalidad==="EXAMEN_COMPLEXIVO"?"CX":modalidad==="TRABAJO_TITULACION"?"TT":"";
+ if(!prefix)throw Error("Se necesita una modalidad válida para el prefijo oficial del acta.");
+ return prefix+"-"+year+"-"+ced(cedula).slice(0,4)+"-"+month+"-"+String(next).padStart(4,"0");
 }
 function script(src){return new Promise((resolve,reject)=>{
  const full=new URL(src,d.baseURI).href,prev=Array.from(d.scripts||[]).find(x=>x.src===full);
@@ -56,7 +58,9 @@ function asEntry(snap){
  return Object.assign({},value,{id:snap.id});
 }
 function validExisting(row,input){
- if(!row||!/^\d{4}-\d{4}-(0[1-9]|1[0-2])-\d{4}$/.test(t(row.numeroActa)))throw Error("El registro central contiene un acta sin número válido. Requiere revisión.");
+ if(!row||!/^(?:(?:CX|TT)-)?\d{4}-\d{4}-(0[1-9]|1[0-2])-\d{4}$/.test(t(row.numeroActa)))throw Error("El registro central contiene un acta sin número válido. Requiere revisión.");
+ const numero=t(row.numeroActa),expected=row.modalidad==="EXAMEN_COMPLEXIVO"?"CX":row.modalidad==="TRABAJO_TITULACION"?"TT":"";
+ if(/^(CX|TT)-/.test(numero)&&!numero.startsWith(expected+"-"))throw Error("El prefijo oficial no coincide con la modalidad del acta.");
  if(row.periodoId!==period(input.periodoId)||row.cedula!==ced(input.cedula))throw Error("El acta central no coincide con el estudiante o período.");
  if(row.modalidad!==t(input.modalidad))throw Error("El acta ya está numerada con otra modalidad. Revisa el registro antes de continuar.");
  if(row.fechaEmision&&w.ActasIssueDate&&row.fechaEmision!==w.ActasIssueDate.forPeriod(input.periodoId).date)throw Error("La fecha de emisión registrada no coincide con la política académica actual. Se requiere conciliación, sin crear otro folio.");
@@ -115,7 +119,7 @@ async function getOrAssign(input){
   const counter=await tx.get(counterRef);
   const current=counter.exists?Number(counter.data().ultimo)||0:0;
   if(!Number.isSafeInteger(current)||current<0)throw Error("Contador central inválido: no se asignó número.");
-  const next=current+1,numeroActa=code(month.year,input.cedula,month.month,next);
+  const next=current+1,numeroActa=code(month.year,input.cedula,month.month,next,mode);
   const numberRef=db.collection(NUMBERS).doc(numeroActa);
   const used=await tx.get(numberRef);
   if(used.exists)throw Error("Número ya reservado centralmente. Se suspendió la asignación para evitar duplicados.");

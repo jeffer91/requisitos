@@ -57,9 +57,12 @@ vm.runInNewContext(source,con,{filename:"cone.actas.js"});
  assert.ok(!result.data.requirements.some(r=>r.periodoId===another));
  let saved=null;
  con.window.ConFicha={
+  __entityWritesInstalled:true,
   ready:async()=>({ok:true}),
   updateGraduationModality:async(id,mode,options)=>{
    saved={id,mode,options};
+   const row=students.find(x=>(x.cedula.length===9?"0"+x.cedula:x.cedula)===options.cedula&&x.periodoId===options.periodoId);
+   if(row)row.modalidadTitulacion=mode;
    return {ok:true,value:mode};
   }
  };
@@ -68,6 +71,7 @@ vm.runInNewContext(source,con,{filename:"cone.actas.js"});
   cedula:"0987654321",studentId:"0987654321__"+period,mode:"TRABAJO_TITULACION"
  });
  assert.equal(changed.ok,true);
+ assert.equal(changed.verified,true,"El cambio debe verificarse en matrícula V2");
  assert.equal(saved.id,"0987654321__"+period);
  assert.equal(saved.mode,"TRABAJO_TITULACION");
  assert.equal(saved.options.periodoId,period,"La variable periodoId está definida");

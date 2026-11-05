@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,".."),source=fs.readFileSync(path.join(root,"A
 new vm.Script(source);
 let lastDoc=null,lastZip=null,downloads=[];
 class Pdf{
- constructor(){this.pages=1;this.index=1;this.images=0;this.texts=[];this.rects=[];this.segments=[];this.fontSizes=[];lastDoc=this;}
+ constructor(options){this.options=options;this.pages=1;this.index=1;this.images=0;this.texts=[];this.rects=[];this.segments=[];this.fontSizes=[];lastDoc=this;}
  setDrawColor(){return this;}setLineWidth(){return this;}rect(x,y,w,h){this.rects.push({x,y,w,h,page:this.index});return this;}setFont(){return this;}setFontSize(v){this.fontSizes.push(v);return this;}
  setFillColor(){return this;}line(x1,y1,x2,y2){this.segments.push({x1,y1,x2,y2,page:this.index});return this;}
  text(value){assert.ok(value!==undefined);this.texts.push(Array.isArray(value)?value.join(" "):String(value));return this;}
@@ -41,8 +41,10 @@ async function main(){
  const one=await api.build(exam);assert.equal(one.type,"application/pdf");assert.ok(lastDoc.pages>=2,"Acta individual ocupa al menos dos páginas");assert.ok(lastDoc.images>=2,"Logo insertado en ambas páginas");
  assert.ok(lastDoc.texts.some(x=>x.includes("N.º DE ACTA: 2026-0000-10-0001")),"Número único al inicio del cuerpo, no en portada");
  assert.ok(lastDoc.rects.some(r=>r.page===1&&r.x===15&&r.y===15&&r.w===180&&r.h===30),"Encabezado ACT 18 cm y 3 cm de altura");
- assert.ok(lastDoc.rects.some(r=>r.page===1&&r.x===15&&r.y===225&&r.w===180&&r.h===42),"Bloque de firmas 18 x 4,2 cm");
- for(const coords of [[67,15,67,45],[143,15,143,45],[143,26.5,195,26.5],[15,34,195,34],[75,225,75,267],[135,225,135,267],[15,249,195,249],[15,256.5,195,256.5]])assert.ok(lastDoc.segments.some(l=>["x1","y1","x2","y2"].every((k,i)=>l[k]===coords[i])&&l.page===1),"Estructura de celdas ACT: "+coords.join(","));
+ assert.equal(lastDoc.options.format,"letter","Todas las páginas son Carta");
+ assert.ok(lastDoc.rects.some(r=>r.page===1&&Math.abs(r.x-17.95)<.001&&Math.abs(r.y-219.4)<.001&&r.w===180&&r.h===42),"Firmas 18 x 4,2 cm, a 1,8 cm del pie");
+ assert.ok(!lastDoc.rects.some(r=>r.page!==1&&Math.abs(r.y-219.4)<.001&&r.w===180&&r.h===42),"Las firmas solo se dibujan en portada");
+ for(const coords of [[67,15,67,45],[143,15,143,45],[143,26.5,195,26.5],[15,34,195,34],[77.95,219.4,77.95,261.4],[137.95,219.4,137.95,261.4],[17.95,226.4,197.95,226.4],[17.95,242.4,197.95,242.4],[17.95,250.4,197.95,250.4]])assert.ok(lastDoc.segments.some(l=>["x1","y1","x2","y2"].every((k,i)=>Math.abs(l[k]-coords[i])<.001)&&l.page===1),"Estructura de celdas ACT: "+coords.join(","));
  assert.ok(lastDoc.fontSizes.filter(n=>n===23).length>=2,"Título central y período académico deben usar ambos 23 pt");
  assert.ok(lastDoc.texts.some(t=>t.includes("Versión: 1.0")),"Versión en celda C2");
  assert.ok(lastDoc.texts.some(t=>t.startsWith("Página 1 de ")),"Paginación automática de portada");

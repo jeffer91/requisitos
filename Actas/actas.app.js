@@ -1,7 +1,7 @@
 /* Módulo Actas: generación final con validación documental y folio central único. */
 (function(w,d){"use strict";
 const C=w.ActasCatalog,CX=C.COMPLEXIVO,TT=C.TRABAJO;
-const S={periods:[],students:[],reqs:[],meta:{},numbers:new Map(),numberingError:"",numberingVerified:false,numberingCacheCount:0,periodo:"",mode:"TODAS",busqueda:"",estado:"todos",selected:new Set(),ready:false,loading:false,requestId:0,cronograma:null};
+const S={periods:[],students:[],reqs:[],meta:{},numbers:new Map(),numberingError:"",numberingVerified:false,numberingCacheCount:0,periodo:"",mode:"TODAS",busqueda:"",estado:"todos",selected:new Set(),ready:false,loading:false,exporting:false,requestId:0,cronograma:null};
 const $=id=>d.getElementById(id),text=v=>String(v==null?"":v).trim();
 function norm(v){return text(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function esc(v){return text(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -191,7 +191,7 @@ function renderTable(){
  }).join(""):'<tr><td colspan="9" class="empty">No existen estudiantes para estos filtros.</td></tr>';
  S.visible=list;
  $("actas-lote").disabled=!S.numberingVerified||!list.some(r=>r.verified&&S.selected.has(r.identity));
- $("actas-zip").disabled=!S.numberingVerified||!all.some(r=>r.verified);
+ $("actas-zip").disabled=S.exporting||!S.numberingVerified||!all.some(r=>r.verified);
  $("actas-registrar-lote").disabled=!S.numberingVerified||!all.some(r=>r.verified&&!registeredNumber(r));
 }
 function prepare(r){
@@ -211,9 +211,7 @@ async function action(r){
  }catch(e){notify("Error al descargar PDF: "+e.message,true);}
 }
 function start(){const ids=["actas-total","actas-aprobados","actas-numeradas"];ids.forEach(k=>$(k).textContent="—");renderTable();renderCron();}
-async function load(){const requestId=++S.requestId,requestedPeriod=S.periodo;if(!requestedPeriod){S.loading=false;start();return;}S.loading=true;notify("Consultando estudiantes y requisitos en Base Local…");try{const result=await w.ConActas.read({periodoId:requestedPeriod});if(requestId!==S.requestId||requestedPeriod!==S.periodo)return;S.students=result.data.students||[];S.reqs=result.data.requirements||[];S.meta=result.meta&&result.meta.diagnostics||{};S.ready=true;S.numbers=new Map();S.numberingVerified=false;S.numberingCacheCount=0;S.numberingError="";hydrateNumbers(requestId,requestedPeriod);
-const metrics=S.meta;const details=metrics.requirements!==undefined?" Requisitos relacionados: "+metrics.requirements+".":"";
-notify("Expedientes actualizados."+details+" La emisión de actas finales exige un folio central y expediente completo.");renderTable();renderCron();}catch(e){if(requestId!==S.requestId)return;S.students=[];S.reqs=[];notify("Error al cargar los datos: "+e.message,true);renderTable();}finally{if(requestId===S.requestId)S.loading=false;}}
+async function load(){const requestId=++S.requestId,requestedPeriod=S.periodo;if(!requestedPeriod){S.loading=false;start();return;}S.loading=true;notify("Consultando estudiantes y requisitos en Base Local…");try{const result=await w.ConActas.read({periodoId:requestedPeriod});if(requestId!==S.requestId||requestedPeriod!==S.periodo)return;S.students=result.data.students||[];S.reqs=result.data.requirements||[];S.meta=result.meta&&result.meta.diagnostics||{};S.ready=true;S.numbers=new Map();S.numberingVerified=false;S.numberingCacheCount=0;S.numberingError="";renderTable();renderCron();await hydrateNumbers(requestId,requestedPeriod);}catch(e){if(requestId!==S.requestId)return;S.students=[];S.reqs=[];notify("Error al cargar los datos: "+e.message,true);renderTable();}finally{if(requestId===S.requestId)S.loading=false;}}
 async function init(){try{await w.ConActas.ready();S.periods=await w.ConActas.listPeriods();const select=$("actas-periodo");select.innerHTML='<option value="">Seleccione período</option>'+S.periods.map(p=>'<option value="'+esc(idPeriod(p.periodoId||p.id||p.periodId))+'">'+esc(p.nombre||p.label||p.periodoLabel||p.periodo||p.descripcion||p.id||p.periodoId)+'</option>').join("");
 const global=retrieve("REQ_PERIODO_GLOBAL_V1",{});const preferred=idPeriod(global.periodoId||global.id||global.value||"");S.periodo=preferred&&S.periods.some(p=>idPeriod(p.periodoId||p.id||p.periodId)===preferred)?preferred:idPeriod(S.periods[0]&&(S.periods[0].periodoId||S.periods[0].id)||"");select.value=S.periodo;$("actas-estado").value=S.estado;$("actas-modalidad").value=S.mode;await load();}catch(e){notify("No se pudo iniciar Actas: "+e.message,true);}}
 $("actas-periodo").addEventListener("change",e=>{S.periodo=idPeriod(e.target.value);S.selected.clear();S.students=[];S.reqs=[];S.numbers=new Map();S.numberingVerified=false;S.numberingCacheCount=0;load();});
@@ -233,11 +231,15 @@ $("actas-estudiantes").addEventListener("change",async e=>{
   const el=e.target,r=S.visible[Number(el.dataset.mode)];if(!r||r.mode===el.value)return;
   const old=r.mode,requested=el.value;el.disabled=true;notify("Guardando modalidad en Base Local…");
   try{
+    if(!S.numberingVerified)throw Error("Verifica el libro central de actas antes de cambiar la modalidad.");
     if(registeredNumber(r))throw Error("Esta acta ya tiene un número oficial. La modalidad no puede cambiarse desde Actas sin una revisión institucional.");
+    const remote=await w.ActasNumbering.lookup(numberInput(r));
+    if(remote)throw Error("El expediente ya tiene folio oficial en Firestore. No es posible cambiar la modalidad desde Actas.");
     if(w.confirm&&!w.confirm("Vas a cambiar la modalidad de titulación en Ficha. Actas no consulta las calificaciones de Ncomplex; si existen evaluaciones guardadas tendrás que revisarlas en Ncomplex, pues el cambio no las convierte ni las elimina. ¿Confirmas el cambio?")){el.value=old;return;}
     await w.ConActas.setModality({studentId:r.student.idEstudiantePeriodo||r.identity,cedula:ced(r.student),periodoId:S.periodo,periodoLabel:periodLabel(),mode:requested});
     S.selected.delete(r.identity);await load();const updated=rows().find(x=>x.identity===r.identity);
-    notify(updated&&updated.conflict?"Modalidad guardada. Revisa la evaluación en Ncomplex antes de emitir el acta.":"Modalidad guardada en Base Local. Ficha y Actas utilizarán el nuevo valor.",false);
+    if(!updated||updated.mode!==requested)throw Error("La modalidad solicitada no coincide con la lectura posterior de Actas. Revisa la matrícula en Ficha.");
+    notify(updated.conflict?"Modalidad guardada. Revisa la evaluación en Ncomplex antes de emitir el acta.":"Modalidad guardada y comprobada en Ficha y Actas.",false);
   }catch(err){el.value=old;notify("No se pudo cambiar modalidad: "+err.message,true);}finally{el.disabled=false;}
 });
 $("actas-estudiantes").addEventListener("click",async e=>{
@@ -269,20 +271,32 @@ $("actas-lote").addEventListener("click",async()=>{
  }catch(e){notify("No se pudieron generar los PDF: "+e.message,true);}
 });
 $("actas-zip").addEventListener("click",async()=>{
- if(!S.periodo)return;
+ if(!S.periodo||S.exporting)return;
  const all=rows(),approved=all.filter(r=>r.verified),button=$("actas-zip");
- if(!approved.length){notify("No existen estudiantes habilitados.",true);return;}
- const summary=all.map(r=>({cedula:ced(r.student),nombre:name(r.student),carrera:career(r.student),modalidad:r.mode===TT?"TRAB":r.mode===CX?"COMPLEX":"ARTICULO",estado:r.verified?"EN_PROCESO":"EXCLUIDO",motivo:r.verified?"":r.conflict?"Revisar identidad, matrícula o modalidad":r.proof.missing.join("; "),archivo:""}));
- button.disabled=true;
+ if(!S.numberingVerified){notify("Verifica el libro central de Firestore antes de exportar.",true);return;}
+ if(!approved.length){notify("No existen estudiantes con expediente completo para emitir actas finales.",true);return;}
+ const summary=all.map(r=>({cedula:ced(r.student),nombre:name(r.student),carrera:career(r.student),modalidad:r.mode===TT?"TRAB":r.mode===CX?"COMPLEX":"ARTICULO",numeroActa:registeredNumber(r)?.numeroActa||"",estado:r.verified?"EN_PROCESO":"EXCLUIDO",motivo:r.verified?"":r.conflict?"Revisar identidad, matrícula o modalidad":r.proof.missing.join("; "),archivo:""}));
+ S.exporting=true;button.disabled=true;renderTable();
  try{
-  const group=await assignToRows(approved,p=>notify("Asignando números oficiales únicos: "+p.done+"/"+p.total+"…"));
-  group.items.forEach(x=>{const row=summary.find(y=>y.cedula===ced(x.student));if(row)row.numeroActa=x.record.numeroActa||"";});
-  const result=await w.ActasPDF.downloadZip(group.items,summary,S.periodo,p=>notify("Generando ZIP: "+p.done+"/"+p.total+"…"));
-  renderTable();notify("ZIP descargado: "+result.generated+" actas finales numeradas."+(result.errors?" Hubo "+result.errors+" errores de generación; revisa el CSV.":""),result.errors>0);
- }catch(e){notify("No se pudo exportar el ZIP: "+e.message,true);}
- finally{renderTable();}
+  const items=[];
+  for(let i=0;i<approved.length;i++){
+   const r=approved[i],row=summary.find(x=>x.cedula===ced(r.student)&&x.modalidad===(r.mode===TT?"TRAB":"COMPLEX"));
+   try{
+    const item=await prepareWithNumber(r);
+    items.push(item);
+    if(row)row.numeroActa=item.record.numeroActa;
+   }catch(error){
+    if(row){row.estado="ERROR";row.motivo=apiError(error);row.numeroActa=registeredNumber(r)?.numeroActa||"";}
+   }
+   notify("Preparando ZIP: "+(i+1)+"/"+approved.length+" expedientes…");
+  }
+  if(!items.length)throw Error("No se pudo preparar ninguna acta. Verifica los permisos de Firestore y los requisitos.");
+  const result=await w.ActasPDF.downloadZip(items,summary,S.periodo,p=>notify("Generando PDF: "+p.done+"/"+p.total+"…"));
+  const failed=summary.filter(x=>x.estado==="ERROR").length;
+  notify("ZIP descargado: "+result.generated+" actas PDF; "+result.excluded+" registros excluidos; "+failed+" errores. Consulta el CSV.",failed>0);
+ }catch(error){notify("No se pudo exportar el ZIP: "+apiError(error),true);}
+ finally{S.exporting=false;renderTable();}
 });
-
 $("actas-exportar-cron").addEventListener("click",()=>{if(!S.periodo)return;const value={version:1,periodoId:S.periodo,mode:S.mode,groups:collectCron()};const a=d.createElement("a"),url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:"application/json"}));a.href=url;a.download="Cronograma_UTET_"+S.periodo+"_"+S.mode+".json";d.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);});
 $("actas-importar-cron").addEventListener("change",async e=>{const f=e.target.files&&e.target.files[0];if(!f||!S.periodo)return;try{const incoming=JSON.parse(await f.text());if(incoming.periodoId!==S.periodo||incoming.mode!==S.mode||!C.valid(incoming.groups))throw Error("El archivo no corresponde al período y modalidad seleccionados.");const standard=C.get(S.mode,false);const groupMap=new Map(incoming.groups.flatMap(g=>(g.actividades||[]).map(a=>[a.id,a])));for(const g of standard)for(const a of g.actividades){const given=groupMap.get(a.id);if(given){a.inicio=/^\d{4}-\d\d-\d\d$/.test(given.inicio||"")?given.inicio:"";a.fin=/^\d{4}-\d\d-\d\d$/.test(given.fin||"")?given.fin:"";}}setCron(standard);notify("Cronograma importado. Pulsa Guardar cronograma para conservarlo.");}catch(err){notify("No se pudo importar: "+err.message,true);}finally{e.target.value="";}});
 

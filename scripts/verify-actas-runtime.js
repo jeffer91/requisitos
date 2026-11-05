@@ -54,8 +54,9 @@ const win={
  ActasIssueDate:{forPeriod:()=>({date:"2026-05-29",year:"2026",month:"05",monthKey:"2026-05",holidaysVerified:true}),mayRegister:()=>true},
  ActasNumbering:{
   async list(periodoId){return [...centralNumbers.values()].filter(x=>x.periodoId===periodoId);},
+   async lookup(input){return centralNumbers.get(input.periodoId+"__"+input.cedula)||null;},
   async getOrAssign(input){const key=input.periodoId+"__"+input.cedula;if(centralNumbers.has(key))return centralNumbers.get(key);
-   centralCounter++;const entry={identidad:key,periodoId:input.periodoId,cedula:input.cedula,modalidad:input.modalidad,numeroActa:"2026-"+input.cedula.slice(0,4)+"-10-"+String(centralCounter).padStart(4,"0"),fechaCliente:"2026-10-30"};
+   centralCounter++;const entry={identidad:key,periodoId:input.periodoId,cedula:input.cedula,modalidad:input.modalidad,numeroActa:(input.modalidad==="TRABAJO_TITULACION"?"TT-":"CX-")+"2026-"+input.cedula.slice(0,4)+"-10-"+String(centralCounter).padStart(4,"0"),fechaCliente:"2026-10-30"};
    centralNumbers.set(key,entry);return entry;},
   readableError:e=>String(e&&e.message||e)
  },
