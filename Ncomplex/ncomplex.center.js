@@ -15,7 +15,7 @@ function studentCareer(r){return t(r.NombreCarrera||r.nombreCarrera||r.Carrera||
 function studentCode(r){return t(r.CodigoCarrera||r.codigoCarrera||r.codigo_carrera)||studentCareer(r);}
 function studentMode(r){return t(r.modalidadTitulacion);}
 function currentRows(){return data.students.filter(function(s){return studentCode(s)===data.career;});}
-function cloudCount(){return data.nuclei.filter(function(r){return r.estadoSync!=="SINCRONIZADO";}).length;}
+function cloudCount(){return data.nuclei.filter(function(r){return r.estadoSync!=="SINCRONIZADO"&&(!data.career||r.codigoCarrera===data.career);}).length;}
 function currentConflicts(){return data.nuclei.filter(function(r){
  return r.estadoSync==="CONFLICTO" && r.codigoCarrera===data.career && (!data.group||r.grupoInforme===data.group);
 });}
@@ -28,7 +28,8 @@ function careerInfo(){
 }
 function nucleusCatalog(){try{return w.InfNuclei&&w.InfNuclei.careers?w.InfNuclei.careers():[];}catch(e){return [];}}
 function nucleusTitle(number){
- var name=careerInfo()&&careerInfo().name,entry=nucleusCatalog().find(function(c){return norm(c.career)===norm(name);});
+ var name=careerInfo()&&careerInfo().name,base=w.NcomplexSmart&&w.NcomplexSmart.baseCareer;
+ var entry=nucleusCatalog().find(function(c){return base?base(c.career)===base(name):norm(c.career)===norm(name);});
  return entry&&entry.nuclei[number-1]?entry.nuclei[number-1].name:"Núcleo "+number;
 }
 function groupGuess(st){
@@ -73,7 +74,11 @@ async function refresh(){
  var previous=data.career;ui.career.textContent="";option(ui.career,"","Seleccionar carrera");
  Object.keys(careers).sort(function(a,b){return careers[a].localeCompare(careers[b],"es");}).forEach(function(k){option(ui.career,k,careers[k]);});
  data.career=careers[previous]?previous:"";
- if(!data.career && Object.keys(careers).length===1)data.career=Object.keys(careers)[0];
+ if(!data.career){
+  var codes=Object.keys(careers).sort(function(a,b){return careers[a].localeCompare(careers[b],"es");});
+  data.career=codes.find(function(code){return !/sin carrera/i.test(careers[code]);})||codes[0]||"";
+  data.nucleus=1;
+ }
  ui.career.value=data.career;showGroup();syncClassic();render();
 }
 async function loadPeriod(){
@@ -135,32 +140,59 @@ function showPending(){
  target.appendChild(list);
  if(reports.length>35)target.appendChild(el("p","Se muestran los primeros 35; utiliza Buscar para revisar los demás."));
 }
+function careerOptions(){
+ return Array.prototype.map.call(ui.career.options||[],function(o){return {code:o.value,label:o.textContent};}).filter(function(r){return !!r.code;});
+}
+function guide(){
+ var title=$("nc-guide-title"),detail=$("nc-guide-detail"),next=$("nc-next-task");if(!title||!detail)return;
+ if(!data.period){title.textContent="Selecciona el período";detail.textContent="El sistema comenzará con la primera carrera y el Núcleo 1.";next.hidden=true;return;}
+ if(!data.career){title.textContent="Selecciona una carrera";detail.textContent="Carreras recuperadas de BDLocal.";next.hidden=true;return;}
+ title.textContent=(careerInfo()&&careerInfo().name||data.career)+" · "+(data.mode==="nucleos"?"Núcleo "+data.nucleus+" — "+nucleusTitle(data.nucleus):"Examen complexivo");
+ var task=w.NcomplexSmart&&w.NcomplexSmart.nextTask(careerOptions(),data.students,data.nuclei,data.career,data.nucleus);
+ var same=task&&task.career===data.career&&task.nucleus===data.nucleus;
+ detail.textContent=task?(same?"Pega las calificaciones de este núcleo o elige otro si ya las tienes.":
+  "Siguiente pendiente: "+task.name+" · Núcleo "+task.nucleus):
+  "Revisa las notas del complexivo y las incidencias del período.";
+ next.hidden=!task||same;
+ if(task){next.dataset.career=task.career;next.dataset.nucleus=String(task.nucleus);}
+}
 function summary(){
- var students=currentRows(),ids=Object.create(null);
- students.forEach(function(s){ids[studentId(s)]=true;});
- var scoreRows=data.mode==="nucleos"
-   ?data.nuclei.filter(function(r){return Number(r.nucleo)===data.nucleus && r.codigoCarrera===data.career;})
-   :data.exams.filter(function(r){return !!ids[studentId(r)]&&studentMode(r)==="EXAMEN_COMPLEXIVO";});
- var eligible=scoreRows.filter(function(r){return data.mode==="nucleos"
-  ?r.habilitado===true&&r.estadoCarga==="CONCILIADO" &&
-     r.evaluaciones.every(function(x){return x!==null&&x!==undefined;})
-  :r.notaOficial!==null&&r.notaOficial!==undefined;});
- $("nc-students").textContent=students.length;
- $("nc-loaded").textContent=eligible.length;
- $("nc-missing").textContent=Math.max(0,students.length-eligible.length);
+ var roster=currentRows(),ids=Object.create(null),loaded=Object.create(null),complete=Object.create(null);
+ roster.forEach(function(st){ids[studentId(st)]=true;});
+ var records=data.mode==="nucleos"?
+ data.nuclei.filter(function(r){return r.codigoCarrera===data.career&&Number(r.nucleo)===data.nucleus;}):
+ data.exams.filter(function(r){return ids[studentId(r)]&&studentMode(r)==="EXAMEN_COMPLEXIVO";});
+ records.forEach(function(r){
+  var id=studentId(r);if(!ids[id])return;
+  var grades=data.mode==="nucleos"?(r.evaluaciones||[]).concat([r.taller,r.prueba,r.totalMoodle]):
+    [r.notaTeorica,r.notaPractica,r.notaOficial];
+  if(grades.some(function(v){return v!==null&&v!==undefined;}))loaded[id]=true;
+  if(data.mode==="nucleos" &&r.estadoCarga==="CONCILIADO"&&r.habilitado===true&&
+    Array.isArray(r.evaluaciones)&&r.evaluaciones.length===4&&
+    r.evaluaciones.every(function(v){return v!==null&&v!==undefined;})&&r.totalMoodle!=null)complete[id]=true;
+  if(data.mode==="complexivo"&&r.notaOficial!=null)complete[id]=true;
+ });
+ $("nc-students").textContent=roster.length;
+ $("nc-loaded").textContent=Object.keys(loaded).length;
+ $("nc-missing").textContent=Math.max(0,roster.length-Object.keys(complete).length);
  $("nc-sync-pending").textContent=cloudCount();
- var cloud=data.lastCloud,exam=cloud&&cloud.period===data.period&&cloud.group===data.group?cloud.exam:null;
- var count=cloudCount(),bad=exam&&(exam.errors||exam.conflicts||exam.blocked||exam.invalid);
- ui.cloud.textContent=(count?count+" núcleos por sincronizar":"Núcleos locales al día")+
-   (exam?" · Complexivo "+(bad?"con incidencias":"verificado"):" · Complexivo por verificar");
- ui.cloud.className="nc-cloud-pill"+(!count&&exam&&!bad?" is-ok":" is-warn");
- var conflictBtn=$("nc-show-conflicts");
- if(conflictBtn){conflictBtn.hidden=currentConflicts().length===0;conflictBtn.textContent="Conflictos ("+currentConflicts().length+")";}
+ var n=data.nuclei.filter(function(r){return !data.career||r.codigoCarrera===data.career;}).length,
+ cloud=data.lastCloud,exam=cloud&&cloud.period===data.period&&cloud.group===data.group?cloud.exam:null,
+ bad=exam&&(exam.errors||exam.conflicts||exam.blocked||exam.invalid);
+ ui.cloud.textContent=!n?"Sin notas de núcleos":cloudCount()?cloudCount()+" pendiente(s) de Firebase":"Núcleos sincronizados";
+ if(exam)ui.cloud.textContent+=" · Complexivo "+(bad?"con incidencias":"verificado");
+ ui.cloud.className="nc-cloud-pill"+(n&&!cloudCount()&&!bad?" is-ok":" is-warn");
+ var conflicts=$("nc-show-conflicts");if(conflicts){
+  conflicts.hidden=currentConflicts().length===0;
+  conflicts.textContent="Conflictos ("+currentConflicts().length+")";
+ }
+ guide();
 }
 function td(value,css){var n=el("td",value,css);return n;}
 function label(status){
  if(status==="CONCILIADO"||status==="APROBADO")return ["Conciliado","is-ok"];
- if(status==="INHABILITADO")return ["Sin requisitos","is-warn"];
+ if(status==="INHABILITADO")return ["No habilitado","is-warn"];
+ if(status==="SIN_VERIFICAR")return ["Por verificar","is-warn"];
  if(status==="CONFLICTO")return ["Conflicto","is-warn"];
  if(status==="ERROR")return ["Error de nube","is-warn"];
  return [status==="PENDIENTE"?"Incompleto":"Sin notas",""];
@@ -170,8 +202,8 @@ function render(){
  if(!ui.table)return;
  ui.picker.hidden=data.mode!=="nucleos";
  ui.title.textContent=data.mode==="nucleos"?"Núcleo "+data.nucleus+" · "+nucleusTitle(data.nucleus):"Examen Complexivo · Teórico 40 % / Práctico 60 %";
- var names=data.mode==="nucleos"?["Estudiante","E1","E2","E3","E4","Taller","Prueba","Total Moodle","Estado"]:
-  ["Estudiante","Teórico","Práctico","Final","Estado"];
+ var names=data.mode==="nucleos"?["Estudiante","E1","E2","E3","E4","Taller","Prueba","Total Moodle","Requisitos","Estado"]:
+  ["Estudiante","Teórico","Práctico","Final","Requisitos","Estado"];
  var thead=ui.table.querySelector("thead"),tbody=ui.table.querySelector("tbody");
  thead.textContent="";tbody.textContent="";var tr=el("tr");
  names.forEach(function(name){tr.appendChild(el("th",name));});thead.appendChild(tr);
@@ -192,10 +224,13 @@ function render(){
   var checks=data.mode==="nucleos"?nucleusRequirements(st):
    w.NcomplexNucleosPolicy.check(st._ncomplexRequirements,"complexivo");
   var needs=checks&&!checks.eligible?checks.missing:[];
+  var reqLabel=checks&&checks.eligible?"Habilitado":checks&&!checks.verified?"Por verificar":"Pendiente";
+  var requirement=el("td"),reqChip=el("span",reqLabel,"nc-tag "+(checks&&checks.eligible?"is-ok":"is-warn"));
+  if(needs.length)reqChip.title=needs.join("; ");
+  requirement.appendChild(reqChip);line.appendChild(requirement);
   var rawState=row&&(data.mode==="nucleos"?(row.estadoSync==="CONFLICTO"?"CONFLICTO":row.estadoCarga):row.estadoEvaluacion);
-  var state=label(needs.length?"INHABILITADO":rawState);
-  var cell=el("td"),chip=el("span",state[0],"nc-tag "+state[1]);
-  if(needs.length){chip.title=needs.join("; ");}
+  var state=label(rawState),cell=el("td"),chip=el("span",state[0],"nc-tag "+state[1]);
+  if(row&&row.observaciones)chip.title=row.observaciones;
   cell.appendChild(chip);line.appendChild(cell);
   tbody.appendChild(line);
  });
@@ -478,6 +513,11 @@ async function boot(){
   button.addEventListener("click",function(){nucleus(Number(button.dataset.ncNucleus));});
  });
  $("nc-open-import").addEventListener("click",function(){promptImport(true);});
+ $("nc-next-task").addEventListener("click",function(){
+  if(!this.dataset.career)return;
+  data.career=this.dataset.career;ui.career.value=data.career;showGroup();
+  mode("nucleos");nucleus(Number(this.dataset.nucleus||1));syncClassic();render();
+ });
  $("nc-show-pending").addEventListener("click",showPending);
  $("nc-show-conflicts").addEventListener("click",function(){showConflicts().catch(function(e){msg(e.message,"error");});});
  $("nc-connect-firebase").addEventListener("click",openLogin);
