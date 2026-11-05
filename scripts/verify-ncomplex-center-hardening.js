@@ -149,7 +149,7 @@ const run=async()=>{
  const ui=src("Ncomplex/ncomplex.html"),center=src("Ncomplex/ncomplex.center.js");
  ["nc-show-conflicts","nc-firebase-login","nc-show-pending"].forEach(m=>assert.ok(ui.includes(m)));
  assert.ok(center.includes("moodlePeriodHint"));
- assert.ok(center.includes("NcomplexNucleosParser.match(parsed.rows,selected,data.overrides)"));
+ assert.ok(center.includes("NcomplexNucleosParser.match(parsed.rows||[],selected,data.overrides)"));
  const rules=src("firestore.rules");
  assert.ok(rules.includes("request.auth.token.ncomplex_write"));
  assert.ok(src("BDLocal/conexiones/cone.inf.js").includes("evaluaciones_nucleos"));

@@ -51,8 +51,8 @@ const matching=parser.match(parsed.rows,students);
 assert.equal(matching.matched,2);
 assert.equal(matching.review.length,0);
 const duplicate=parser.match(parsed.rows.concat([parsed.rows[0]]),students);
-assert.equal(duplicate.matched,2);
-assert.equal(duplicate.review.length,1);
+assert.equal(duplicate.matched,1,"No guardar notas de identidad repetida sin elegir una fila.");
+assert.equal(duplicate.review.length,2,"Ambas filas duplicadas requieren decisión.");
 const period="2025-10__2026-03",cedula="0101010101",id=cedula+"__"+period+"__N4";
 const record={
  id,periodoId:period,cedula,codigoCarrera:"550413A02-P-1701",
