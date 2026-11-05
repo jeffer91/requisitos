@@ -231,7 +231,8 @@ const modernParsed=sandbox.NcomplexParser.parse(modern);
 check(modernParsed.rows.length===3,"El Moodle de 11 columnas reconoce tres estudiantes.");
 check(modernParsed.rows[0].notaTeorica===9.6&&modernParsed.rows[0].notaPractica===6,"Carlos: notas ordinarias correctas.");
 check(modernParsed.rows[1].notaTeorica===9.6&&modernParsed.rows[1].notaPractica===9.5,"Yajaira: versión 2 se interpreta como ordinaria.");
-check(modernParsed.rows[2].blocked===true,"Edison requiere conciliación de Moodle y supletorio.");
+check(modernParsed.rows[2].blocked===false,"Edison: se reconoce que Moodle promedia las oportunidades sin bloquear la nota oficial.");
+check(modernParsed.rows[2].warnings.some(v=>/promediar dos oportunidades/.test(v)),"Edison: advertir diferencia entre promedio Moodle y nota oficial.");
 
 if(errors.length){
   console.error(`\nVERIFICACIÓN IMPORTACIÓN MOODLE NCOMPLEX: ERROR (${errors.length})`);
