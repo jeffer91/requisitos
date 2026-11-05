@@ -23,11 +23,13 @@ async function push(options){
  options=options||{};
  if(active)throw Error("Ya hay una sincronización de núcleos en curso.");
  var period=text(options.periodoId||options.periodId),group=text(options.grupoInforme);
+ var excluded=Object.create(null);
+ (options.skipIds||[]).forEach(function(id){excluded[text(id)]=true;});
  if(!period)throw Error("Selecciona el período académico.");
  var local=w.NcomplexNucleosStore;
  if(!local)throw Error("El repositorio local de núcleos no está disponible.");
  active=true;
- var summary={ok:true,periodoId:period,published:0,unchanged:0,conflicts:0,errors:0,pending:0,processed:0,details:[]};
+ var summary={ok:true,periodoId:period,published:0,unchanged:0,conflicts:0,errors:0,pending:0,processed:0,attemptedIds:[],remaining:0,details:[]};
  try{
   var center=w.RequisitosFirebaseOperationCenter;
   if(!center||typeof center.ensure!=="function")throw Error("El Centro de Operaciones Firebase no está disponible.");
@@ -35,21 +37,25 @@ async function push(options){
   var repo=repository();
   if(!repo||typeof repo.writeChecked!=="function")throw Error("Repositorio Firebase no disponible.");
   var records=(await local.list(period)).filter(function(r){
-   return r.estadoSync!=="SINCRONIZADO" && r.estadoSync!=="CONFLICTO" && (!group||r.grupoInforme===group);
+   return r.estadoSync!=="SINCRONIZADO" && r.estadoSync!=="CONFLICTO" &&
+     !excluded[r.id] && (!group||r.grupoInforme===group);
   });
-  summary.pending=records.length;
+  records.sort(function(a,b){return a.id.localeCompare(b.id);});
+  var eligible=records.filter(function(r){return r.estadoSync!=="CONFLICTO";});
+  summary.pending=eligible.length;
   var limit=Math.max(1,Math.min(25,Number(options.limit||25)));
-  for(var i=0;i<Math.min(records.length,limit);i++){
-   var row=records[i],doc=remote(row),id=doc.periodoId+"__"+doc.cedula+"__N"+doc.nucleo;
-   summary.processed++;
+  for(var i=0;i<Math.min(eligible.length,limit);i++){
+   var row=eligible[i],doc=remote(row),id=doc.periodoId+"__"+doc.cedula+"__N"+doc.nucleo;
+   summary.processed++;summary.attemptedIds.push(row.id);
+   var guard={updatedAt:row.updatedAt,sourceHash:row.sourceHash};
    try{
     var old=await repo.getById(entity,id),baseline=text(row.remoteHash);
     if(old&&old.data&&old.data.dataHash===doc.dataHash){
-     await local.update(row.id,{estadoSync:"SINCRONIZADO",remoteHash:doc.dataHash,cloudError:"",lastSyncedAt:new Date().toISOString()});
+     await local.update(row.id,{estadoSync:"SINCRONIZADO",remoteHash:doc.dataHash,cloudError:"",lastSyncedAt:new Date().toISOString()},guard);
      summary.unchanged++;continue;
     }
-    if(old&&(!baseline||baseline!==text(old.data&&old.data.dataHash))){
-     await local.update(row.id,{estadoSync:"CONFLICTO",cloudError:"Existe una versión diferente en Firebase; requiere conciliación."});
+    if((old&&(!baseline||baseline!==text(old.data&&old.data.dataHash)))||(!old&&baseline)){
+     await local.update(row.id,{estadoSync:"CONFLICTO",cloudError:"La versión de Firebase cambió o fue eliminada; revisa las diferencias."},guard);
      summary.conflicts++;summary.details.push({id:row.id,reason:"Versión remota diferente"});continue;
     }
     var expected=old?{hash:baseline}:{exists:false};
@@ -57,16 +63,19 @@ async function push(options){
     if(!saved||saved.ok!==true)throw Error("Firebase no confirmó el guardado.");
     var verified=await repo.getById(entity,id);
     if(!verified||!verified.data||verified.data.dataHash!==doc.dataHash)throw Error("No se confirmó la versión escrita en Firebase.");
-    await local.update(row.id,{estadoSync:"SINCRONIZADO",remoteHash:doc.dataHash,cloudError:"",lastSyncedAt:new Date().toISOString()});
+    await local.update(row.id,{estadoSync:"SINCRONIZADO",remoteHash:doc.dataHash,cloudError:"",lastSyncedAt:new Date().toISOString()},guard);
     if(saved.unchanged)summary.unchanged++;else summary.published++;
    }catch(error){
-    var conflict=error&&error.code==="FIREBASE_CONFLICT";
-    await local.update(row.id,{estadoSync:conflict?"CONFLICTO":"ERROR",cloudError:text(error&&error.message||error)});
+    var conflict=error&&(error.code==="FIREBASE_CONFLICT"||error.code==="LOCAL_CHANGED");
+    if(error&&error.code!=="LOCAL_CHANGED"){
+     try{await local.update(row.id,{estadoSync:conflict?"CONFLICTO":"ERROR",cloudError:text(error&&error.message||error)},guard);}
+     catch(updateError){summary.details.push({id:row.id,reason:"No se pudo actualizar el estado local: "+updateError.message});}
+    }
     if(conflict)summary.conflicts++;else summary.errors++;
     summary.details.push({id:row.id,reason:text(error&&error.message||error)});
    }
   }
-  summary.remaining=Math.max(0,records.length-summary.processed)+summary.conflicts+summary.errors;
+  summary.remaining=Math.max(0,eligible.length-summary.processed);
   summary.ok=summary.errors===0&&summary.conflicts===0;
   return summary;
  }finally{active=false;}
