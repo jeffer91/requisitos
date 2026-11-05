@@ -239,6 +239,26 @@ function analyze(){
  if(errs.length){
   var list=el("ul");errs.slice(0,20).forEach(function(v){list.appendChild(el("li",v));});ui.review.appendChild(list);
  }
+ if(data.mode==="nucleos"&&matched.review&&matched.review.length){
+  var unresolved=matched.review.filter(function(item){return item.row&&!item.row.blocked;});
+  if(unresolved.length){
+   ui.review.appendChild(el("strong","Vincular manualmente (verifica la cédula antes de asignar)"));
+   unresolved.slice(0,30).forEach(function(item){
+    var line=el("div",null,"nc-manual-row");
+    line.appendChild(el("span",item.row.nombreCompleto+" · "+item.row.correo));
+    var select=el("select");select.setAttribute("aria-label","Vincular "+item.row.nombreCompleto);
+    option(select,"","Seleccionar matrícula");
+    selected.forEach(function(st){var ced=studentId(st);if(ced)option(select,ced,studentName(st)+" · "+ced);});
+    select.value=data.overrides[String(item.row.rowNumber)]||"";
+    select.addEventListener("change",function(){
+     if(select.value)data.overrides[String(item.row.rowNumber)]=select.value;
+     else delete data.overrides[String(item.row.rowNumber)];
+     analyze();
+    });
+    line.appendChild(select);ui.review.appendChild(line);
+   });
+  }
+ }
  ui.save.disabled=!parsed.ok||!matchCorrect||!periodCorrect||matched.matches.length===0||
   (data.mode==="complexivo" && !matched.matches.some(function(x){return x.apply&&!x.hasConflict;}));
  msg(ui.save.disabled?"Revisa las advertencias antes de guardar.":"Carga analizada. Puedes guardar los registros conciliados.",ui.save.disabled?"error":"ok");
