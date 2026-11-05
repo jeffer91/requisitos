@@ -248,61 +248,145 @@ function moodlePeriodHint(value){
  if(same){var y=Number(same[1]);if(y<100)y+=2000;return y+"-04__"+y+"-09";}
  return "";
 }
-function analyze(){
- if(!data.period||!data.career){msg("Selecciona primero período y carrera.","error");return;}
- if(data.mode==="nucleos"&&!data.group){msg("Confirma el grupo antes de cargar notas.","error");return;}
- var raw=t(ui.paste.value);if(!raw){msg("Pega el libro de Moodle para analizarlo.","error");return;}
+async function analyze(){
+ var raw=t(ui.paste.value);
+ if(!raw){msg("Pega el libro de Moodle para identificar el curso y las notas.","error");return;}
+ var smart=w.NcomplexSmart;
+ var foundKind=smart&&smart.kind(raw);
+ if(foundKind==="ambiguous"){msg("Se detectaron dos libros de calificaciones mezclados. Pega uno a la vez.","error");return;}
+ if(foundKind&&foundKind!==data.mode)mode(foundKind);
+ var headerPeriod=smart&&smart.periodId(raw.slice(0,1200));
+ if(!data.period&&headerPeriod&&data.periods.some(function(p){
+  return t(p.id||p.periodoId||p.periodId).replace(/_+/g,"__")===headerPeriod;
+ })){
+  ui.period.value=headerPeriod;
+  await loadPeriod();
+ }
+ if(!data.period){
+  msg(headerPeriod?"El período de Moodle no está registrado en BDLocal. Selecciona el correcto.":
+   "Selecciona el período académico para conciliar las matrículas.","error");
+  return;
+ }
  var parser=data.mode==="nucleos"?w.NcomplexNucleosParser:w.NcomplexParser;
+ if(!parser||typeof parser.parse!=="function")throw Error("El lector de Moodle no está disponible.");
  var parsed=parser.parse(raw);
- var selected=currentRows();
- var matched=data.mode==="nucleos"?
-  w.NcomplexNucleosParser.match(parsed.rows,selected,data.overrides):
-  w.NcomplexMatcher.match(parsed.rows,selected);
- var suggestions=data.mode==="nucleos"?w.NcomplexNucleosParser.detect(parsed.course,nucleusCatalog()):[];
- var exact=suggestions.length===1?suggestions[0]:null;
- var matchCorrect=!exact||norm(exact.career)===norm(careerInfo()&&careerInfo().name)&&exact.number===data.nucleus;
- var indicatedPeriod=moodlePeriodHint(data.mode==="nucleos"?parsed.course:(parsed.rawText||"").split("\n").slice(0,8).join(" "));
- var periodCorrect=!indicatedPeriod||indicatedPeriod===data.period;
+ var detected=smart&&smart.identify(raw,parsed,nucleusCatalog(),careerOptions(),
+  data.periods.map(function(p){return {id:t(p.id||p.periodoId||p.periodId).replace(/_+/g,"__")};}),
+  {career:data.career});
+ if(detected&&detected.kind==="nucleos"&&detected.careerId&&detected.careerId!==data.career){
+  data.career=detected.careerId;ui.career.value=data.career;showGroup();syncClassic();
+ }
+ if(detected&&detected.nucleus&&data.mode==="nucleos"&&detected.nucleus!==data.nucleus){
+  nucleus(detected.nucleus);
+ }
+ var periodCorrect=!headerPeriod||headerPeriod===data.period;
+ var courseCorrect=true;
+ if(data.mode==="nucleos"&&detected&&detected.nucleus){
+  var available=detected.careers||[];
+  courseCorrect=detected.nucleus===data.nucleus&&
+   available.some(function(c){return c.code===data.career;});
+ }
+ if(!data.career){msg("Selecciona la carrera de la matrícula para comparar los estudiantes.","error");}
+ var selected=currentRows(),matched={matches:[],review:[],unmatched:[],duplicates:[],conflicts:[],matched:0};
+ if(data.career){
+  matched=data.mode==="nucleos"?
+   w.NcomplexNucleosParser.match(parsed.rows||[],selected,data.overrides):
+   w.NcomplexMatcher.match(parsed.rows||[],selected);
+ }
  data.preview={kind:data.mode,period:data.period,career:data.career,nucleus:data.nucleus,group:data.group,
-  parsed:parsed,matched:matched,courseMatch:matchCorrect,periodMatch:periodCorrect,source:raw};
+  parsed:parsed,matched:matched,courseMatch:courseCorrect,periodMatch:periodCorrect,source:raw};
  ui.review.textContent="";
- var total=el("p",parsed.rows.length+" filas · "+matched.matches.length+" coincidencias · "+
-  ((matched.review||[]).length+(matched.unmatched||[]).length+(matched.duplicates||[]).length+(matched.conflicts||[]).length)+" pendientes.");
- ui.review.appendChild(total);
- if(exact&&!matchCorrect){
-  ui.review.appendChild(el("p","Moodle parece corresponder a "+exact.career+" · Núcleo "+exact.number+". Selecciona ese núcleo antes de guardar.","nc-message is-error"));
+ var issues=(parsed.errors||[]).slice(),warn=(parsed.warnings||[]).slice();
+ var toReview=(matched.review||[]).length+(matched.unmatched||[]).length+
+   (Array.isArray(matched.duplicates)?matched.duplicates.length:0)+(matched.conflicts||[]).length;
+ var report=el("p",(parsed.rows||[]).length+" filas Moodle · "+selected.length+
+  " matrículas BDLocal · "+(matched.matches||[]).length+" vinculadas · "+toReview+" por revisar");
+ ui.review.appendChild(report);
+ if(!periodCorrect){
+  ui.review.appendChild(el("p","El curso corresponde a otro período ("+headerPeriod+"). No se guardarán notas en el período equivocado.","nc-message is-error"));
+  var possible=data.periods.some(function(p){return t(p.id||p.periodoId||p.periodId).replace(/_+/g,"__")===headerPeriod;});
+  if(possible){
+   var changePeriod=el("button","Cambiar al período del curso","nc-context-action");
+   changePeriod.type="button";changePeriod.addEventListener("click",function(){
+    ui.period.value=headerPeriod;loadPeriod().then(analyze).catch(function(e){msg(e.message,"error");});
+   });ui.review.appendChild(changePeriod);
+  }
  }
- if(!periodCorrect)ui.review.appendChild(el("p","El curso indica el período "+indicatedPeriod+" pero seleccionaste "+data.period+". Cambia el período antes de guardar.","nc-message is-error"));
- var errs=(parsed.errors||[]).concat((matched.review||[]).map(function(x){return x.reason;}))
-   .concat((matched.unmatched||[]).map(function(x){return x.label+": sin coincidencia";}))
-   .concat((matched.duplicates||[]).map(function(x){return x.label+": duplicado";}))
-   .concat((matched.conflicts||[]).map(function(x){return x.nombre+": conflicto con nota guardada";}));
- if(errs.length){
-  var list=el("ul");errs.slice(0,20).forEach(function(v){list.appendChild(el("li",v));});ui.review.appendChild(list);
+ if(data.mode==="nucleos"&&detected){
+  var info=el("p","Curso detectado: "+(detected.careerName||"carrera por confirmar")+
+   (detected.nucleus?" · Núcleo "+detected.nucleus+" — "+detected.nucleusName:""));
+  ui.review.appendChild(info);
+  if(!detected.careerId&&detected.careers&&detected.careers.length){
+   var choice=el("div",null,"nc-context-options");
+   choice.appendChild(el("span","Selecciona la modalidad de la carrera:"));
+   detected.careers.forEach(function(candidate){
+    var btn=el("button",candidate.label);btn.type="button";
+    btn.addEventListener("click",function(){
+     data.career=candidate.code;ui.career.value=data.career;showGroup();syncClassic();
+     analyze().catch(function(e){msg(e.message,"error");});
+    });choice.appendChild(btn);
+   });ui.review.appendChild(choice);
+  }
+  if(!detected.nucleus)issues.push("No se reconoció un núcleo único; selecciónalo en la pantalla.");
  }
- if(data.mode==="nucleos"&&matched.review&&matched.review.length){
-  var unresolved=matched.review.filter(function(item){return item.row&&!item.row.blocked;});
+ if(!courseCorrect)issues.push("Confirma la carrera y el núcleo antes de guardar.");
+ if(!data.group&&data.mode==="nucleos")issues.push("Selecciona el grupo (Presencial, Online o PVC) para guardar. Las notas ya fueron analizadas.");
+ var additional=(matched.review||[]).map(function(r){return r.reason;})
+  .concat((matched.unmatched||[]).map(function(r){return r.label+": "+r.reason;}))
+  .concat((matched.conflicts||[]).map(function(r){return r.nombre+": conflicto con la nota local.";}));
+ var problems=issues.concat(additional).concat(warn);
+ if(problems.length){
+  var list=el("ul");problems.slice(0,22).forEach(function(t){list.appendChild(el("li",t));});ui.review.appendChild(list);
+ }
+ if(data.mode==="nucleos"&&matched.duplicates){
+  Object.keys(matched.duplicates).forEach(function(ced){
+   var records=matched.duplicates[ced];
+   if(!records||!records.length||!(matched.review||[]).some(function(r){return r.cedula===ced;}))return;
+   var block=el("div",null,"nc-duplicate-group"),student=records[0].student;
+   block.appendChild(el("strong","Duplicado: "+studentName(student)));
+   var select=el("select");select.setAttribute("aria-label","Elegir registro de "+studentName(student));
+   option(select,"","Elegir fila válida de Moodle");
+   records.forEach(function(item){
+    var row=item.imported;
+    option(select,String(row.rowNumber),"Fila "+row.rowNumber+" · "+row.correo+" · "+fmt(row.totalMoodle));
+   });
+   select.value=data.overrides._rows&&String(data.overrides._rows[ced])||"";
+   select.addEventListener("change",function(){
+    data.overrides._rows=data.overrides._rows||{};
+    if(select.value)data.overrides._rows[ced]=Number(select.value);
+    else delete data.overrides._rows[ced];
+    analyze().catch(function(e){msg(e.message,"error");});
+   });
+   block.appendChild(select);ui.review.appendChild(block);
+  });
+ }
+ if(data.mode==="nucleos"&&matched.review){
+  var unresolved=matched.review.filter(function(item){return item.row&&!item.row.blocked&&!item.cedula;});
   if(unresolved.length){
-   ui.review.appendChild(el("strong","Vincular manualmente (verifica la cédula antes de asignar)"));
+   ui.review.appendChild(el("strong","Vincular matrícula, solo si puedes confirmar la identidad:"));
    unresolved.slice(0,30).forEach(function(item){
     var line=el("div",null,"nc-manual-row");
     line.appendChild(el("span",item.row.nombreCompleto+" · "+item.row.correo));
     var select=el("select");select.setAttribute("aria-label","Vincular "+item.row.nombreCompleto);
-    option(select,"","Seleccionar matrícula");
+    option(select,"","Matrícula sin identificar");
     selected.forEach(function(st){var ced=studentId(st);if(ced)option(select,ced,studentName(st)+" · "+ced);});
     select.value=data.overrides[String(item.row.rowNumber)]||"";
     select.addEventListener("change",function(){
      if(select.value)data.overrides[String(item.row.rowNumber)]=select.value;
      else delete data.overrides[String(item.row.rowNumber)];
-     analyze();
+     analyze().catch(function(e){msg(e.message,"error");});
     });
     line.appendChild(select);ui.review.appendChild(line);
    });
   }
  }
- ui.save.disabled=!parsed.ok||!matchCorrect||!periodCorrect||matched.matches.length===0||
-  (data.mode==="complexivo" && !matched.matches.some(function(x){return x.apply&&!x.hasConflict;}));
- msg(ui.save.disabled?"Revisa las advertencias antes de guardar.":"Carga analizada. Puedes guardar los registros conciliados.",ui.save.disabled?"error":"ok");
+ var canSave=!!parsed.ok&&periodCorrect&&courseCorrect&&!!data.career&&
+  (data.mode!=="nucleos"||!!data.group)&&matched.matches.length>0&&
+  (data.mode==="nucleos"||matched.matches.some(function(x){return x.apply&&!x.hasConflict;}));
+ ui.save.disabled=!canSave;
+ render();
+ msg(canSave?"Notas interpretadas. Revisa las coincidencias antes de guardar.":
+  "Carga interpretada. Resuelve los datos señalados para continuar.",canSave?"ok":"error");
 }
 function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return "moodle_"+(h>>>0).toString(16);}
 async function save(){
@@ -505,8 +589,14 @@ async function boot(){
   ui[k]=$(names[k]||"nc-"+k);
  });
  ui.period.addEventListener("change",loadPeriod);
- ui.career.addEventListener("change",function(){data.career=ui.career.value;data.preview=null;data.overrides={};showGroup();syncClassic();render();});
- ui.group.addEventListener("change",function(){data.group=ui.group.value;data.preview=null;data.lastCloud=null;syncClassic();render();});
+ ui.career.addEventListener("change",function(){
+  data.career=ui.career.value;data.preview=null;data.overrides={};showGroup();syncClassic();render();
+  if(!ui.importBox.hidden&&t(ui.paste.value))analyze().catch(function(e){msg(e.message,"error");});
+ });
+ ui.group.addEventListener("change",function(){
+  data.group=ui.group.value;data.preview=null;data.lastCloud=null;syncClassic();render();
+  if(!ui.importBox.hidden&&t(ui.paste.value))analyze().catch(function(e){msg(e.message,"error");});
+ });
  ui.tabN.addEventListener("click",function(){mode("nucleos");});
  ui.tabE.addEventListener("click",function(){mode("complexivo");});
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(button){
@@ -524,7 +614,9 @@ async function boot(){
  $("nc-login-cancel").addEventListener("click",function(){$("nc-firebase-login").hidden=true;$("nc-login-password").value="";});
  $("nc-firebase-login").addEventListener("submit",signInFirebase);
  $("nc-close-import").addEventListener("click",function(){promptImport(false);});
- $("nc-analyze").addEventListener("click",analyze);
+ $("nc-analyze").addEventListener("click",function(){
+  analyze().catch(function(e){msg("No se pudo interpretar Moodle: "+e.message,"error");});
+ });
  ui.save.addEventListener("click",function(){save().catch(function(err){msg(err.message||String(err),"error");ui.save.disabled=false;});});
  ui.publish.addEventListener("click",sync);
  ui.search.addEventListener("input",render);
