@@ -163,12 +163,11 @@ function build(doc,payload,logoImage){
   doc.text(lines,x,cy-4.2,{align:"center",lineHeightFactor:1.16});
  }
  function diagram(c){
-  space(194);
+  space(197);
   figTitle("Organización de los cuatro núcleos: "+c.career);
-  space(182);
   var top=y+8,cx=105,cy=top+87;
   doc.setDrawColor(145,159,175);doc.setLineDashPattern([2,2],0);
-  [[105,top+56,105,cy-17],[145,cy,145+0,cy],[65,cy,cy?84:84,cy],[105,cy+17,105,top+119]].forEach(function(v){
+  [[105,top+56,105,cy-17],[129,cy,143,cy],[66,cy,81,cy],[105,cy+17,105,top+119]].forEach(function(v){
    doc.line(v[0],v[1],v[2],v[3]);
   });
   doc.setLineDashPattern([],0);
@@ -199,7 +198,7 @@ function build(doc,payload,logoImage){
   var top=y+5,steps=d.steps,xStep=width/steps.length;
   steps.forEach(function(label,i){
    var x=left+i*xStep+1,w=xStep-3;
-   doc.setFillColor(i%2?[224,239,246]:[219,230,247]);
+   doc.setFillColor.apply(doc,i%2?[224,239,246]:[219,230,247]);
    doc.setDrawColor(133,158,183);
    doc.roundedRect(x,top,w,21,2,2,"FD");
    setFont("bold",8,[34,63,91]);
