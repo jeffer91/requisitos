@@ -47,7 +47,8 @@
     .map(function(x){
       var source=x.raw,ev=(Array.isArray(source.evaluaciones)?source.evaluaciones:[]);
       var controls=[1,2,3,4].map(function(n){
-        return grade(value(source,["evaluacion"+n,"evaluación"+n,"notaEvaluacion"+n,"nota"+n,"e"+n])||ev[n-1]);
+        var explicit=value(source,["evaluacion"+n,"evaluación"+n,"notaEvaluacion"+n,"nota"+n,"e"+n]);
+        return grade(explicit===null?ev[n-1]:explicit);
       });
       var caseGrade=grade(value(source,["casoEstudio","notaCasoEstudio","notaCaso","caso"]));
       var final=grade(value(source,["notaFinal","promedioFinal","promedioNucleo","calificacionFinal","notaNucleo"]));

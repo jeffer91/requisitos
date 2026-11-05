@@ -20,20 +20,21 @@ load("core/inf.registry.js");
 load("core/inf.report.js");
 load("core/inf.nuclei.js");
 load("core/inf.schedules.js");
+load("core/inf.results.js");
 const w = context.window;
 const report = w.InfReport.build();
 assert.equal(report.coverage.chapters, 8, "Deben existir ocho capítulos.");
 assert.equal(report.coverage.blocks, 76, "Se preservan los subapartados numerados del capítulo 3.");
-assert.equal(report.coverage.completed, 53, "Introducción, Base Legal y Metodología cargadas.");
-assert.equal(report.coverage.pending, 23);
+assert.equal(report.coverage.completed, 56, "Introducción, Base Legal, Metodología y apartado 4.2 cargados.");
+assert.equal(report.coverage.pending, 20);
 assert.equal(report.canExport, false, "No se permite un informe final oficial incompleto.");
 assert.equal(report.canExportDraft, true, "Debe poder generarse un PDF de avance.");
 const current = w.InfReport.buildAvailable();
 assert.equal(current.canExportDraft, true);
 assert.equal(current.partial, true);
-assert.deepEqual(Array.from(current.includedChapters), ["1","2","3"]);
-assert.deepEqual(Array.from(current.excludedChapters.map(c=>c.number)), ["4","5","6","7","8"]);
-assert.equal(current.chapters.length, 3);
+assert.deepEqual(Array.from(current.includedChapters), ["1","2","3","4"]);
+assert.deepEqual(Array.from(current.excludedChapters.map(c=>c.number)), ["5","6","7","8"]);
+assert.equal(current.chapters.length, 4);
 assert.ok(current.chapters.every(c=>c.content.trim() || c.sections.length));
 function requireText(node) {
   assert.ok(node.content.trim() || node.sections.length);
@@ -67,4 +68,19 @@ assert.equal(w.InfSchedules.load("Abril 2026 a Septiembre 2026").complexivo.leng
 assert.equal(w.InfSchedules.load("Abril 2026 a Septiembre 2026").trabajo.length,0);
 assert.equal(w.InfSchedules.day("31/2/2026"),null);
 assert.ok(w.InfSchedules.issue({activity:"x",start:"10/4/2026",end:"9/4/2026"}));
-console.log("Inf: 8 capítulos, 53 apartados con texto, 16 diagramas/64 núcleos, cronogramas editables.");
+const noNuclei=w.InfResults.build({
+  periodoId:"2025-10__2026-03",students:[{cedula:"0100000001",NombreCarrera:"Administración",Nombres:"Estudiante de prueba"}],
+  notes:[{cedula:"0100000001",periodoId:"2025-10__2026-03",notaTeorica:8,notaPractica:9}]
+},w.InfNuclei.careers());
+assert.equal(noNuclei.missingGradeSource,true,"Las notas de Ncomplex no equivalen a núcleos.");
+const valid=w.InfResults.build({
+  periodoId:"2025-10__2026-03",
+  students:[{cedula:"0100000001",NombreCarrera:"Administración",Nombres:"Estudiante de prueba"}],
+  nuclei:[{cedula:"0100000001",periodoId:"2025-10__2026-03",
+    nucleos:[{nucleo:1,evaluacion1:0,evaluacion2:7,evaluacion3:8,evaluacion4:9,casoEstudio:8,notaFinal:8}]}]
+},w.InfNuclei.careers());
+const first=valid.careers.find(c=>c.career==="Administración").nuclei[0];
+assert.equal(first.rows.length,1);
+assert.equal(first.rows[0].evaluations[0],0,"Conservar evaluación válida de cero.");
+assert.equal(first.average,8);
+console.log("Inf: índice, 16 diagramas, cronogramas, consulta sin duplicar notas y sección 4.2 verificados.");

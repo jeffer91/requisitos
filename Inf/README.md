@@ -78,3 +78,11 @@ El botón **Descargar PDF con lo avanzado** utiliza `InfReport.buildAvailable()`
 ## Revisión editorial del PDF (5 noviembre 2026)
 
 El PDF tiene un encabezado institucional completo y repetido en todas las páginas, título central de 23 pt en negrita con período académico, bloque de firmas con celdas y renglones independientes, sangría de primera línea de 1,27 cm para párrafos ordinarios, sin columna de estado en cronogramas ni textos de borrador en la portada. Los 16 diagramas de núcleos incluyen el nombre dentro de cada círculo, y la metodología suma siete figuras de flujo adicionales. El archivo continúa siendo una exportación progresiva sin certificación ni firma institucional efectiva; su estado interno se mantiene como no oficial.
+
+## Resultados 4.2 y lectura BDLocal
+
+El conector `ConInf` abre exclusivamente una **BDLocal existente**, sin indicar versión (sin migración), con transacciones IndexedDB `readonly`. Si el entorno no permite comprobar la existencia previa de la base, no intenta crearla: utiliza únicamente una caché central preexistente, si la hay, y señaliza que los resultados son parciales. No invoca ninguna función de escritura o sincronización.
+
+Las notas de núcleos se reconocen solo por registros explícitos de núcleos. La aplicación **no toma los resultados teórico/práctico de Ncomplex como notas de preparación**. La sección 4.2 contiene el texto general y generará tablas de estudiantes, cuatro controles, caso y final, promedios por núcleo y gráficos comparativos cuando se encuentren datos verificables. Si faltan, lo indica, sin inventarlos. Los capítulos 1–3 permanecen iguales.
+
+Comprobación rápida: `node Inf/tests/verify-inf.js`.

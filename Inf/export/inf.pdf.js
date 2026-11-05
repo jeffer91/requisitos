@@ -111,7 +111,7 @@ function build(doc,payload,logoImage){
   setFont("normal",7.5);
   doc.text("Código: pendiente",176.5,20,{align:"center"});
   doc.text("de asignación",176.5,23.1,{align:"center"});
-  doc.text("Versión: 1",176.5,31,{align:"center"});
+  doc.text("Versión: pendiente",176.5,31,{align:"center"});
   var today=new Date(),stamp=("0"+today.getDate()).slice(-2)+"/"+("0"+(today.getMonth()+1)).slice(-2)+"/"+today.getFullYear();
   setFont("normal",7.6);
   doc.text("Fecha: "+stamp,38,43.8,{align:"center"});
