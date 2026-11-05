@@ -48,3 +48,7 @@ Desde la raíz del repositorio: node Inf/tests/verify-inf.js
 ## Tercera entrega: capítulo 3
 
 Se incorporó íntegramente la Metodología y su numeración 3.1–3.7, con 16 descripciones de carreras (3.4.4.1–3.4.4.16). El texto fijo se separa de los cronogramas editables por período. La Base Legal se conserva pendiente de revisión normativa antes de emisión oficial.
+
+## Cronogramas editables
+
+El archivo `core/inf.schedules.js` contiene el cronograma inicial de octubre de 2025 a marzo de 2026 facilitado por el usuario: seis actividades de Examen Complexivo y veinte de Trabajo de Titulación, agrupadas en tres fases. Para otros períodos el calendario inicia vacío. Los cambios son locales en `localStorage`, independientes por nombre de período y no modifican datos académicos. Se validan fechas reales e intervalos antes de guardar o generar el PDF. Ninguna fecha se interpreta automáticamente como ejecución.
