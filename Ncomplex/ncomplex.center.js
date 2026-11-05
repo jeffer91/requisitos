@@ -296,44 +296,77 @@ async function save(){
 async function sync(){
  if(data.working)return;
  if(!data.period||!data.group){msg("Selecciona período y grupo antes de sincronizar.","error");return;}
- if(!w.confirm("¿Sincronizar las notas del período y grupo con Firebase? Se comprobarán las versiones remotas; no se sobrescribirán conflictos."))return;
- data.working=true;ui.publish.disabled=true;msg("Comparando y sincronizando con Firebase…");
+ if(!w.confirm("¿Sincronizar las calificaciones de este período y grupo? Las versiones remotas se comprobarán antes de escribir."))return;
+ data.working=true;ui.publish.disabled=true;
+ msg("Verificando acceso y comparando versiones de Firebase…");
+ var info=[],nr={published:0,unchanged:0,conflicts:0,errors:0,remaining:0},exam=null,issues=false;
  try{
-  var info=[],nr={published:0,conflicts:0,errors:0,remaining:0};
-  for(var i=0;i<80;i++){
-   var result=await w.NcomplexNucleosFirebase.push({periodoId:data.period,grupoInforme:data.group,limit:25});
-   nr.published+=result.published;nr.conflicts+=result.conflicts;nr.errors+=result.errors;
-   nr.remaining=result.remaining;
-   if(!result.processed||!result.published||result.remaining===0)break;
+  await w.NcomplexFirebaseAuth.requireUser();
+  var attempted=Object.create(null),remaining=0;
+  for(var i=0;i<400;i++){
+   var skip=Object.keys(attempted);
+   var result=await w.NcomplexNucleosFirebase.push({
+    periodoId:data.period,grupoInforme:data.group,limit:25,skipIds:skip
+   });
+   (result.attemptedIds||[]).forEach(function(id){attempted[id]=true;});
+   nr.published+=result.published;nr.unchanged+=result.unchanged;
+   nr.conflicts+=result.conflicts;nr.errors+=result.errors;
+   remaining=result.remaining;
+   if(!result.processed||result.remaining===0)break;
   }
-  info.push("Núcleos: "+nr.published+" publicados");
+  nr.remaining=remaining;
+  info.push("Núcleos: "+nr.published+" publicados, "+nr.unchanged+" sin cambios");
+  if(nr.conflicts||nr.errors||nr.remaining){
+   issues=true;info.push((nr.conflicts+nr.errors+nr.remaining)+" pendientes de revisar");
+  }
   var cloud=w.NcomplexFirebaseComplexivo;
   if(cloud&&typeof cloud.publish==="function"){
-   for(var p=0;p<80;p++){
+   var count=0,had=false;
+   exam={published:0,same:0,conflicts:0,blocked:0,invalid:0,errors:0};
+   for(var p=0;p<400;p++){
     var comp=await cloud.publish({confirmedByCenter:true});
-    if(!comp.ok){info.push("Complexivo: "+(comp.reason||comp.error||"requiere revisión"));break;}
-    if(comp.conflicts&&comp.conflicts.length)info.push("Complexivo: "+comp.conflicts.length+" conflictos");
-    if(comp.blocked&&comp.blocked.length)info.push("Complexivo: "+comp.blocked.length+" sin requisitos");
+    if(!comp||comp.ok!==true){
+     exam.errors++;issues=true;
+     info.push("Complexivo: "+(comp&&comp.reason||comp&&comp.error||"sin confirmación"));
+     break;
+    }
+    had=true;count+=Number(comp.published||0);
+    exam.same=Number(comp.same||0);
+    exam.conflicts=Array.isArray(comp.conflicts)?comp.conflicts.length:0;
+    exam.blocked=Array.isArray(comp.blocked)?comp.blocked.length:0;
+    exam.invalid=Array.isArray(comp.invalid)?comp.invalid.length:0;
     if(!comp.published)break;
-    info.push("Complexivo: "+comp.published+" nuevos");
    }
+   exam.published=count;
+   if(!had)exam.errors++;
+   info.push("Complexivo: "+count+" publicados");
+   if(exam.conflicts||exam.blocked||exam.invalid||exam.errors){
+    issues=true;
+    info.push("Complexivo con "+(exam.conflicts+exam.blocked+exam.invalid+exam.errors)+" incidencias");
+   }
+  }else{
+   exam={errors:1};issues=true;info.push("Publicador de complexivo no disponible");
   }
   var center=w.RequisitosFirebaseOperationCenter;
   if(center&&typeof center.analyze==="function"&&typeof center.push==="function"){
-   for(var c=0;c<80;c++){
+   for(var c=0;c<200;c++){
     var analysis=await center.analyze("ncomplex",{periodoId:data.period,source:"Ncomplex.center"});
-    if(!analysis.ok){info.push("Historial: "+analysis.message);break;}
-    if(analysis.conflictos){info.push("Historial: "+analysis.conflictos+" conflictos");break;}
+    if(!analysis||analysis.ok!==true){issues=true;info.push("Historial: "+(analysis&&analysis.message||"sin confirmar"));break;}
+    if(analysis.conflictos){issues=true;info.push("Historial: "+analysis.conflictos+" conflictos");break;}
     if(!analysis.batchChanges)break;
     var uploaded=await center.push("ncomplex",{periodoId:data.period,source:"Ncomplex.center",requireAnalysis:true});
-    if(!uploaded.ok){info.push("Historial: "+(uploaded.message||"Error"));break;}
+    if(!uploaded||uploaded.ok!==true){issues=true;info.push("Historial: "+(uploaded&&uploaded.message||"error"));break;}
     if(!uploaded.processedIds||!uploaded.processedIds.length)break;
    }
-  }
+  }else{issues=true;info.push("Sin sincronizador de historial");}
+  data.lastCloud={period:data.period,group:data.group,exam:exam,at:new Date().toISOString()};
   await refresh();
-  msg(info.join(" · ")+(nr.conflicts||nr.errors?" · Revisa los conflictos y errores.":""),nr.errors||nr.conflicts?"error":"ok");
- }catch(error){msg("Firebase no confirmó la sincronización: "+(error.message||error),"error");}
- finally{data.working=false;ui.publish.disabled=false;}
+  msg(info.join(" · ")+(issues?" · Revisa pendientes y conflictos.":" · Firebase confirmó la carga."),
+      issues?"error":"ok");
+ }catch(error){
+  data.lastCloud=null;
+  msg("No se confirmó la sincronización Firebase: "+(error.message||error),"error");
+ }finally{data.working=false;ui.publish.disabled=false;}
 }
 function openLogin(){
  var form=$("nc-firebase-login");form.hidden=!form.hidden;
