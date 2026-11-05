@@ -488,16 +488,31 @@ async function boot(){
  });
  $("nc-legacy").addEventListener("toggle",function(){d.body.classList.toggle("nc-advanced-open",this.open);});
  try{
-  await w.NcomplexNucleosStore.ready();
+  // Los períodos se obtienen primero del servicio académico: nunca esperar una migración de núcleos.
   var periods=await w.ConNcomplex.listPeriods();
+  if(!Array.isArray(periods)||!periods.length){
+   if(w.BL2DB&&typeof w.BL2DB.getAll==="function"){
+    try{periods=await w.BL2DB.getAll("periodos");}catch(error){periods=[];}
+   }
+  }
+  if((!periods||!periods.length)&&w.NcomplexState&&w.NcomplexState.get){
+   periods=w.NcomplexState.get().periods||[];
+  }
+  if(!Array.isArray(periods))periods=[];
   data.periods=periods||[];
   ui.period.textContent="";option(ui.period,"","Seleccionar período");
-  data.periods.forEach(function(r){var id=t(r.id||r.periodoId||r.periodId),name=t(r.label||r.nombre||r.periodoLabel)||id;if(id)option(ui.period,id,name);});
+  data.periods.forEach(function(r){
+   var id=t(r.id||r.periodoId||r.periodId||r.value).replace(/_+/g,"__");
+   var name=t(r.label||r.nombre||r.periodoLabel)||id;
+   if(id&&!Array.prototype.some.call(ui.period.options,function(o){return o.value===id;}))option(ui.period,id,name);
+  });
   var globalPeriod=(w.NcomplexState&&w.NcomplexState.get&&w.NcomplexState.get().selectedPeriodId)||"";
   if(globalPeriod && Array.prototype.some.call(ui.period.options,function(p){return p.value===globalPeriod;})){
    ui.period.value=globalPeriod;await loadPeriod();
   }else render();
-  msg("Centro listo. Selecciona el período y la carrera.","ok");
+  if(!globalPeriod||ui.period.value!==globalPeriod)
+   msg(periods.length?"BDLocal conectada. Selecciona el período y la carrera.":
+    "No hay períodos disponibles en BDLocal; revisa Centro de datos.",periods.length?"ok":"error");
  }catch(err){msg("No se pudo inicializar la carga de núcleos: "+err.message,"error");}
 }
 w.NcomplexCenter=Object.freeze({init:boot,refresh:refresh,parse:analyze,save:save,sync:sync,periodHint:moodlePeriodHint,status:function(){return {period:data.period,career:data.career,mode:data.mode,nucleus:data.nucleus};}});
