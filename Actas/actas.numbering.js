@@ -137,7 +137,7 @@ async function getOrAssign(input){
 function readableError(error){
  const message=t(error&&error.message||error),code=t(error&&error.code).toLowerCase();
  if(code==="permission-denied"||/permission-denied|insufficient permissions|missing or insufficient permissions/i.test(message))
-  return "El servidor rechazó el acceso al libro de actas (permission-denied). Revise las reglas desplegadas y los permisos del proyecto Firebase.";
+  return "El servidor rechazó el acceso al libro de actas (permission-denied). Verifica los permisos y despliega firestore.rules actualizado con los folios CX/TT antes de emitir nuevas actas.";
  if(code==="unavailable"||/failed to get documents from server|offline|unavailable|network|failed to fetch/i.test(message))
   return "No fue posible consultar el servidor de Firestore. Compruebe la conexión a Internet y pulse Actualizar datos para reintentar.";
  if(/deadline-exceeded|timeout|timed out/i.test(message))

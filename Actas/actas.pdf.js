@@ -16,7 +16,7 @@ function first(s,keys){for(const k of keys)if(s&&txt(s[k]))return txt(s[k]);retu
 function formatDate(v){const a=txt(v).slice(0,10).split("-");return a.length===3?a[2]+"/"+a[1]+"/"+a[0]:"No registrada";}
 function safe(v){return txt(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,115);}
 function studentName(x){return first(x.student,["Nombres","nombres","nombreCompleto","nombre","Nombre"]);}
-function studentId(x){return first(x.student,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]);}
+function studentId(x){const raw=first(x.student,["cedula","numeroIdentificacion","NumeroIdentificacion","Cedula"]);const digits=raw.replace(/[^0-9]/g,"");return /^\d{9}$/.test(digits)?"0"+digits:raw;}
 function career(x){return first(x.student,["NombreCarrera","nombreCarrera","carrera","Carrera"]);}
 function label(mode){return mode==="TRABAJO_TITULACION"?"Trabajo de Titulación":"Examen Complexivo";}
 function category(mode){return mode==="TRABAJO_TITULACION"?"TRAB":"COMPLEX";}

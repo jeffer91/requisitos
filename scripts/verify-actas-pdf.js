@@ -73,6 +73,9 @@ assert.ok(lastDoc.texts.some(t=>t.includes("Acta de Titulación por Examen Compl
  assert.ok(downloads.length>=1,"ZIP dispara una descarga");
  ["actas-busqueda","actas-zip","actas-config-logo","actas-logo-modal","actas-logo-file","actas-logo-guardar"].forEach(id=>assert.match(html,new RegExp('id="'+id+'"')));
  assert.match(html,/actas\.pdf\.js/);assert.match(html,/actas\.brand\.js/);assert.match(html,/actas\.numbering\.js/);
+ const padded=sample("987654321","EXAMEN_COMPLEXIVO");
+ await api.downloadZip([padded],[{cedula:"0987654321",nombre:"PRUEBA CÉDULA CON CERO",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"}],"2025-10__2026-03");
+ assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("INCLUIDO"),"El CSV relaciona la cédula de nueve dígitos con el PDF de diez");
  console.log("VERIFICACIÓN PDF/ZIP ACTAS: OK (PDF individual y múltiple, logo, dos carpetas, resumen y controles)");
 }
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
