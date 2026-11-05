@@ -1,6 +1,6 @@
-/* Actas: solo valida el expediente DOCUMENTAL. Las calificaciones pertenecen a Ncomplex.
- * Un borrador puede elaborarse sin notas; la emisión oficial exige 9/9 requisitos
- * y dos aprobaciones finales CUMPLE, sin imprimir ni recalcular calificaciones.
+/* Actas valida el expediente DOCUMENTAL. Las calificaciones pertenecen a Ncomplex.
+ * La emisión final exige 9/9 requisitos y ambas aprobaciones CUMPLE,
+ * sin imprimir ni recalcular calificaciones.
  */
 (function(w){"use strict";
 const REQUIREMENTS=Object.freeze([
@@ -62,13 +62,13 @@ function assess(input){
   missing,requiredCount:requirements.length,
   mallaText:academic==="CUMPLE"?
    "El requisito Académico registra CUMPLE según el expediente institucional. La culminación curricular se acredita conforme a los documentos académicos correspondientes.":
-   "El requisito Académico se encuentra pendiente de verificación; no se certifica la culminación curricular en este borrador.",
+   "El requisito Académico se encuentra pendiente de verificación; no se certifica la culminación curricular mientras persista esta condición.",
   componentText:mode==="TRABAJO_TITULACION"?
    "La modalidad registrada es Trabajo de Titulación. Las evaluaciones académicas se gestionan por separado en Ncomplex y no se presentan en esta acta.":
    "La modalidad registrada es Examen Complexivo. Las calificaciones y oportunidades se administran exclusivamente en Ncomplex y no se presentan en esta acta.",
   closureText:eligible?
-   "Constan como CUMPLE los nueve requisitos y las dos aprobaciones finales institucionales. La emisión oficial queda condicionada a la revisión del expediente, firmas y numeración central.":
-   "No se acredita todavía el cierre institucional completo. El presente borrador informa los requisitos o aprobaciones pendientes, sin certificar la titulación."
+   "Constan como CUMPLE los nueve requisitos institucionales y las dos aprobaciones finales, de acuerdo con el expediente académico verificado.":
+   "No se acredita el cierre institucional mientras existan requisitos o aprobaciones pendientes."
  };
 }
 w.ActasEvidence=Object.freeze({version:2,REQUIREMENTS,assess,status});

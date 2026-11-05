@@ -1,4 +1,4 @@
-/* Módulo Actas: ambos requisitos finales CUMPLE; cronogramas editables y actas en borrador. */
+/* Módulo Actas: generación final con validación documental y folio central único. */
 (function(w,d){"use strict";
 const C=w.ActasCatalog,CX=C.COMPLEXIVO,TT=C.TRABAJO;
 const S={periods:[],students:[],reqs:[],meta:{},numbers:new Map(),numberingError:"",numberingVerified:false,numberingCacheCount:0,periodo:"",mode:"TODAS",busqueda:"",estado:"todos",selected:new Set(),ready:false,loading:false,requestId:0,cronograma:null};
@@ -97,9 +97,7 @@ function notify(msg,isError){const el=$("actas-alert");el.textContent=msg;el.cla
 function store(k,value){try{w.localStorage.setItem(k,JSON.stringify(value));return true;}catch(e){notify("No se pudo guardar localmente: "+e.message,true);return false;}}
 function retrieve(k,otherwise){try{const val=JSON.parse(w.localStorage.getItem(k));return val==null?otherwise:val;}catch(e){return otherwise;}}
 function cronKey(mode){return "UTET_ACTAS_CRONO_V1__"+S.periodo+"__"+(mode||S.mode);}
-function regKey(){return "UTET_ACTAS_BORRADORES_V1";}
-function registry(){return retrieve(regKey(),{});}
-function savedRecord(r){return registry()[r.identity]||null;}
+
 function registeredNumber(r){return S.numbers.get(r.identity)||null;}
 function numberInput(r){return {cedula:ced(r.student),periodoId:S.periodo,modalidad:r.mode,nombre:name(r.student),carrera:career(r.student),fechaEmision:w.ActasIssueDate.forPeriod(S.periodo).date};}
 async function registerNumber(r){
@@ -114,7 +112,7 @@ async function registerNumber(r){
 async function hydrateNumbers(reqId,periodId){
  if(!w.ActasNumbering){
   S.numberingVerified=false;S.numbers=new Map();
-  S.numberingError="El libro central no está disponible. Solo se permiten borradores sin número oficial.";
+  S.numberingError="El libro central no está disponible. No se pueden emitir actas finales sin numeración oficial.";
   renderTable();notify(S.numberingError,true);return;
  }
  try{
@@ -135,14 +133,14 @@ async function hydrateNumbers(reqId,periodId){
   else
    notify("Estudiantes cargados. Libro central NO VERIFICADO: "+S.numberingError+
      (result.source==="cache"?" Hay "+S.numberingCacheCount+" referencia(s) en caché, que no se pueden usar como números oficiales.":"")+
-     " Puede descargar borradores. Pulse Actualizar datos para reintentar.",true);
+     " No es posible emitir actas finales sin verificar el servidor. Pulse Actualizar datos para reintentar.",true);
  }catch(e){
   if(reqId!==S.requestId||S.periodo!==periodId)return;
   S.numberingVerified=false;S.numbers=new Map();S.numberingCacheCount=0;
   S.numberingError=apiError(e);
   renderTable();
   notify("Estudiantes cargados, pero el libro central NO está verificado: "+S.numberingError+
-    " Pulse Actualizar datos. Puede preparar borradores sin número oficial.",true);
+    " Pulse Actualizar datos antes de emitir actas finales.",true);
  }
 }
 function apiError(error){
@@ -150,17 +148,25 @@ function apiError(error){
   ?w.ActasNumbering.readableError(error):text(error&&error.message||error);
 }
 async function prepareWithNumber(r){
- const item=prepare(r),registered=registeredNumber(r);
- if(registered)item.record=Object.assign({},item.record,{numeroActa:registered.numeroActa,fechaRegistro:registered.fechaCliente});
+ if(!r.verified)throw Error("No se puede emitir el acta: faltan requisitos institucionales o existe un conflicto en el expediente.");
+ if(!S.numberingVerified)throw Error("La emisión requiere verificar el libro central de actas. Pulse Actualizar datos.");
+ // Firestore conserva el mismo folio para el mismo estudiante y período, sin duplicados.
+ const entry=await registerNumber(r);
+ const item=prepare(r);
+ item.record.numeroActa=entry.numeroActa;
+ item.record.fechaRegistro=entry.fechaCliente||"";
  return item;
 }
 async function assignToRows(selected,progress){
- const items=[];
+ const items=[],numbers=new Set();
  for(let i=0;i<selected.length;i++){
-  items.push(await prepareWithNumber(selected[i]));
+  const item=await prepareWithNumber(selected[i]);
+  if(numbers.has(item.record.numeroActa))throw Error("Se detectó un número de acta repetido en la exportación. Se canceló la descarga.");
+  numbers.add(item.record.numeroActa);
+  items.push(item);
   if(typeof progress==="function")progress({done:i+1,total:selected.length});
  }
- return {items,failed:0,reason:"",assigned:0};
+ return {items,failed:0,reason:"",assigned:items.length};
 }
 function periodLabel(){const s=S.periods.find(p=>idPeriod(p.periodoId||p.id||p.periodId)===S.periodo);return text(s&&(s.nombre||s.label||s.periodoLabel||s.periodo||s.descripcion))||S.periodo;}
 function schedule(mode){mode=mode||S.mode;const raw=retrieve(cronKey(mode),null);return raw&&raw.mode===mode&&C.valid(raw.groups)?raw.groups:C.get(mode,false);}
@@ -168,48 +174,46 @@ function renderCron(){if(S.mode==="TODAS"){S.cronograma=null;$("actas-actividade
 function collectCron(){if(S.mode==="TODAS")return [];const groups=JSON.parse(JSON.stringify(S.cronograma||C.get(S.mode,false)));for(const g of groups)for(const a of g.actividades)for(const f of ["inicio","fin"]){const el=$("actas-actividades").querySelector('input[data-acta-id="'+a.id+'"][data-fecha="'+f+'"]');a[f]=el?el.value:"";}return groups;}
 function saveCron(){if(S.mode==="TODAS"){notify("Selecciona COMPLEX o TRAB antes de guardar el cronograma.",true);return;}if(!S.periodo){notify("Selecciona un período.",true);return;}const groups=collectCron();if(!C.valid(groups)){notify("Una actividad tiene una fecha de fin anterior a la de inicio.",true);return;}if(store(cronKey(),{periodoId:S.periodo,mode:S.mode,groups,updatedAt:new Date().toISOString()})){S.cronograma=groups;$("actas-cronograma-estado").textContent="Cronograma guardado";notify("Cronograma guardado localmente para "+periodLabel()+".");}}
 function setCron(groups){S.cronograma=groups;const box=$("actas-actividades");for(const g of groups)for(const a of g.actividades)for(const f of ["inicio","fin"]){const el=box.querySelector('input[data-acta-id="'+a.id+'"][data-fecha="'+f+'"]');if(el)el.value=a[f]||"";}$("actas-cronograma-estado").textContent="Cambios sin guardar";}
-function visible(){const q=norm(S.busqueda);return rows().filter(r=>{if(q&&!norm([name(r.student),ced(r.student),career(r.student)].join(" ")).includes(q))return false;if(!q&&S.mode!=="TODAS"&&r.mode&&r.mode!==S.mode)return false;const done=!!savedRecord(r);return S.estado==="aprobados"?r.approved:S.estado==="pendientes"?!r.approved:S.estado==="preparados"?done:true;});}
+function visible(){const q=norm(S.busqueda);return rows().filter(r=>{if(q&&!norm([name(r.student),ced(r.student),career(r.student)].join(" ")).includes(q))return false;if(!q&&S.mode!=="TODAS"&&r.mode&&r.mode!==S.mode)return false;const numbered=!!registeredNumber(r);return S.estado==="aprobados"?r.approved:S.estado==="pendientes"?!r.approved:S.estado==="numerados"?numbered:true;});}
 function renderTable(){
  if(!S.periodo){$("actas-estudiantes").innerHTML='<tr><td colspan="9" class="empty">Seleccione un período.</td></tr>';$("actas-zip").disabled=true;$("actas-registrar-lote").disabled=true;return;}
  const all=rows(),list=visible();
  $("actas-total").textContent=all.length;
  $("actas-aprobados").textContent=all.filter(r=>r.approved).length;
- $("actas-preparadas").textContent=all.filter(r=>!!savedRecord(r)).length;
+ $("actas-numeradas").textContent=all.filter(r=>!!registeredNumber(r)).length;
  $("actas-estudiantes").innerHTML=list.length?list.map((r,i)=>{
-  const st=r.student,rec=savedRecord(r),number=registeredNumber(r);
+  const st=r.student,number=registeredNumber(r),canExport=r.verified&&S.numberingVerified;
   const article=r.mode==="ARTICULO_ACADEMICO",inactive=text(st.estadoMatricula||st._estadoMatricula).toUpperCase()==="RETIRADO";
   const selected=article?'<select class="mode-select" disabled><option>ARTÍCULO PVC</option></select>':
    '<select class="mode-select" data-mode="'+i+'" aria-label="Modalidad de '+esc(name(st))+'" '+(inactive?'disabled':'')+'><option value="" '+(!r.mode?'selected':'')+' disabled>Seleccione modalidad</option><option value="'+CX+'" '+(r.mode===CX?'selected':'')+'>COMPLEX</option><option value="'+TT+'" '+(r.mode===TT?'selected':'')+'>TRAB</option></select>';
-  const documentState=number?"N.º "+number.numeroActa:r.conflict?"Revisar identidad, matrícula o modalidad":article?"Artículo PVC":!r.draftAllowed?"Borrador no disponible":r.verified&&!S.numberingVerified?"Borrador listo · servidor no verificado":r.verified?"Habilitado para emisión":"Borrador sin notas · pendiente de cierre";
-  return '<tr><td><input type="checkbox" class="actas-check" data-i="'+i+'" '+(S.selected.has(r.identity)?"checked ":"")+(r.draftAllowed?"":"disabled ")+'aria-label="Seleccionar '+esc(name(st))+'"></td><td><strong>'+esc(name(st))+'</strong></td><td>'+esc(ced(st))+'</td><td>'+esc(career(st))+'</td><td>'+selected+'</td><td><span class="status '+(r.a?"ok":"warn")+'">'+(r.a?"CUMPLE":"PENDIENTE")+'</span></td><td><span class="status '+(r.b?"ok":"warn")+'">'+(r.b?"CUMPLE":"PENDIENTE")+'</span></td><td title="'+esc(r.proof.missing.join("; ")||"Aprobaciones verificadas")+'"><span class="status '+(number?"ok":rec?"draft":"warn")+'">'+esc(documentState)+'</span></td><td><div class="actas-number-actions"><button class="mini secondary" data-register="'+i+'" '+(r.verified&&!number&&S.numberingVerified?"":"disabled")+'>Registrar N.º</button><button class="mini" data-pdf="'+i+'" '+(r.draftAllowed?"":"disabled")+'>Descargar PDF</button></div></td></tr>';
+  const documentState=r.conflict?"Revisar identidad, matrícula o modalidad":number?"N.º "+number.numeroActa:r.verified&&!S.numberingVerified?"Libro central sin verificar":r.verified?"Listo para emisión con número único":"Pendiente de cumplimiento institucional";
+  return '<tr><td><input type="checkbox" class="actas-check" data-i="'+i+'" '+(S.selected.has(r.identity)?"checked ":"")+(canExport?"":"disabled ")+'aria-label="Seleccionar '+esc(name(st))+'"></td><td><strong>'+esc(name(st))+'</strong></td><td>'+esc(ced(st))+'</td><td>'+esc(career(st))+'</td><td>'+selected+'</td><td><span class="status '+(r.a?"ok":"warn")+'">'+(r.a?"CUMPLE":"PENDIENTE")+'</span></td><td><span class="status '+(r.b?"ok":"warn")+'">'+(r.b?"CUMPLE":"PENDIENTE")+'</span></td><td title="'+esc(r.proof.missing.join("; ")||"Aprobaciones verificadas")+'"><span class="status '+(number&&r.verified?"ok":"warn")+'">'+esc(documentState)+'</span></td><td><div class="actas-number-actions"><button class="mini secondary" data-register="'+i+'" '+(r.verified&&!number&&S.numberingVerified?"":"disabled")+'>Registrar N.º</button><button class="mini" data-pdf="'+i+'" '+(canExport?"":"disabled")+'>Descargar PDF</button></div></td></tr>';
  }).join(""):'<tr><td colspan="9" class="empty">No existen estudiantes para estos filtros.</td></tr>';
  S.visible=list;
- $("actas-lote").disabled=!list.some(r=>r.draftAllowed&&S.selected.has(r.identity));
- $("actas-zip").disabled=!all.some(r=>r.draftAllowed);
+ $("actas-lote").disabled=!S.numberingVerified||!list.some(r=>r.verified&&S.selected.has(r.identity));
+ $("actas-zip").disabled=!S.numberingVerified||!all.some(r=>r.verified);
  $("actas-registrar-lote").disabled=!S.numberingVerified||!all.some(r=>r.verified&&!registeredNumber(r));
 }
-function prepare(r){if(!r.draftAllowed)throw Error("No se puede generar el borrador: identidad, matrícula o modalidad requieren revisión.");if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");const issue=w.ActasIssueDate.forPeriod(S.periodo).date;const documentCode="AT-ITSQMET-UTET-"+issue.slice(0,7);let map=registry(),rec=map[r.identity];
- if(rec&&rec.periodId!==S.periodo)throw Error("Existe un borrador de otro período. Revise el expediente.");
- if(rec&&rec.mode!==r.mode){
-   // Preservar el borrador anterior como histórico local; la nueva modalidad
-   // debe poder generar su propio borrador sin cambiar ningún folio oficial.
-   const previousKey=r.identity+"__ANTERIOR__"+text(rec.mode)+"__"+text(rec.codigo);
-   map[previousKey]=Object.assign({},rec,{status:"REEMPLAZADO_POR_CAMBIO_MODALIDAD",replacedAt:new Date().toISOString()});
-   delete map[r.identity];rec=null;
- }
- if(!rec){const stamp=new Date().toISOString(),prefix=stamp.slice(0,7),next=Object.values(map).filter(x=>x.month===prefix).reduce((m,x)=>Math.max(m,Number(x.consecutivo)||0),0)+1;rec={consecutivo:String(next).padStart(2,"0"),codigo:documentCode,createdAt:stamp,month:prefix,mode:r.mode,periodId:S.periodo,status:"BORRADOR"};map[r.identity]=rec;if(!store(regKey(),map))throw Error("No se pudo guardar el registro del borrador.");}return {student:r.student,mode:r.mode,record:Object.assign({},rec,{codigo:documentCode}),periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue,evidence:r.proof};}
+function prepare(r){
+ if(!r.verified)throw Error("No es posible emitir un acta final sin los nueve requisitos y ambas aprobaciones institucionales.");
+ if(!S.periodo||period(r.student)!==S.periodo)throw Error("La selección corresponde a otro período o modalidad.");
+ const issue=w.ActasIssueDate.forPeriod(S.periodo).date;
+ const documentCode="AT-ITSQMET-UTET-"+issue.slice(0,7);
+ return {student:r.student,mode:r.mode,record:{codigo:documentCode,periodId:S.periodo,mode:r.mode},
+  periodLabel:periodLabel(),schedule:r.mode===S.mode?collectCron():schedule(r.mode),issue,evidence:r.proof};
+}
 async function action(r){
  try{
   const item=await prepareWithNumber(r);
   await w.ActasPDF.download(item);renderTable();
   const registered=registeredNumber(r);
-  notify(registered?"PDF del acta N.º "+registered.numeroActa+" descargado sin calificaciones; conserva su folio.":"BORRADOR PDF SIN NÚMERO descargado sin calificaciones. Para registrar folio se requieren nueve requisitos y dos aprobaciones finales.");
+  notify("Acta final N.º "+registered.numeroActa+" descargada correctamente. El número es único y permanece registrado en Firestore.");
  }catch(e){notify("Error al descargar PDF: "+e.message,true);}
 }
-function start(){const ids=["actas-total","actas-aprobados","actas-preparadas"];ids.forEach(k=>$(k).textContent="—");renderTable();renderCron();}
+function start(){const ids=["actas-total","actas-aprobados","actas-numeradas"];ids.forEach(k=>$(k).textContent="—");renderTable();renderCron();}
 async function load(){const requestId=++S.requestId,requestedPeriod=S.periodo;if(!requestedPeriod){S.loading=false;start();return;}S.loading=true;notify("Consultando estudiantes y requisitos en Base Local…");try{const result=await w.ConActas.read({periodoId:requestedPeriod});if(requestId!==S.requestId||requestedPeriod!==S.periodo)return;S.students=result.data.students||[];S.reqs=result.data.requirements||[];S.meta=result.meta&&result.meta.diagnostics||{};S.ready=true;S.numbers=new Map();S.numberingVerified=false;S.numberingCacheCount=0;S.numberingError="";hydrateNumbers(requestId,requestedPeriod);
 const metrics=S.meta;const details=metrics.requirements!==undefined?" Requisitos relacionados: "+metrics.requirements+".":"";
-notify("Expedientes actualizados."+details+" Borradores sin calificaciones; los folios exigen habilitación institucional.");renderTable();renderCron();}catch(e){if(requestId!==S.requestId)return;S.students=[];S.reqs=[];notify("Error al cargar los datos: "+e.message,true);renderTable();}finally{if(requestId===S.requestId)S.loading=false;}}
+notify("Expedientes actualizados."+details+" La emisión de actas finales exige un folio central y expediente completo.");renderTable();renderCron();}catch(e){if(requestId!==S.requestId)return;S.students=[];S.reqs=[];notify("Error al cargar los datos: "+e.message,true);renderTable();}finally{if(requestId===S.requestId)S.loading=false;}}
 async function init(){try{await w.ConActas.ready();S.periods=await w.ConActas.listPeriods();const select=$("actas-periodo");select.innerHTML='<option value="">Seleccione período</option>'+S.periods.map(p=>'<option value="'+esc(idPeriod(p.periodoId||p.id||p.periodId))+'">'+esc(p.nombre||p.label||p.periodoLabel||p.periodo||p.descripcion||p.id||p.periodoId)+'</option>').join("");
 const global=retrieve("REQ_PERIODO_GLOBAL_V1",{});const preferred=idPeriod(global.periodoId||global.id||global.value||"");S.periodo=preferred&&S.periods.some(p=>idPeriod(p.periodoId||p.id||p.periodId)===preferred)?preferred:idPeriod(S.periods[0]&&(S.periods[0].periodoId||S.periods[0].id)||"");select.value=S.periodo;$("actas-estado").value=S.estado;$("actas-modalidad").value=S.mode;await load();}catch(e){notify("No se pudo iniciar Actas: "+e.message,true);}}
 $("actas-periodo").addEventListener("change",e=>{S.periodo=idPeriod(e.target.value);S.selected.clear();S.students=[];S.reqs=[];S.numbers=new Map();S.numberingVerified=false;S.numberingCacheCount=0;load();});
@@ -222,7 +226,7 @@ $("actas-actividades").addEventListener("input",()=>{$("actas-cronograma-estado"
 $("actas-guardar").addEventListener("click",saveCron);
 $("actas-ejemplo").addEventListener("click",()=>{if(!S.periodo||S.mode==="TODAS")return;const expected="2025-10__2026-03",label=norm(periodLabel());if(S.periodo!==expected&&!label.includes("octubre2025amarzo2026")){notify("Las fechas de las imágenes corresponden exclusivamente al período Octubre 2025 a Marzo 2026. Ingresa las fechas de este período manualmente.",true);return;}if(w.confirm("¿Cargar las fechas de ejemplo de Octubre 2025 a Marzo 2026? Podrás modificarlas antes de guardar."))setCron(C.get(S.mode,true));});
 $("actas-vaciar").addEventListener("click",()=>{if(!S.periodo||S.mode==="TODAS")return;if(w.confirm("¿Vaciar las fechas visibles? Debes pulsar Guardar para confirmar."))setCron(C.get(S.mode,false));});
-$("actas-seleccionar").addEventListener("click",()=>{visible().forEach(r=>{if(r.draftAllowed)S.selected.add(r.identity);});renderTable();});
+$("actas-seleccionar").addEventListener("click",()=>{visible().forEach(r=>{if(r.verified&&S.numberingVerified)S.selected.add(r.identity);});renderTable();});
 $("actas-estudiantes").addEventListener("change",async e=>{
   if(e.target.matches("[data-i]")){const r=S.visible[Number(e.target.dataset.i)];if(r){if(e.target.checked)S.selected.add(r.identity);else S.selected.delete(r.identity);renderTable();}return;}
   if(!e.target.matches("[data-mode]"))return;
@@ -258,23 +262,23 @@ $("actas-registrar-lote").addEventListener("click",async()=>{
  renderTable();notify("Se registraron "+count+" actas con números únicos en el libro central.");
 });
 $("actas-lote").addEventListener("click",async()=>{
- const selected=visible().filter(r=>r.draftAllowed&&S.selected.has(r.identity));if(!selected.length)return;
+ const selected=visible().filter(r=>r.verified&&S.numberingVerified&&S.selected.has(r.identity));if(!selected.length)return;
  try{
   const group=await assignToRows(selected),result=await w.ActasPDF.download(group.items);
-  renderTable();notify(result.count+" PDF descargados. "+group.items.filter(x=>!x.record.numeroActa).length+" borradores sin número oficial."+(group.reason?" "+group.reason:""),group.failed>0);
+  renderTable();notify(result.count+" actas finales descargadas, todas con número oficial único.");
  }catch(e){notify("No se pudieron generar los PDF: "+e.message,true);}
 });
 $("actas-zip").addEventListener("click",async()=>{
  if(!S.periodo)return;
- const all=rows(),approved=all.filter(r=>r.draftAllowed),button=$("actas-zip");
+ const all=rows(),approved=all.filter(r=>r.verified),button=$("actas-zip");
  if(!approved.length){notify("No existen estudiantes habilitados.",true);return;}
- const summary=all.map(r=>({cedula:ced(r.student),nombre:name(r.student),carrera:career(r.student),modalidad:r.mode===TT?"TRAB":r.mode===CX?"COMPLEX":"ARTICULO",estado:r.draftAllowed?"EN_PROCESO":"EXCLUIDO",motivo:r.draftAllowed?"":r.conflict?"Revisar identidad, matrícula o modalidad":r.proof.missing.join("; "),archivo:""}));
+ const summary=all.map(r=>({cedula:ced(r.student),nombre:name(r.student),carrera:career(r.student),modalidad:r.mode===TT?"TRAB":r.mode===CX?"COMPLEX":"ARTICULO",estado:r.verified?"EN_PROCESO":"EXCLUIDO",motivo:r.verified?"":r.conflict?"Revisar identidad, matrícula o modalidad":r.proof.missing.join("; "),archivo:""}));
  button.disabled=true;
  try{
-  const group=await assignToRows(approved,p=>notify("Verificando números oficiales: "+p.done+"/"+p.total+"…"));
+  const group=await assignToRows(approved,p=>notify("Asignando números oficiales únicos: "+p.done+"/"+p.total+"…"));
   group.items.forEach(x=>{const row=summary.find(y=>y.cedula===ced(x.student));if(row)row.numeroActa=x.record.numeroActa||"";});
   const result=await w.ActasPDF.downloadZip(group.items,summary,S.periodo,p=>notify("Generando ZIP: "+p.done+"/"+p.total+"…"));
-  renderTable();notify("ZIP descargado: "+result.generated+" PDF; "+group.items.filter(x=>!x.record.numeroActa).length+" sin numeración oficial."+(group.reason?" "+group.reason:""),group.failed>0);
+  renderTable();notify("ZIP descargado: "+result.generated+" actas finales numeradas."+(result.errors?" Hubo "+result.errors+" errores de generación; revisa el CSV.":""),result.errors>0);
  }catch(e){notify("No se pudo exportar el ZIP: "+e.message,true);}
  finally{renderTable();}
 });

@@ -25,15 +25,14 @@ sample.student._ncomplexEvaluation={modalidadTitulacion:cat.COMPLEXIVO,estadoEva
 sample.evidence=sandbox.window.ActasEvidence.assess({student:sample.student,mode:sample.mode,requirementValues:requireAll,remoteEvaluation:sample.student._ncomplexEvaluation,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))});
 assert.equal(sample.evidence.eligible,true);
 const exam=docs.render(sample);
-const draft=docs.render({...sample,record:{...sample.record,numeroActa:""},
- evidence:sandbox.window.ActasEvidence.assess({student:{Nombres:"SIN NOTAS"},mode:cat.COMPLEXIVO,requirementValues:{}})});
-assert.match(draft,/BORRADOR SIN NÚMERO OFICIAL/);
-assert.match(draft,/PENDIENTE DE EMISIÓN OFICIAL/);
-assert.doesNotMatch(draft,new RegExp("8,60/10"));
+assert.throws(()=>docs.render({...sample,record:{...sample.record,numeroActa:""},
+ evidence:sandbox.window.ActasEvidence.assess({student:{Nombres:"SIN NOTAS"},mode:cat.COMPLEXIVO,requirementValues:{}})}),
+ /acta final requiere/,"La vista previa rechaza actas sin requisitos y folio");
+ assert.doesNotMatch(exam,/borrador/i,"Un acta final no imprime etiquetas de borrador");
 assert.match(exam,/Acta de Titulación por Examen Complexivo/);assert.match(exam,/Unidad de Titulación y Eficiencia Terminal/);assert.match(exam,/Fecha de emisión: 29\/05\/2026/);
 assert.match(exam,/Aprobación de titulación/);
 assert.match(exam,/Aprobación complexivo\/proyecto/);
-assert.match(exam,/ESTADO DOCUMENTAL: APROBACIONES INSTITUCIONALES ACREDITADAS/);
+assert.match(exam,/ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS/);
 assert.match(exam,/N.º DE ACTA: 2026-1234-10-0001/,"La numeración aparece después de la portada");
 for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(exam.includes(signer),"Vista previa conserva firmante: "+signer);
 
@@ -53,7 +52,7 @@ assert.match(exam,/Fecha de emisión:/);
 assert.doesNotMatch(exam,/NOMBRE: __________________|CARGO: __________________/);
 
 const workStudent={...sample.student,_ncomplexEvaluation:{modalidadTitulacion:cat.TRABAJO,estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};
-const work=docs.render({...sample,student:workStudent,mode:cat.TRABAJO,schedule:cat.get(cat.TRABAJO,true),evidence:sandbox.window.ActasEvidence.assess({student:workStudent,mode:cat.TRABAJO,requirementValues:requireAll})});
+const work=docs.render({...sample,student:workStudent,mode:cat.TRABAJO,record:{...sample.record,numeroActa:"2026-1234-10-0002"},schedule:cat.get(cat.TRABAJO,true),evidence:sandbox.window.ActasEvidence.assess({student:workStudent,mode:cat.TRABAJO,requirementValues:requireAll})});
 assert.match(work,/Acta de Titulación por Trabajo de Titulación/);
 assert.match(work,/Modalidad y estado del proceso/);
 assert.match(work,/Titulación/);
@@ -64,4 +63,4 @@ assert.doesNotMatch(menu,/moduloId:"cr_def",etiqueta:"Cr-def"/);
 assert.match(registry,/actas:\{id:"actas",nombre:"Actas",ruta:base\+"\/Actas\/actas.html"/);
 assert.match(read("Actas/actas.app.js"),/aprobaciontitulacion/);
 assert.match(read("Actas/actas.app.js"),/aprobacioncomplexivoproyecto/);
-console.log("VERIFICACIÓN DE ACTAS: OK (dos modalidades, cronogramas y borradores sin notas)");
+console.log("VERIFICACIÓN DE ACTAS: OK (dos modalidades, cronogramas y actas finales numeradas)");

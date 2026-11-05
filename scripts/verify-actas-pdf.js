@@ -34,7 +34,7 @@ function sample(cedula,mode){
  const student={Nombres:"ESTUDIANTE DE PRUEBA",cedula,NombreCarrera:"ADMINISTRACIÓN",_ncomplexHasSavedEvaluation:true,_ncomplexEvaluation:ev};
  const keys=["academico","documentacion","practicasvinculacion","vinculacion","seguimientograduados","ingles","actualizaciondatos","financiero","titulacion","aprobaciontitulacion","aprobacioncomplexivoproyecto"];
  const reqs=Object.fromEntries(keys.map(k=>[k,"CUMPLE"]));
- return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-0001"},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-05-29",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs,remoteEvaluation:work?null:ev,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))})};
+ return {student,mode,record:{codigo:"UTET-ACTA-01",periodId:"2025-10__2026-03",numeroActa:"2026-0000-10-"+cedula.slice(-4)},periodLabel:"Octubre 2025 a Marzo 2026",issue:"2026-05-29",schedule:[],evidence:context.window.ActasEvidence.assess({student,mode,requirementValues:reqs,remoteEvaluation:work?null:ev,nuclei:[1,2,3,4].map(n=>({nucleo:n,notaFinal:8,estado:"APROBADO"}))})};
 }
 async function main(){
  const exam=sample("0000000001","EXAMEN_COMPLEXIVO"),work=sample("0000000002","TRABAJO_TITULACION");
@@ -52,20 +52,21 @@ assert.ok(lastDoc.texts.some(t=>t.includes("Acta de Titulación por Examen Compl
  assert.ok(!lastDoc.texts.some(t=>t.includes("Nombre: ___")||t.includes("Cargo: ___")),"Nombres y cargos no deben quedar vacíos");
  for(const phrase of ["Culminación de la malla curricular","Verificación de los nueve requisitos institucionales","Prácticas preprofesionales","Modalidad y estado del proceso de titulación","Aprobaciones institucionales","Constancia documental"])assert.ok(lastDoc.texts.join(" ").includes(phrase),"Cuerpo del PDF: "+phrase);
  for(const signer of ["MSc, Jefferson Villarreal","Ing. Martha Tomalá","Dr. Alex León T.","Coordinador de Titulación y Eficiencia Terminal","Coordinadora General de Carreras","Vicerrector"])assert.ok(lastDoc.texts.join(" ").includes(signer),"PDF contiene nombre y cargo de "+signer);
- const draftStudent={Nombres:"ESTUDIANTE SIN NOTAS",cedula:"0000000010",NombreCarrera:"ADMINISTRACIÓN"};
- const draftEvidence=context.window.ActasEvidence.assess({student:draftStudent,mode:"EXAMEN_COMPLEXIVO",requirementValues:{aprobaciontitulacion:"CUMPLE",aprobacioncomplexivoproyecto:"CUMPLE"}});
- assert.equal(draftEvidence.eligible,false,"Borrador no equivale a aprobación definitiva");
- const draft={...exam,student:draftStudent,evidence:draftEvidence,record:{...exam.record,numeroActa:""}};
- await api.build(draft);
- assert.equal(lastDoc.texts.some(t=>t.includes("BORRADOR SIN NÚMERO OFICIAL")),true,"Se genera borrador aun sin notas");
- assert.equal(lastDoc.texts.some(t=>t.includes("PENDIENTE DE EMISIÓN OFICIAL")),true);
- assert.equal(lastDoc.texts.some(t=>t.includes("8,60/10")),false,"No imprime nota numérica en ningún PDF");
+ const incompleteStudent={Nombres:"ESTUDIANTE SIN REQUISITOS",cedula:"0000000010",NombreCarrera:"ADMINISTRACIÓN"};
+ const incompleteEvidence=context.window.ActasEvidence.assess({student:incompleteStudent,mode:"EXAMEN_COMPLEXIVO",requirementValues:{aprobaciontitulacion:"CUMPLE",aprobacioncomplexivoproyecto:"CUMPLE"}});
+ const invalid={...exam,student:incompleteStudent,evidence:incompleteEvidence,record:{...exam.record,numeroActa:""}};
+ await assert.rejects(()=>api.build(invalid),/acta final exige/,"No se genera un documento final sin expediente completo ni número");
+ assert.ok(lastDoc.texts.some(t=>t.includes("Acta N.º 2026-0000-10-0001")),"El pie muestra el folio único");
+ assert.doesNotMatch(lastDoc.texts.join(" "),/borrador/i,"El PDF final no incluye etiquetas de borrador");
+ assert.ok(lastDoc.texts.some(t=>t.includes("REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS")));
+ assert.ok(!lastDoc.texts.some(t=>t.includes("8,60/10")),"No se imprimen calificaciones numéricas");
  const both=await api.build([exam,work]);assert.equal(both.type,"application/pdf");assert.ok(lastDoc.pages>=4,"PDF de seleccionados incluye ambas actas");
  assert.doesNotMatch(lastDoc.texts.join(" "),/8,60\/10|8,40\/10|Nota final oficial|Calificación teórica/);
- const summary=[{cedula:"0000000001",nombre:"PRUEBA 1",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"},{cedula:"0000000002",nombre:"PRUEBA 2",carrera:"ADM",modalidad:"TRAB",estado:"EN_PROCESO"},{cedula:"0000000003",nombre:"PENDIENTE",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"},{cedula:"0000000010",nombre:"BORRADOR SIN NOTAS",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"}];
- const zip=await api.downloadZip([exam,work],summary,"2025-10__2026-03");assert.equal(zip.generated,2);assert.equal(zip.drafts,0);assert.equal(zip.excluded,2);
+ const summary=[{cedula:"0000000001",nombre:"PRUEBA 1",carrera:"ADM",modalidad:"COMPLEX",estado:"EN_PROCESO"},{cedula:"0000000002",nombre:"PRUEBA 2",carrera:"ADM",modalidad:"TRAB",estado:"EN_PROCESO"},{cedula:"0000000003",nombre:"PENDIENTE",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"},{cedula:"0000000010",nombre:"PENDIENTE 2",carrera:"ADM",modalidad:"COMPLEX",estado:"EXCLUIDO",motivo:"Requisitos incompletos"}];
+ const zip=await api.downloadZip([exam,work],summary,"2025-10__2026-03");assert.equal(zip.generated,2);assert.equal(zip.errors,0);assert.equal(zip.excluded,2);
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("COMPLEX/")&&f.endsWith(".pdf")));
  assert.ok([...lastZip.files.keys()].some(f=>f.startsWith("TRAB/")&&f.endsWith(".pdf")));
+ assert.equal(new Set([...lastZip.files.keys()].filter(f=>f.endsWith(".pdf"))).size,2,"Los archivos individuales tienen números distintos");
  assert.ok(lastZip.files.has("Resumen_exportacion.csv"));assert.ok(lastZip.files.get("Resumen_exportacion.csv").includes("EXCLUIDO"));
  assert.ok(downloads.length>=1,"ZIP dispara una descarga");
  ["actas-busqueda","actas-zip","actas-config-logo","actas-logo-modal","actas-logo-file","actas-logo-guardar"].forEach(id=>assert.match(html,new RegExp('id="'+id+'"')));

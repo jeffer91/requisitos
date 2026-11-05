@@ -1,5 +1,5 @@
 "use strict";
-/* Reglas documentales: nueve requisitos, dos aprobaciones y borradores sin notas. */
+/* Reglas documentales: nueve requisitos, dos aprobaciones y emisión final sin notas. */
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const ctx={window:{}};vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname,"../Actas/actas.evidence.js"),"utf8"),ctx);
@@ -24,7 +24,7 @@ assert.equal(assess({...complete,financiero:"PENDIENTE"}).eligible,false);
 assert.equal(assess({...complete,titulacion:"NO CUMPLE"}).eligible,false);
 assert.equal(assess({...complete,aprobaciontitulacion:"PENDIENTE"}).eligible,false);
 const pending=assess({});assert.equal(pending.eligible,false);
-assert.equal(pending.draftEligible,true,"Se admite borrador sin requisitos completos");
+assert.equal(pending.draftEligible,true,"La modalidad se reconoce aunque el expediente no autorice emisión final");
 assert.equal(assess(complete,"ARTICULO_ACADEMICO").draftEligible,false);
  const stale={requisitos:[{requisitoKey:"financiero",valor:"CUMPLE"}]};
  assert.equal(assess({...complete,financiero:"PENDIENTE"},"EXAMEN_COMPLEXIVO",stale).eligible,false,
@@ -39,4 +39,4 @@ assert.equal(assess({},"TRABAJO_TITULACION",nested).eligible,true);
 assert.equal(assess({...complete,practicas:undefined,practicasVinculacion:"CUMPLE"}).eligible,true);
 assert.equal(assess({...complete,practicas:undefined,vinculacion:undefined,practicasVinculacion:"CUMPLE"}).eligible,false,
  "Prácticas/Vinculación combinado no acredita Vinculación por separado");
-console.log("VERIFICACIÓN ACTAS EVIDENCIAS: OK (9 requisitos, 2 aprobaciones y borradores sin notas)");
+console.log("VERIFICACIÓN ACTAS EVIDENCIAS: OK (9 requisitos, 2 aprobaciones y emisión final controlada)");

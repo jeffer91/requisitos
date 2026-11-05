@@ -1,4 +1,4 @@
-/* Plantilla institucional narrativa: borradores, sin notas numéricas. */
+/* Plantilla institucional de actas finales sin calificaciones numéricas. */
 (function(w){"use strict";
 function safe(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function txt(s,names){for(const n of names)if(s[n]!=null&&String(s[n]).trim())return String(s[n]).trim();return "No registrado";}
@@ -20,7 +20,7 @@ function cover(data){
  '<table class="sign"><tr class="sign-space"><td>ELABORADO POR:</td><td>REVISADO POR:</td><td>APROBADO POR:</td></tr>'+
  '<tr class="sign-names"><td><b>NOMBRE:</b> MSc, Jefferson Villarreal</td><td><b>NOMBRE:</b> Ing. Martha Tomalá</td><td><b>NOMBRE:</b> Dr. Alex León T.</td></tr>'+
  '<tr class="sign-roles"><td><b>CARGO:</b> Coordinador de Titulación y Eficiencia Terminal</td><td><b>CARGO:</b> Coordinadora General de Carreras</td><td><b>CARGO:</b> Vicerrector</td></tr></table>'+
- '<div class="footer"><span>Instituto Superior Tecnológico Quito Metropolitano · ITSQMET</span><span>Borrador para revisión y firmas</span></div></section>';
+ '<div class="footer"><span>Instituto Superior Tecnológico Quito Metropolitano · ITSQMET</span><span>Acta N.º '+safe(data.record.numeroActa)+'</span></div></section>';
 }
 function milestones(groups,mode){
 const allowed=mode==="TRABAJO_TITULACION"?["induccion","tema","entrega","defensa","cierre"]:["nucleo1","nucleo4","examen","supletorio"];
@@ -34,10 +34,9 @@ function bodyPage(data){
   car=safe(txt(student,["NombreCarrera","nombreCarrera","carrera","Carrera"]));
  const item=(label,value)=>'<tr><td>'+safe(label)+'</td><td>'+safe(value)+'</td></tr>';
  const requirements=p.requirements.map((r,i)=>item((i+1)+". "+r.label,r.status)).join("");
- const official=!!data.record.numeroActa&&p.eligible;
  return '<section class="page page2">'+head(data.mode,data.record,data.periodLabel,2,data.issue)+
   '<h2 class="stage-heading">CONSTANCIA DOCUMENTAL DE TITULACIÓN</h2>'+
-  '<p class="stage-result"><b>'+safe(data.record.numeroActa?'N.º DE ACTA: '+data.record.numeroActa:'BORRADOR SIN NÚMERO OFICIAL')+'</b></p>'+
+  '<p class="stage-result"><b>'+safe('N.º DE ACTA: '+data.record.numeroActa)+'</b></p>'+
   '<table class="stage-identity">'+item("Estudiante",nm)+item("Cédula",ced)+item("Carrera",car)+item("Modalidad",nombreModo(data.mode))+'</table>'+
   '<h3 class="stage-title">1. Cumplimiento curricular</h3><p class="stage-text">'+safe(p.mallaText)+'</p>'+
   '<h3 class="stage-title">2. Verificación de nueve requisitos institucionales</h3><table class="stage-rows">'+requirements+'</table>'+
@@ -45,13 +44,11 @@ function bodyPage(data){
   '<h3 class="stage-title">4. Aprobaciones institucionales</h3>'+
   '<table class="stage-rows">'+item("Aprobación de titulación",p.finalTitleStatus)+item("Aprobación complexivo/proyecto",p.finalResultStatus)+'</table>'+
   '<h3 class="stage-title">5. Constancia documental</h3><p class="stage-text">'+safe(p.closureText)+'</p>'+
-  '<p class="stage-result"><b>ESTADO DOCUMENTAL: '+(official?'APROBACIONES INSTITUCIONALES ACREDITADAS':'BORRADOR · PENDIENTE DE EMISIÓN OFICIAL')+'</b></p>'+
-  (!p.eligible?'<p class="stage-small">Pendientes: '+safe(p.missing.join("; "))+'</p>':'')+
-  '<p class="stage-small">'+(official?'Sujeta a firmas para su legalización definitiva.':
-    'BORRADOR SIN VALIDEZ DE ACTA NUMERADA. No acredita por sí mismo la aprobación definitiva.')+'</p>'+
+  '<p class="stage-result"><b>ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS</b></p>'+
+  '<p class="stage-small">La presente acta registra el cumplimiento documental del proceso de titulación.</p>'+
   '<div class="footer"><span>'+safe(data.record.codigo)+'</span><span>'+safe(fecha(data.issue))+'</span></div></section>';
 }
-function render(items){const all=Array.isArray(items)?items:[items];if(all.some(x=>!x.evidence||x.evidence.draftEligible===false))throw Error("El borrador requiere un expediente documental válido.");return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
+function render(items){const all=Array.isArray(items)?items:[items];if(all.some(x=>!x.evidence||x.evidence.eligible!==true||!/^[0-9]{4}-[0-9]{4}-(0[1-9]|1[0-2])-[0-9]{4}$/.test(String(x.record&&x.record.numeroActa||""))))throw Error("El acta final requiere expediente completo y número oficial único.");return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Actas de Titulación ITSQMET</title><style>'+css+'</style></head><body><div class="toolstrip">Vista previa institucional · Sin notas numéricas <button onclick="window.print()">Imprimir / Guardar PDF</button> <button onclick="window.close()">Cerrar</button></div>'+all.map(it=>'<article class="acta">'+cover(it)+bodyPage(it)+'</article>').join('')+'</body></html>';}
 function preview(items){const win=w.open("","_blank");if(!win)throw Error("Habilita ventanas emergentes para ver las actas.");win.document.open();win.document.write(render(items));win.document.close();win.focus();}
 
 w.ActasDocument=Object.freeze({render,preview});

@@ -43,7 +43,7 @@ const institutionLogo=fs.readFileSync(path.join(__dirname,"../Global/assets/bran
  }
  inspectPng(parts.get("word/media/logo.png"));
  const xml=parts.get("word/document.xml").toString("utf8");
-assert.match(xml,/<w:document/);assert.match(xml,/Acta de Titulación por Examen Complexivo/);assert.match(xml,/Unidad de Titulación y/);assert.match(xml,/Fecha de emisión: 29\/05\/2026/);assert.match(xml,/ESTADO DOCUMENTAL: APROBACIONES INSTITUCIONALES ACREDITADAS/);assert.match(xml,/Aprobación de titulación/);
+assert.match(xml,/<w:document/);assert.match(xml,/Acta de Titulación por Examen Complexivo/);assert.match(xml,/Unidad de Titulación y/);assert.match(xml,/Fecha de emisión: 29\/05\/2026/);assert.match(xml,/ESTADO DOCUMENTAL: REQUISITOS Y APROBACIONES INSTITUCIONALES CUMPLIDOS/);assert.match(xml,/Aprobación de titulación/);
 assert.match(xml,/N.º DE ACTA: 2026-0000-10-0001/,"Número al inicio del cuerpo del Word");assert.match(xml,/Aprobación complexivo\/proyecto/);
 assert.match(xml,/Prácticas preprofesionales/);assert.match(xml,/Verificación de los nueve requisitos institucionales/);assert.doesNotMatch(xml,new RegExp("8,60/10|Nota final oficial|Evaluación teórica"),"DOCX no contiene calificaciones");
 assert.doesNotMatch(xml,/Calificación numérica:\s*\d/i);
@@ -59,18 +59,15 @@ assert.match(xml,/<w:sz w:val="46"\/><w:b\/><\/w:rPr><w:t xml:space="preserve">P
 assert.doesNotMatch(xml,/NOMBRE: _{4}|CARGO: _{4}/);
 assert.match(xml,/rIdLogo/);assert.match(xml,/w:type="page"/);assert.match(xml,/w:br\/>/,"Firmas y códigos con saltos de línea");
 assert.match(parts.get("[Content_Types].xml").toString("utf8"),/wordprocessingml.document.main\+xml/);
-const workStudent={...item.student,_ncomplexEvaluation:{modalidadTitulacion:"TRABAJO_TITULACION",estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};
-const workItem={...item,student:workStudent,mode:"TRABAJO_TITULACION",evidence:context.window.ActasEvidence.assess({student:workStudent,mode:"TRABAJO_TITULACION",requirementValues})};
+const workStudent={...item.student,cedula:"0000000002",_ncomplexEvaluation:{modalidadTitulacion:"TRABAJO_TITULACION",estadoEvaluacion:"APROBADO",notaEscrito:8,notaDefensaTrabajo:9,notaOficial:8.4}};
+const workItem={...item,student:workStudent,mode:"TRABAJO_TITULACION",record:{...item.record,numeroActa:"2026-0000-10-0002"},evidence:context.window.ActasEvidence.assess({student:workStudent,mode:"TRABAJO_TITULACION",requirementValues})};
 const work=await context.window.ActasDocx.build(workItem),workParts=readZip(await work.arrayBuffer());
- const draftItem={...item,student:{Nombres:"ESTUDIANTE SIN NOTAS",cedula:"0000000099",NombreCarrera:"EDUCACIÓN INICIAL"},
+ const incompleteItem={...item,student:{Nombres:"ESTUDIANTE SIN REQUISITOS",cedula:"0000000099",NombreCarrera:"EDUCACIÓN INICIAL"},
   record:{...item.record,numeroActa:""},evidence:context.window.ActasEvidence.assess({
-   mode:"EXAMEN_COMPLEXIVO",student:{Nombres:"ESTUDIANTE SIN NOTAS"},requirementValues:{}
+   mode:"EXAMEN_COMPLEXIVO",student:{Nombres:"ESTUDIANTE SIN REQUISITOS"},requirementValues:{}
   })};
- const draft=await context.window.ActasDocx.build(draftItem);
- const draftXML=readZip(await draft.arrayBuffer()).get("word/document.xml").toString("utf8");
- assert.match(draftXML,/BORRADOR SIN NÚMERO OFICIAL/);
- assert.doesNotMatch(draftXML,new RegExp("8,60/10|Nota final oficial"));
-
+ await assert.rejects(()=>context.window.ActasDocx.build(incompleteItem),/acta final exige/,"DOCX no se genera sin folio y requisitos completos");
+ assert.doesNotMatch(xml,/borrador/i,"El Word final no tiene etiquetas de borrador");
 assert.match(workParts.get("word/document.xml").toString("utf8"),/Acta de Titulación por Trabajo de Titulación/);
 console.log("VERIFICACIÓN DOCX ACTAS: OK (ZIP OOXML, logotipo incrustado, formato por modalidad, sin notas)");}
 main().catch(e=>{console.error(e.stack||e);process.exitCode=1;});
