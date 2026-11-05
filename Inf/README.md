@@ -1,58 +1,72 @@
 # Inf — Informe Final del Proceso de Titulación
 
-## Alcance
+Módulo independiente en la rama **main** de `jeffer91/requisitos`, accesible desde el menú superior de la aplicación como **Inf**.
 
-Módulo independiente y progresivo para los informes institucionales UTET. Se crea en la rama main sin tocar los módulos existentes, sus bases de datos ni sus conectores.
+## Estado de desarrollo
 
-El índice es el aprobado por el usuario: ocho capítulos, con sus títulos, subapartados y numeración intactos. Las plantillas genéricas se incorporarán por entregas; los textos vacíos **significan contenido pendiente**. No se deben generar datos, normas, referencias o resultados de ejemplo.
+- **Capítulo 1. Introducción:** texto fijo entregado por el usuario.
+- **Capítulo 2. Base Legal:** texto fijo entregado por el usuario, incluidos 2.5–2.9. Debe verificarse jurídicamente antes de emitir un documento oficial.
+- **Capítulo 3. Metodología:** texto fijo completo entregado por el usuario, incluidos 3.7 (cronogramas) y 16 carreras (3.4.4.1–3.4.4.16).
+- **Capítulos 4–8:** estructura creada, pero todavía sin resultados reales ni textos genéricos de estas secciones.
+- **Gráficos:** 16 esquemas visuales de cuatro núcleos por carrera, generados desde el texto de 3.4.4; diagramas Gantt editables de las dos modalidades.
+- **PDF:** botón «Descargar PDF de avance», que genera un documento A4 local mediante jsPDF, con portada INF en condición de borrador, capítulos disponibles, gráficos y cronogramas. No es una emisión institucional legalizada.
+- **Cronogramas:** período seleccionado, dos tablas editables y guardado local independiente por período.
+- **BDLocal:** `ConInf` es un conector de reserva que declara `dataConnected:false`. Inf aún no lee notas ni requisitos; los análisis estadísticos del capítulo 4 se habilitarán cuando sus fuentes estén disponibles y verificadas.
 
-## Organización
+## Arquitectura
 
-- inf.html / inf.css / inf.app.js: pantalla de lectura y seguimiento de carga de secciones.
-- core/inf.catalog.js: índice único, inmutable, con los títulos y números exactos.
-- core/inf.registry.js: registro validado de plantillas, con un archivo independiente por capítulo.
-- core/inf.report.js: modelo de borrador y conteo de secciones pendientes.
-- sections/01-... a 08-...: textos genéricos a incorporar posteriormente, siempre en su capítulo.
-- export/README.md: contratos futuros para exportación.
-- tests/verify-inf.js: comprobaciones de integridad de catálogo, plantillas y borrador.
+```text
+Inf/
+├── inf.html, inf.css, inf.app.js
+├── core/
+│   ├── inf.catalog.js       Índice numerado
+│   ├── inf.registry.js      Textos fijos por capítulo
+│   ├── inf.report.js        Modelo del informe
+│   ├── inf.markdown.js      Vista segura de los textos
+│   ├── inf.nuclei.js        Nombres de núcleos desde 3.4.4.x
+│   ├── inf.schedules.js     Cronogramas por período
+│   └── inf.visuals.js       Diagramas SVG de núcleos y Gantt
+├── sections/
+│   ├── 01-introduccion/section.js
+│   ├── 02-base-legal/section.js
+│   ├── 03-metodologia/section.js
+│   ├── 04-resultados/section.js
+│   ├── 05-resumen-ejecutivo/section.js
+│   ├── 06-conclusiones/section.js
+│   ├── 07-recomendaciones/section.js
+│   └── 08-referencias/section.js
+├── export/inf.pdf.js
+└── tests/verify-inf.js
+```
 
-## Cómo incorporar cada entrega
+El menú registra `inf` en `Maqueta` y el conector de reserva `BDLocal/conexiones/cone.inf.js` sin permisos de lectura/escritura de datos académicos.
 
-Cuando se apruebe el texto de una sección, modificar exclusivamente el campo correspondiente en su archivo sections/NN-.../section.js. Conservar exactamente las claves numéricas (por ejemplo, 3.4 y 4.3.2). Los textos de capítulos y subcapítulos se registran como contenido literal; los resultados dinámicos se conectarán más adelante a las fuentes verificadas.
+## Cronogramas
 
-## Normas y fuentes
+La primera vez que se selecciona **Octubre 2025 a Marzo 2026** se muestran los cronogramas entregados por el usuario: 6 actividades para Examen Complexivo y 20 para Trabajo de Titulación, dividido en tres fases. Las fechas se preservan literalmente, aunque la ejecución del proceso se extienda más allá de marzo de 2026.
 
-- Formato institucional INF: guía de estandarización de portadas RGI/INF/ACT ITSQMET v1.1, no crear un código documental inventado.
-- Redacción, referencias, citas, tablas y figuras: APA 7, respetando excepciones institucionales de portada y numeración.
-- Manual de Procesos de Titulación y Eficiencia Terminal v2: proceso UTET-PRO-95 y procesos conexos.
-- BDLocal: fuente oficial de estudiantes y requisitos; Ficha: modalidad; Ncomplex: evaluaciones; Stats: indicadores; Actas: cierre documental. Su integración se hará mediante conectores oficiales, sin accesos directos a los datos ni escrituras académicas desde Inf.
-- Las notas de núcleos estructurantes requieren una fuente verificable independiente; no se deducen de Ncomplex.
-- No equiparar aprobación académica y cierre de titulación oficialmente certificado.
+Los demás períodos comienzan con sus dos cronogramas vacíos. Cada actividad puede modificarse o eliminarse; se pueden agregar nuevas actividades. El usuario debe pulsar **Guardar cronogramas**. El guardado usa solamente `localStorage`, en la clave `ITSQMET_INF_CRONOGRAMAS_V1`, y no altera BDLocal, Firebase ni actas.
 
-## Estado actual
+Los estados se registran como **NO_VERIFICADO** salvo indicación fundamentada del usuario. Una fecha pasada no constituye evidencia de cumplimiento. No se calculan tasas de ejecución sin comprobación.
 
-Este bloque solo establece la carpeta, el índice y la infraestructura para recibir los textos. Aún **no** consulta datos reales, genera un informe final, exporta Word/PDF ni está registrado en el menú principal; esas integraciones vendrán cuando se desarrollen las secciones y el motor. No modificar componentes ajenos a Inf antes de esa etapa.
+## PDF y gráficos
 
-## Comprobación
+El PDF se produce a partir de jsPDF ya utilizado en otros módulos de la aplicación (`node_modules/html2pdf.js/node_modules/jspdf` o instalación directa). Incluye esquemas estructurales reales (4 núcleos por cada una de las 16 carreras) y cronogramas editados con barras Gantt. Las fechas se validan antes de exportar.
 
-Desde la raíz del repositorio: node Inf/tests/verify-inf.js
+El documento presenta **BORRADOR DE AVANCE - NO LEGALIZADO** y no se puede confundir con un informe oficial final. Los capítulos 4 a 8 no se rellenan con números inventados. Los gráficos estadísticos de estudiantes, aprobados, supletorios, medias y comparaciones por carrera se incorporarán al conectar datos verificados.
 
-## Entregas de contenido incorporadas (5 de noviembre de 2026)
+La maquetación se orienta a la guía ITSQMET INF v1.1 (portada A4 y bloque de firmas) y el estilo de texto académico APA 7. El código documental debe aprobarse externamente: no generar códigos o firmas falsas.
 
-- Capítulo 1 (Introducción): texto general y apartados 1.1, 1.2 y 1.3, sin alterar la redacción suministrada.
-- Capítulo 2 (Base Legal): texto general y apartados 2.1 a 2.9. Se incorporaron los nuevos subapartados 2.5 a 2.9 al índice a partir del texto enviado.
-- Los textos jurídicos se incorporan tal como fueron suministrados; los artículos y la vigencia normativa requieren verificación antes de emisión oficial.
-- Se incluye un visor Markdown seguro que presenta subtítulos, negritas y enumeraciones de los originales.
-- Los capítulos 3 a 8 permanecen pendientes. El módulo continúa sin integrarse al menú ni consultar calificaciones.
+## Verificación
 
-## Tercera entrega: capítulo 3
+Desde la raíz del repositorio:
 
-Se incorporó íntegramente la Metodología y su numeración 3.1–3.7, con 16 descripciones de carreras (3.4.4.1–3.4.4.16). El texto fijo se separa de los cronogramas editables por período. La Base Legal se conserva pendiente de revisión normativa antes de emisión oficial.
+```bash
+node Inf/tests/verify-inf.js
+```
 
-## Cronogramas editables
+Las comprobaciones validan el índice completo, los textos incorporados, los 16 diagramas/64 nombres de núcleos, los 2 cronogramas y el aislamiento por período. La ejecución gráfica y de PDF debe verificarse también en Electron antes de emitir un informe institucional.
 
-El archivo `core/inf.schedules.js` contiene el cronograma inicial de octubre de 2025 a marzo de 2026 facilitado por el usuario: seis actividades de Examen Complexivo y veinte de Trabajo de Titulación, agrupadas en tres fases. Para otros períodos el calendario inicia vacío. Los cambios son locales en `localStorage`, independientes por nombre de período y no modifican datos académicos. Se validan fechas reales e intervalos antes de guardar o generar el PDF. Ninguna fecha se interpreta automáticamente como ejecución.
+## Actualizaciones futuras
 
-## Navegación principal
-
-El módulo se incorpora al menú superior como **Inf** y abre `Inf/inf.html`. El conector único `ConInf` es una reserva explícita sin lectura ni escritura de BDLocal: su estado indica `dataConnected:false`. Esto evita confundir los gráficos estructurales y los calendarios locales con los resultados académicos, que se incorporarán cuando exista fuente validada.
+Cada texto genérico nuevo se incorpora exclusivamente a `Inf/sections` y su clave numerada. Los títulos no se reescriben sin instrucción explícita. No se debe mezclar un texto fijo con registros cambiantes por período.

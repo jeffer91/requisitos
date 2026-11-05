@@ -24,7 +24,7 @@
       unidad: "Unidad de Titulación y Eficiencia Terminal",
       documentType: "INF", documentCode: null,
       format: "APA 7 con portada institucional INF",
-      isDraft: true, canExport: false, dataConnected: false,
+      isDraft: true, canExport: false, canExportDraft: true, dataConnected: false,
       chapters: chapters, coverage: {
         chapters: chapters.length, blocks: blocks, completed: completed,
         pending: blocks - completed

@@ -108,7 +108,7 @@ function build(doc,payload,logoImage){
   var today=new Date(),date=("0"+today.getDate()).slice(-2)+"/"+("0"+(today.getMonth()+1)).slice(-2)+"/"+today.getFullYear();
   doc.text("Fecha: "+date,39,42,{align:"center",maxWidth:45});
   setFont("bold",8);doc.text("Informe Final del Proceso de Titulación",110.5,42,{align:"center",maxWidth:89});
-  setFont("normal",8);doc.text("Página X de Y",176.5,42,{align:"center"});
+  /* Número total de páginas insertado tras la composición final. */
   setFont("bold",18);doc.text(["INFORME FINAL DEL","PROCESO DE TITULACIÓN"],105,113,{align:"center"});
   setFont("normal",13);doc.text(period,105,134,{align:"center",maxWidth:169});
   setFont("bold",12,[140,38,38]);doc.text("BORRADOR DE AVANCE - NO LEGALIZADO",105,148,{align:"center"});
