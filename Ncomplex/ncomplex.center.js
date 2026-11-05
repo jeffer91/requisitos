@@ -500,6 +500,6 @@ async function boot(){
   msg("Centro listo. Selecciona el período y la carrera.","ok");
  }catch(err){msg("No se pudo inicializar la carga de núcleos: "+err.message,"error");}
 }
-w.NcomplexCenter=Object.freeze({init:boot,refresh:refresh,parse:analyze,save:save,sync:sync,status:function(){return {period:data.period,career:data.career,mode:data.mode,nucleus:data.nucleus};}});
+w.NcomplexCenter=Object.freeze({init:boot,refresh:refresh,parse:analyze,save:save,sync:sync,periodHint:moodlePeriodHint,status:function(){return {period:data.period,career:data.career,mode:data.mode,nucleus:data.nucleus};}});
 w.addEventListener("ncomplex:bootstrap-ready",function(){boot();});
 })(window,document);

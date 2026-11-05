@@ -5,9 +5,12 @@ var sdk="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js",loa
 function load(){
  if(loading)return loading;
  loading=Promise.resolve().then(function(){
-  if(!w.BL2Sync||typeof w.BL2Sync.ensureFirebase!=="function")
-    throw Error("Primero debe inicializarse Firebase en BDLocal.");
-  return w.BL2Sync.ensureFirebase();
+  if(w.firebase&&typeof w.firebase.firestore==="function")return true;
+  if(w.BL2Sync&&typeof w.BL2Sync.ensureFirebase==="function")
+    return w.BL2Sync.ensureFirebase();
+  if(w.RequisitosFirebaseOperationCenter&&typeof w.RequisitosFirebaseOperationCenter.ensure==="function")
+    return w.RequisitosFirebaseOperationCenter.ensure();
+  throw Error("Primero debe inicializarse Firebase en BDLocal.");
  }).then(function(){
   if(w.firebase&&typeof w.firebase.auth==="function")return;
   return new Promise(function(resolve,reject){

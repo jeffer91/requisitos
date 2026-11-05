@@ -52,3 +52,22 @@ Las pruebas utilizan identidades y calificaciones **sintéticas**. No escriben e
 - `ncomplex.parser.js`: lector tradicional del examen complexivo.
 - `BDLocal/firebase/bdl.firebase.schema.v2.js`, `bdl.firebase.validator.v2.js`, `bdl.firebase.identity.js`: contrato de la nueva entidad.
 - `firestore.rules`: acceso autenticado para la nueva colección.
+
+## Control de acceso, revisión y despliegue
+
+El centro ofrece **Conectar Firebase** con Firebase Authentication Email/Password. Es necesario que el proyecto `utet-4387a` tenga habilitado ese proveedor, que la cuenta institucional exista y que un administrador asigne mediante Firebase Admin SDK el custom claim **`ncomplex_write: true`** (o `titulacion_admin: true`). No se otorgan permisos de escritura solo por conocer una contraseña o tener una dirección institucional; el backend verifica el rol. El código del navegador no puede asignar claims.
+
+La nueva regla de `evaluaciones_nucleos` debe desplegarse en el proyecto antes de que Firebase acepte las notas. No se despliegan reglas ni se crean usuarios automáticamente desde el repositorio. Las reglas de `complexivo` y `notas` existentes tienen otra política de acceso y requieren una revisión institucional conjunta antes de endurecerlas sin interrumpir otros módulos.
+
+Las importaciones validan el período anunciado en Moodle cuando está escrito como OCT-MAR26 o ABR-SEP26. Si difiere del período de la ficha, se bloquea el guardado. Los registros ambiguos muestran una selección explícita de matrícula con cédula, sin asociación automática a personas equivocadas. Las correcciones conservan `historialCambios` con notas anteriores y los conflictos pueden conciliarse conservando la versión local (CAS en Firestore) o restaurando la versión remota verificada.
+
+### Comprobaciones sin usar notas reales
+
+```bash
+node scripts/verify-ncomplex-center.js
+node scripts/verify-ncomplex-center-hardening.js
+node scripts/verify-ncomplex-moodle-import.js
+npm run test:core
+```
+
+Las pruebas de código y sincronización usan dobles simulados de BDLocal y Firestore; **no equivalen a una prueba en producción dentro de Electron**, ni comprueban que las reglas y cuentas estén ya configuradas en Firebase.
