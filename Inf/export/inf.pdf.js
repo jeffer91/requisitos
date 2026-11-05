@@ -208,6 +208,100 @@ function build(doc,payload,logoImage){
   y=top+29;
   write("Nota. Representación metodológica; no corresponde a resultados cuantitativos.",{fontSize:8,leading:5,gap:4});
  }
+ function score(v){return v===null||v===undefined?"—":Number(v).toFixed(2);}
+ function resultsData(){return payload.results&&payload.results.readOnly?payload.results:null;}
+ function noNucleiResults(){
+   write("No se dispone de registros individuales de calificaciones de los núcleos estructurantes para el período seleccionado en las fuentes consultadas.",{fontSize:10,leading:7.1,firstLineIndent:12.7,gap:3});
+ }
+ function rowTableHeader(cols,widths){
+  space(11);
+  doc.setFillColor(225,236,248);doc.rect(left,y-5,width,9,"F");
+  var x=left;
+  cols.forEach(function(label,i){
+   setFont("bold",7,[36,57,79]);doc.text(label,x+1,y,{maxWidth:widths[i]-2});x+=widths[i];
+  });
+  y+=6;
+ }
+ function dataRow(cols,widths){
+  var cells=cols.map(function(value,i){setFont("normal",7.1,[36,48,61]);return doc.splitTextToSize(String(value==null?"—":value),widths[i]-2);});
+  var count=Math.max.apply(null,cells.map(function(lines){return lines.length;}));
+  var height=Math.max(8,3.7*count+2);
+  if(y+height>261)return false;
+  var x=left;
+  cells.forEach(function(lines,i){setFont("normal",7.1,[36,48,61]);doc.text(lines,x+1,y,{lineHeightFactor:1.1});x+=widths[i];});
+  doc.setDrawColor(224,231,239);doc.line(left,y+height-3,right,y+height-3);
+  y+=height;return true;
+ }
+ function renderResultsPerCareer(){
+   var results=resultsData();
+   if(!results||results.missingGradeSource){noNucleiResults();return;}
+   var cols=["N.º","Cédula","Estudiante","E1","E2","E3","E4","Caso","Final"];
+   var widths=[9,21,44,13,13,13,13,15,18]; // 159 mm
+   results.careers.forEach(function(c){
+    if(!c.nuclei.some(function(n){return n.rows.length;}))return;
+    heading("Carrera: "+c.career,3);
+    c.nuclei.forEach(function(n){
+     if(!n.rows.length)return;
+     heading("Núcleo "+n.number+" · Registro de calificaciones",4);
+     write("Tabla. Cuatro evaluaciones, caso de estudio y nota final registrada.",{fontSize:8.5,leading:6,gap:5});
+     rowTableHeader(cols,widths);
+     n.rows.forEach(function(r,i){
+       var line=[i+1,r.cedula,r.name].concat(r.evaluations.map(score),[score(r.caseGrade),score(r.finalGrade)]);
+       if(!dataRow(line,widths)){page();rowTableHeader(cols,widths);dataRow(line,widths);}
+     });
+     write("Nota. E1–E4: evaluaciones parciales. El símbolo — indica calificación no registrada. No se calcula nota final a partir de parciales sin ponderación oficial.",{fontSize:8,leading:5,gap:3});
+    });
+   });
+ }
+ function gradeFigure(title,entries){
+   var valid=entries.filter(function(x){return x.average!==null;});
+   if(!valid.length)return;
+   var height=23+valid.length*9;
+   space(height+19);
+   figTitle(title);
+   var x=left+49,barWidth=width-56,top=y+3;
+   valid.forEach(function(item,i){
+     var yy=top+i*9;
+     setFont("normal",8);doc.text(item.label.length>27?item.label.slice(0,27)+"…":item.label,left,yy);
+     doc.setFillColor(222,231,243);doc.rect(x,yy-4,barWidth,5.5,"F");
+     doc.setFillColor.apply(doc,[[68,128,193],[54,161,138],[215,151,54],[150,106,186]][i%4]);
+     doc.rect(x,yy-4,barWidth*Math.max(0,Math.min(10,item.average))/10,5.5,"F");
+     setFont("bold",7.7);doc.text(score(item.average),right,yy+4,{align:"right"});
+   });
+   y=top+valid.length*9+5;
+   write("Nota. Escala 0–10. Cada promedio se calcula únicamente con las calificaciones finales registradas.",{fontSize:8,leading:5,gap:4});
+ }
+ function renderResultsAnalysis(){
+   var results=resultsData();
+   if(!results||results.missingGradeSource){noNucleiResults();return;}
+   results.careers.forEach(function(c){
+     var entries=c.nuclei.map(function(n){return {label:"Núcleo "+n.number,average:n.average};});
+     if(entries.some(function(x){return x.average!==null;}))
+      gradeFigure("Promedio registrado por núcleo — "+c.career,entries);
+   });
+ }
+ function renderResultsConsolidated(){
+   var results=resultsData();
+   if(!results||results.missingGradeSource){noNucleiResults();return;}
+   var cols=["Carrera","Estudiantes","Núcleo 1","Núcleo 2","Núcleo 3","Núcleo 4"],widths=[55,21,20,20,20,23];
+   rowTableHeader(cols,widths);
+   results.careers.forEach(function(c){
+     var line=[c.career,c.students.length].concat(c.nuclei.map(function(n){
+       return n.graded?score(n.average)+" (n="+n.graded+")":"—";
+     }));
+     if(!dataRow(line,widths)){page();rowTableHeader(cols,widths);dataRow(line,widths);}
+   });
+   write("Nota. n es el número de notas finales válidas, no el total de estudiantes de la carrera. Las notas ausentes no se incorporan a los promedios.",{fontSize:8,leading:5,gap:5});
+   var overall=[1,2,3,4].map(function(num){
+     var vals=[];
+     results.careers.forEach(function(c){c.nuclei[num-1].rows.forEach(function(r){if(r.finalGrade!==null)vals.push(r.finalGrade);});});
+     return {label:"Núcleo "+num,average:vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null};
+   });
+   gradeFigure("Promedios institucionales de núcleos estructurantes",overall);
+   write("Consolidado: "+results.students+" estudiantes identificados en el período; "+
+      results.observations+" registros de núcleos disponibles; "+results.gradedNucleusRecords+
+      " calificaciones finales por núcleo. Estas cantidades corresponden a unidades de análisis distintas.",{fontSize:10,leading:7,gap:4,firstLineIndent:12.7});
+ }
  function scheduleTable(name,rows){
   space(32);heading("Cronograma de "+name+" · "+period,2);
   if(!rows.length){write("No se ha registrado un cronograma para esta modalidad y período.",{style:"italic"});return;}
@@ -273,6 +367,9 @@ function build(doc,payload,logoImage){
    if(career)diagram(career);
   }
   methodFigure(node.number);
+  if(node.number==="4.2.1"){renderResultsPerCareer();}
+  if(node.number==="4.2.2"){renderResultsAnalysis();}
+  if(node.number==="4.2.3"){renderResultsConsolidated();}
   if(node.number==="3.7.1"){
    scheduleTable("Examen Complexivo",calendar.complexivo);
    gantt("Examen Complexivo",calendar.complexivo);
