@@ -201,13 +201,6 @@ Función o funciones:
     }
 
     if(entity === "evaluaciones_nucleos"){
-      var identity = identityFromRow(row);
-      var nucleus = Number(row.nucleo);
-      return identity.remoteId && Number.isInteger(nucleus) && nucleus >= 1 && nucleus <= 4
-        ? identity.remoteId + "__N" + nucleus : "";
-    }
-
-    if(entity === "evaluaciones_nucleos"){
       var current = identityFromRow(row);
       var nucleus = Number(row.nucleo);
       return current.localId && Number.isInteger(nucleus) && nucleus >= 1 && nucleus <= 4

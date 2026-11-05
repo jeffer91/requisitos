@@ -25,7 +25,7 @@ function role(value){
   var parcial=key.match(/evaluacion parcial ([1-4])\b/);
   if(parcial)return "e"+parcial[1];
   if(/taller practico(?: 1)?$/.test(key))return "taller";
-  if(/\bprueba\b/.test(key))return "prueba";
+  if(/prueba$/.test(key))return "prueba";
   return "desconocida";
  }
  if(/^(media de calificaciones|suma|total)\s*total del curso/.test(key))return "totalMoodle";
