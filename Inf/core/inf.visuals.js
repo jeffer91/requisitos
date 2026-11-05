@@ -35,26 +35,37 @@ function centerTitle(root,value){
  lines.forEach(function(l,i){root.appendChild(svg("text",{x:380,y:start+i*20,"text-anchor":"middle","font-family":"Arial","font-size":17,"font-weight":"bold",fill:"#fff"},l.toUpperCase()));});
 }
 function coreDiagram(career){
- var root=svg("svg",{viewBox:"0 0 760 485",role:"img","aria-label":"Diagrama de núcleos de "+career.career});
+ var root=svg("svg",{viewBox:"0 0 760 525",role:"img","aria-label":"Diagrama de los cuatro núcleos de "+career.career});
  root.appendChild(svg("title",{},"Cuatro núcleos de "+career.career));
- [[380,113,380,190],[500,235,612,235],[380,282,380,357],[153,235,260,235]].forEach(function(p){
+ [[380,168,380,214],[478,260,545,260],[380,304,380,355],[215,260,282,260]].forEach(function(p){
   root.appendChild(svg("line",{x1:p[0],y1:p[1],x2:p[2],y2:p[3],stroke:"#8196a8","stroke-width":4,"stroke-dasharray":"6 8"}));
  });
- root.appendChild(svg("rect",{x:260,y:190,width:240,height:92,rx:18,fill:"#34465c"}));
- centerTitle(root,career.career);
- root.appendChild(svg("text",{x:380,y:264,"text-anchor":"middle",fill:"#fff","font-family":"Arial","font-size":15},"4 núcleos"));
- var places=[{x:380,y:65,labelY:145,cx:380,fill:"#dbe9fb",stroke:"#3d80c7"},
- {x:655,y:235,labelY:321,cx:600,fill:"#d5f2e8",stroke:"#339e87"},
- {x:380,y:412,labelY:327,cx:380,fill:"#ffe9c6",stroke:"#dd9d35"},
- {x:105,y:235,labelY:320,cx:150,fill:"#e9dcfa",stroke:"#9b65c8"}];
+ root.appendChild(svg("rect",{x:282,y:214,width:196,height:90,rx:18,fill:"#34465c"}));
+ var lines=[],words=career.career.toUpperCase().split(/\\s+/),current="";
+ words.forEach(function(word){
+  if((current+" "+word).trim().length>18&&current){lines.push(current);current=word;}
+  else current=(current+" "+word).trim();
+ });
+ if(current)lines.push(current);
+ lines.forEach(function(t,i){root.appendChild(svg("text",{x:380,y:252+(i-(lines.length-1)/2)*19,"text-anchor":"middle","font-family":"Arial","font-size":16,"font-weight":"bold",fill:"#fff"},t));});
+ root.appendChild(svg("text",{x:380,y:290,"text-anchor":"middle","font-family":"Arial","font-size":13,fill:"#fff"},"4 núcleos"));
+ var places=[{x:380,y:89,fill:"#dbe9fb",stroke:"#3d80c7"},
+ {x:631,y:260,fill:"#d5f2e8",stroke:"#339e87"},
+ {x:380,y:434,fill:"#ffe9c6",stroke:"#dd9d35"},
+ {x:129,y:260,fill:"#e9dcfa",stroke:"#9b65c8"}];
  career.nuclei.forEach(function(n,i){
-  var p=places[i];
-  root.appendChild(svg("circle",{cx:p.x,cy:p.y,r:48,fill:p.fill,stroke:p.stroke,"stroke-width":2.5}));
-  root.appendChild(svg("text",{x:p.x,y:p.y-2,"text-anchor":"middle","font-family":"Arial","font-size":19,fill:"#263b55"},"Núcleo"));
-  root.appendChild(svg("text",{x:p.x,y:p.y+22,"text-anchor":"middle","font-family":"Arial","font-size":19,fill:"#263b55","font-weight":"bold"},n.number));
-  var label=svg("text",{"text-anchor":"middle","font-family":"Arial","font-size":15,fill:"#2c3b4d"});
-  textLines(label,p.cx,p.labelY,n.name,26,3);
-  root.appendChild(label);
+  var p=places[i],name=n.name||"";
+  root.appendChild(svg("circle",{cx:p.x,cy:p.y,r:76,fill:p.fill,stroke:p.stroke,"stroke-width":2.5}));
+  root.appendChild(svg("text",{x:p.x,y:p.y-34,"text-anchor":"middle","font-family":"Arial","font-size":15,fill:"#263b55","font-weight":"bold"},"Núcleo "+n.number));
+  var words=name.split(/\\s+/),wrap=[],piece="",max= name.length>62?16:18;
+  words.forEach(function(word){if((piece+" "+word).trim().length>max&&piece){wrap.push(piece);piece=word;}else piece=(piece+" "+word).trim();});
+  if(piece)wrap.push(piece);
+  var fontsize=wrap.length>5?11:wrap.length>3?12:14,lineHeight=wrap.length>5?12.8:15;
+  var start=p.y-8-(wrap.length-1)*lineHeight/2;
+  wrap.forEach(function(line,j){
+   root.appendChild(svg("text",{x:p.x,y:start+j*lineHeight,"text-anchor":"middle",
+    "font-family":"Arial","font-size":fontsize,fill:"#263b55","font-weight":"bold"},line));
+  });
  });
  return root;
 }
@@ -91,7 +102,7 @@ function gantt(rows,title){
   var color=/^Fase 1/.test(r.phase)?"#477eae":/^Fase 2/.test(r.phase)?"#569b87":/^Fase 3/.test(r.phase)?"#b38749":"#527ca6";
   var x=px(start),barW=Math.max(5,(end-start+86400000)/span*plot);
   root.appendChild(svg("rect",{x:x,y:y-12,width:barW,height:18,rx:4,fill:color}));
-  root.appendChild(svg("title",{},r.activity+" · "+r.start+" a "+r.end+" · "+(r.status||"NO_VERIFICADO")));
+  root.appendChild(svg("title",{},r.activity+" · "+r.start+" a "+r.end));
  });
  return root;
 }

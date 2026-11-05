@@ -99,13 +99,6 @@ function showRows(mode){
    var cell=make("td");cell.appendChild(textbox(row,pair[0],mode,index,pair[1]));
    tr.appendChild(cell);
   });
-  var status=make("td");
-  var opts=[
-   ["NO_VERIFICADO","Sin verificar"],["EJECUTADO","Ejecutada"],["PENDIENTE","Pendiente"],
-   ["REPROGRAMADO","Reprogramada"],["NO_EJECUTADO","No ejecutada"]
-  ];
-  status.appendChild(choice(row,"status",mode,index,opts.map(o=>({value:o[0],label:o[1]}))));
-  tr.appendChild(status);
   var actions=make("td"),remove=make("button","inf-remove","Eliminar");
   remove.type="button";remove.addEventListener("click",function(){
    if(!window.confirm("¿Eliminar esta actividad del cronograma del período?"))return;
