@@ -47,3 +47,13 @@
 .nc-legacy .ncomplex-card{margin:12px}
 body:not(.nc-advanced-open) #ncomplex-btn-save{display:none}
 @media(max-width:800px){.nc-center{padding:13px}.nc-filters{grid-template-columns:1fr}.nc-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.nc-center-head h2{font-size:20px}.nc-table-bar input{width:100%}}
+
+/* Conciliación y vinculación manual — compactas, sin perder contexto. */
+.nc-manual-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid #e1eaf2;padding:8px 0;margin-top:7px}
+.nc-manual-row span{flex:1;min-width:190px;font-size:12px;color:#51677a}
+.nc-manual-row select{flex:1;max-width:320px;min-width:200px;font-size:12px}
+.nc-review-conflict{display:flex;flex-wrap:wrap;gap:9px;align-items:center;border-top:1px solid #dde7ef;padding:10px 0}
+.nc-review-conflict>div{min-width:210px;font-weight:600;font-size:12px}
+.nc-review-conflict small{font-size:11px;color:#65798b}
+.nc-conflict-action,#nc-firebase-login button{border:1px solid #c9d6e2;border-radius:8px;padding:8px 12px;background:#fff;color:#25445c;font-size:12px;font-weight:600}
+#nc-firebase-login button.nc-primary{background:#1e5388;border-color:#1e5388;color:#fff}
