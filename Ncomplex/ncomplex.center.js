@@ -224,7 +224,10 @@ function guide(){
  var same=task&&task.career===data.career&&task.nucleus===data.nucleus;
  detail.textContent=task?(same?"Pega las calificaciones de este núcleo o elige otro si ya las tienes.":
   "Siguiente pendiente: "+task.name+" · Núcleo "+task.nucleus):
-  "Revisa las notas del complexivo y las incidencias del período.";
+  data.mode==="nucleos"?
+   (!currentRows().length?"No hay matrículas con nueve requisitos CUMPLE verificados. Consulta el diagnóstico al analizar Moodle.":
+    "No hay núcleos pendientes registrados para esta carrera."):
+   "Revisa las notas del complexivo y las incidencias del período.";
  next.hidden=!task||same;
  if(task){next.dataset.career=task.career;next.dataset.nucleus=String(task.nucleus);}
 }
