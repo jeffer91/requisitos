@@ -171,6 +171,7 @@ async function refresh(){
  ui.career.value=data.career;showGroup();syncClassic();render();
 }
 async function loadPeriod(){
+ if(!data.working)progressReset();
  data.period=ui.period.value;data.career="";data.group="";data.preview=null;data.overrides={};data.lastCloud=null;ui.review.textContent="";
  if(!data.period){data.students=[];data.historicalStudents=[];data.nuclei=[];data.exams=[];render();return;}
  syncClassic();
@@ -180,6 +181,7 @@ async function loadPeriod(){
  catch(e){msg(e.message||String(e),"error");}
 }
 function mode(v){
+ if(!data.working)progressReset();
  data.mode=v;data.preview=null;data.overrides={};ui.review.textContent="";
  ui.save.disabled=true;
  ui.tabN.classList.toggle("is-active",v==="nucleos");
@@ -189,6 +191,7 @@ function mode(v){
  ui.picker.hidden=v!=="nucleos";render();
 }
 function nucleus(number){
+ if(!data.working)progressReset();
  data.nucleus=number;data.preview=null;data.overrides={};ui.review.textContent="";ui.save.disabled=true;
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(b){
   b.classList.toggle("is-active",Number(b.dataset.ncNucleus)===number);
@@ -573,9 +576,8 @@ async function analyze(){
   "Carga interpretada. Resuelve los datos señalados para continuar.",canSave?"ok":"error");
 }
 function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return "moodle_"+(h>>>0).toString(16);}
-// La acción explícita Guardar confirma la importación y activa la publicación
-// de sus propios registros. Nunca solicita credenciales, omite Firebase si
-// no hay sesión con rol institucional y conserva BDLocal ante cualquier fallo.
+// Las operaciones BDLocal y Firebase son independientes y requieren acciones
+// explícitas. El progreso solo confirma persistencia o lectura ya completada.
 async function publishSavedRecords(rows,mode,period,onProgress){
  var notify=typeof onProgress==="function"?onProgress:function(){};
  notify(0,rows&&rows.length||0,"Comprobando permisos institucionales…");
@@ -814,6 +816,7 @@ async function sync(){
    (data.mode==="nucleos"?"Núcleo "+data.nucleus:"examen complexivo")+
    " para publicar. Guarda primero las calificaciones en BDLocal.","error");return;
  }
+ var wasSaveDisabled=ui.save.disabled;
  data.working=true;ui.publish.disabled=true;ui.save.disabled=true;
  progressUpdate("Firebase: iniciando publicación",0,rows.length,
   "Autenticando y preparando "+rows.length+" registros pendientes…",0);
@@ -845,7 +848,7 @@ async function sync(){
    error.message||String(error),ui.progressBar&&ui.progressBar.value||0,"error");
   msg("No se completó la publicación Firebase: "+(error.message||String(error))+
    ". Las notas de BDLocal siguen disponibles.","error");
- }finally{data.working=false;ui.publish.disabled=false;ui.save.disabled=!data.preview;}
+ }finally{data.working=false;ui.publish.disabled=false;ui.save.disabled=wasSaveDisabled;}
 }
 function openLogin(){
  var form=$("nc-firebase-login");form.hidden=!form.hidden;
@@ -907,6 +910,7 @@ async function boot(){
  ui.progressDetail=$("nc-save-progress-detail");
  ui.period.addEventListener("change",loadPeriod);
  ui.career.addEventListener("change",function(){
+  if(!data.working)progressReset();
   data.career=ui.career.value;data.group="";data.preview=null;data.overrides={};showGroup();syncClassic();render();
   if(!ui.importBox.hidden&&t(ui.paste.value))analyze().catch(function(e){msg(e.message,"error");});
  });
