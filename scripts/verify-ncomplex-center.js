@@ -89,8 +89,12 @@ window.RequisitosFirebaseOperationCenter={async ensure(){}};
 window.RequisitosFirebaseRepository={
  async getById(entity,key){assert.equal(entity,"evaluaciones_nucleos");return cloud.get(key)||null;},
  async writeChecked(entity,doc,opts){
-   assert.equal(entity,"evaluaciones_nucleos");assert.equal(opts.expected.exists,false);
+   assert.equal(entity,"evaluaciones_nucleos");
+   assert.equal(opts.expected.exists,false);assert.equal(opts.requireTransaction,true);
    const key=period+"__"+doc.cedula+"__N"+doc.nucleo;
+   const old=cloud.get(key);
+   if(old&&old.data.dataHash===doc.dataHash)return {ok:true,unchanged:true};
+   if(old){const err=Error("Nota remota ya existente");err.code="FIREBASE_CONFLICT";throw err;}
    writes++;cloud.set(key,{data:{...doc}});return {ok:true,unchanged:false};
  }
 };
