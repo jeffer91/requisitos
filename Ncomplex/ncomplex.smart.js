@@ -63,11 +63,14 @@
   }
   for(var i=0;i<entries.length;i++){
    var target=entries[i],roster=(students||[]).filter(function(s){
-    return text(s.CodigoCarrera||s.codigoCarrera||s.NombreCarrera||s.nombreCarrera)===target.code;
+    return baseCareer(s.NombreCarrera||s.nombreCarrera||s.CodigoCarrera||s.codigoCarrera)===
+     baseCareer(target.code);
    });
    if(!roster.length)continue;
    for(var n=1;n<=4;n++){
-    var actual=(notes||[]).filter(function(r){return r.codigoCarrera===target.code&&Number(r.nucleo)===n;});
+    var actual=(notes||[]).filter(function(r){
+      return baseCareer(r.nombreCarrera||r.codigoCarrera)===baseCareer(target.code)&&Number(r.nucleo)===n;
+     });
     var complete=actual.filter(function(r){return r.estadoCarga==="CONCILIADO"&&r.habilitado===true&&
       Array.isArray(r.evaluaciones)&&r.evaluaciones.length===4&&
       r.evaluaciones.every(function(v){return v!==null&&v!==undefined;})&&r.totalMoodle!==null&&r.totalMoodle!==undefined;});

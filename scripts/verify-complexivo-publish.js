@@ -14,12 +14,13 @@ const school={cedula:id,Nombres:"EJEMPLO ESTUDIANTE",periodoId:period,modalidad:
 const note={periodoId:period,cedula:id,modalidadTitulacion:"EXAMEN_COMPLEXIVO",
  estadoEvaluacion:"APROBADO",notaTeorica:8,notaPractica:9,notaOficial:8.6,
  notaComplexivo:8.6,notaMinimaAprobacion:7,oportunidadAplicada:"ORDINARIA"};
+const schoolRows=[school],noteRows=[note];
 const window={
  confirm(message){confirms++;return true;},
  NcomplexState:{get(){return {dirty:{}};}},
  ConNcomplex:{
-  async listEvaluations(){return [note];},
-  async listStudents(){return [school];},
+  async listEvaluations(){return noteRows;},
+  async listStudents(){return schoolRows;},
   async checkRequirements(){return eligible?{eligible:true,complete:9,total:9,missing:[]}: {eligible:false,complete:8,total:9,reason:"Financiero (PENDIENTE)"};}
  },
  RequisitosFirebaseOperationCenter:{async ensure(){if(disconnected)throw Error("offline");}},
@@ -65,6 +66,24 @@ async function main(){
  disconnected=true;
  await api.publish();
  assert.equal(saved.length,1,"Una desconexión no produce cambios");
- console.log("VERIFICACIÓN PUBLICADOR COMPLEXIVO: OK (alta, reuso, conflictos, matrícula y desconexión)");
+ // Una única importación contiene ahora dos modalidades; se publican por separado.
+ disconnected=false;remote.clear();
+ note.grupoInforme="PRESENCIAL";
+ const onlineId="0201234567";
+ schoolRows.push({cedula:onlineId,Nombres:"EJEMPLO ONLINE",periodoId:period,
+  NombreCarrera:"ADMINISTRACION ONLINE",modalidadEstudio:"ONLINE"});
+ noteRows.push({...note,cedula:onlineId,grupoInforme:"ONLINE",NombreCarrera:"ADMINISTRACION ONLINE"});
+ elements["ncomplex-complexivo-grupo"].value="PRESENCIAL";
+ const presencial=await api.publish();
+ assert.equal(presencial.published,1);
+ assert.equal(presencial.invalid.length,0,"Online no se marca como conflicto al sincronizar presencial.");
+ assert.equal(remote.size,1);
+ elements["ncomplex-complexivo-grupo"].value="ONLINE";
+ const online=await api.publish();
+ assert.equal(online.published,1,"Online se publica sin reutilizar la modalidad presencial.");
+ assert.equal(online.invalid.length,0);
+ assert.equal(remote.size,2);
+ assert.equal(remote.get(period+"__"+onlineId).data.grupoInforme,"ONLINE");
+ console.log("VERIFICACIÓN PUBLICADOR COMPLEXIVO: OK (modalidades mixtas conservadas, idempotencia y seguridad).");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

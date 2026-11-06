@@ -86,6 +86,18 @@ assert.equal(policy.check(blocked,"nucleos").pending.length,1);
 const actual={CodigoCarrera:"ADMINISTRACION",cedula:"0101010101"};
 const next=smart.nextTask(careers,[actual],[],"ADMINISTRACION",4);
 assert.equal(next.nucleus,1,"Guiar desde el primer núcleo realmente pendiente.");
+const combined=smart.nextTask([{code:"ADMINISTRACION",label:"ADMINISTRACION"}],[
+ actual,{CodigoCarrera:"ADMINISTRACION ONLINE",cedula:"0202020202"}
+],[],"ADMINISTRACION",4);
+assert.equal(combined.total,2,"El siguiente núcleo cuenta presencial y online juntos.");
+const savedCombined=smart.nextTask([{code:"ADMINISTRACION",label:"ADMINISTRACION"}],[
+ actual,{CodigoCarrera:"ADMINISTRACION ONLINE",cedula:"0202020202"}
+],[{cedula:"0101010101",codigoCarrera:"ADMINISTRACION",nucleo:1,estadoCarga:"CONCILIADO",
+ habilitado:true,evaluaciones:[9,9,9,9],totalMoodle:9},
+ {cedula:"0202020202",codigoCarrera:"ADMINISTRACION ONLINE",nucleo:1,estadoCarga:"CONCILIADO",
+ habilitado:true,evaluaciones:[8,8,8,8],totalMoodle:8}],
+ "ADMINISTRACION",4);
+assert.equal(savedCombined.nucleus,2,"El avance de ambas modalidades se reconoce en conjunto.");
 const html=source("Ncomplex/ncomplex.html");
 assert.equal((html.match(/<h1>Ncomplex<\/h1>/g)||[]).length,1);
 assert.ok(html.includes("ncomplex.smart.js"));

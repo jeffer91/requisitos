@@ -102,7 +102,8 @@ async function run(){
  dom["nc-import"].hidden=false;
  await window.NcomplexCenter.parse();
  assert.equal(dom["nc-period"].value,period,"El lector debe seleccionar período inequívoco.");
- assert.equal(dom["nc-career"].value,"ADMINISTRACION","Seleccionar carrera vinculada a BDLocal.");
+ assert.equal(dom["nc-career"].value,"ADMINISTRACION","Seleccionar la carrera base para ambas modalidades.");
+ assert.equal(dom["nc-career"].options.length,2,"Una sola opción de carrera para presencial y online.");
  assert.equal(window.NcomplexCenter.status().nucleus,4,"Cambiar automáticamente al núcleo reconocido.");
  assert.equal(dom["nc-save"].disabled,true,"No guardar si faltan grupo y resolución del duplicado.");
  assert.match(dom["nc-review"].children[0].textContent,/3 filas Moodle/);
@@ -117,11 +118,13 @@ async function run(){
  await dom["nc-group"].handlers.change();
  for(let i=0;i<30;i++)await Promise.resolve();
  assert.equal(dom["nc-save"].disabled,false,"Se habilita guardar tras conciliar y definir grupo.");
- assert.equal(dom["nc-students"].textContent,"2");
+ assert.equal(dom["nc-students"].textContent,"3","Ambas modalidades aparecen en el mismo núcleo.");
  const table=dom["nc-table"].querySelector("tbody");
- assert.equal(table.children.length,2);
+ assert.equal(table.children.length,3,"La lista incluye ambas modalidades sin duplicar carreras.");
  const header=dom["nc-table"].querySelector("thead").children[0];
  assert.ok(header.children.some(x=>x.textContent==="Requisitos"));
+ assert.ok(header.children.some(x=>x.textContent==="Grupo"),
+  "La modalidad sigue visible y se conserva después de la importación.");
  assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Habilitado"))),
  "La lista contiene únicamente matrículas con 9/9 requisitos CUMPLE.");
  assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Sin notas"))),
@@ -138,7 +141,8 @@ async function run(){
  dom["nc-paste"].value=pasted+"\n"+additional.map((entry,index)=>
   [entry[0],entry[1],"9,00","10,00","10,00","10,00","10,00","10,00","9,83"].join("\n")).join("\n");
  await window.NcomplexCenter.parse();
- assert.match(dom["nc-review"].children[0].textContent,/1 de otras carreras apartadas/);
+ assert.match(dom["nc-review"].children[0].textContent,/3 vinculadas/);
+ assert.match(dom["nc-review"].children[0].textContent,/0 de otras carreras apartadas/);
  assert.match(dom["nc-review"].children[0].textContent,/5 excluidas/);
  assert.equal(dom["nc-review"].children.filter(x=>x.className==="nc-manual-row").length,0);
  const excluded=dom["nc-review"].children.find(x=>x.className==="nc-excluded");
@@ -151,11 +155,13 @@ async function run(){
  assert.equal(dom["nc-review"].children.some(x=>x.className==="nc-duplicate-group"),false);
  assert.equal(dom["nc-save"].disabled,false);
  await window.NcomplexCenter.save();
- assert.equal(savedNuclei.length,2,"Solo guardar estudiantes de la carrera seleccionada.");
- assert.ok(savedNuclei.every(x=>x.codigoCarrera==="ADMINISTRACION"&&x.grupoInforme==="PRESENCIAL"));
+ assert.equal(savedNuclei.length,3,"Guardar presencial y online en la misma importación.");
+ assert.equal(savedNuclei.filter(x=>x.codigoCarrera==="ADMINISTRACION"&&x.grupoInforme==="PRESENCIAL").length,2);
+ assert.equal(savedNuclei.filter(x=>x.codigoCarrera==="ADMINISTRACION ONLINE"&&x.grupoInforme==="ONLINE").length,1,
+  "La nota online debe conservar su código real y grupo propio.");
  assert.equal(dom["nc-group"].value,"PRESENCIAL","No borrar el grupo confirmado al refrescar.");
- assert.equal(dom["nc-loaded"].textContent,"2","Mostrar las notas guardadas sin recargar la app.");
- assert.equal(dom["nc-students"].textContent,"2","Los retirados y los requisitos pendientes no reaparecen.");
+ assert.equal(dom["nc-loaded"].textContent,"3","Mostrar ambas modalidades guardadas sin recargar.");
+ assert.equal(dom["nc-students"].textContent,"3","Los retirados y requisitos pendientes no reaparecen.");
  console.log("NCOMPLEX UI GUIADA: OK (núcleo 4, duplicados, modalidades, guardado y grupo persistente).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

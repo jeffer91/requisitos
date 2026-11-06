@@ -62,7 +62,14 @@ async function publish(options){
    const career=t(st.NombreCarrera||st.Carrera||st.carrera).toLowerCase();
    const inferred=/online|en.linea|virtual/.test(study)||/\bonline\b/.test(career)?"ONLINE":
      /pvc/.test(study)?"PVC":/presencial/.test(study)?"PRESENCIAL":"";
-   if(inferred&&inferred!==group){invalid.push(ced+": grupo distinto de la matrícula");continue;}
+   const savedGroup=t(r.grupoInforme).toUpperCase();
+   // Una carga Moodle puede contener presencial y online. Publicar cada
+   // matrícula únicamente cuando su grupo persistido corresponde al solicitado.
+   if(savedGroup&&inferred&&savedGroup!==inferred){
+     invalid.push(ced+": grupo guardado distinto del registrado en BDLocal");continue;
+   }
+   if(savedGroup&&savedGroup!==group)continue;
+   if(inferred&&inferred!==group)continue;
    if(typeof con.checkRequirements!=="function"){
      blocked.push(ced+": verificador de requisitos no disponible");continue;
    }
