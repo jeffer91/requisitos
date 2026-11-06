@@ -98,10 +98,15 @@ Función:
   function checkRequirements(periodoId,cedula){
     var period=studentPeriod({periodoId:periodoId}),id=studentCedula({cedula:cedula});
     if(!period||!id)return Promise.resolve(deniedRequirements("Período o cédula incompleto."));
-    return Promise.all([loadStudents({periodoId:period}),readRequirements({periodoId:period,cedula:id})])
+    return Promise.all([loadStudents({periodoId:period,estadoMatricula:"ACTIVO"}),
+      readRequirements({periodoId:period,cedula:id})])
       .then(function(out){
-        var students=(out[0]||[]).filter(function(st){return studentCedula(st)===id&&studentPeriod(st)===period;});
-        if(students.length!==1)return deniedRequirements("Matrícula no identificada de forma única.");
+        var students=(out[0]||[]).filter(function(st){
+          var status=text(st.estadoMatricula||st._estadoMatricula).toUpperCase();
+          return studentCedula(st)===id&&studentPeriod(st)===period&&
+            st.retirado!==true&&st.eliminado!==true&&status==="ACTIVO";
+        });
+        if(students.length!==1)return deniedRequirements("No existe una matrícula activa y única para este estudiante.");
         return validateRequirements(students[0],out[1]||[]);
       }).catch(function(error){return deniedRequirements(error.message||String(error));});
   }

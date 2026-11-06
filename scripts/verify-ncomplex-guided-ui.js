@@ -45,14 +45,30 @@ const roster=[
  {cedula:"0303030303",Nombres:"OTRA ESTUDIANTE DE ONLINE",
   NombreCarrera:"ADMINISTRACION ONLINE",CodigoCarrera:"ADMINISTRACION ONLINE",estadoMatricula:"ACTIVO"}
 ];
+const allRequirements=["academico","documentacion","financiero","practicas","vinculacion",
+ "seguimientograduados","ingles","actualizaciondatos","titulacion"];
+const reqs=bad=>({requirements:allRequirements.map(k=>({key:k,status:k===bad?"PENDIENTE":"CUMPLE"}))});
+roster.push(
+ {cedula:"0404040404",Nombres:"EJEMPLO SIN REQUISITOS",
+  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"ACTIVO"},
+ {cedula:"0505050505",Nombres:"RETIRADO EJEMPLO UNO",
+  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"RETIRADO",retirado:true},
+ {cedula:"0606060606",Nombres:"RETIRADO EJEMPLO DOS",
+  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"RETIRADO",retirado:true},
+ {cedula:"0707070707",Nombres:"RETIRADO EJEMPLO TRES",
+  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"RETIRADO",retirado:true}
+);
+roster.forEach(st=>{st._ncomplexRequirements=reqs(st.cedula==="0404040404"?"financiero":"");});
 const savedNuclei=[];
 const statuses=["academico","documentacion","financiero","practicas","vinculacion",
  "seguimientograduados","ingles","actualizaciondatos","titulacion"];
 const window={addEventListener(){},ConNcomplex:{
  async listPeriods(){return[{id:period,label:"Octubre 2025 a Marzo 2026"}];},
  async listStudents(){return roster;},async listEvaluations(){return [];},
- async checkRequirements(){return {requirements:statuses.map(k=>({key:k,label:k,
-  status:k==="titulacion"?"NO APLICA":"CUMPLE"}))};},
+ async checkRequirements(periodId,ced){
+  const st=roster.find(s=>s.cedula===ced&&s.estadoMatricula==="ACTIVO");
+  return st?st._ncomplexRequirements:{eligible:false,total:9,missing:[],reason:"Sin matrícula activa."};
+ },
  async saveImport(){return null;}
 },NcomplexNucleosStore:{
  id(periodId,ced,n){return ced+"__"+periodId+"__N"+n;},
@@ -106,23 +122,40 @@ async function run(){
  assert.equal(table.children.length,2);
  const header=dom["nc-table"].querySelector("thead").children[0];
  assert.ok(header.children.some(x=>x.textContent==="Requisitos"));
- assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Por verificar"))));
+ assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Habilitado"))),
+ "La lista contiene únicamente matrículas con 9/9 requisitos CUMPLE.");
  assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Sin notas"))),
  "Sin notas no debe confundirse con requisito incumplido.");
  // Una fila Moodle de Administración Online no debe solicitar vínculo manual con presencial.
- dom["nc-paste"].value=pasted+"\nOTRA ESTUDIANTE DE ONLINE\nonline@itsqmet.edu.ec"+
-  "\n8,00\n9,00\n10,00\n10,00\n10,00\n-\n9,40";
+ const additional=[
+  ["OTRA ESTUDIANTE DE ONLINE","online@itsqmet.edu.ec"],
+  ["RETIRADO EJEMPLO UNO","retirado1@itsqmet.edu.ec"],
+  ["RETIRADO EJEMPLO DOS","retirado2@itsqmet.edu.ec"],
+  ["RETIRADO EJEMPLO TRES","retirado3@itsqmet.edu.ec"],
+  ["EJEMPLO SIN REQUISITOS","sinrequisitos@itsqmet.edu.ec"],
+  ["ALUMNO EXTERNO SIN MATRICULA","externo@itsqmet.edu.ec"]
+ ];
+ dom["nc-paste"].value=pasted+"\n"+additional.map((entry,index)=>
+  [entry[0],entry[1],"9,00","10,00","10,00","10,00","10,00","10,00","9,83"].join("\n")).join("\n");
  await window.NcomplexCenter.parse();
  assert.match(dom["nc-review"].children[0].textContent,/1 de otras carreras apartadas/);
+ assert.match(dom["nc-review"].children[0].textContent,/5 excluidas/);
  assert.equal(dom["nc-review"].children.filter(x=>x.className==="nc-manual-row").length,0);
- assert.equal(dom["nc-review"].children.some(x=>x.className==="nc-duplicate-group"),false,
-  "Un duplicado ya resuelto no debe volver a solicitar selección.");
+ const excluded=dom["nc-review"].children.find(x=>x.className==="nc-excluded");
+ assert.ok(excluded,"Registrar las filas excluidas sin ofrecer matrículas ajenas.");
+ const exclusions=excluded.children.find(x=>x.tagName==="ul").children;
+ assert.equal(exclusions.length,5);
+ assert.equal(exclusions.filter(x=>/retirada\/inactiva en BDLocal/.test(x.textContent)).length,3);
+ assert.equal(exclusions.filter(x=>/nueve requisitos CUMPLE/.test(x.textContent)).length,1);
+ assert.equal(exclusions.filter(x=>/Verifica el retiro en BDLocal/.test(x.textContent)).length,1);
+ assert.equal(dom["nc-review"].children.some(x=>x.className==="nc-duplicate-group"),false);
  assert.equal(dom["nc-save"].disabled,false);
  await window.NcomplexCenter.save();
  assert.equal(savedNuclei.length,2,"Solo guardar estudiantes de la carrera seleccionada.");
  assert.ok(savedNuclei.every(x=>x.codigoCarrera==="ADMINISTRACION"&&x.grupoInforme==="PRESENCIAL"));
  assert.equal(dom["nc-group"].value,"PRESENCIAL","No borrar el grupo confirmado al refrescar.");
  assert.equal(dom["nc-loaded"].textContent,"2","Mostrar las notas guardadas sin recargar la app.");
+ assert.equal(dom["nc-students"].textContent,"2","Los retirados y los requisitos pendientes no reaparecen.");
  console.log("NCOMPLEX UI GUIADA: OK (núcleo 4, duplicados, modalidades, guardado y grupo persistente).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});
