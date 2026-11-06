@@ -933,9 +933,45 @@ async function sync(){
    ". Las notas de BDLocal siguen disponibles.","error");
  }finally{data.working=false;ui.publish.disabled=false;ui.save.disabled=wasSaveDisabled;}
 }
+function showFirebaseSession(info){
+ info=info||{};
+ var label=$("nc-firebase-session"),connect=$("nc-connect-firebase"),
+  logout=$("nc-logout-firebase");
+ var signed=info.authenticated===true;
+ if(label){
+  label.textContent=signed?
+   "Firebase: sesión iniciada"+(info.email?" · "+info.email:"")+
+   ". Se recuperará automáticamente al volver a abrir la aplicación.":
+   (info.error?"Firebase: no se pudo recuperar la sesión · "+info.error:
+    "Firebase: sin sesión guardada. Conéctate una vez para mantenerla iniciada.");
+  label.className="nc-firebase-session"+(signed?" is-connected":" is-disconnected");
+ }
+ if(connect)connect.textContent=signed?"Cambiar cuenta Firebase":"Conectar Firebase";
+ if(logout)logout.hidden=!signed;
+}
+function resumeFirebaseSession(){
+ var manager=w.NcomplexFirebaseAuth;
+ if(!manager||typeof manager.load!=="function")return;
+ if(typeof manager.subscribe==="function")manager.subscribe(showFirebaseSession);
+ manager.load().then(showFirebaseSession).catch(function(error){
+  showFirebaseSession({authenticated:false,error:error.message||String(error)});
+ });
+}
 function openLogin(){
  var form=$("nc-firebase-login");form.hidden=!form.hidden;
  if(!form.hidden)$("nc-login-email").focus();
+}
+async function signOutFirebase(){
+ var manager=w.NcomplexFirebaseAuth;
+ if(!manager||typeof manager.signOut!=="function"){
+  msg("No se puede cerrar la sesión Firebase desde esta versión.","error");return;
+ }
+ try{
+  await manager.signOut();
+  clearInventory();
+  showFirebaseSession(manager.status&&manager.status()||{authenticated:false});
+  msg("Sesión de Firebase cerrada en este equipo. Las calificaciones de BDLocal se conservaron.","ok");
+ }catch(error){msg("No se pudo cerrar la sesión Firebase: "+(error.message||String(error)),"error");}
 }
 async function signInFirebase(event){
  event.preventDefault();
@@ -944,7 +980,9 @@ async function signInFirebase(event){
  try{
   var user=await w.NcomplexFirebaseAuth.signIn($("nc-login-email").value,password.value);
   $("nc-firebase-login").hidden=true;
-  msg("Firebase conectado: "+user.email,"ok");
+  showFirebaseSession(w.NcomplexFirebaseAuth.status&&w.NcomplexFirebaseAuth.status()||
+   {authenticated:true,email:user.email});
+  msg("Firebase conectado: "+user.email+". La sesión permanecerá iniciada en este equipo.","ok");
  }catch(error){msg("No se pudo autenticar en Firebase: "+(error.message||error),"error");}
  finally{password.value="";button.disabled=false;}
 }
@@ -954,7 +992,8 @@ async function showConflicts(){
  panel.textContent="";
  var entries=currentConflicts();panel.appendChild(el("strong",entries.length+" conflictos por revisar"));
  if(!entries.length)return;
- try{await w.NcomplexFirebaseAuth.requireUser();await w.RequisitosFirebaseOperationCenter.ensure();}
+ try{await w.NcomplexFirebaseAuth.requireUser();await (w.RequisitosFirebaseOperationCenter.ensureNcomplex?
+   w.RequisitosFirebaseOperationCenter.ensureNcomplex():w.RequisitosFirebaseOperationCenter.ensure());}
  catch(error){panel.appendChild(el("p","Primero conecta Firebase: "+error.message));return;}
  for(const row of entries){
   var card=el("div",null,"nc-review-conflict");
@@ -1019,6 +1058,9 @@ async function boot(){
  $("nc-show-pending").addEventListener("click",showPending);
  $("nc-show-conflicts").addEventListener("click",function(){showConflicts().catch(function(e){msg(e.message,"error");});});
  $("nc-connect-firebase").addEventListener("click",openLogin);
+ var logoutButton=$("nc-logout-firebase");
+ if(logoutButton)logoutButton.addEventListener("click",signOutFirebase);
+ resumeFirebaseSession();
  var inspectButton=$("nc-check-firebase");
  if(inspectButton)inspectButton.addEventListener("click",function(){
   if(data.working){msg("Termina primero el guardado actual.","error");return;}

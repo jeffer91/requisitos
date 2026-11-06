@@ -25,7 +25,8 @@ const ids=["nc-period","nc-career","nc-group","nc-tab-nucleos","nc-tab-complexiv
 "nc-guide-title","nc-guide-detail","nc-next-task",
 "nc-save-progress","nc-save-progress-bar","nc-save-progress-title",
 "nc-save-progress-percent","nc-save-progress-detail",
-"nc-check-firebase","nc-firebase-inventory","nc-firebase-inventory-summary",
+"nc-check-firebase","nc-firebase-session","nc-logout-firebase",
+"nc-firebase-inventory","nc-firebase-inventory-summary",
 "nc-firebase-inventory-detail","nc-firebase-inventory-list"];
 const dom={};
 ids.forEach(id=>{
@@ -65,6 +66,7 @@ roster.push(
 roster.forEach(st=>{st._ncomplexRequirements=reqs(st.cedula==="0404040404"?"financiero":"");});
 const savedNuclei=[];
 const firebasePushCalls=[],uploadedDocs=new Map(),readCalls=[];
+let firebaseAuthenticated=true;
 const statuses=["academico","documentacion","financiero","practicas","vinculacion",
  "seguimientograduados","ingles","actualizaciondatos","titulacion"];
 const window={addEventListener(){},ConNcomplex:{
@@ -77,7 +79,12 @@ const window={addEventListener(){},ConNcomplex:{
  async saveImport(){return null;}
 },NcomplexFirebaseAuth:{
  async requireWriter(){return {uid:"test"};},
- async requireUser(){return {uid:"test"};}
+ async requireUser(){return {uid:"test"};},
+ async load(){return this.status();},
+ status(){return {ready:true,authenticated:firebaseAuthenticated,
+  email:firebaseAuthenticated?"test@itsqmet.edu.ec":""};},
+ async signOut(){firebaseAuthenticated=false;},
+ subscribe(){return ()=>{};}
 },RequisitosFirebaseOperationCenter:{async ensure(){return true;}},
  RequisitosFirebaseRepository:{
   async getById(entity,id){
@@ -133,6 +140,12 @@ const pasted=[course,"Nombre / Apellido(s)","Dirección de correo",
  "-","-","-","-","10,00","-","10,00"].join("\n");
 async function run(){
  await window.NcomplexCenter.init();
+ for(let i=0;i<4;i++)await Promise.resolve();
+ assert.equal(dom["nc-firebase-session"].className,"nc-firebase-session is-connected",
+  "La sesión ya restaurada aparece conectada al abrir Ncomplex.");
+ assert.equal(dom["nc-connect-firebase"].textContent,"Cambiar cuenta Firebase");
+ assert.equal(dom["nc-logout-firebase"].hidden,false,
+  "La sesión persistente siempre se puede cerrar voluntariamente.");
  assert.equal(dom["nc-period"].options.length,2);
  dom["nc-paste"].value=pasted;
  dom["nc-import"].hidden=false;
@@ -237,6 +250,10 @@ async function run(){
   "Mostrar la causa real de los 26 pendientes, no solo 0% o cero errores.");
  assert.match(dom["nc-save-progress-detail"].textContent,/1 errores/,
   "El fallo de autenticación es un error explícito.");
+ await dom["nc-logout-firebase"].handlers.click();
+ assert.equal(firebaseAuthenticated,false);
+ assert.equal(dom["nc-logout-firebase"].hidden,true);
+ assert.match(dom["nc-firebase-session"].textContent,/sin sesión guardada/);
  console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, fallos de rol y bloqueo seguro).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

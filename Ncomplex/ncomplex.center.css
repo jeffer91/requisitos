@@ -112,3 +112,9 @@ body:not(.nc-advanced-open) #ncomplex-btn-save{display:none}
 .nc-cloud-row-status.is-ok{color:#157344}
 .nc-cloud-row-status.is-warning{color:#97571b}
 .nc-cloud-row-status.is-error{color:#a62e31}
+
+/* La sesión de Firebase se conserva por Auth, no en IndexedDB ni en código. */
+.nc-firebase-session{margin:8px 0 12px;font-size:12px;line-height:1.5;
+ padding:8px 11px;border:1px solid #d3e0ea;border-radius:8px;color:#546779;background:#f5f8fb}
+.nc-firebase-session.is-connected{color:#176444;border-color:#b4d8c5;background:#effaf3}
+.nc-firebase-session.is-disconnected{color:#80531d;border-color:#ebd8b4;background:#fff9ee}
