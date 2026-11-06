@@ -547,8 +547,12 @@ async function analyze(){
   });
   excluded.appendChild(listing);ui.review.appendChild(excluded);
  }
+ var unresolvedDuplicates=data.mode==="nucleos"&&Object.keys(matched.duplicates||{}).some(function(ced){
+  return (matched.review||[]).some(function(item){return item.cedula===ced;});
+ });
+ if(unresolvedDuplicates)issues.push("Resuelve la fila válida de los estudiantes duplicados antes de guardar.");
  var canSave=!!parsed.ok&&periodCorrect&&courseCorrect&&!!data.career&&
-  matched.matches.length>0&&
+  !unresolvedDuplicates&&matched.matches.length>0&&
   (data.mode==="nucleos"||matched.matches.some(function(x){return x.apply&&!x.hasConflict;}));
  ui.save.disabled=!canSave;
  render();
@@ -643,6 +647,9 @@ async function save(){
  if(!p||!p.parsed||p.parsed.ok!==true||t(ui.paste.value)!==p.source||
   !p.matched||!p.matched.matches.length)
   throw Error("La importación no es válida o cambió; pulsa Analizar nuevamente.");
+ if(data.mode==="nucleos"&&Object.keys(p.matched.duplicates||{}).some(function(ced){
+  return (p.matched.review||[]).some(function(item){return item.cedula===ced;});
+ }))throw Error("Resuelve los duplicados de Moodle antes de guardar en BDLocal.");
  if(p.period!==data.period||p.career!==data.career||p.kind!==data.mode||
  (data.mode==="nucleos"&&p.nucleus!==data.nucleus)||
  p.periodMatch!==true||p.courseMatch!==true)throw Error("El contexto o período cambió. Analiza nuevamente la importación.");
