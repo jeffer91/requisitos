@@ -18,6 +18,7 @@ const schoolRows=[school],noteRows=[note];
 const window={
  confirm(message){confirms++;return true;},
  NcomplexState:{get(){return {dirty:{}};}},
+ NcomplexFirebaseAuth:{async requireWriter(){return {uid:"test-user"};}},
  ConNcomplex:{
   async listEvaluations(){return noteRows;},
   async listStudents(){return schoolRows;},

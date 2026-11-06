@@ -38,6 +38,33 @@ function currentRows(){return data.students.filter(function(s){
 function excludedByRequirements(){return data.students.filter(function(s){
  return sameCareer(studentCode(s))&&!nineRequirements(s);
 });}
+function requirementDiagnosis(st){
+ var evaluation=st&&st._ncomplexRequirements;
+ if(!evaluation||!Array.isArray(evaluation.requirements)){
+  return {name:studentName(st),unknown:true,reason:t(evaluation&&evaluation.reason)||
+   "BDLocal no entregó los nueve estados verificables."};
+ }
+ var missing=evaluation.requirements.filter(function(item){return t(item.status).toUpperCase()!=="CUMPLE";});
+ return {name:studentName(st),unknown:false,missing:missing,reason:evaluation.reason||""};
+}
+function requirementSummary(students){
+ var stats=Object.create(null),unknown=0;
+ (students||[]).forEach(function(st){
+  var diagnosis=requirementDiagnosis(st);
+  if(diagnosis.unknown){unknown++;return;}
+  diagnosis.missing.forEach(function(item){
+   var key=t(item.label||item.key),state=t(item.status).toUpperCase()||"SIN DATO";
+   var id=key+"|"+state;
+   if(!stats[id])stats[id]={label:key,status:state,count:0};
+   stats[id].count++;
+  });
+ });
+ var lines=Object.keys(stats).map(function(k){return stats[k];}).sort(function(a,b){
+  return b.count-a.count||a.label.localeCompare(b.label,"es");
+ }).map(function(item){return item.label+" ["+item.status+"]: "+item.count;});
+ if(unknown)lines.unshift("Sin validación disponible desde BDLocal: "+unknown);
+ return lines;
+}
 function cloudCount(){return data.nuclei.filter(function(r){return r.estadoSync!=="SINCRONIZADO"&&(!data.career||sameCareer(r.codigoCarrera));}).length;}
 function currentConflicts(){return data.nuclei.filter(function(r){
  return r.estadoSync==="CONFLICTO" && sameCareer(r.codigoCarrera) && (!data.group||r.grupoInforme===data.group);
@@ -287,7 +314,9 @@ function render(){
   tbody.appendChild(line);
  });
  var blocked=excludedByRequirements();
- ui.more.textContent=(blocked.length?blocked.length+" matrícula(s) activa(s) excluida(s): no tienen los 9 requisitos CUMPLE. ":"")+
+ var reqSummary=requirementSummary(blocked);
+ ui.more.textContent=(blocked.length?blocked.length+" matrícula(s) sin verificación 9/9. "+
+  (reqSummary.length?"Causas: "+reqSummary.slice(0,4).join(" · ")+". ":""):"")+
   (rows.length>80?"Mostrando los primeros 80 de "+rows.length+". Usa Buscar para filtrar.":"");
  summary();
 }
@@ -354,8 +383,12 @@ async function analyze(){
    Object.keys(all.duplicates||{}).forEach(function(ced){
     (all.duplicates[ced]||[]).forEach(function(item){activeRows[item.imported.rowNumber]=true;});
    });
-   foreign=(all.matches||[]).filter(function(item){return !sameCareer(studentCode(item.student));});
-   notQualified=(all.matches||[]).filter(function(item){
+   var identified=(all.matches||[]).slice();
+   Object.keys(all.duplicates||{}).forEach(function(ced){
+    (all.duplicates[ced]||[]).forEach(function(item){identified.push(item);});
+   });
+   foreign=identified.filter(function(item){return !sameCareer(studentCode(item.student));});
+   notQualified=identified.filter(function(item){
     return sameCareer(studentCode(item.student))&&!nineRequirements(item.student);
    });
    var excludedIds=Object.create(null);
@@ -434,8 +467,20 @@ async function analyze(){
    ". El selector de grupo solo cubre matrículas sin modalidad confirmada."));
  }
  if(!selected.length)issues.push("No hay matrículas habilitadas: se requieren los nueve requisitos en estado CUMPLE y matrícula ACTIVA.");
- if(excludedByRequirements().length)ui.review.appendChild(el("p",
-  excludedByRequirements().length+" matrícula(s) activa(s) de la carrera no reúnen los 9/9 requisitos CUMPLE y quedan fuera de las notas."));
+ if(excludedByRequirements().length){
+  var excludedActive=excludedByRequirements(),causes=requirementSummary(excludedActive);
+  ui.review.appendChild(el("p",excludedActive.length+
+   " matrícula(s) activa(s) no tienen los nueve requisitos CUMPLE verificados. "+
+   "No se presupone incumplimiento: revisa si el estado es PENDIENTE, NO CUMPLE o SIN DATO."));
+  if(causes.length){
+   var breakdown=el("div",null,"nc-requirements-breakdown");
+   breakdown.appendChild(el("strong","Diagnóstico de requisitos desde BDLocal:"));
+   var breakdownList=el("ul");
+   causes.forEach(function(item){breakdownList.appendChild(el("li",item));});
+   breakdown.appendChild(breakdownList);
+   ui.review.appendChild(breakdown);
+  }
+ }
  if(foreign.length){
   var alternative=Object.create(null);
   foreign.forEach(function(item){
@@ -484,8 +529,11 @@ async function analyze(){
     " — Matrícula retirada/inactiva en BDLocal."));
   });
   notQualified.forEach(function(item){
+   var diagnosis=requirementDiagnosis(item.student),missing=(diagnosis.missing||[]).map(function(req){
+    return (req.label||req.key)+" ("+(req.status||"SIN DATO")+")";
+   });
    listing.appendChild(el("li",item.imported.nombreCompleto+" · "+item.imported.correo+
-    " — Matrícula activa sin los nueve requisitos CUMPLE."));
+    " — Matrícula activa sin los nueve requisitos CUMPLE. Detalle: "+(missing.join(", ")||diagnosis.reason)+"."));
   });
   unlinked.forEach(function(item){
    listing.appendChild(el("li",item.row.nombreCompleto+" · "+item.row.correo+
@@ -502,6 +550,64 @@ async function analyze(){
   "Carga interpretada. Resuelve los datos señalados para continuar.",canSave?"ok":"error");
 }
 function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return "moodle_"+(h>>>0).toString(16);}
+// La acción explícita Guardar confirma la importación y activa la publicación
+// de sus propios registros. Nunca solicita credenciales, omite Firebase si
+// no hay sesión con rol institucional y conserva BDLocal ante cualquier fallo.
+async function publishSavedRecords(rows,mode,period){
+ if(!rows||!rows.length)return {ok:true,published:0,pending:0};
+ var auth=w.NcomplexFirebaseAuth;
+ if(!auth||typeof auth.requireWriter!=="function")
+  return {ok:false,published:0,pending:rows.length,reason:"Autenticación Firebase no disponible."};
+ try{await auth.requireWriter();}
+ catch(error){return {ok:false,published:0,pending:rows.length,
+  reason:t(error&&error.message||error)||"Conecta una cuenta institucional autorizada."};}
+ var grouped=Object.create(null),published=0,conflicts=0,errors=0,pending=0;
+ rows.forEach(function(row){
+  var group=t(row.grupoInforme),bucket=grouped[group]||(grouped[group]=[]);
+  bucket.push(row);
+ });
+ for(var group of Object.keys(grouped)){
+  var block=grouped[group],attempted=Object.create(null);
+  if(!group){pending+=block.length;errors++;continue;}
+  if(mode==="nucleos"){
+   if(!w.NcomplexNucleosFirebase||typeof w.NcomplexNucleosFirebase.push!=="function"){
+    pending+=block.length;errors++;continue;
+   }
+   for(var i=0;i<Math.ceil(block.length/25)+1;i++){
+    try{
+     var result=await w.NcomplexNucleosFirebase.push({periodoId:period,grupoInforme:group,
+      onlyIds:block.map(function(row){return row.id;}),skipIds:Object.keys(attempted),limit:25});
+     (result.attemptedIds||[]).forEach(function(id){attempted[id]=true;});
+     published+=Number(result.published||0);
+     conflicts+=Number(result.conflicts||0);errors+=Number(result.errors||0);
+     if(!result.processed||!result.remaining)break;
+    }catch(err){errors++;break;}
+   }
+   pending+=Math.max(0,block.length-Object.keys(attempted).length);
+  }else{
+   var cloud=w.NcomplexFirebaseComplexivo;
+   if(!cloud||typeof cloud.publish!=="function"){pending+=block.length;errors++;continue;}
+   var cedulas=block.map(function(row){return studentId(row);});
+   for(var batch=0;batch<Math.ceil(block.length/25)+1;batch++){
+    var uploaded;
+    try{uploaded=await cloud.publish({periodoId:period,grupoInforme:group,
+      onlyCedulas:cedulas,confirmedByCenter:true});}
+    catch(err){errors++;break;}
+    if(!uploaded||uploaded.ok!==true){errors++;break;}
+    published+=Number(uploaded.published||0);
+    if(uploaded.conflicts&&uploaded.conflicts.length)conflicts+=uploaded.conflicts.length;
+    if(uploaded.invalid&&uploaded.invalid.length)errors+=uploaded.invalid.length;
+    if(uploaded.blocked&&uploaded.blocked.length)errors+=uploaded.blocked.length;
+    if(!uploaded.published)break;
+   }
+   // La colección complexivo comprueba idempotencia por período y cédula;
+   // los registros ya existentes iguales no se vuelven a crear.
+  }
+ }
+ return {ok:errors===0&&conflicts===0&&pending===0,published:published,
+  conflicts:conflicts,errors:errors,pending:pending,
+  reason:errors||conflicts||pending?"Existen publicaciones pendientes o en conflicto.":""};
+}
 async function save(){
  if(data.working)throw Error("Ya existe una operación de Ncomplex en curso.");
  var p=data.preview;
@@ -594,10 +700,19 @@ async function save(){
       (p.unlinked||[]).length,origen:"ncomplex_moodle",createdAt:new Date().toISOString()});}
    catch(error){msg("Notas locales guardadas, pero el historial de importación necesita revisión: "+error.message,"error");}
   }
-  data.preview=null;ui.review.textContent="";await refresh();
-  msg(stored.length+" registros guardados en BDLocal. "+
-    (skipped?skipped+" sin reemplazar (duplicados o conflicto). ":"")+
-    "Para confirmar en Firebase usa Sincronizar Firebase.","ok");
+  data.preview=null;ui.review.textContent="";
+  if(stored.length)msg(stored.length+" notas guardadas en BDLocal. Publicando automáticamente en Firebase…");
+  var firebase=await publishSavedRecords(stored,data.mode,data.period);
+  await refresh();
+  var localMessage=stored.length+" registros guardados en BDLocal. "+
+   (skipped?skipped+" sin reemplazar. ":"");
+  if(!stored.length)msg(localMessage+"No hubo notas nuevas que publicar.","ok");
+  else if(firebase.ok)msg(localMessage+"Firebase confirmó "+firebase.published+
+   " publicaciones nuevas. Los registros idénticos no se duplican.","ok");
+  else msg(localMessage+"Firebase NO confirmó toda la carga ("+firebase.published+
+   " publicaciones; "+firebase.pending+" pendientes; "+firebase.conflicts+
+   " conflictos). "+(firebase.reason||"Revisa la conexión y los permisos.")+
+   " Las notas locales se conservaron.","error");
  }finally{data.working=false;}
 }
 async function sync(){

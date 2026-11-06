@@ -27,8 +27,8 @@ function normalize(row,period,group){
 async function publish(options){
  options=options||{};
  if(working)return {ok:false,reason:"Publicación en curso"};
- const period=t($("ncomplex-filter-periodo")&&$("ncomplex-filter-periodo").value).replace(/_+/g,"__");
- const group=t($("ncomplex-complexivo-grupo")&&$("ncomplex-complexivo-grupo").value);
+ const period=t(options.periodoId||$("ncomplex-filter-periodo")&&$("ncomplex-filter-periodo").value).replace(/_+/g,"__");
+ const group=t(options.grupoInforme||$("ncomplex-complexivo-grupo")&&$("ncomplex-complexivo-grupo").value);
  if(!period||!group){status("Solo se guardó en BDLocal. Para crear complexivo en Firebase, seleccione período y Grupo (Presencial/Online/PVC) y pulse Publicar en complexivo.",true);return {ok:false,reason:"Seleccione período y grupo"};}
  const state=w.NcomplexState&&w.NcomplexState.get&&w.NcomplexState.get();
  if(state&&Object.keys(state.dirty||{}).length){status("Primero guarde las calificaciones pendientes en Base Local.",true);return {ok:false,reason:"Cambios locales pendientes"};}
@@ -36,6 +36,9 @@ async function publish(options){
  if(!con||!center){status("Sin conexión al centro Firebase.",true);return {ok:false,reason:"Centro Firebase no disponible"};}
  const btn=$("ncomplex-btn-complexivo-sync");working=true;if(btn)btn.disabled=true;
  try{
+  if(!w.NcomplexFirebaseAuth||typeof w.NcomplexFirebaseAuth.requireWriter!=="function")
+   throw Error("No está disponible el control de permisos Firebase de Ncomplex.");
+  await w.NcomplexFirebaseAuth.requireWriter();
   await center.ensure();
   const repo=w.RequisitosFirebaseRepository;
   if(!repo)throw Error("Repositorio central Firebase no disponible.");

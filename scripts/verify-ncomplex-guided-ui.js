@@ -60,6 +60,7 @@ roster.push(
 );
 roster.forEach(st=>{st._ncomplexRequirements=reqs(st.cedula==="0404040404"?"financiero":"");});
 const savedNuclei=[];
+const firebasePushCalls=[];
 const statuses=["academico","documentacion","financiero","practicas","vinculacion",
  "seguimientograduados","ingles","actualizaciondatos","titulacion"];
 const window={addEventListener(){},ConNcomplex:{
@@ -70,7 +71,12 @@ const window={addEventListener(){},ConNcomplex:{
   return st?st._ncomplexRequirements:{eligible:false,total:9,missing:[],reason:"Sin matrícula activa."};
  },
  async saveImport(){return null;}
-},NcomplexNucleosStore:{
+},NcomplexFirebaseAuth:{async requireWriter(){return {uid:"test"};}},
+ NcomplexNucleosFirebase:{async push(options){
+  firebasePushCalls.push(options);
+  return {ok:true,published:options.onlyIds.length,processed:options.onlyIds.length,
+   attemptedIds:options.onlyIds,remaining:0,conflicts:0,errors:0};
+ }},NcomplexNucleosStore:{
  id(periodId,ced,n){return ced+"__"+periodId+"__N"+n;},
  async list(periodId){return savedNuclei.filter(row=>row.periodoId===periodId);},
  async saveMany(rows){rows.forEach(row=>savedNuclei.push(row));return rows;}
@@ -162,6 +168,11 @@ async function run(){
  assert.equal(dom["nc-group"].value,"PRESENCIAL","No borrar el grupo confirmado al refrescar.");
  assert.equal(dom["nc-loaded"].textContent,"3","Mostrar ambas modalidades guardadas sin recargar.");
  assert.equal(dom["nc-students"].textContent,"3","Los retirados y requisitos pendientes no reaparecen.");
+ assert.equal(firebasePushCalls.length,2,"Se publica automáticamente cada grupo tras guardar.");
+ assert.equal(firebasePushCalls.reduce((sum,call)=>sum+call.onlyIds.length,0),3,
+  "Se publican solamente las tres matrículas guardadas.");
+ assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="ONLINE"&&call.onlyIds.length===1));
+ assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="PRESENCIAL"&&call.onlyIds.length===2));
  console.log("NCOMPLEX UI GUIADA: OK (núcleo 4, duplicados, modalidades, guardado y grupo persistente).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

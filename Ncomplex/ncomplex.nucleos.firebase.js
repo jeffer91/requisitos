@@ -23,8 +23,10 @@ async function push(options){
  options=options||{};
  if(active)throw Error("Ya hay una sincronización de núcleos en curso.");
  var period=text(options.periodoId||options.periodId),group=text(options.grupoInforme);
- var excluded=Object.create(null);
+ var excluded=Object.create(null),scoped=Object.create(null);
  (options.skipIds||[]).forEach(function(id){excluded[text(id)]=true;});
+ var onlyIds=Array.isArray(options.onlyIds)?options.onlyIds:null;
+ if(onlyIds)onlyIds.forEach(function(id){scoped[text(id)]=true;});
  if(!period)throw Error("Selecciona el período académico.");
  var local=w.NcomplexNucleosStore;
  if(!local)throw Error("El repositorio local de núcleos no está disponible.");
@@ -39,7 +41,7 @@ async function push(options){
   if(!repo||typeof repo.writeChecked!=="function")throw Error("Repositorio Firebase no disponible.");
   var records=(await local.list(period)).filter(function(r){
    return r.estadoSync!=="SINCRONIZADO" && r.estadoSync!=="CONFLICTO" &&
-     !excluded[r.id] && (!group||r.grupoInforme===group);
+     !excluded[r.id] && (!onlyIds||scoped[r.id]) && (!group||r.grupoInforme===group);
   });
   records.sort(function(a,b){return a.id.localeCompare(b.id);});
   var eligible=records.filter(function(r){return r.estadoSync!=="CONFLICTO";});

@@ -33,6 +33,7 @@ const el={
 };
 window.confirm=()=>{confirmations++;return true;};
 window.NcomplexState={get:()=>({dirty:{}})};
+window.NcomplexFirebaseAuth={async requireWriter(){return {uid:"test-user"};}};
 window.ConNcomplex={
  async listEvaluations(){return [note];},
  async listStudents(){return [student];},
