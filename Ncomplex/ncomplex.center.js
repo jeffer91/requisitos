@@ -894,6 +894,28 @@ async function sync(){
    (data.mode==="nucleos"?"Núcleo "+data.nucleus:"examen complexivo")+
    " para publicar. Guarda primero las calificaciones en BDLocal.","error");return;
  }
+ // Una configuración Firebase válida no equivale a una sesión de usuario.
+ // Si no existe una sesión previa, abrir el acceso SIN iniciar ninguna escritura.
+ var manager=w.NcomplexFirebaseAuth;
+ if(!manager||typeof manager.load!=="function"){
+  msg("Autenticación Firebase no disponible. Comprueba la instalación.","error");return;
+ }
+ try{
+  var authStatus=await manager.load();
+  if(!authStatus||authStatus.authenticated!==true){
+   progressReset();
+   showFirebaseLoginForm();
+   showFirebaseSession(authStatus||{authenticated:false});
+   msg("El proyecto Firebase está configurado, pero falta iniciar sesión con una cuenta autorizada. "+
+    "Conéctate una vez y después pulsa Guardar Firebase. Las "+rows.length+
+    " notas siguen seguras en BDLocal.","error");
+   return;
+  }
+ }catch(error){
+  msg("No se pudo recuperar Firebase Authentication: "+(error.message||String(error))+
+   ". Las calificaciones locales no se modificaron.","error");
+  return;
+ }
  var wasSaveDisabled=ui.save.disabled;
  data.working=true;ui.publish.disabled=true;ui.save.disabled=true;
  progressUpdate("Firebase: iniciando publicación",0,rows.length,
@@ -957,9 +979,17 @@ function resumeFirebaseSession(){
   showFirebaseSession({authenticated:false,error:error.message||String(error)});
  });
 }
+function showFirebaseLoginForm(){
+ var form=$("nc-firebase-login");
+ if(!form)return;
+ form.hidden=false;
+ var email=$("nc-login-email");
+ if(email&&typeof email.focus==="function")email.focus();
+}
 function openLogin(){
- var form=$("nc-firebase-login");form.hidden=!form.hidden;
- if(!form.hidden)$("nc-login-email").focus();
+ var form=$("nc-firebase-login");
+ if(!form)return;
+ if(form.hidden)showFirebaseLoginForm();else form.hidden=true;
 }
 async function signOutFirebase(){
  var manager=w.NcomplexFirebaseAuth;
@@ -982,7 +1012,8 @@ async function signInFirebase(event){
   $("nc-firebase-login").hidden=true;
   showFirebaseSession(w.NcomplexFirebaseAuth.status&&w.NcomplexFirebaseAuth.status()||
    {authenticated:true,email:user.email});
-  msg("Firebase conectado: "+user.email+". La sesión permanecerá iniciada en este equipo.","ok");
+  msg("Firebase conectado: "+user.email+
+   ". Ya puedes pulsar Guardar Firebase para publicar las notas de BDLocal.","ok");
  }catch(error){msg("No se pudo autenticar en Firebase: "+(error.message||error),"error");}
  finally{password.value="";button.disabled=false;}
 }

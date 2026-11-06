@@ -35,6 +35,7 @@ ids.forEach(id=>{
  dom[id]=new Element(kind,id);
 });
 dom["nc-import"].hidden=true;
+dom["nc-firebase-login"].hidden=true;
 dom["nc-table"].appendChild(new Element("thead"));dom["nc-table"].appendChild(new Element("tbody"));
 dom["nc-nucleus-picker"].buttons=[1,2,3,4].map(n=>{
  const b=new Element("button");b.dataset.ncNucleus=String(n);return b;
@@ -254,6 +255,14 @@ async function run(){
  assert.equal(firebaseAuthenticated,false);
  assert.equal(dom["nc-logout-firebase"].hidden,true);
  assert.match(dom["nc-firebase-session"].textContent,/sin sesión guardada/);
+ const callsBeforeLogin=firebasePushCalls.length;
+ dom["nc-firebase-login"].hidden=true;
+ await window.NcomplexCenter.sync();
+ assert.equal(firebasePushCalls.length,callsBeforeLogin,
+  "Sin una sesión válida, nunca se intenta escribir en Firebase.");
+ assert.equal(dom["nc-firebase-login"].hidden,false,
+  "Guardar Firebase debe abrir el acceso cuando todavía no hay una sesión.");
+ assert.match(dom["nc-message"].textContent,/proyecto Firebase está configurado, pero falta iniciar sesión/);
  console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, fallos de rol y bloqueo seguro).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});
