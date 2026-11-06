@@ -1007,7 +1007,8 @@ async function boot(){
  $("nc-show-pending").addEventListener("click",showPending);
  $("nc-show-conflicts").addEventListener("click",function(){showConflicts().catch(function(e){msg(e.message,"error");});});
  $("nc-connect-firebase").addEventListener("click",openLogin);
- $("nc-check-firebase").addEventListener("click",function(){
+ var inspectButton=$("nc-check-firebase");
+ if(inspectButton)inspectButton.addEventListener("click",function(){
   if(data.working){msg("Termina primero el guardado actual.","error");return;}
   inspectUploaded();
  });
