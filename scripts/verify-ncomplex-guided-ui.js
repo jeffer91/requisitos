@@ -201,18 +201,18 @@ async function run(){
  uploadedDocs.set(alreadyUploaded,{dataHash:"otro_hash"});
  await dom["nc-check-firebase"].handlers.click();
  assert.equal(dom["nc-firebase-inventory"].hidden,false);
- assert.match(dom["nc-firebase-inventory-summary"].textContent,/1 subidos · 2 no subidos/);
+ assert.match(dom["nc-firebase-inventory-summary"].textContent,/1 subidos · 3 no subidos/);
  assert.match(dom["nc-firebase-inventory-detail"].textContent,/1 difieren/);
  assert.equal(dom["nc-firebase-inventory-list"].children[0].tagName,"table");
- assert.equal(readCalls.length,3,"Consulta los documentos en Firestore por período, cédula y núcleo.");
- assert.match(dom["nc-cloud-state"].textContent,/1 de 3 ya subidos/);
+ assert.equal(readCalls.length,4,"Incluye también matrículas activas con requisitos pendientes al revisar la nube.");
+ assert.match(dom["nc-cloud-state"].textContent,/1 de 4 ya subidos/);
  await dom["nc-publish"].handlers.click();
  assert.equal(firebasePushCalls.length,2,"Guardar Firebase publica sin selección de grupo global.");
  assert.equal(dom["nc-save-progress-bar"].value,100,
   "Firebase solo llega al 100% después de confirmar las publicaciones.");
  assert.match(dom["nc-save-progress-title"].textContent,/Firebase: publicación finalizada/);
- assert.match(dom["nc-firebase-inventory-summary"].textContent,/3 subidos · 0 no subidos/);
- assert.match(dom["nc-cloud-state"].textContent,/3 de 3 ya subidos/);
+ assert.match(dom["nc-firebase-inventory-summary"].textContent,/3 subidos · 1 no subidos/);
+ assert.match(dom["nc-cloud-state"].textContent,/3 de 4 ya subidos/);
  assert.match(dom["nc-firebase-inventory-detail"].textContent,/3 coinciden/);
  assert.equal(firebasePushCalls.reduce((sum,call)=>sum+call.onlyIds.length,0),3,
   "Se publican solamente las tres matrículas guardadas.");
