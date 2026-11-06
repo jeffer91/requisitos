@@ -28,8 +28,9 @@ async function publish(options){
  options=options||{};
  if(working)return {ok:false,reason:"Publicación en curso"};
  const period=t(options.periodoId||$("ncomplex-filter-periodo")&&$("ncomplex-filter-periodo").value).replace(/_+/g,"__");
- const group=t(options.grupoInforme||$("ncomplex-complexivo-grupo")&&$("ncomplex-complexivo-grupo").value);
- if(!period||!group){status("Solo se guardó en BDLocal. Para crear complexivo en Firebase, seleccione período y Grupo (Presencial/Online/PVC) y pulse Publicar en complexivo.",true);return {ok:false,reason:"Seleccione período y grupo"};}
+ const anyGroup=options.anyGroup===true;
+ const group=anyGroup?"":t(options.grupoInforme||$("ncomplex-complexivo-grupo")&&$("ncomplex-complexivo-grupo").value);
+ if(!period||(!group&&!anyGroup)){status("Solo se guardó en BDLocal. Para crear complexivo en Firebase, seleccione período y Grupo (Presencial/Online/PVC) y pulse Publicar en complexivo.",true);return {ok:false,reason:"Seleccione período y grupo"};}
  const state=w.NcomplexState&&w.NcomplexState.get&&w.NcomplexState.get();
  if(state&&Object.keys(state.dirty||{}).length){status("Primero guarde las calificaciones pendientes en Base Local.",true);return {ok:false,reason:"Cambios locales pendientes"};}
  const con=w.ConNcomplex,center=w.RequisitosFirebaseOperationCenter;
@@ -71,8 +72,11 @@ async function publish(options){
    if(savedGroup&&inferred&&savedGroup!==inferred){
      invalid.push(ced+": grupo guardado distinto del registrado en BDLocal");continue;
    }
-   if(savedGroup&&savedGroup!==group)continue;
-   if(inferred&&inferred!==group)continue;
+   const realGroup=savedGroup||inferred;
+   if(["PRESENCIAL","ONLINE","PVC"].indexOf(realGroup)<0){
+    invalid.push(ced+": BDLocal no identifica la modalidad para Firestore");continue;
+   }
+   if(!anyGroup&&realGroup!==group)continue;
    if(typeof con.checkRequirements!=="function"){
      blocked.push(ced+": verificador de requisitos no disponible");continue;
    }
@@ -80,7 +84,7 @@ async function publish(options){
    if(!eligibility||eligibility.eligible!==true||eligibility.complete!==9||eligibility.total!==9){
      blocked.push(ced+": "+t(eligibility&&eligibility.reason||"9 requisitos no verificados"));continue;
    }
-   const doc=normalize(Object.assign({},st,r),period,group);
+   const doc=normalize(Object.assign({},st,r),period,realGroup);
    if(doc)valid.push(doc);else invalid.push(ced+": calificaciones incompletas o discordantes");
   }
   const pending=[],conflicts=[];let same=0;

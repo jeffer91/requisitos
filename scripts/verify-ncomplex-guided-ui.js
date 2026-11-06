@@ -39,9 +39,9 @@ const document={getElementById:id=>dom[id]||null,createElement:tag=>new Element(
 const period="2025-10__2026-03";
 const roster=[
  {cedula:"0101010101",Nombres:"ALVARADO PEREZ MALENA RACHELL",
-  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"ACTIVO"},
+  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"ACTIVO",modalidadEstudio:"PRESENCIAL"},
  {cedula:"0202020202",Nombres:"RECALDE IDROVO BRIANA ALEJANDRA",
-  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"ACTIVO"},
+  NombreCarrera:"ADMINISTRACION",CodigoCarrera:"ADMINISTRACION",estadoMatricula:"ACTIVO",modalidadEstudio:"PRESENCIAL"},
  {cedula:"0303030303",Nombres:"OTRA ESTUDIANTE DE ONLINE",
   NombreCarrera:"ADMINISTRACION ONLINE",CodigoCarrera:"ADMINISTRACION ONLINE",estadoMatricula:"ACTIVO"}
 ];
@@ -120,10 +120,9 @@ async function run(){
  assert.equal(selector.options.length,3);
  selector.value="2";
  await selector.handlers.change();
- dom["nc-group"].value="PRESENCIAL";
- await dom["nc-group"].handlers.change();
  for(let i=0;i<30;i++)await Promise.resolve();
- assert.equal(dom["nc-save"].disabled,false,"Se habilita guardar tras conciliar y definir grupo.");
+ assert.equal(dom["nc-group"].value,"","No exigir un grupo global para dos modalidades.");
+ assert.equal(dom["nc-save"].disabled,false,"Se habilita guardar tras resolver el duplicado, sin grupo global.");
  assert.equal(dom["nc-students"].textContent,"3","Ambas modalidades aparecen en el mismo núcleo.");
  const table=dom["nc-table"].querySelector("tbody");
  assert.equal(table.children.length,3,"La lista incluye ambas modalidades sin duplicar carreras.");
@@ -165,14 +164,16 @@ async function run(){
  assert.equal(savedNuclei.filter(x=>x.codigoCarrera==="ADMINISTRACION"&&x.grupoInforme==="PRESENCIAL").length,2);
  assert.equal(savedNuclei.filter(x=>x.codigoCarrera==="ADMINISTRACION ONLINE"&&x.grupoInforme==="ONLINE").length,1,
   "La nota online debe conservar su código real y grupo propio.");
- assert.equal(dom["nc-group"].value,"PRESENCIAL","No borrar el grupo confirmado al refrescar.");
+ assert.equal(dom["nc-group"].value,"","No establecer un grupo global al guardar ambas modalidades.");
  assert.equal(dom["nc-loaded"].textContent,"3","Mostrar ambas modalidades guardadas sin recargar.");
  assert.equal(dom["nc-students"].textContent,"3","Los retirados y requisitos pendientes no reaparecen.");
- assert.equal(firebasePushCalls.length,2,"Se publica automáticamente cada grupo tras guardar.");
+ assert.equal(firebasePushCalls.length,0,"Guardar BDLocal no debe publicar sin pulsar Guardar Firebase.");
+ await dom["nc-publish"].handlers.click();
+ assert.equal(firebasePushCalls.length,2,"Guardar Firebase publica sin selección de grupo global.");
  assert.equal(firebasePushCalls.reduce((sum,call)=>sum+call.onlyIds.length,0),3,
   "Se publican solamente las tres matrículas guardadas.");
  assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="ONLINE"&&call.onlyIds.length===1));
  assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="PRESENCIAL"&&call.onlyIds.length===2));
- console.log("NCOMPLEX UI GUIADA: OK (núcleo 4, duplicados, modalidades, guardado y grupo persistente).");
+ console.log("NCOMPLEX UI GUIADA: OK (dos botones separados, grupo automático y publicación por cédula).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

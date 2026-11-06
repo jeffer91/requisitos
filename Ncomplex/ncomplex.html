@@ -31,7 +31,7 @@ Función o funciones:
       <div class="nc-filters">
         <label>Período<select id="nc-period"><option value="">Seleccionar período</option></select></label>
         <label>Carrera<select id="nc-career"><option value="">Seleccionar carrera</option></select></label>
-        <label>Grupo<select id="nc-group"><option value="">Seleccionar</option><option value="PRESENCIAL">Presencial</option><option value="ONLINE">Online</option><option value="PVC">PVC</option></select></label>
+        <label hidden>Grupo (metadato automático)<select id="nc-group"><option value="">Seleccionar</option><option value="PRESENCIAL">Presencial</option><option value="ONLINE">Online</option><option value="PVC">PVC</option></select></label>
       </div>
       <div id="nc-guide" class="nc-guide" aria-live="polite">
         <div class="nc-guide-text"><span id="nc-guide-title">Selecciona el período para comenzar</span><span id="nc-guide-detail">Continuaremos carrera por carrera, desde el Núcleo 1</span></div>
@@ -55,7 +55,7 @@ Función o funciones:
       </div>
       <div class="nc-actions">
         <button type="button" id="nc-open-import" class="nc-primary">Importar Moodle</button>
-        <button type="button" id="nc-publish">Sincronizar Firebase</button>
+        
         <button type="button" id="nc-show-pending">Ver pendientes</button>
         <button type="button" id="nc-show-conflicts" hidden>Conflictos</button>
         <button type="button" id="nc-connect-firebase">Conectar Firebase</button>
@@ -78,7 +78,8 @@ Función o funciones:
         <textarea id="nc-paste" rows="8" placeholder="Pega aquí el libro de calificaciones de Moodle"></textarea>
         <div class="nc-import-actions">
           <button id="nc-analyze" type="button" class="nc-primary">Analizar</button>
-          <button id="nc-save" type="button" disabled>Guardar calificaciones</button>
+          <button id="nc-save" type="button" disabled>Guardar BDLocal</button>
+          <button id="nc-publish" type="button">Guardar Firebase</button>
         </div>
         <div id="nc-review" aria-live="polite"></div>
       </section>

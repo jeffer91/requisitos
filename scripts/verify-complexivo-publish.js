@@ -85,6 +85,19 @@ async function main(){
  assert.equal(online.invalid.length,0);
  assert.equal(remote.size,2);
  assert.equal(remote.get(period+"__"+onlineId).data.grupoInforme,"ONLINE");
- console.log("VERIFICACIÓN PUBLICADOR COMPLEXIVO: OK (modalidades mixtas conservadas, idempotencia y seguridad).");
+ remote.clear();
+ elements["ncomplex-complexivo-grupo"].value="";
+ const unified=await api.publish({periodoId:period,anyGroup:true,confirmedByCenter:true});
+ assert.equal(unified.published,2,"No exigir un grupo global para publicar ambos registros.");
+ assert.equal(remote.get(period+"__"+id).data.grupoInforme,"PRESENCIAL");
+ assert.equal(remote.get(period+"__"+onlineId).data.grupoInforme,"ONLINE");
+ const unknownId="0301234567";
+ schoolRows.push({cedula:unknownId,Nombres:"SIN MODALIDAD",periodoId:period});
+ noteRows.push({...note,cedula:unknownId,grupoInforme:""});
+ const unknown=await api.publish({periodoId:period,anyGroup:true,
+  onlyCedulas:[unknownId],confirmedByCenter:true});
+ assert.equal(unknown.published,0,"No inventar modalidad cuando BDLocal no la conoce.");
+ assert.match(unknown.invalid.join(","),/no identifica la modalidad/);
+ console.log("VERIFICACIÓN PUBLICADOR COMPLEXIVO: OK (identificación por período y cédula, sin grupo global).");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
