@@ -87,9 +87,21 @@ function requirementSummary(students){
  if(unknown)lines.unshift("Sin validación disponible desde BDLocal: "+unknown);
  return lines;
 }
-function cloudCount(){return data.nuclei.filter(function(r){return r.estadoSync!=="SINCRONIZADO"&&(!data.career||sameCareer(r.codigoCarrera));}).length;}
+function cloudCount(){
+ // Solo el núcleo visible. Antes sumaba TODOS los núcleos de la carrera
+ // (p. ej. 26 del núcleo 1 + 26 del núcleo 2 = 52 en pantalla de Núcleo 2).
+ if(data.mode!=="nucleos")return null;
+ var ids=Object.create(null);
+ currentRows().forEach(function(st){ids[studentId(st)]=true;});
+ return data.nuclei.filter(function(r){
+  return Number(r.nucleo)===data.nucleus&&
+   sameCareer(r.codigoCarrera)&&ids[t(r.cedula)]&&
+   r.estadoSync!=="SINCRONIZADO"&&r.estadoSync!=="CONFLICTO";
+ }).length;
+}
 function currentConflicts(){return data.nuclei.filter(function(r){
- return r.estadoSync==="CONFLICTO" && sameCareer(r.codigoCarrera) && (!data.group||r.grupoInforme===data.group);
+ return r.estadoSync==="CONFLICTO" && sameCareer(r.codigoCarrera) &&
+   Number(r.nucleo)===data.nucleus&&(!data.group||r.grupoInforme===data.group);
 });}
 function nucleusRequirements(student){
  var check=student&&student._ncomplexRequirements;
@@ -277,7 +289,7 @@ function summary(){
  $("nc-students").textContent=roster.length;
  $("nc-loaded").textContent=Object.keys(loaded).length;
  $("nc-missing").textContent=Math.max(0,roster.length-Object.keys(complete).length);
- $("nc-sync-pending").textContent=cloudCount();
+ $("nc-sync-pending").textContent=data.mode==="nucleos"?String(cloudCount()):"—";
  var remote=data.cloudInventory&&data.cloudInventory.key===inventoryKey()?data.cloudInventory.result:null;
  if(remote){
   ui.cloud.textContent="Firebase: "+remote.uploaded+" de "+remote.total+" ya subidos"+
@@ -286,7 +298,9 @@ function summary(){
   ui.cloud.className="nc-cloud-pill"+(remote.total>0&&remote.uploaded===remote.total&&
    !remote.errors&&!remote.different?" is-ok":" is-warn");
  }else{
-  ui.cloud.textContent="Firebase sin consultar · "+cloudCount()+" pendientes según BDLocal";
+  ui.cloud.textContent=data.mode==="nucleos"?
+   "Firebase sin consultar · "+cloudCount()+" pendientes locales en Núcleo "+data.nucleus:
+   "Firebase del complexivo sin consultar";
   ui.cloud.className="nc-cloud-pill is-warn";
  }
  var conflicts=$("nc-show-conflicts");if(conflicts){

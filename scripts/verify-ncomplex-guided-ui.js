@@ -215,6 +215,20 @@ async function run(){
  assert.equal(dom["nc-group"].value,"","No establecer un grupo global al guardar ambas modalidades.");
  assert.equal(dom["nc-loaded"].textContent,"3","Mostrar ambas modalidades guardadas sin recargar.");
  assert.equal(dom["nc-students"].textContent,"3","Los retirados y requisitos pendientes no reaparecen.");
+ assert.equal(dom["nc-sync-pending"].textContent,"3",
+  "La tarjeta Firebase cuenta las notas del núcleo seleccionado.");
+ savedNuclei.push({...savedNuclei[0],id:period+"__0101010101__N3",nucleo:3,
+  estadoSync:"PENDIENTE"});
+ await window.NcomplexCenter.refresh();
+ assert.equal(dom["nc-sync-pending"].textContent,"3",
+  "No sumar notas de Núcleo 3 al mostrar Núcleo 4.");
+ dom["nc-nucleus-picker"].buttons[2].handlers.click();
+ assert.equal(dom["nc-sync-pending"].textContent,"1",
+  "La tarjeta muestra solo las pendientes del Núcleo 3.");
+ dom["nc-nucleus-picker"].buttons[3].handlers.click();
+ assert.equal(dom["nc-sync-pending"].textContent,"3",
+  "Al regresar a Núcleo 4 no acumula pendientes de otros núcleos.");
+ savedNuclei.pop();await window.NcomplexCenter.refresh();
  assert.equal(firebasePushCalls.length,0,"Guardar BDLocal no debe publicar sin pulsar Guardar Firebase.");
  const alreadyUploaded=period+"__0303030303__N4";
  uploadedDocs.set(alreadyUploaded,{dataHash:"otro_hash"});
