@@ -1010,7 +1010,7 @@ async function boot(){
  var inspectButton=$("nc-check-firebase");
  if(inspectButton)inspectButton.addEventListener("click",function(){
   if(data.working){msg("Termina primero el guardado actual.","error");return;}
-  inspectUploaded();
+  return inspectUploaded();
  });
  $("nc-login-cancel").addEventListener("click",function(){$("nc-firebase-login").hidden=true;$("nc-login-password").value="";});
  $("nc-firebase-login").addEventListener("submit",signInFirebase);
