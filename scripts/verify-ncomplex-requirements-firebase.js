@@ -70,6 +70,42 @@ async function run(){
  result=await window.NcomplexFirebaseComplexivo.publish();
  assert.equal(result.ok,false);
  assert.match(el["ncomplex-firebase-status"].textContent,/Grupo/);
- console.log("VERIFICACIÓN NCOMPLEX FIREBASE 9/9: OK (sin requisitos, creación, idempotencia, grupo)");
+ // Regresión: el servicio Ncomplex debe recibir el repositorio real de requisitos
+ // y diferenciar 9/9 CUMPLE de un requisito PENDIENTE sin usar datos institucionales.
+ const records=Object.entries(status).map(([key,value])=>({
+  periodoId:period,cedula:id,requisitoKey:key,valor:value
+ }));
+ const stores={requisitos_estudiante:records,requisitos:[]},repos={};
+ window.BDLRepositories={
+  register(name,repo){repos[name]=repo;},
+  get(name){return repos[name]||null;},
+  storeName(key,fallback){return fallback;},
+  safeGetAll(store){return Promise.resolve(stores[store]||[]);}
+ };
+ const person={periodoId:period,cedula:id,Nombres:"ESTUDIANTE EJEMPLO",
+  NombreCarrera:"ADMINISTRACION",estadoMatricula:"ACTIVO"};
+ window.BDLServices={
+  register(){},
+  repo(name){return repos[name]||null;},
+  get(name){return name==="estudiantes"?{async list(){return [person];}}:null;},
+  getStudents(){return Promise.resolve([person]);},
+  getPeriods(){return Promise.resolve([]);}
+ };
+ vm.runInContext(load("BDLocal/repositories/bdl.repo.requisitos.js"),env);
+ assert.equal(typeof window.BDLRepoRequisitos.list,"function");
+ vm.runInContext(load("BDLocal/services/bdl.service.ncomplex.js"),env);
+ const service=window.BDLServiceNcomplex;
+ let joined=await service.list({periodoId:period});
+ assert.equal(joined.length,1);
+ assert.equal(joined[0]._ncomplexRequirements.eligible,true,
+  "Ncomplex permite guardar cuando los 9 CUMPLE provienen de BDLocal.");
+ assert.equal((await service.checkRequirements(period,id)).eligible,true);
+ records.find(r=>r.requisitoKey==="Financiero").valor="PENDIENTE";
+ joined=await service.list({periodoId:period});
+ assert.equal(joined[0]._ncomplexRequirements.eligible,false,
+  "El repositorio conserva el bloqueo académico real.");
+ assert.match(joined[0]._ncomplexRequirements.reason,/Financiero/);
+ assert.equal((await service.checkRequirements(period,id)).eligible,false);
+ console.log("VERIFICACIÓN NCOMPLEX FIREBASE 9/9: OK (repositorio BDLocal, requisitos reales, idempotencia).");
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});

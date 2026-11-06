@@ -38,6 +38,13 @@ check(before(runtime,'../repositories/bdl.repo.index.js','../repositories/bdl.re
 check(before(runtime,'../services/bdl.service.index.js','../services/bdl.service.defensas.js'),"El registro de servicios se crea antes de Defensas.");
 check(before(runtime,'../services/bdl.service.index.js','../services/bdl.service.ncomplex.js'),"El registro de servicios se crea antes de Ncomplex.");
 check(runtime.includes('profiles.defensas=')&&runtime.includes('profiles.inpvc=')&&runtime.includes('profiles.ncomplex='),"El cargador define los tres perfiles especializados.");
+const ncomplexProfile=runtime.split('profiles.ncomplex=')[1]?.split('function ensureBase')[0]||"";
+check(ncomplexProfile.includes('../repositories/bdl.repo.requisitos.js'),
+ "Ncomplex carga el repositorio de los nueve requisitos.");
+check(before(ncomplexProfile,'../repositories/bdl.repo.requisitos.js','../services/bdl.service.ncomplex.js'),
+ "Ncomplex prepara los requisitos ANTES del servicio que habilita Guardar BDLocal.");
+check(ncomplexProfile.includes('window.BDLRepoRequisitos')&&ncomplexProfile.includes('get("requisitos_estudiante")'),
+ "Ncomplex verifica que el repositorio de requisitos quedó disponible.");
 
 check(defart.includes('runtime.ensure("defensas")'),"Defensas usa el perfil ordenado de dependencias.");
 check(defart.includes('load("cone.defensas.js",legacy)'),"Defensas carga su compatibilidad después del perfil.");
