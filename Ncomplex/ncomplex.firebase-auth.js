@@ -5,9 +5,13 @@ var sdk="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js",loa
 function load(){
  if(loading)return loading;
  loading=Promise.resolve().then(function(){
-  if(w.firebase&&typeof w.firebase.firestore==="function")return true;
+  // El iframe de Ncomplex no necesita la arquitectura masiva de BDLocal.
+  if(w.RequisitosFirebaseOperationCenter&&typeof w.RequisitosFirebaseOperationCenter.ensureNcomplex==="function")
+    return w.RequisitosFirebaseOperationCenter.ensureNcomplex();
   if(w.BL2Sync&&typeof w.BL2Sync.ensureFirebase==="function")
     return w.BL2Sync.ensureFirebase();
+  if(w.firebase&&typeof w.firebase.firestore==="function"&&w.firebase.apps&&w.firebase.apps.length)
+    return w.firebase.firestore();
   if(w.RequisitosFirebaseOperationCenter&&typeof w.RequisitosFirebaseOperationCenter.ensure==="function")
     return w.RequisitosFirebaseOperationCenter.ensure();
   throw Error("Primero debe inicializarse Firebase en BDLocal.");

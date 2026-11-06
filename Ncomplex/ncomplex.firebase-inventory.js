@@ -31,7 +31,7 @@
   if(!auth||typeof auth.requireUser!=="function")throw Error("Conecta Firebase para consultar las calificaciones subidas.");
   await auth.requireUser();
   if(!center||typeof center.ensure!=="function")throw Error("Centro Firebase no disponible.");
-  await center.ensure();
+  await (typeof center.ensureNcomplex==="function"?center.ensureNcomplex():center.ensure());
   var repo=w.RequisitosFirebaseRepository;
   if(!repo||typeof repo.getById!=="function")throw Error("La consulta Firebase no está disponible.");
   var byCed=Object.create(null),local=Object.create(null);

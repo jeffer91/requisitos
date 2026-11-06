@@ -40,7 +40,7 @@ async function publish(options){
   if(!w.NcomplexFirebaseAuth||typeof w.NcomplexFirebaseAuth.requireWriter!=="function")
    throw Error("No está disponible el control de permisos Firebase de Ncomplex.");
   await w.NcomplexFirebaseAuth.requireWriter();
-  await center.ensure();
+  await (typeof center.ensureNcomplex==="function"?center.ensureNcomplex():center.ensure());
   const repo=w.RequisitosFirebaseRepository;
   if(!repo)throw Error("Repositorio central Firebase no disponible.");
   const [rows,students]=await Promise.all([con.listEvaluations({periodoId:period}),con.listStudents({periodoId:period,estadoMatricula:"ACTIVO"})]);

@@ -141,6 +141,56 @@ try{
   errors.push(`Sintaxis o arranque: ${error.message}`);
 }
 
+// Ncomplex se ejecuta en un iframe ligero. No tiene que cargar Outbox, Target
+// ni Personas para autenticar y escribir exclusivamente evaluaciones académicas.
+async function verifyNcomplexWithoutHeavyArchitecture(){
+ const loaded=[],firestore={collection(){return {doc(){return {};}}}};
+ const notesWindow={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,
+  Promise,Set,Map,URL,setTimeout,clearTimeout,CustomEvent,dispatchEvent(){},
+  BL2Config:{firebase:{config:{projectId:"utet-4387a"}}}};
+ let vmContext;
+ const scripts=[];
+ const doc={
+  currentScript:{src:"file:///repo/BDLocal/firebase/bdl.firebase.operation-center.js"},
+  baseURI:"file:///repo/",scripts:[],
+  createElement(){return {src:"",setAttribute(k,v){this[k]=v;},
+   getAttribute(k){return this[k]||"";}};},
+  head:{appendChild(script){
+   scripts.push(script.src);
+   doc.scripts.push(script);
+   Promise.resolve().then(()=>{
+    try{
+     if(script.src.endsWith("/BDLocal/bl2.sync.js")){
+      notesWindow.BL2Sync={async ensureFirebase(){return firestore;}};
+     }else{
+      const rel=script.src.split("/BDLocal/")[1];
+      if(!rel)throw Error("Archivo inesperado: "+script.src);
+      new vm.Script(fs.readFileSync(path.join(ROOT,"BDLocal",rel),"utf8"),
+       {filename:rel}).runInContext(vmContext);
+     }
+     if(script.onload)script.onload();
+    }catch(error){if(script.onerror)script.onerror(error);}
+   });
+  }}
+ };
+ doc.documentElement=doc.head;
+ notesWindow.document=doc;notesWindow.window=notesWindow;
+ vmContext=vm.createContext(notesWindow);
+ new vm.Script(source,{filename:"bdl.firebase.operation-center.js"})
+  .runInContext(vmContext);
+ const result=await notesWindow.RequisitosFirebaseOperationCenter.ensureNcomplex();
+ check(!!result&&typeof result.writeChecked==="function",
+  "Ncomplex inicializa su repositorio propio sin arquitectura masiva.");
+ check(!notesWindow.BDLSyncOutbox&&!notesWindow.BDLSyncTargetFirebase&&!notesWindow.BDLRepoPersonas,
+  "Ncomplex no crea ni requiere Outbox, Target o Personas.");
+ check(scripts.some(x=>x.endsWith("bdl.firebase.repository.v2.js")),
+  "Ncomplex carga directamente su repositorio seguro de Firebase.");
+ check(scripts.some(x=>x.endsWith("bl2.sync.js")),
+  "Ncomplex prepara el SDK de Firebase aunque el iframe no cargara BL2Sync.");
+ check(!scripts.some(x=>x.endsWith("cone.index.js")),
+  "Ncomplex no activa el núcleo pesado de BDLocal para publicar notas.");
+}
+
 (async()=>{
   const center=sandbox.RequisitosFirebaseOperationCenter;
   check(center&&typeof center.analyze==="function","Debe exponerse el Centro de Operaciones Firebase");
@@ -202,6 +252,7 @@ try{
   check(patch.row.nombreCompleto==="NOMBRE CONSERVADO","Telegram no debe reemplazar el nombre local");
   check(patch.row.correoPersonal==="correo@ejemplo.com","Telegram no debe reemplazar el correo local");
 
+  await verifyNcomplexWithoutHeavyArchitecture();
   if(errors.length){
     console.error("\nVERIFICACIÓN CENTRO DE OPERACIONES FIREBASE: ERROR\n");
     errors.forEach((error,index)=>console.error(`${index+1}. ${error}`));

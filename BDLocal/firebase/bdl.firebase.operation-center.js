@@ -149,6 +149,43 @@ Función:
     return readyPromise;
   }
 
+  // Ncomplex escribe exclusivamente /evaluaciones_nucleos y /complexivo.
+  // No debe esperar Outbox, Target ni el repositorio de personas, que pertenecen
+  // a operaciones masivas de otras pantallas y pueden no existir en este iframe.
+  var notesReadyPromise=null;
+  function ensureNcomplex(){
+    if(notesReadyPromise){return notesReadyPromise;}
+    var dependencies=[
+      {path:"bdl.firebase.schema.v2.js",test:function(){return window.RequisitosFirebaseSchema;}},
+      {path:"bdl.firebase.identity.js",test:function(){return window.RequisitosFirebaseIdentity;}},
+      {path:"bdl.firebase.validator.v2.js",test:function(){return window.RequisitosFirebaseValidator;}},
+      {path:"bdl.firebase.repository.v2.js",test:function(){return window.RequisitosFirebaseRepository;}}
+    ];
+    notesReadyPromise=dependencies.reduce(function(previous,entry){
+      return previous.then(function(){return load(entry.path,entry.test);});
+    },Promise.resolve()).then(function(){
+      if(window.BL2Sync&&typeof window.BL2Sync.ensureFirebase==="function"){
+        return window.BL2Sync.ensureFirebase();
+      }
+      return load("../bl2.sync.js",function(){return window.BL2Sync;}).then(function(sync){
+        if(!sync||typeof sync.ensureFirebase!=="function"){
+          throw new Error("No se pudo preparar Firebase SDK desde BDLocal.");
+        }
+        return sync.ensureFirebase();
+      });
+    }).then(function(firestore){
+      if(!firestore||typeof firestore.collection!=="function"){
+        throw new Error("Firebase Firestore no quedó disponible para Ncomplex.");
+      }
+      state.lastError="";
+      return window.RequisitosFirebaseRepository;
+    }).catch(function(error){
+      state.lastError="Ncomplex Firebase: "+(error&&error.message||String(error));
+      throw new Error(state.lastError);
+    }).finally(function(){notesReadyPromise=null;});
+    return notesReadyPromise;
+  }
+
   function scopeOf(value){
     var key=normalizeKey(value);
     var current=SCOPES[key];
@@ -748,6 +785,7 @@ Función:
     maxBatchSize:MAX_BATCH_SIZE,
     scopes:clone(SCOPES),
     ensure:ensure,
+    ensureNcomplex:ensureNcomplex,
     analyze:analyze,
     push:push,
     requeue:requeue,

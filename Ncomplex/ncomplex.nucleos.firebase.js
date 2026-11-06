@@ -37,7 +37,7 @@ async function push(options){
   var center=w.RequisitosFirebaseOperationCenter;
   if(!center||typeof center.ensure!=="function")throw Error("El Centro de Operaciones Firebase no está disponible.");
   await w.NcomplexFirebaseAuth.requireWriter();
-  await center.ensure();
+  await (typeof center.ensureNcomplex==="function"?center.ensureNcomplex():center.ensure());
   var repo=repository();
   if(!repo||typeof repo.writeChecked!=="function"||typeof repo.getById!=="function")
    throw Error("Repositorio Firebase de escritura y verificación no disponible.");
