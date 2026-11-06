@@ -155,7 +155,17 @@ Función:
   var notesReadyPromise=null;
   function ensureNcomplex(){
     if(notesReadyPromise){return notesReadyPromise;}
+    // La misma secuencia de conexión directa que Carga/carga.firebase-smart.js:
+    // Firebase App compat -> Firestore compat -> firebase-config.js ->
+    // esquema, identidad, validador y repositorio compartido.
+    // La conexión NO concede autorización para colecciones protegidas.
     var dependencies=[
+      {path:"https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",
+       test:function(){return window.firebase&&window.firebase.initializeApp;}},
+      {path:"https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js",
+       test:function(){return window.firebase&&window.firebase.firestore;}},
+      {path:"../../firebase-config.js",
+       test:function(){return window.firebaseConfig||window.FIREBASE_CONFIG;}},
       {path:"bdl.firebase.schema.v2.js",test:function(){return window.RequisitosFirebaseSchema;}},
       {path:"bdl.firebase.identity.js",test:function(){return window.RequisitosFirebaseIdentity;}},
       {path:"bdl.firebase.validator.v2.js",test:function(){return window.RequisitosFirebaseValidator;}},
@@ -164,23 +174,32 @@ Función:
     notesReadyPromise=dependencies.reduce(function(previous,entry){
       return previous.then(function(){return load(entry.path,entry.test);});
     },Promise.resolve()).then(function(){
-      if(window.BL2Sync&&typeof window.BL2Sync.ensureFirebase==="function"){
-        return window.BL2Sync.ensureFirebase();
+      var firebase=window.firebase,config=window.firebaseConfig||window.FIREBASE_CONFIG||{};
+      if(!firebase||typeof firebase.initializeApp!=="function"||typeof firebase.firestore!=="function"){
+        throw Error("Firebase App y Firestore no se inicializaron como en Carga.");
       }
-      return load("../bl2.sync.js",function(){return window.BL2Sync;}).then(function(sync){
-        if(!sync||typeof sync.ensureFirebase!=="function"){
-          throw new Error("No se pudo preparar Firebase SDK desde BDLocal.");
+      if(!config.projectId){throw Error("No se encontró firebase-config.js.");}
+      if(!firebase.apps||!firebase.apps.length){firebase.initializeApp(config);}
+      var app=firebase.app&&firebase.app();
+      var project=app&&app.options&&app.options.projectId;
+      if(project!==config.projectId){
+        throw Error("Ncomplex intenta conectar a "+String(project||"otro proyecto")+
+          " en vez de "+config.projectId+". Se canceló la operación.");
+      }
+      var repo=window.RequisitosFirebaseRepository;
+      if(!repo||typeof repo.ensureFirestore!=="function"||
+         typeof repo.writeChecked!=="function"||typeof repo.getById!=="function"){
+        throw Error("El repositorio Firebase no expuso la API de calificaciones.");
+      }
+      return repo.ensureFirestore().then(function(firestore){
+        if(!firestore||typeof firestore.collection!=="function"){
+          throw Error("Firestore no quedó disponible en Ncomplex.");
         }
-        return sync.ensureFirebase();
+        state.lastError="";
+        return repo;
       });
-    }).then(function(firestore){
-      if(!firestore||typeof firestore.collection!=="function"){
-        throw new Error("Firebase Firestore no quedó disponible para Ncomplex.");
-      }
-      state.lastError="";
-      return window.RequisitosFirebaseRepository;
     }).catch(function(error){
-      state.lastError="Ncomplex Firebase: "+(error&&error.message||String(error));
+      state.lastError="Ncomplex Firebase directo: "+(error&&error.message||String(error));
       throw new Error(state.lastError);
     }).finally(function(){notesReadyPromise=null;});
     return notesReadyPromise;

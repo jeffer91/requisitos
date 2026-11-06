@@ -147,7 +147,7 @@ async function verifyNcomplexWithoutHeavyArchitecture(){
  const loaded=[],firestore={collection(){return {doc(){return {};}}}};
  const notesWindow={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,
   Promise,Set,Map,URL,setTimeout,clearTimeout,CustomEvent,dispatchEvent(){},
-  BL2Config:{firebase:{config:{projectId:"utet-4387a"}}}};
+  };
  let vmContext;
  const scripts=[];
  const doc={
@@ -160,8 +160,18 @@ async function verifyNcomplexWithoutHeavyArchitecture(){
    doc.scripts.push(script);
    Promise.resolve().then(()=>{
     try{
-     if(script.src.endsWith("/BDLocal/bl2.sync.js")){
-      notesWindow.BL2Sync={async ensureFirebase(){return firestore;}};
+     if(script.src.endsWith("/firebase-app-compat.js")){
+      const apps=[];
+      notesWindow.firebase={
+       apps,
+       initializeApp(config){const app={options:config};apps.push(app);return app;},
+       app(){return apps[0];}
+      };
+     }else if(script.src.endsWith("/firebase-firestore-compat.js")){
+      notesWindow.firebase.firestore=()=>firestore;
+     }else if(script.src.endsWith("/firebase-config.js")){
+      new vm.Script(fs.readFileSync(path.join(ROOT,"firebase-config.js"),"utf8"),
+       {filename:"firebase-config.js"}).runInContext(vmContext);
      }else{
       const rel=script.src.split("/BDLocal/")[1];
       if(!rel)throw Error("Archivo inesperado: "+script.src);
@@ -185,8 +195,14 @@ async function verifyNcomplexWithoutHeavyArchitecture(){
   "Ncomplex no crea ni requiere Outbox, Target o Personas.");
  check(scripts.some(x=>x.endsWith("bdl.firebase.repository.v2.js")),
   "Ncomplex carga directamente su repositorio seguro de Firebase.");
- check(scripts.some(x=>x.endsWith("bl2.sync.js")),
-  "Ncomplex prepara el SDK de Firebase aunque el iframe no cargara BL2Sync.");
+ check(scripts.some(x=>x.endsWith("/firebase-app-compat.js"))&&
+   scripts.some(x=>x.endsWith("/firebase-firestore-compat.js"))&&
+   scripts.some(x=>x.endsWith("/firebase-config.js")),
+  "Ncomplex utiliza los mismos SDK y firebase-config.js que la pantalla Carga.");
+ check(notesWindow.firebase.app().options.projectId==="utet-4387a",
+  "Ncomplex confirma el proyecto Firebase de Carga sin cambiar su identidad.");
+ check(!scripts.some(x=>x.endsWith("/bl2.sync.js")),
+  "Ncomplex ya no depende de BL2Sync para conectarse como Carga.");
  check(!scripts.some(x=>x.endsWith("cone.index.js")),
   "Ncomplex no activa el núcleo pesado de BDLocal para publicar notas.");
 }

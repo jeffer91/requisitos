@@ -904,11 +904,12 @@ async function sync(){
   var authStatus=await manager.load();
   if(!authStatus||authStatus.authenticated!==true){
    progressReset();
-   showFirebaseLoginForm();
    showFirebaseSession(authStatus||{authenticated:false});
-   msg("El proyecto Firebase está configurado, pero falta iniciar sesión con una cuenta autorizada. "+
-    "Conéctate una vez y después pulsa Guardar Firebase. Las "+rows.length+
-    " notas siguen seguras en BDLocal.","error");
+   msg("La conexión a utet-4387a ya está preparada igual que en Carga. "+
+    "Pero firestore.rules exige una identidad autorizada para evaluaciones_nucleos "+
+    "(ncomplex_write o titulacion_admin). Carga no necesita esa identidad para sus "+
+    "otras colecciones. Usa 'Autorizar notas' si tienes una cuenta con ese permiso. "+
+    "No se intentó publicar ninguna de las "+rows.length+" notas y BDLocal sigue intacta.","error");
    return;
   }
  }catch(error){
@@ -965,10 +966,11 @@ function showFirebaseSession(info){
    "Firebase: sesión iniciada"+(info.email?" · "+info.email:"")+
    ". Se recuperará automáticamente al volver a abrir la aplicación.":
    (info.error?"Firebase: no se pudo recuperar la sesión · "+info.error:
-    "Firebase: sin sesión guardada. Conéctate una vez para mantenerla iniciada.");
+    "Firebase: conexión directa a utet-4387a (igual que Carga). Para publicar "+
+    "evaluaciones individuales, Firestore exige una cuenta autorizada.");
   label.className="nc-firebase-session"+(signed?" is-connected":" is-disconnected");
  }
- if(connect)connect.textContent=signed?"Cambiar cuenta Firebase":"Conectar Firebase";
+ if(connect)connect.textContent=signed?"Cambiar cuenta autorizada":"Autorizar notas";
  if(logout)logout.hidden=!signed;
 }
 function resumeFirebaseSession(){
@@ -1012,8 +1014,8 @@ async function signInFirebase(event){
   $("nc-firebase-login").hidden=true;
   showFirebaseSession(w.NcomplexFirebaseAuth.status&&w.NcomplexFirebaseAuth.status()||
    {authenticated:true,email:user.email});
-  msg("Firebase conectado: "+user.email+
-   ". Ya puedes pulsar Guardar Firebase para publicar las notas de BDLocal.","ok");
+  msg("Firebase Authentication: "+user.email+
+   ". Si tu cuenta tiene el rol ncomplex_write o titulacion_admin, ya puedes publicar las notas.","ok");
  }catch(error){msg("No se pudo autenticar en Firebase: "+(error.message||error),"error");}
  finally{password.value="";button.disabled=false;}
 }

@@ -144,7 +144,7 @@ async function run(){
  for(let i=0;i<4;i++)await Promise.resolve();
  assert.equal(dom["nc-firebase-session"].className,"nc-firebase-session is-connected",
   "La sesión ya restaurada aparece conectada al abrir Ncomplex.");
- assert.equal(dom["nc-connect-firebase"].textContent,"Cambiar cuenta Firebase");
+ assert.equal(dom["nc-connect-firebase"].textContent,"Cambiar cuenta autorizada");
  assert.equal(dom["nc-logout-firebase"].hidden,false,
   "La sesión persistente siempre se puede cerrar voluntariamente.");
  assert.equal(dom["nc-period"].options.length,2);
@@ -254,15 +254,17 @@ async function run(){
  await dom["nc-logout-firebase"].handlers.click();
  assert.equal(firebaseAuthenticated,false);
  assert.equal(dom["nc-logout-firebase"].hidden,true);
- assert.match(dom["nc-firebase-session"].textContent,/sin sesión guardada/);
+ assert.match(dom["nc-firebase-session"].textContent,/conexión directa a utet-4387a/);
  const callsBeforeLogin=firebasePushCalls.length;
  dom["nc-firebase-login"].hidden=true;
  await window.NcomplexCenter.sync();
  assert.equal(firebasePushCalls.length,callsBeforeLogin,
   "Sin una sesión válida, nunca se intenta escribir en Firebase.");
- assert.equal(dom["nc-firebase-login"].hidden,false,
-  "Guardar Firebase debe abrir el acceso cuando todavía no hay una sesión.");
- assert.match(dom["nc-message"].textContent,/proyecto Firebase está configurado, pero falta iniciar sesión/);
+ assert.equal(dom["nc-firebase-login"].hidden,true,
+  "No abrir automáticamente formularios de contraseña: Carga solo prepara Firebase.");
+ assert.match(dom["nc-message"].textContent,/La conexión a utet-4387a ya está preparada igual que en Carga/);
+ assert.match(dom["nc-message"].textContent,/ncomplex_write o titulacion_admin/,
+  "Explicar la diferencia de permisos entre Carga y las notas protegidas.");
  console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, fallos de rol y bloqueo seguro).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});
