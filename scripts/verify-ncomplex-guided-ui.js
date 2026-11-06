@@ -24,7 +24,9 @@ const ids=["nc-period","nc-career","nc-group","nc-tab-nucleos","nc-tab-complexiv
 "nc-legacy","nc-login-password","nc-login-email","nc-conflict-panel","nc-pending-panel",
 "nc-guide-title","nc-guide-detail","nc-next-task",
 "nc-save-progress","nc-save-progress-bar","nc-save-progress-title",
-"nc-save-progress-percent","nc-save-progress-detail"];
+"nc-save-progress-percent","nc-save-progress-detail",
+"nc-check-firebase","nc-firebase-inventory","nc-firebase-inventory-summary",
+"nc-firebase-inventory-detail","nc-firebase-inventory-list"];
 const dom={};
 ids.forEach(id=>{
  const kind=["nc-period","nc-career","nc-group"].includes(id)?"select":
@@ -62,7 +64,7 @@ roster.push(
 );
 roster.forEach(st=>{st._ncomplexRequirements=reqs(st.cedula==="0404040404"?"financiero":"");});
 const savedNuclei=[];
-const firebasePushCalls=[];
+const firebasePushCalls=[],uploadedDocs=new Map(),readCalls=[];
 const statuses=["academico","documentacion","financiero","practicas","vinculacion",
  "seguimientograduados","ingles","actualizaciondatos","titulacion"];
 const window={addEventListener(){},ConNcomplex:{
@@ -73,14 +75,28 @@ const window={addEventListener(){},ConNcomplex:{
   return st?st._ncomplexRequirements:{eligible:false,total:9,missing:[],reason:"Sin matrícula activa."};
  },
  async saveImport(){return null;}
-},NcomplexFirebaseAuth:{async requireWriter(){return {uid:"test"};}},
- NcomplexNucleosFirebase:{async push(options){
-  firebasePushCalls.push(options);
-  if(options.onProgress)options.onProgress({processed:options.onlyIds.length,
-   published:options.onlyIds.length});
-  return {ok:true,published:options.onlyIds.length,processed:options.onlyIds.length,
-   attemptedIds:options.onlyIds,remaining:0,conflicts:0,errors:0};
- }},NcomplexNucleosStore:{
+},NcomplexFirebaseAuth:{
+ async requireWriter(){return {uid:"test"};},
+ async requireUser(){return {uid:"test"};}
+},RequisitosFirebaseOperationCenter:{async ensure(){return true;}},
+ RequisitosFirebaseRepository:{
+  async getById(entity,id){
+   readCalls.push({entity,id});
+   const data=uploadedDocs.get(id);
+   return data?{documentId:id,data}:null;
+  }
+ },
+ NcomplexNucleosFirebase:{
+  remote(row){return {dataHash:"test_"+row.id};},
+  async push(options){
+   firebasePushCalls.push(options);
+   for(const id of options.onlyIds)uploadedDocs.set(id,{dataHash:"test_"+id});
+   if(options.onProgress)options.onProgress({processed:options.onlyIds.length,
+    published:options.onlyIds.length});
+   return {ok:true,published:options.onlyIds.length,processed:options.onlyIds.length,
+    attemptedIds:options.onlyIds,remaining:0,conflicts:0,errors:0};
+  }
+ },NcomplexNucleosStore:{
  id(periodId,ced,n){return ced+"__"+periodId+"__N"+n;},
  async list(periodId){return savedNuclei.filter(row=>row.periodoId===periodId);},
  async saveMany(rows){
@@ -96,7 +112,8 @@ const window={addEventListener(){},ConNcomplex:{
 };
 const context=vm.createContext({window,document,console,Event:class{constructor(t){this.type=t;}},Promise});
 ["Ncomplex/ncomplex.nucleos.parser.js","Ncomplex/ncomplex.smart.js",
-"Ncomplex/ncomplex.nucleos.policy.js","Ncomplex/ncomplex.center.js"]
+"Ncomplex/ncomplex.nucleos.policy.js","Ncomplex/ncomplex.firebase-inventory.js",
+ "Ncomplex/ncomplex.center.js"]
 .forEach(p=>new vm.Script(read(p),{filename:p}).runInContext(context));
 const course="T-NUCLEO - GESTIÓN COMERCIAL [Mod 13, OCT-MAR26 Esp. M-A { l m v s } 19h00-22h00-Matriz]";
 const pasted=[course,"Nombre / Apellido(s)","Dirección de correo",
@@ -180,11 +197,23 @@ async function run(){
  assert.equal(dom["nc-loaded"].textContent,"3","Mostrar ambas modalidades guardadas sin recargar.");
  assert.equal(dom["nc-students"].textContent,"3","Los retirados y requisitos pendientes no reaparecen.");
  assert.equal(firebasePushCalls.length,0,"Guardar BDLocal no debe publicar sin pulsar Guardar Firebase.");
+ const alreadyUploaded=period+"__0303030303__N4";
+ uploadedDocs.set(alreadyUploaded,{dataHash:"otro_hash"});
+ await dom["nc-check-firebase"].handlers.click();
+ assert.equal(dom["nc-firebase-inventory"].hidden,false);
+ assert.match(dom["nc-firebase-inventory-summary"].textContent,/1 subidos · 2 no subidos/);
+ assert.match(dom["nc-firebase-inventory-detail"].textContent,/1 difieren/);
+ assert.equal(dom["nc-firebase-inventory-list"].children[0].tagName,"table");
+ assert.equal(readCalls.length,3,"Consulta los documentos en Firestore por período, cédula y núcleo.");
+ assert.match(dom["nc-cloud-state"].textContent,/1 de 3 ya subidos/);
  await dom["nc-publish"].handlers.click();
  assert.equal(firebasePushCalls.length,2,"Guardar Firebase publica sin selección de grupo global.");
  assert.equal(dom["nc-save-progress-bar"].value,100,
   "Firebase solo llega al 100% después de confirmar las publicaciones.");
  assert.match(dom["nc-save-progress-title"].textContent,/Firebase: publicación finalizada/);
+ assert.match(dom["nc-firebase-inventory-summary"].textContent,/3 subidos · 0 no subidos/);
+ assert.match(dom["nc-cloud-state"].textContent,/3 de 3 ya subidos/);
+ assert.match(dom["nc-firebase-inventory-detail"].textContent,/3 coinciden/);
  assert.equal(firebasePushCalls.reduce((sum,call)=>sum+call.onlyIds.length,0),3,
   "Se publican solamente las tres matrículas guardadas.");
  assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="ONLINE"&&call.onlyIds.length===1));

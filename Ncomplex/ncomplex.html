@@ -59,9 +59,16 @@ Función o funciones:
         <button type="button" id="nc-show-pending">Ver pendientes</button>
         <button type="button" id="nc-show-conflicts" hidden>Conflictos</button>
         <button type="button" id="nc-connect-firebase">Conectar Firebase</button>
+        <button type="button" id="nc-check-firebase">Ver qué tengo subido en Firebase</button>
         <button type="button" id="nc-show-advanced">Herramientas avanzadas</button>
       </div>
       <div id="nc-message" class="nc-message" role="status" aria-live="polite">Selecciona un período y una carrera.</div>
+      <section id="nc-firebase-inventory" class="nc-firebase-inventory" hidden aria-label="Calificaciones existentes en Firebase">
+        <div class="nc-firebase-inventory-heading"><strong>Calificaciones verificadas en Firebase</strong>
+          <span id="nc-firebase-inventory-summary">Sin consultar</span></div>
+        <p id="nc-firebase-inventory-detail">La consulta es directa a Firestore; no se basa en el estado local.</p>
+        <div id="nc-firebase-inventory-list" class="nc-firebase-inventory-list"></div>
+      </section>
       <div id="nc-pending-panel" class="nc-import" hidden aria-live="polite"></div>
       <div id="nc-conflict-panel" class="nc-import" hidden aria-live="polite"></div>
       <form id="nc-firebase-login" class="nc-import" hidden autocomplete="on">
@@ -317,6 +324,7 @@ Función o funciones:
   <script src="ncomplex.nucleos.policy.js"></script>
   <script src="ncomplex.firebase-auth.js"></script>
   <script src="ncomplex.nucleos.resolver.js"></script>
+  <script src="ncomplex.firebase-inventory.js"></script>
   <script src="ncomplex.center.js"></script>
   <script src="ncomplex.bootstrap.js"></script>
   <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>

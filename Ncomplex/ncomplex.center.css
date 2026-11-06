@@ -95,3 +95,20 @@ body:not(.nc-advanced-open) #ncomplex-btn-save{display:none}
 .nc-save-progress.is-warning,.nc-save-progress.is-error{background:#fff7ee;border-color:#edc7a8}
 .nc-save-progress.is-warning .nc-save-progress-heading,.nc-save-progress.is-error .nc-save-progress-heading{color:#985015}
 @media(max-width:520px){.nc-save-progress-heading{align-items:flex-start;flex-wrap:wrap}}
+
+/* Consulta de documentos que realmente existen en Firebase, independiente de BDLocal. */
+.nc-firebase-inventory{margin:12px 0 16px;padding:14px;border:1px solid #bfd6e9;
+ border-radius:10px;background:#f5faff;color:#25425c}
+.nc-firebase-inventory-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.nc-firebase-inventory-heading strong{font-size:14px}
+.nc-firebase-inventory-heading span{font-weight:800;font-size:13px;color:#1d658a}
+.nc-firebase-inventory p{margin:8px 0 10px;font-size:12px;color:#5a7185;line-height:1.5}
+.nc-firebase-inventory-list{max-height:340px;overflow:auto}
+.nc-firebase-inventory table{width:100%;border-collapse:collapse;min-width:560px;font-size:12px}
+.nc-firebase-inventory th,.nc-firebase-inventory td{padding:8px 10px;text-align:left;
+ border-bottom:1px solid #dce7f0;vertical-align:top}
+.nc-firebase-inventory th{background:#eaf3fb;color:#365c78;position:sticky;top:0}
+.nc-cloud-row-status{font-weight:700}
+.nc-cloud-row-status.is-ok{color:#157344}
+.nc-cloud-row-status.is-warning{color:#97571b}
+.nc-cloud-row-status.is-error{color:#a62e31}

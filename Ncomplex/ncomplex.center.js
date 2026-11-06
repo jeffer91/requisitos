@@ -2,7 +2,7 @@
  * No utiliza nombres de estudiante como clave y nunca certifica notas incompletas. */
 (function(w,d){"use strict";
 var ui={},data={mode:"nucleos",period:"",career:"",group:"",nucleus:1,
- periods:[],students:[],historicalStudents:[],careerBaseByCode:{},nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null,overrides:{},nucleusWarning:""};
+ periods:[],students:[],historicalStudents:[],careerBaseByCode:{},nuclei:[],exams:[],preview:null,working:false,started:false,lastCloud:null,overrides:{},nucleusWarning:"",cloudInventory:null,inventoryBusy:false};
 function t(v){return String(v==null?"":v).trim();}
 function norm(v){return t(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function $(id){return d.getElementById(id);}
@@ -21,6 +21,12 @@ function progressUpdate(title,done,total,detail,percent,state){
  ui.progressDetail.textContent=detail||Math.max(0,done)+" de "+Math.max(0,total)+" registros procesados";
 }
 function progressReset(){if(ui.progress)ui.progress.hidden=true;}
+function inventoryKey(){return [data.period,data.career,data.mode,data.mode==="nucleos"?data.nucleus:0].join("|");}
+function clearInventory(){
+ data.cloudInventory=null;
+ var panel=$("nc-firebase-inventory");
+ if(panel)panel.hidden=true;
+}
 function option(select,value,label){var o=el("option",label);o.value=value;select.appendChild(o);}
 function studentId(r){return t(r.cedula||r.numeroIdentificacion||r.NumeroIdentificacion||r._cedula);}
 function studentName(r){return t(r.Nombres||r.nombres||r.nombreCompleto||r.nombre||r.Nombre);}
@@ -171,7 +177,7 @@ async function refresh(){
  ui.career.value=data.career;showGroup();syncClassic();render();
 }
 async function loadPeriod(){
- if(!data.working)progressReset();
+ if(!data.working){progressReset();clearInventory();}
  data.period=ui.period.value;data.career="";data.group="";data.preview=null;data.overrides={};data.lastCloud=null;ui.review.textContent="";
  if(!data.period){data.students=[];data.historicalStudents=[];data.nuclei=[];data.exams=[];render();return;}
  syncClassic();
@@ -181,7 +187,7 @@ async function loadPeriod(){
  catch(e){msg(e.message||String(e),"error");}
 }
 function mode(v){
- if(!data.working)progressReset();
+ if(!data.working){progressReset();clearInventory();}
  data.mode=v;data.preview=null;data.overrides={};ui.review.textContent="";
  ui.save.disabled=true;
  ui.tabN.classList.toggle("is-active",v==="nucleos");
@@ -191,7 +197,7 @@ function mode(v){
  ui.picker.hidden=v!=="nucleos";render();
 }
 function nucleus(number){
- if(!data.working)progressReset();
+ if(!data.working){progressReset();clearInventory();}
  data.nucleus=number;data.preview=null;data.overrides={};ui.review.textContent="";ui.save.disabled=true;
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(b){
   b.classList.toggle("is-active",Number(b.dataset.ncNucleus)===number);
@@ -272,12 +278,17 @@ function summary(){
  $("nc-loaded").textContent=Object.keys(loaded).length;
  $("nc-missing").textContent=Math.max(0,roster.length-Object.keys(complete).length);
  $("nc-sync-pending").textContent=cloudCount();
- var n=data.nuclei.filter(function(r){return !data.career||sameCareer(r.codigoCarrera);}).length,
- cloud=data.lastCloud,exam=cloud&&cloud.period===data.period&&cloud.group===data.group?cloud.exam:null,
- bad=exam&&(exam.errors||exam.conflicts||exam.blocked||exam.invalid);
- ui.cloud.textContent=!n?"Sin notas de núcleos":cloudCount()?cloudCount()+" pendiente(s) de Firebase":"Núcleos sincronizados";
- if(exam)ui.cloud.textContent+=" · Complexivo "+(bad?"con incidencias":"verificado");
- ui.cloud.className="nc-cloud-pill"+(n&&!cloudCount()&&!bad?" is-ok":" is-warn");
+ var remote=data.cloudInventory&&data.cloudInventory.key===inventoryKey()?data.cloudInventory.result:null;
+ if(remote){
+  ui.cloud.textContent="Firebase: "+remote.uploaded+" de "+remote.total+" ya subidos"+
+   (remote.errors?" · "+remote.errors+" sin comprobar":"")+
+   (remote.different?" · "+remote.different+" con diferencias":"");
+  ui.cloud.className="nc-cloud-pill"+(remote.total>0&&remote.uploaded===remote.total&&
+   !remote.errors&&!remote.different?" is-ok":" is-warn");
+ }else{
+  ui.cloud.textContent="Firebase sin consultar · "+cloudCount()+" pendientes según BDLocal";
+  ui.cloud.className="nc-cloud-pill is-warn";
+ }
  var conflicts=$("nc-show-conflicts");if(conflicts){
   conflicts.hidden=currentConflicts().length===0;
   conflicts.textContent="Conflictos ("+currentConflicts().length+")";
@@ -784,7 +795,7 @@ async function save(){
       (p.unlinked||[]).length,origen:"ncomplex_moodle",createdAt:new Date().toISOString()});}
    catch(error){msg("Notas locales guardadas, pero el historial de importación necesita revisión: "+error.message,"error");}
   }
-  data.preview=null;ui.review.textContent="";await refresh();
+  data.preview=null;ui.review.textContent="";clearInventory();await refresh();
   progressUpdate("BDLocal: guardado finalizado",stored.length,stored.length,
    stored.length+" guardadas · "+skipped+" sin modificar · No se enviaron a Firebase",100,"success");
   msg(stored.length+" registro(s) guardado(s) en BDLocal. "+
@@ -797,6 +808,66 @@ async function save(){
    ". Comprueba las notas locales antes de reintentar.",ui.progressBar&&ui.progressBar.value||0,"error");
   throw error;
  }finally{data.working=false;ui.publish.disabled=false;}
+}
+async function inspectUploaded(){
+ if(data.inventoryBusy||!data.period||!data.career)return null;
+ var api=w.NcomplexFirebaseInventory,ctx=inventoryKey(),
+  panel=$("nc-firebase-inventory"),count=$("nc-firebase-inventory-summary"),
+  detail=$("nc-firebase-inventory-detail"),list=$("nc-firebase-inventory-list"),
+  button=$("nc-check-firebase");
+ if(!panel||!count||!detail||!list||!api||typeof api.inspect!=="function"){
+  msg("La consulta de Firebase no está disponible en esta versión.","error");return null;
+ }
+ panel.hidden=false;list.textContent="";
+ var selected=data.students.filter(function(st){return sameCareer(studentCode(st));});
+ var local=data.mode==="nucleos"?data.nuclei.filter(function(r){
+  return sameCareer(r.codigoCarrera)&&Number(r.nucleo)===data.nucleus;
+ }):data.exams.filter(function(r){
+  return studentMode(r)==="EXAMEN_COMPLEXIVO"&&
+   selected.some(function(st){return studentId(st)===studentId(r);});
+ });
+ data.inventoryBusy=true;if(button)button.disabled=true;
+ count.textContent="Consultando Firebase…";
+ detail.textContent="Verificando los documentos de "+selected.length+" matrículas activas; no se infiere su estado desde BDLocal.";
+ try{
+  var result=await api.inspect({periodoId:data.period,mode:data.mode,nucleus:data.nucleus,
+   students:selected,local:local,onProgress:function(progress){
+    if(inventoryKey()!==ctx)return;
+    count.textContent=progress.done+" / "+progress.total+" revisados";
+   }});
+  if(inventoryKey()!==ctx)return null;
+  data.cloudInventory={key:ctx,result:result};
+  count.textContent=result.uploaded+" subidos · "+result.pending+" no subidos"+
+   (result.errors?" · "+result.errors+" sin verificar":"");
+  detail.textContent="Consulta directa a Firestore · "+new Date(result.checkedAt).toLocaleString("es-EC")+
+   ". "+result.matching+" coinciden con BDLocal; "+result.different+" difieren; "+
+   result.remoteOnly+" existen solo en Firebase."+
+   (result.errors?" La conexión no permitió verificar algunos registros.":"");
+  var table=el("table"),head=el("thead"),tr=el("tr");
+  ["Estudiante","Cédula","Modalidad","Estado en Firebase"].forEach(function(label){
+   tr.appendChild(el("th",label));
+  });head.appendChild(tr);table.appendChild(head);
+  var body=el("tbody");
+  result.rows.forEach(function(item){
+   var row=el("tr"),cls=item.error?"is-error":item.uploaded?
+     item.match===false?"is-warning":"is-ok":"is-warning";
+   row.appendChild(el("td",item.name||"Sin nombre"));
+   row.appendChild(el("td",item.cedula));
+   row.appendChild(el("td",item.group||"Sin modalidad"));
+   row.appendChild(el("td",item.status+(item.error?" — "+item.error:""),"nc-cloud-row-status "+cls));
+   body.appendChild(row);
+  });
+  table.appendChild(body);list.appendChild(table);
+  summary();return result;
+ }catch(error){
+  if(inventoryKey()===ctx){
+   count.textContent="No se pudo consultar Firebase";
+   detail.textContent=(error.message||String(error))+
+    ". No se asumirá que las notas faltan en la nube.";
+   msg("No se pudo verificar lo subido: "+(error.message||String(error)),"error");
+  }
+  return null;
+ }finally{data.inventoryBusy=false;if(button)button.disabled=false;}
 }
 async function sync(){
  if(data.working)return;
@@ -843,6 +914,8 @@ async function sync(){
    (result.errors||0)+" error(es). "+(result.reason||"Revisa las incidencias.")+
    " BDLocal mantiene las notas.","error");
   }
+  // Mostrar también los documentos que ya existían en la nube antes de esta carga.
+  await inspectUploaded();
  }catch(error){
   progressUpdate("Firebase: publicación interrumpida",0,rows.length,
    error.message||String(error),ui.progressBar&&ui.progressBar.value||0,"error");
@@ -910,7 +983,7 @@ async function boot(){
  ui.progressDetail=$("nc-save-progress-detail");
  ui.period.addEventListener("change",loadPeriod);
  ui.career.addEventListener("change",function(){
-  if(!data.working)progressReset();
+  if(!data.working){progressReset();clearInventory();}
   data.career=ui.career.value;data.group="";data.preview=null;data.overrides={};showGroup();syncClassic();render();
   if(!ui.importBox.hidden&&t(ui.paste.value))analyze().catch(function(e){msg(e.message,"error");});
  });
@@ -934,6 +1007,10 @@ async function boot(){
  $("nc-show-pending").addEventListener("click",showPending);
  $("nc-show-conflicts").addEventListener("click",function(){showConflicts().catch(function(e){msg(e.message,"error");});});
  $("nc-connect-firebase").addEventListener("click",openLogin);
+ $("nc-check-firebase").addEventListener("click",function(){
+  if(data.working){msg("Termina primero el guardado actual.","error");return;}
+  inspectUploaded();
+ });
  $("nc-login-cancel").addEventListener("click",function(){$("nc-firebase-login").hidden=true;$("nc-login-password").value="";});
  $("nc-firebase-login").addEventListener("submit",signInFirebase);
  $("nc-close-import").addEventListener("click",function(){promptImport(false);});
