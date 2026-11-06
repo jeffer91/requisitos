@@ -90,7 +90,12 @@ const window={addEventListener(){},ConNcomplex:{
   remote(row){return {dataHash:"test_"+row.id};},
   async push(options){
    firebasePushCalls.push(options);
-   for(const id of options.onlyIds)uploadedDocs.set(id,{dataHash:"test_"+id});
+   for(const id of options.onlyIds){
+    const local=savedNuclei.find(x=>x.id===id);
+    assert.ok(local,"Solo simular publicación de una nota BDLocal real.");
+    uploadedDocs.set(local.periodoId+"__"+local.cedula+"__N"+local.nucleo,
+      {dataHash:"test_"+id});
+   }
    if(options.onProgress)options.onProgress({processed:options.onlyIds.length,
     published:options.onlyIds.length});
    return {ok:true,published:options.onlyIds.length,processed:options.onlyIds.length,
