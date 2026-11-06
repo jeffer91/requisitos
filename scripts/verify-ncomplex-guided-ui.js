@@ -22,7 +22,9 @@ const ids=["nc-period","nc-career","nc-group","nc-tab-nucleos","nc-tab-complexiv
 "nc-open-import","nc-show-pending","nc-connect-firebase","nc-login-cancel",
 "nc-firebase-login","nc-close-import","nc-analyze","nc-show-advanced",
 "nc-legacy","nc-login-password","nc-login-email","nc-conflict-panel","nc-pending-panel",
-"nc-guide-title","nc-guide-detail","nc-next-task"];
+"nc-guide-title","nc-guide-detail","nc-next-task",
+"nc-save-progress","nc-save-progress-bar","nc-save-progress-title",
+"nc-save-progress-percent","nc-save-progress-detail"];
 const dom={};
 ids.forEach(id=>{
  const kind=["nc-period","nc-career","nc-group"].includes(id)?"select":
@@ -74,12 +76,18 @@ const window={addEventListener(){},ConNcomplex:{
 },NcomplexFirebaseAuth:{async requireWriter(){return {uid:"test"};}},
  NcomplexNucleosFirebase:{async push(options){
   firebasePushCalls.push(options);
+  if(options.onProgress)options.onProgress({processed:options.onlyIds.length,
+   published:options.onlyIds.length});
   return {ok:true,published:options.onlyIds.length,processed:options.onlyIds.length,
    attemptedIds:options.onlyIds,remaining:0,conflicts:0,errors:0};
  }},NcomplexNucleosStore:{
  id(periodId,ced,n){return ced+"__"+periodId+"__N"+n;},
  async list(periodId){return savedNuclei.filter(row=>row.periodoId===periodId);},
- async saveMany(rows){rows.forEach(row=>savedNuclei.push(row));return rows;}
+ async saveMany(rows){
+  assert.equal(dom["nc-save-progress-bar"].value,90,
+   "BDLocal no debe llegar al 100% antes de confirmar la transacción.");
+  rows.forEach(row=>savedNuclei.push(row));return rows;
+ }
 },
  NcomplexState:{get(){return {selectedPeriodId:""};}},
  InfNuclei:{careers(){return[{career:"Administración",nuclei:[
@@ -161,6 +169,10 @@ async function run(){
  assert.equal(dom["nc-save"].disabled,false);
  await window.NcomplexCenter.save();
  assert.equal(savedNuclei.length,3,"Guardar presencial y online en la misma importación.");
+ assert.equal(dom["nc-save-progress"].hidden,false);
+ assert.equal(dom["nc-save-progress-bar"].value,100,"BDLocal llega al 100% después de confirmar.");
+ assert.match(dom["nc-save-progress-title"].textContent,/BDLocal: guardado finalizado/);
+ assert.match(dom["nc-save-progress-detail"].textContent,/3 guardadas/);
  assert.equal(savedNuclei.filter(x=>x.codigoCarrera==="ADMINISTRACION"&&x.grupoInforme==="PRESENCIAL").length,2);
  assert.equal(savedNuclei.filter(x=>x.codigoCarrera==="ADMINISTRACION ONLINE"&&x.grupoInforme==="ONLINE").length,1,
   "La nota online debe conservar su código real y grupo propio.");
@@ -170,6 +182,9 @@ async function run(){
  assert.equal(firebasePushCalls.length,0,"Guardar BDLocal no debe publicar sin pulsar Guardar Firebase.");
  await dom["nc-publish"].handlers.click();
  assert.equal(firebasePushCalls.length,2,"Guardar Firebase publica sin selección de grupo global.");
+ assert.equal(dom["nc-save-progress-bar"].value,100,
+  "Firebase solo llega al 100% después de confirmar las publicaciones.");
+ assert.match(dom["nc-save-progress-title"].textContent,/Firebase: publicación finalizada/);
  assert.equal(firebasePushCalls.reduce((sum,call)=>sum+call.onlyIds.length,0),3,
   "Se publican solamente las tres matrículas guardadas.");
  assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="ONLINE"&&call.onlyIds.length===1));

@@ -112,6 +112,10 @@ async function publish(options){
     if(!confirmed||!confirmed.data||confirmed.data.dataHash!==doc.dataHash)
       throw new Error("No se pudo verificar en Firebase el documento recién publicado de "+doc.cedula+".");
     saved++;
+    if(typeof options.onProgress==="function"){
+     try{options.onProgress({processed:saved,published:saved,total:batch.length});}
+     catch(callbackError){/* La visualización nunca cancela una escritura confirmada. */}
+    }
   }
   status("Firebase complexivo: "+saved+" documentos creados; iguales: "+same+"; conflictos: "+conflicts.length+
    "; inválidos: "+invalid.length+"; bloqueados 9/9: "+blocked.length+

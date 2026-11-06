@@ -8,6 +8,19 @@ function norm(v){return t(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toL
 function $(id){return d.getElementById(id);}
 function el(tag,txt,cls){var n=d.createElement(tag);if(txt!==undefined&&txt!==null)n.textContent=String(txt);if(cls)n.className=cls;return n;}
 function msg(txt,kind){if(!ui.message)return;ui.message.textContent=txt;ui.message.className="nc-message"+(kind?" is-"+kind:"");}
+function progressUpdate(title,done,total,detail,percent,state){
+ if(!ui.progress||!ui.progressBar)return;
+ var value=percent===undefined?(total?Math.round(Math.max(0,done)/total*100):0):Number(percent);
+ value=Math.max(0,Math.min(100,Math.round(Number.isFinite(value)?value:0)));
+ ui.progress.hidden=false;
+ ui.progress.className="nc-save-progress"+(state?" is-"+state:"");
+ ui.progressBar.value=value;
+ ui.progressBar.setAttribute("aria-valuenow",String(value));
+ ui.progressTitle.textContent=title;
+ ui.progressPercent.textContent=value+"%";
+ ui.progressDetail.textContent=detail||Math.max(0,done)+" de "+Math.max(0,total)+" registros procesados";
+}
+function progressReset(){if(ui.progress)ui.progress.hidden=true;}
 function option(select,value,label){var o=el("option",label);o.value=value;select.appendChild(o);}
 function studentId(r){return t(r.cedula||r.numeroIdentificacion||r.NumeroIdentificacion||r._cedula);}
 function studentName(r){return t(r.Nombres||r.nombres||r.nombreCompleto||r.nombre||r.Nombre);}
@@ -563,7 +576,9 @@ function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.leng
 // La acción explícita Guardar confirma la importación y activa la publicación
 // de sus propios registros. Nunca solicita credenciales, omite Firebase si
 // no hay sesión con rol institucional y conserva BDLocal ante cualquier fallo.
-async function publishSavedRecords(rows,mode,period){
+async function publishSavedRecords(rows,mode,period,onProgress){
+ var notify=typeof onProgress==="function"?onProgress:function(){};
+ notify(0,rows&&rows.length||0,"Comprobando permisos institucionales…");
  if(!rows||!rows.length)return {ok:true,published:0,pending:0};
  var auth=w.NcomplexFirebaseAuth;
  if(!auth||typeof auth.requireWriter!=="function")
@@ -575,16 +590,24 @@ async function publishSavedRecords(rows,mode,period){
   var publisher=w.NcomplexFirebaseComplexivo;
   if(!publisher||typeof publisher.publish!=="function")
    return {ok:false,published:0,pending:rows.length,reason:"Publicador de complexivo no disponible."};
-  var published=0,conflicts=0,errors=0,reason="",validIds=rows.map(studentId);
+  var published=0,conflicts=0,errors=0,reason="",validIds=rows.map(studentId),alreadyChecked=0;
   for(var i=0;i<Math.ceil(rows.length/25)+1;i++){
+   var baseline=published;
    var response=await publisher.publish({
-    periodoId:period,anyGroup:true,onlyCedulas:validIds,confirmedByCenter:true
+    periodoId:period,anyGroup:true,onlyCedulas:validIds,confirmedByCenter:true,
+    onProgress:function(status){
+     var n=Math.max(0,Math.min(rows.length,baseline+Number(status&&status.processed||0)));
+     notify(n,rows.length,"Firebase: "+n+" de "+rows.length+" registros enviados para verificación");
+    }
    });
    if(!response||response.ok!==true){
     errors++;reason=t(response&&(response.error||response.reason))||"Firebase no confirmó el examen.";
     break;
    }
    published+=Number(response.published||0);
+   alreadyChecked=Math.max(alreadyChecked,published+Number(response.same||0));
+   notify(Math.min(rows.length,alreadyChecked),rows.length,
+    "Firebase: "+published+" publicados; "+Number(response.same||0)+" existentes iguales");
    conflicts+=(response.conflicts||[]).length;
    errors+=(response.invalid||[]).length+(response.blocked||[]).length;
    if(!response.published)break;
@@ -593,23 +616,31 @@ async function publishSavedRecords(rows,mode,period){
    pending:errors?rows.length:0,reason:reason||(
     errors?"Hay notas sin modalidad verificable o requisitos incompletos.":"")};
  }
- var grouped=Object.create(null),published=0,conflicts=0,errors=0,pending=0,unknown=0;
+ var grouped=Object.create(null),published=0,conflicts=0,errors=0,pending=0,unknown=0,done=0;
  rows.forEach(function(row){
   var group=t(row.grupoInforme),bucket=grouped[group]||(grouped[group]=[]);
   bucket.push(row);
  });
  for(var group of Object.keys(grouped)){
   var block=grouped[group],attempted=Object.create(null);
-  if(!group){pending+=block.length;unknown+=block.length;errors++;continue;}
+  if(!group){pending+=block.length;unknown+=block.length;errors++;done+=block.length;
+    notify(done,rows.length,"Firebase: "+done+" revisados; faltan modalidades en BDLocal");continue;}
   if(mode==="nucleos"){
    if(!w.NcomplexNucleosFirebase||typeof w.NcomplexNucleosFirebase.push!=="function"){
     pending+=block.length;errors++;continue;
    }
    for(var i=0;i<Math.ceil(block.length/25)+1;i++){
     try{
+     var offset=done;
      var result=await w.NcomplexNucleosFirebase.push({periodoId:period,grupoInforme:group,
-      onlyIds:block.map(function(row){return row.id;}),skipIds:Object.keys(attempted),limit:25});
+      onlyIds:block.map(function(row){return row.id;}),skipIds:Object.keys(attempted),limit:25,
+      onProgress:function(status){
+       var current=Math.min(rows.length,offset+Number(status&&status.processed||0));
+       notify(current,rows.length,"Firebase: verificando "+current+" de "+rows.length+" registros");
+      }});
      (result.attemptedIds||[]).forEach(function(id){attempted[id]=true;});
+     done=Math.min(rows.length,done+(result.attemptedIds||[]).length);
+     notify(done,rows.length,"Firebase: "+done+" de "+rows.length+" registros comprobados");
      published+=Number(result.published||0);
      conflicts+=Number(result.conflicts||0);errors+=Number(result.errors||0);
      if(!result.processed||!result.remaining)break;
@@ -630,6 +661,7 @@ async function publishSavedRecords(rows,mode,period){
     if(uploaded.conflicts&&uploaded.conflicts.length)conflicts+=uploaded.conflicts.length;
     if(uploaded.invalid&&uploaded.invalid.length)errors+=uploaded.invalid.length;
     if(uploaded.blocked&&uploaded.blocked.length)errors+=uploaded.blocked.length;
+    notify(Math.min(rows.length,published),rows.length,"Firebase: "+published+" documentos confirmados");
     if(!uploaded.published)break;
    }
    // La colección complexivo comprueba idempotencia por período y cédula;
@@ -653,13 +685,17 @@ async function save(){
  if(p.period!==data.period||p.career!==data.career||p.kind!==data.mode||
  (data.mode==="nucleos"&&p.nucleus!==data.nucleus)||
  p.periodMatch!==true||p.courseMatch!==true)throw Error("El contexto o período cambió. Analiza nuevamente la importación.");
- ui.save.disabled=true;data.working=true;
+ ui.save.disabled=true;ui.publish.disabled=true;data.working=true;
+ progressUpdate("Preparando guardado en BDLocal",0,p.matched.matches.length,
+  "Comprobando requisitos y notas antes de escribir…",0);
  try{
   var con=w.ConNcomplex,stored=[],skipped=0;
   if(data.mode==="nucleos"){
    var records=await w.NcomplexNucleosStore.list(data.period),existing=Object.create(null);
    records.forEach(function(r){existing[r.id]=r;});
+   var prepared=0,total=p.matched.matches.length;
    for(var item of p.matched.matches){
+    try{
     var st=item.student,inc=item.imported,ced=studentId(st),id=w.NcomplexNucleosStore.id(data.period,ced,data.nucleus);
     var previous=existing[id]||null;
     var priorHash=digest(previous&&[previous.evaluaciones,previous.taller,previous.prueba,
@@ -712,7 +748,15 @@ async function save(){
      estadoSync:"PENDIENTE",remoteHash:previous&&previous.remoteHash||"",cloudError:"",
      createdAt:previous&&previous.createdAt||stamp,updatedAt:stamp,
      version:previous?Number(previous.version||1)+1:1});
+    }finally{
+     prepared++;
+     progressUpdate("Validando notas de núcleos",prepared,total,
+      prepared+" de "+total+" matrículas revisadas; "+stored.length+" listas para guardar",
+      Math.round(prepared/Math.max(1,total)*85));
+    }
    }
+   progressUpdate("Escribiendo en BDLocal",prepared,total,
+    "Confirmando "+stored.length+" calificaciones en una transacción local…",90);
    if(stored.length)await w.NcomplexNucleosStore.saveMany(stored);
   }else{
    var accepted=p.matched.matches.filter(function(item){
@@ -720,12 +764,16 @@ async function save(){
      studentMode(item.student)!=="TRABAJO_TITULACION";
    });
    skipped=p.matched.matches.length-accepted.length;
+   progressUpdate("Guardando examen complexivo",0,accepted.length,
+    "Enviando "+accepted.length+" evaluaciones al repositorio local…",50);
    stored=await con.saveMany(accepted.map(function(item){
     return Object.assign({},item.proposed,{periodoId:data.period,
      CodigoCarrera:studentCode(item.student),NombreCarrera:studentCareer(item.student),
      grupoInforme:currentGroup(item.student),modalidadTitulacion:"EXAMEN_COMPLEXIVO"});
    }),{periodoId:data.period,source:"ncomplex_center_moodle"});
   }
+  progressUpdate("Escritura BDLocal confirmada",stored.length,stored.length,
+   stored.length+" calificaciones guardadas; actualizando la pantalla…",95);
   if(stored.length&&typeof con.saveImport==="function"){
    try{await con.saveImport({periodoId:data.period,
      archivoNombre:"Moodle - "+(data.mode==="nucleos"?"Núcleo "+data.nucleus:"Examen Complexivo"),
@@ -735,11 +783,18 @@ async function save(){
    catch(error){msg("Notas locales guardadas, pero el historial de importación necesita revisión: "+error.message,"error");}
   }
   data.preview=null;ui.review.textContent="";await refresh();
+  progressUpdate("BDLocal: guardado finalizado",stored.length,stored.length,
+   stored.length+" guardadas · "+skipped+" sin modificar · No se enviaron a Firebase",100,"success");
   msg(stored.length+" registro(s) guardado(s) en BDLocal. "+
    (skipped?skipped+" sin modificar. ":"")+
    "Para publicarlos utiliza Guardar Firebase. "+
    "Ninguna nota fue enviada a la nube durante este guardado.","ok");
- }finally{data.working=false;}
+ }catch(error){
+  progressUpdate("BDLocal: guardado interrumpido",0,0,
+   "No se confirmó la operación completa: "+(error.message||String(error))+
+   ". Comprueba las notas locales antes de reintentar.",ui.progressBar&&ui.progressBar.value||0,"error");
+  throw error;
+ }finally{data.working=false;ui.publish.disabled=false;}
 }
 async function sync(){
  if(data.working)return;
@@ -759,22 +814,38 @@ async function sync(){
    (data.mode==="nucleos"?"Núcleo "+data.nucleus:"examen complexivo")+
    " para publicar. Guarda primero las calificaciones en BDLocal.","error");return;
  }
- data.working=true;ui.publish.disabled=true;
+ data.working=true;ui.publish.disabled=true;ui.save.disabled=true;
+ progressUpdate("Firebase: iniciando publicación",0,rows.length,
+  "Autenticando y preparando "+rows.length+" registros pendientes…",0);
  msg("Validando permisos y publicando por período y cédula, sin escoger un grupo global…");
  try{
-  var result=await publishSavedRecords(rows,data.mode,data.period);
+  var result=await publishSavedRecords(rows,data.mode,data.period,function(done,total,detail){
+   progressUpdate("Guardando en Firebase",done,total,detail,
+    Math.min(99,Math.round(Math.max(0,done)/Math.max(1,total)*100)));
+  });
   await refresh();
-  if(result.ok)msg("Firebase comprobó la carga: "+result.published+
-   " nota(s) nueva(s) publicada(s). Identificación por período y cédula"+
-   (data.mode==="nucleos"?" y núcleo":"")+".","ok");
-  else msg("Firebase no confirmó toda la carga: "+result.published+" publicada(s), "+
+  if(result.ok){
+   progressUpdate("Firebase: publicación finalizada",rows.length,rows.length,
+    result.published+" nuevas · Las ya existentes se conservaron sin duplicar",100,"success");
+   msg("Firebase comprobó la carga: "+result.published+
+    " nota(s) nueva(s) publicada(s). Identificación por período y cédula"+
+    (data.mode==="nucleos"?" y núcleo":"")+".","ok");
+  }else{
+   progressUpdate("Firebase: publicación con incidencias",0,rows.length,
+    (result.pending||0)+" pendientes · "+(result.conflicts||0)+" conflictos · "+
+    (result.errors||0)+" errores. Revisa el mensaje y vuelve a intentar.",
+    ui.progressBar&&ui.progressBar.value||0,"warning");
+   msg("Firebase no confirmó toda la carga: "+result.published+" publicada(s), "+
    (result.pending||0)+" pendiente(s), "+(result.conflicts||0)+" conflicto(s), "+
    (result.errors||0)+" error(es). "+(result.reason||"Revisa las incidencias.")+
    " BDLocal mantiene las notas.","error");
+  }
  }catch(error){
+  progressUpdate("Firebase: publicación interrumpida",0,rows.length,
+   error.message||String(error),ui.progressBar&&ui.progressBar.value||0,"error");
   msg("No se completó la publicación Firebase: "+(error.message||String(error))+
    ". Las notas de BDLocal siguen disponibles.","error");
- }finally{data.working=false;ui.publish.disabled=false;}
+ }finally{data.working=false;ui.publish.disabled=false;ui.save.disabled=!data.preview;}
 }
 function openLogin(){
  var form=$("nc-firebase-login");form.hidden=!form.hidden;
@@ -829,6 +900,11 @@ async function boot(){
    save:"nc-save",publish:"nc-publish",table:"nc-table",more:"nc-table-more",title:"nc-table-title"};
   ui[k]=$(names[k]||"nc-"+k);
  });
+ ui.progress=$("nc-save-progress");
+ ui.progressBar=$("nc-save-progress-bar");
+ ui.progressTitle=$("nc-save-progress-title");
+ ui.progressPercent=$("nc-save-progress-percent");
+ ui.progressDetail=$("nc-save-progress-detail");
  ui.period.addEventListener("change",loadPeriod);
  ui.career.addEventListener("change",function(){
   data.career=ui.career.value;data.group="";data.preview=null;data.overrides={};showGroup();syncClassic();render();
@@ -861,6 +937,7 @@ async function boot(){
   analyze().catch(function(e){msg("No se pudo interpretar Moodle: "+e.message,"error");});
  });
  ui.paste.addEventListener("input",function(){
+  if(!data.working)progressReset();
   data.preview=null;ui.save.disabled=true;
   if(!ui.importBox.hidden)msg("El texto cambió; pulsa Analizar nuevamente antes de guardar.");
  });

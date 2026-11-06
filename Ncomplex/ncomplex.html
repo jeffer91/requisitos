@@ -81,6 +81,14 @@ Función o funciones:
           <button id="nc-save" type="button" disabled>Guardar BDLocal</button>
           <button id="nc-publish" type="button">Guardar Firebase</button>
         </div>
+        <div id="nc-save-progress" class="nc-save-progress" role="status" aria-live="polite" hidden>
+          <div class="nc-save-progress-heading">
+            <strong id="nc-save-progress-title">Preparando guardado</strong>
+            <span id="nc-save-progress-percent">0%</span>
+          </div>
+          <progress id="nc-save-progress-bar" max="100" value="0" aria-label="Progreso de guardado"></progress>
+          <div id="nc-save-progress-detail">0 registros procesados</div>
+        </div>
         <div id="nc-review" aria-live="polite"></div>
       </section>
       <div class="nc-table-bar"><strong id="nc-table-title">Núcleo 1</strong><input id="nc-search" type="search" placeholder="Buscar estudiante" aria-label="Buscar estudiante"></div>

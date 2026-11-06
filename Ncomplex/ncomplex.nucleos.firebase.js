@@ -76,6 +76,12 @@ async function push(options){
     }
     if(conflict)summary.conflicts++;else summary.errors++;
     summary.details.push({id:row.id,reason:text(error&&error.message||error)});
+   }finally{
+    if(typeof options.onProgress==="function"){
+     try{options.onProgress({processed:summary.processed,published:summary.published,
+      unchanged:summary.unchanged,conflicts:summary.conflicts,errors:summary.errors});}
+     catch(callbackError){/* La interfaz no puede cancelar el guardado remoto. */}
+    }
    }
   }
   summary.remaining=Math.max(0,eligible.length-summary.processed);
