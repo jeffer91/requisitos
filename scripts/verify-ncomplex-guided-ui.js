@@ -212,6 +212,8 @@ async function run(){
  assert.equal(readCalls.length,4,"Incluye también matrículas activas con requisitos pendientes al revisar la nube.");
  assert.match(dom["nc-cloud-state"].textContent,/1 de 4 ya subidos/);
  await dom["nc-publish"].handlers.click();
+ // El inventario remoto se actualiza sin bloquear el guardado; esperar su lectura.
+ await new Promise(resolve=>setImmediate(resolve));
  assert.equal(firebasePushCalls.length,2,"Guardar Firebase publica sin selección de grupo global.");
  assert.equal(dom["nc-save-progress-bar"].value,100,
   "Firebase solo llega al 100% después de confirmar las publicaciones.");
