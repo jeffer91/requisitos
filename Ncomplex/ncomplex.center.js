@@ -6,7 +6,7 @@ var ui={},data={mode:"nucleos",period:"",career:"",group:"",nucleus:1,
 function t(v){return String(v==null?"":v).trim();}
 function norm(v){return t(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");}
 function $(id){return d.getElementById(id);}
-function el(tag,txt,cls){var n=d.createElement(tag);if(txt!==undefined)n.textContent=String(txt);if(cls)n.className=cls;return n;}
+function el(tag,txt,cls){var n=d.createElement(tag);if(txt!==undefined&&txt!==null)n.textContent=String(txt);if(cls)n.className=cls;return n;}
 function msg(txt,kind){if(!ui.message)return;ui.message.textContent=txt;ui.message.className="nc-message"+(kind?" is-"+kind:"");}
 function option(select,value,label){var o=el("option",label);o.value=value;select.appendChild(o);}
 function studentId(r){return t(r.cedula||r.numeroIdentificacion||r.NumeroIdentificacion||r._cedula);}
@@ -40,7 +40,8 @@ function groupGuess(st){
 function showGroup(){
  var guesses=Array.from(new Set(currentRows().map(groupGuess).filter(Boolean)));
  var value=guesses.length===1?guesses[0]:"";
- if(data.group && guesses.indexOf(data.group)>=0)value=data.group;
+ // Conservar el grupo confirmado por el usuario aunque la matrícula no indique modalidad.
+ if(data.group && (!guesses.length||guesses.indexOf(data.group)>=0))value=data.group;
  data.group=value;ui.group.value=value;
 }
 function syncClassic(){
@@ -82,7 +83,7 @@ async function refresh(){
  ui.career.value=data.career;showGroup();syncClassic();render();
 }
 async function loadPeriod(){
- data.period=ui.period.value;data.career="";data.preview=null;data.overrides={};data.lastCloud=null;ui.review.textContent="";
+ data.period=ui.period.value;data.career="";data.group="";data.preview=null;data.overrides={};data.lastCloud=null;ui.review.textContent="";
  if(!data.period){data.students=[];data.nuclei=[];data.exams=[];render();return;}
  syncClassic();
  msg("Consultando estudiantes y calificaciones…");
@@ -280,7 +281,7 @@ async function analyze(){
   data.periods.map(function(p){return {id:t(p.id||p.periodoId||p.periodId).replace(/_+/g,"__")};}),
   {career:data.career});
  if(detected&&detected.kind==="nucleos"&&detected.careerId&&detected.careerId!==data.career){
-  data.career=detected.careerId;ui.career.value=data.career;showGroup();syncClassic();
+  data.career=detected.careerId;data.group="";ui.career.value=data.career;showGroup();syncClassic();
  }
  if(detected&&detected.nucleus&&data.mode==="nucleos"&&detected.nucleus!==data.nucleus){
   nucleus(detected.nucleus);
@@ -293,20 +294,35 @@ async function analyze(){
    available.some(function(c){return c.code===data.career;});
  }
  if(!data.career){msg("Selecciona la carrera de la matrícula para comparar los estudiantes.","error");}
- var selected=currentRows(),matched={matches:[],review:[],unmatched:[],duplicates:[],conflicts:[],matched:0};
+ var selected=currentRows(),matched={matches:[],review:[],unmatched:[],duplicates:[],conflicts:[],matched:0},foreign=[];
  if(data.career){
-  matched=data.mode==="nucleos"?
-   w.NcomplexNucleosParser.match(parsed.rows||[],selected,data.overrides):
-   w.NcomplexMatcher.match(parsed.rows||[],selected);
+  if(data.mode==="nucleos"){
+   // Conciliar primero en la carrera visible y luego en toda la cohorte.
+   // Solo apartar filas identificadas inequívocamente en otra carrera.
+   var preliminary=w.NcomplexNucleosParser.match(parsed.rows||[],selected,data.overrides);
+   var localIds=Object.create(null);
+   preliminary.matches.forEach(function(item){localIds[item.imported.rowNumber]=true;});
+   var all=w.NcomplexNucleosParser.match(parsed.rows||[],data.students,{});
+   foreign=(all.matches||[]).filter(function(item){
+    return studentCode(item.student)!==data.career&&!localIds[item.imported.rowNumber];
+   });
+   var foreignIds=Object.create(null);
+   foreign.forEach(function(item){foreignIds[item.imported.rowNumber]=true;});
+   var relevant=(parsed.rows||[]).filter(function(row){return !foreignIds[row.rowNumber];});
+   matched=w.NcomplexNucleosParser.match(relevant,selected,data.overrides);
+  }else{
+   matched=w.NcomplexMatcher.match(parsed.rows||[],selected);
+  }
  }
  data.preview={kind:data.mode,period:data.period,career:data.career,nucleus:data.nucleus,group:data.group,
-  parsed:parsed,matched:matched,courseMatch:courseCorrect,periodMatch:periodCorrect,source:raw};
+  parsed:parsed,matched:matched,foreign:foreign,courseMatch:courseCorrect,periodMatch:periodCorrect,source:raw};
  ui.review.textContent="";
  var issues=(parsed.errors||[]).slice(),warn=(parsed.warnings||[]).slice();
  var toReview=(matched.review||[]).length+(matched.unmatched||[]).length+
    (Array.isArray(matched.duplicates)?matched.duplicates.length:0)+(matched.conflicts||[]).length;
  var report=el("p",(parsed.rows||[]).length+" filas Moodle · "+selected.length+
-  " matrículas BDLocal · "+(matched.matches||[]).length+" vinculadas · "+toReview+" por revisar");
+  " matrículas de la carrera · "+(matched.matches||[]).length+" vinculadas · "+
+  toReview+" por revisar"+(foreign.length?" · "+foreign.length+" de otras carreras apartadas":""));
  ui.review.appendChild(report);
  if(data.mode==="nucleos"&&(parsed.rows||[]).some(function(r){return r.casoEstudio!==null&&r.casoEstudio!==undefined;}))
   ui.review.appendChild(el("p","Caso de estudio identificado y conservado junto con las cuatro evaluaciones."));
@@ -330,7 +346,7 @@ async function analyze(){
    detected.careers.forEach(function(candidate){
     var btn=el("button",candidate.label);btn.type="button";
     btn.addEventListener("click",function(){
-     data.career=candidate.code;ui.career.value=data.career;showGroup();syncClassic();
+     data.career=candidate.code;data.group="";ui.career.value=data.career;showGroup();syncClassic();
      analyze().catch(function(e){msg(e.message,"error");});
     });choice.appendChild(btn);
    });ui.review.appendChild(choice);
@@ -339,20 +355,15 @@ async function analyze(){
  }
  if(!courseCorrect)issues.push("Confirma la carrera y el núcleo antes de guardar.");
  if(!data.group&&data.mode==="nucleos")issues.push("Selecciona el grupo (Presencial, Online o PVC) para guardar. Las notas ya fueron analizadas.");
- if(data.mode==="nucleos"&&data.career&&data.students.length>selected.length){
-  var globally=w.NcomplexNucleosParser.match(parsed.rows||[],data.students,data.overrides);
-  var outside=(globally.matches||[]).filter(function(item){
-   return studentCode(item.student)!==data.career;
+ if(foreign.length){
+  var alternative=Object.create(null);
+  foreign.forEach(function(item){
+   var name=studentCareer(item.student)||studentCode(item.student);
+   alternative[name]=(alternative[name]||0)+1;
   });
-  if(outside.length){
-   var alternative=Object.create(null);
-   outside.forEach(function(item){
-    var name=studentCareer(item.student)||studentCode(item.student);
-    alternative[name]=(alternative[name]||0)+1;
-   });
-   ui.review.appendChild(el("p",outside.length+" filas de Moodle parecen corresponder a otras matrículas del período: "+
-    Object.keys(alternative).map(function(name){return name+" ("+alternative[name]+")";}).join(", ")+". No se mezclarán las carreras."));
-  }
+  ui.review.appendChild(el("p",foreign.length+" fila(s) de otras carreras identificadas: "+
+   Object.keys(alternative).map(function(name){return name+" ("+alternative[name]+")";}).join(", ")+
+   ". Se apartaron de esta carga. Selecciona su carrera para importarlas por separado."));
  }
  var additional=(matched.review||[]).map(function(r){return r.reason;})
   .concat((matched.unmatched||[]).map(function(r){return r.label+": "+r.reason;}))
@@ -413,7 +424,13 @@ async function analyze(){
 }
 function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}return "moodle_"+(h>>>0).toString(16);}
 async function save(){
- var p=data.preview;if(!p||p.period!==data.period||p.career!==data.career||p.kind!==data.mode||
+ if(data.working)throw Error("Ya existe una operación de Ncomplex en curso.");
+ var p=data.preview;
+ if(!p||!p.parsed||p.parsed.ok!==true||t(ui.paste.value)!==p.source||
+  !p.matched||!p.matched.matches.length)
+  throw Error("La importación no es válida o cambió; pulsa Analizar nuevamente.");
+ if(!data.group&&data.mode==="nucleos")throw Error("Selecciona el grupo académico antes de guardar.");
+ if(p.period!==data.period||p.career!==data.career||p.kind!==data.mode||
  (data.mode==="nucleos"&&(p.nucleus!==data.nucleus||p.group!==data.group))||
  p.periodMatch!==true||p.courseMatch!==true)throw Error("El contexto o período cambió. Analiza nuevamente la importación.");
  ui.save.disabled=true;data.working=true;
@@ -432,7 +449,6 @@ async function save(){
     if(previous&&priorHash!==currentHash){
      if(!w.confirm("La calificación de "+studentName(st)+" es diferente de la guardada. ¿Actualizar únicamente la copia local? Firebase comprobará versiones antes de publicar.")){skipped++;continue;}
     }
-    if(previous&&priorHash===currentHash){skipped++;continue;}
     var eligibility=await con.checkRequirements(data.period,ced);
     var check=w.NcomplexNucleosPolicy.check(eligibility,"nucleos");
     var missing=check.missing;
@@ -443,6 +459,13 @@ async function save(){
      .filter(function(v){return v!==null&&v!==undefined;});
     var arithmetic=grades.length?Math.round(grades.reduce(function(a,b){return a+b;},0)/grades.length*100)/100:null;
     var discrepancy=arithmetic!==null&&inc.totalMoodle!==null&&Math.abs(arithmetic-inc.totalMoodle)>0.03;
+    var estadoCarga=!eligible?(check.verified?"INHABILITADO":"PENDIENTE"):
+     complete&&!discrepancy?"CONCILIADO":"PENDIENTE";
+    var sameNotes=!!previous&&priorHash===currentHash;
+    var sameRequirements=sameNotes&&previous.habilitado===eligible&&
+     previous.estadoCarga===estadoCarga&&
+     JSON.stringify(previous.requisitosPendientes||[])===JSON.stringify(missing);
+    if(sameRequirements){skipped++;continue;}
     var stamp=new Date().toISOString();
     var history=previous&&Array.isArray(previous.historialCambios)?previous.historialCambios.slice():[];
     if(previous&&priorHash!==currentHash)history.push({
@@ -459,8 +482,7 @@ async function save(){
      cursoMoodle:p.parsed.course||"",evaluaciones:inc.evaluaciones.slice(),taller:inc.taller,prueba:inc.prueba,
      casoEstudio:inc.casoEstudio,actividadesAdicionales:(inc.actividadesAdicionales||[]).slice(),
      totalMoodle:inc.totalMoodle,habilitado:eligible,requisitosPendientes:missing.slice(),
-     estadoCarga:!eligible?(check.verified?"INHABILITADO":"PENDIENTE"):
-      complete&&!discrepancy?"CONCILIADO":"PENDIENTE",
+     estadoCarga:estadoCarga,
      observaciones:!check.verified?"No se ha podido verificar toda la documentación de requisitos.":
       discrepancy?"El total Moodle difiere de la media simple. Revisar ponderación del curso.":
       complete?"":"Faltan evaluaciones o Total del curso.",origen:"Ncomplex Moodle",
@@ -623,7 +645,7 @@ async function boot(){
  });
  ui.period.addEventListener("change",loadPeriod);
  ui.career.addEventListener("change",function(){
-  data.career=ui.career.value;data.preview=null;data.overrides={};showGroup();syncClassic();render();
+  data.career=ui.career.value;data.group="";data.preview=null;data.overrides={};showGroup();syncClassic();render();
   if(!ui.importBox.hidden&&t(ui.paste.value))analyze().catch(function(e){msg(e.message,"error");});
  });
  ui.group.addEventListener("change",function(){
@@ -639,6 +661,7 @@ async function boot(){
  var taskButton=$("nc-next-task");
  if(taskButton)taskButton.addEventListener("click",function(){
   if(!this.dataset.career)return;
+  if(data.career!==this.dataset.career)data.group="";
   data.career=this.dataset.career;ui.career.value=data.career;showGroup();
   mode("nucleos");nucleus(Number(this.dataset.nucleus||1));syncClassic();render();
  });
@@ -650,6 +673,10 @@ async function boot(){
  $("nc-close-import").addEventListener("click",function(){promptImport(false);});
  $("nc-analyze").addEventListener("click",function(){
   analyze().catch(function(e){msg("No se pudo interpretar Moodle: "+e.message,"error");});
+ });
+ ui.paste.addEventListener("input",function(){
+  data.preview=null;ui.save.disabled=true;
+  if(!ui.importBox.hidden)msg("El texto cambió; pulsa Analizar nuevamente antes de guardar.");
  });
  ui.save.addEventListener("click",function(){save().catch(function(err){msg(err.message||String(err),"error");ui.save.disabled=false;});});
  ui.publish.addEventListener("click",sync);

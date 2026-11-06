@@ -45,10 +45,20 @@ const roster=[
  {cedula:"0303030303",Nombres:"OTRA ESTUDIANTE DE ONLINE",
   NombreCarrera:"ADMINISTRACION ONLINE",CodigoCarrera:"ADMINISTRACION ONLINE",estadoMatricula:"ACTIVO"}
 ];
+const savedNuclei=[];
+const statuses=["academico","documentacion","financiero","practicas","vinculacion",
+ "seguimientograduados","ingles","actualizaciondatos","titulacion"];
 const window={addEventListener(){},ConNcomplex:{
  async listPeriods(){return[{id:period,label:"Octubre 2025 a Marzo 2026"}];},
- async listStudents(){return roster;},async listEvaluations(){return []}
-},NcomplexNucleosStore:{async list(){return[];}},
+ async listStudents(){return roster;},async listEvaluations(){return [];},
+ async checkRequirements(){return {requirements:statuses.map(k=>({key:k,label:k,
+  status:k==="titulacion"?"NO APLICA":"CUMPLE"}))};},
+ async saveImport(){return null;}
+},NcomplexNucleosStore:{
+ id(periodId,ced,n){return ced+"__"+periodId+"__N"+n;},
+ async list(periodId){return savedNuclei.filter(row=>row.periodoId===periodId);},
+ async saveMany(rows){rows.forEach(row=>savedNuclei.push(row));return rows;}
+},
  NcomplexState:{get(){return {selectedPeriodId:""};}},
  InfNuclei:{careers(){return[{career:"Administración",nuclei:[
   {number:1,name:"Gestión Estratégica"},{number:2,name:"Procesos"},
@@ -82,6 +92,7 @@ async function run(){
  assert.match(dom["nc-review"].children[0].textContent,/3 filas Moodle/);
  let duplicate=dom["nc-review"].children.find(x=>x.className==="nc-duplicate-group");
  assert.ok(duplicate,"Debe solicitar cuál de dos notas del mismo estudiante se conserva.");
+ assert.equal(duplicate.textContent,"","No mostrar el texto literal null en duplicados.");
  const selector=duplicate.children.find(x=>x.tagName==="select");
  assert.equal(selector.options.length,3);
  selector.value="2";
@@ -98,6 +109,19 @@ async function run(){
  assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Por verificar"))));
  assert.ok(table.children.every(row=>row.children.some(x=>x.children&&x.children.some(t=>t.textContent==="Sin notas"))),
  "Sin notas no debe confundirse con requisito incumplido.");
- console.log("NCOMPLEX UI GUIADA: OK (periodo automático, Núcleo 4, duplicado, grupo y estados).");
+ // Una fila Moodle de Administración Online no debe solicitar vínculo manual con presencial.
+ dom["nc-paste"].value=pasted+"\nOTRA ESTUDIANTE DE ONLINE\nonline@itsqmet.edu.ec"+
+  "\n8,00\n9,00\n10,00\n10,00\n10,00\n-\n9,40";
+ await window.NcomplexCenter.parse();
+ assert.match(dom["nc-review"].children[0].textContent,/1 de otras carreras apartadas/);
+ assert.equal(dom["nc-review"].children.filter(x=>x.className==="nc-manual-row").length,0);
+ assert.equal(dom["nc-review"].children.find(x=>x.className==="nc-duplicate-group").textContent,"");
+ assert.equal(dom["nc-save"].disabled,false);
+ await window.NcomplexCenter.save();
+ assert.equal(savedNuclei.length,2,"Solo guardar estudiantes de la carrera seleccionada.");
+ assert.ok(savedNuclei.every(x=>x.codigoCarrera==="ADMINISTRACION"&&x.grupoInforme==="PRESENCIAL"));
+ assert.equal(dom["nc-group"].value,"PRESENCIAL","No borrar el grupo confirmado al refrescar.");
+ assert.equal(dom["nc-loaded"].textContent,"2","Mostrar las notas guardadas sin recargar la app.");
+ console.log("NCOMPLEX UI GUIADA: OK (núcleo 4, duplicados, modalidades, guardado y grupo persistente).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

@@ -106,7 +106,14 @@ function match(rows,students,overrides){
  students=Array.isArray(students)?students:[];
  var byCed=uniqueMap(students,studentId),byName=uniqueMap(students,function(st){return fingerprint(studentName(st));}),byMail=Object.create(null),seen=Object.create(null),matched=[],review=[];
  students.forEach(function(st){studentEmails(st).forEach(function(mail){(byMail[mail]||(byMail[mail]=[])).push(st);});});
- function distinct(list){var found=Object.create(null);return (list||[]).filter(function(st){var id=studentId(st);if(!id||found[id])return false;found[id]=true;return true;});}
+ function distinct(list){var found=Object.create(null);return (list||[]).filter(function(st){
+ var ced=studentId(st);
+ // Dos carreras o modalidades de una misma persona no son una sola matrícula.
+ var matricula=[txt(st.idEstudiantePeriodo||st.studentId||st.id),ced,
+  txt(st.CodigoCarrera||st.codigoCarrera||st.NombreCarrera||st.nombreCarrera),
+  txt(st.modalidadEstudio||st.Modalidad||st.tipoModalidad)].join("|");
+ if(!ced||found[matricula])return false;found[matricula]=true;return true;
+});}
  rows.forEach(function(row){
   if(row.blocked){review.push({row:row,reason:row.issues.join(" | ")});return;}
   var emailStudents=distinct(byMail[txt(row.correo).toLowerCase()]),name=txt(row.nombreCompleto),nameMatches=distinct(byName[fingerprint(name)]);
