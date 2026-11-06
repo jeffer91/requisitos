@@ -44,6 +44,7 @@ window.RequisitosFirebaseRepository={
  async getById(entity,key){assert.equal(entity,"complexivo");return remote.get(key)||null;},
  async writeChecked(entity,doc,option){
   assert.equal(entity,"complexivo");assert.equal(option.expected.exists,false);
+  assert.equal(option.requireTransaction,true,"El examen complexivo exige escritura transaccional sin reemplazos.");
   const key=period+"__"+doc.cedula;
   assert.equal(remote.has(key),false);
   cloudWrites.push(doc);remote.set(key,{data:doc});return {ok:true};

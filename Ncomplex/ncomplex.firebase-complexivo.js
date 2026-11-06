@@ -106,7 +106,9 @@ async function publish(options){
   if(options.confirmedByCenter!==true&&!w.confirm("Publicar "+batch.length+" notas nuevas en complexivo?\n9/9 requisitos verificados.\nBloqueados: "+blocked.length+"; iguales: "+same+"; conflictos: "+conflicts.length+"; inválidas: "+invalid.length+".\nNo se sobrescribirán notas de otro equipo."))return {ok:false,reason:"Cancelado por usuario"};
   let saved=0;
   for(const doc of batch){
-    const response=await repo.writeChecked("complexivo",doc,{expected:{exists:false}});
+    const response=await repo.writeChecked("complexivo",doc,{
+      expected:{exists:false},requireTransaction:true
+    });
     if(!response||response.ok!==true)throw new Error("Firebase no confirmó escritura para "+doc.cedula+".");
     const confirmed=await repo.getById("complexivo",period+"__"+doc.cedula);
     if(!confirmed||!confirmed.data||confirmed.data.dataHash!==doc.dataHash)

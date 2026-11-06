@@ -16,9 +16,12 @@ async function resolve(row,choice){
   throw Error("Las notas locales cambiaron; recarga antes de conciliar.");
  var guard={updatedAt:row.updatedAt,sourceHash:row.sourceHash};
  if(choice==="local"){
-  await local.update(row.id,{estadoSync:"PENDIENTE",remoteHash:remote.data.dataHash,cloudError:"",
+  // Conservar las notas locales NO autoriza reemplazar una nota ya publicada.
+  // El conflicto permanece visible; una publicación posterior jamás sobrescribe.
+  await local.update(row.id,{estadoSync:"CONFLICTO",remoteHash:remote.data.dataHash,
+   cloudError:"Se conserva BDLocal; Firebase contiene una nota diferente y no se sobrescribirá automáticamente.",
    conciliacionAt:new Date().toISOString()},guard);
-  return {choice:choice,status:"PENDIENTE"};
+  return {choice:choice,status:"CONFLICTO"};
  }
  var document=remote.data;
  var expected=w.RequisitosFirebaseValidator&&w.RequisitosFirebaseValidator.validate(entity,document,{documentId:id(row)});

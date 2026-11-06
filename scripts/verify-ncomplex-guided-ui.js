@@ -223,6 +223,18 @@ async function run(){
   "Se publican solamente las tres matrículas guardadas.");
  assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="ONLINE"&&call.onlyIds.length===1));
  assert.ok(firebasePushCalls.some(call=>call.grupoInforme==="PRESENCIAL"&&call.onlyIds.length===2));
- console.log("NCOMPLEX UI GUIADA: OK (dos botones separados, grupo automático y publicación por cédula).");
+ const beforeCalls=firebasePushCalls.length;
+ window.NcomplexFirebaseAuth.requireWriter=async function(){
+  throw Error("Tu cuenta no tiene rol institucional ncomplex_write.");
+ };
+ await window.NcomplexCenter.sync();
+ assert.equal(firebasePushCalls.length,beforeCalls,
+  "Un usuario sin permisos nunca debe intentar subir notas a Firebase.");
+ assert.match(dom["nc-message"].textContent,/rol institucional ncomplex_write/);
+ assert.match(dom["nc-save-progress-detail"].textContent,/Acceso Firebase:/,
+  "Mostrar la causa real de los 26 pendientes, no solo 0% o cero errores.");
+ assert.match(dom["nc-save-progress-detail"].textContent,/1 errores/,
+  "El fallo de autenticación es un error explícito.");
+ console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, fallos de rol y bloqueo seguro).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

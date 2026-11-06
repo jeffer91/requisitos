@@ -93,6 +93,11 @@ Función:
         local.createdAt=text(remote&&remote.createdAt)||text(local.createdAt)||nowISO();local.updatedAt=nowISO();local.version=Math.max(Number(local.version||1),Number(remote&&remote.version||0)+1);writer(local);
         return {ok:true,unchanged:false,entity:prepared.entity,collection:prepared.collection,documentId:prepared.documentId,document:clone(local),version:VERSION};
       }
+      // Para publicaciones académicas de solo creación, nunca usar get()+set()
+      // fuera de una transacción: otro equipo podría crear el documento entre ambas.
+      if(options.requireTransaction===true&&typeof firestore.runTransaction!=="function"){
+        return Promise.reject(new Error("Firestore no admite transacciones; se canceló el guardado para evitar sobrescribir notas existentes."));
+      }
       if(typeof firestore.runTransaction==="function"){
         return firestore.runTransaction(function(transaction){return transaction.get(reference).then(function(snapshot){state.queryCount+=1;var remote=snapshot&&snapshot.exists!==false?(typeof snapshot.data==="function"?snapshot.data():snapshot.data||{}):null;if(remote){state.readDocuments+=1;}return decide(remote,function(payload){transaction.set(reference,payload,{merge:false});});});});
       }

@@ -595,14 +595,15 @@ async function publishSavedRecords(rows,mode,period,onProgress){
  if(!rows||!rows.length)return {ok:true,published:0,pending:0};
  var auth=w.NcomplexFirebaseAuth;
  if(!auth||typeof auth.requireWriter!=="function")
-  return {ok:false,published:0,pending:rows.length,reason:"Autenticación Firebase no disponible."};
+  return {ok:false,published:0,pending:rows.length,errors:1,conflicts:0,
+   reason:"No está disponible la autenticación de Firebase. Comprueba la conexión e inicia sesión."};
  try{await auth.requireWriter();}
- catch(error){return {ok:false,published:0,pending:rows.length,
-  reason:t(error&&error.message||error)||"Conecta una cuenta institucional autorizada."};}
+ catch(error){return {ok:false,published:0,pending:rows.length,errors:1,conflicts:0,
+  reason:"Acceso Firebase: "+(t(error&&error.message||error)||"Conecta una cuenta institucional autorizada.")};}
  if(mode==="complexivo"){
   var publisher=w.NcomplexFirebaseComplexivo;
   if(!publisher||typeof publisher.publish!=="function")
-   return {ok:false,published:0,pending:rows.length,reason:"Publicador de complexivo no disponible."};
+   return {ok:false,published:0,pending:rows.length,errors:1,conflicts:0,reason:"Publicador de complexivo no disponible."};
   var published=0,conflicts=0,errors=0,reason="",validIds=rows.map(studentId),alreadyChecked=0;
   for(var i=0;i<Math.ceil(rows.length/25)+1;i++){
    var baseline=published;
@@ -629,18 +630,19 @@ async function publishSavedRecords(rows,mode,period,onProgress){
    pending:errors?rows.length:0,reason:reason||(
     errors?"Hay notas sin modalidad verificable o requisitos incompletos.":"")};
  }
- var grouped=Object.create(null),published=0,conflicts=0,errors=0,pending=0,unknown=0,done=0;
+ var grouped=Object.create(null),published=0,unchanged=0,conflicts=0,errors=0,pending=0,unknown=0,done=0,
+  details=[];
  rows.forEach(function(row){
   var group=t(row.grupoInforme),bucket=grouped[group]||(grouped[group]=[]);
   bucket.push(row);
  });
  for(var group of Object.keys(grouped)){
   var block=grouped[group],attempted=Object.create(null);
-  if(!group){pending+=block.length;unknown+=block.length;errors++;done+=block.length;
+  if(!group){pending+=block.length;unknown+=block.length;errors+=block.length;done+=block.length;
     notify(done,rows.length,"Firebase: "+done+" revisados; faltan modalidades en BDLocal");continue;}
   if(mode==="nucleos"){
    if(!w.NcomplexNucleosFirebase||typeof w.NcomplexNucleosFirebase.push!=="function"){
-    pending+=block.length;errors++;continue;
+    pending+=block.length;errors+=block.length;details.push("No está disponible el publicador de núcleos.");continue;
    }
    for(var i=0;i<Math.ceil(block.length/25)+1;i++){
     try{
@@ -655,9 +657,13 @@ async function publishSavedRecords(rows,mode,period,onProgress){
      done=Math.min(rows.length,done+(result.attemptedIds||[]).length);
      notify(done,rows.length,"Firebase: "+done+" de "+rows.length+" registros comprobados");
      published+=Number(result.published||0);
+     unchanged+=Number(result.unchanged||0);
      conflicts+=Number(result.conflicts||0);errors+=Number(result.errors||0);
+     (result.details||[]).slice(0,3).forEach(function(item){
+      details.push(t(item.reason)||"Error de publicación.");
+     });
      if(!result.processed||!result.remaining)break;
-    }catch(err){errors++;break;}
+    }catch(err){errors++;details.push(t(err&&err.message||err));break;}
    }
    pending+=Math.max(0,block.length-Object.keys(attempted).length);
   }else{
@@ -681,9 +687,10 @@ async function publishSavedRecords(rows,mode,period,onProgress){
    // los registros ya existentes iguales no se vuelven a crear.
   }
  }
- return {ok:errors===0&&conflicts===0&&pending===0,published:published,
+ return {ok:errors===0&&conflicts===0&&pending===0,published:published,unchanged:unchanged,
   conflicts:conflicts,errors:errors,pending:pending,
   reason:unknown?unknown+" matrícula(s) sin grupo verificable en BDLocal. Corrige el dato de modalidad antes de publicar en Firebase.":
+   details.length?details.slice(0,3).join(" | "):
    errors||conflicts||pending?"Existen publicaciones pendientes o en conflicto.":""};
 }
 async function save(){
@@ -897,17 +904,18 @@ async function sync(){
    progressUpdate("Guardando en Firebase",done,total,detail,
     Math.min(99,Math.round(Math.max(0,done)/Math.max(1,total)*100)));
   });
-  await refresh();
+  if(result.published||result.unchanged||result.conflicts||
+     (result.errors&&result.pending<rows.length))await refresh();
   if(result.ok){
    progressUpdate("Firebase: publicación finalizada",rows.length,rows.length,
-    result.published+" nuevas · Las ya existentes se conservaron sin duplicar",100,"success");
+    result.published+" nuevas · "+Number(result.unchanged||0)+" idénticas confirmadas; no se reemplazó ninguna nota",100,"success");
    msg("Firebase comprobó la carga: "+result.published+
     " nota(s) nueva(s) publicada(s). Identificación por período y cédula"+
     (data.mode==="nucleos"?" y núcleo":"")+".","ok");
   }else{
    progressUpdate("Firebase: publicación con incidencias",0,rows.length,
     (result.pending||0)+" pendientes · "+(result.conflicts||0)+" conflictos · "+
-    (result.errors||0)+" errores. Revisa el mensaje y vuelve a intentar.",
+    (result.errors||0)+" errores. "+(result.reason||"Revisa los permisos, modalidades y conflictos."),
     ui.progressBar&&ui.progressBar.value||0,"warning");
    msg("Firebase no confirmó toda la carga: "+result.published+" publicada(s), "+
    (result.pending||0)+" pendiente(s), "+(result.conflicts||0)+" conflicto(s), "+
@@ -915,7 +923,9 @@ async function sync(){
    " BDLocal mantiene las notas.","error");
   }
   // Mostrar también los documentos que ya existían en la nube antes de esta carga.
-  await inspectUploaded();
+  if(result.published||result.unchanged)inspectUploaded().catch(function(error){
+   msg("Publicación terminada; la consulta del inventario falló: "+(error.message||String(error)),"error");
+  });
  }catch(error){
   progressUpdate("Firebase: publicación interrumpida",0,rows.length,
    error.message||String(error),ui.progressBar&&ui.progressBar.value||0,"error");
@@ -955,11 +965,13 @@ async function showConflicts(){
   catch(error){card.appendChild(el("small","Firebase: "+error.message));panel.appendChild(card);continue;}
   if(!remote||!remote.data){card.appendChild(el("small","No se encontró el documento remoto."));panel.appendChild(card);continue;}
   card.appendChild(el("small","Firebase: "+(remote.data.evaluaciones||[]).map(fmt).join(" / ")+" · Total "+fmt(remote.data.totalMoodle)));
-  for(const choice of [{key:"local",label:"Conservar local"},{key:"firebase",label:"Conservar Firebase"}]){
+  for(const choice of [{key:"local",label:"Conservar BDLocal (sin reemplazar Firebase)"},{key:"firebase",label:"Conservar Firebase"}]){
    var b=el("button",choice.label,"nc-conflict-action");b.type="button";
    b.addEventListener("click",(function(selected,entry){return async function(){
     if(!w.confirm("¿"+(selected==="local"?"Preparar las notas locales para volver a publicar":"Reemplazar la copia local por la versión actual de Firebase")+"?"))return;
-    try{await w.NcomplexNucleosResolver.resolve(entry,selected);await refresh();panel.hidden=true;msg("Conflicto conciliado. "+(selected==="local"?"Sincroniza para publicar.":"Se conservó Firebase."),"ok");}
+    try{await w.NcomplexNucleosResolver.resolve(entry,selected);await refresh();panel.hidden=true;msg(selected==="local"?
+     "Se conservaron las notas de BDLocal sin cambiar Firebase. El conflicto sigue pendiente para revisión académica.":
+     "Se conservó la nota que ya existe en Firebase.","ok");}
     catch(error){msg(error.message||String(error),"error");}
    };})(choice.key,row));
    card.appendChild(b);

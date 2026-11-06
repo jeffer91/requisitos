@@ -88,7 +88,21 @@ await repo.writeChecked("matriculas",{...remote,nombreCarrera:"CAMBIADA",dataHas
 check(conflict,"Una base remota distinta debe producir conflicto");
 const same=await repo.writeChecked("matriculas",{...remote},{expected:{exists:true,hash:remote.dataHash,version:remote.version,updatedAt:remote.updatedAt}});
 check(same.unchanged===true,"El mismo dataHash no debe volver a escribirse");
-const status=repo.status();
+// La publicación de calificaciones de solo creación no puede depender de get()+set()
+ // cuando un SDK no admite transacciones: podría sobrescribir otro equipo.
+ const priorEnsure=sandbox.BL2Sync.ensureFirebase;
+ const writesBefore=firestore.writes.length;
+ sandbox.BL2Sync.ensureFirebase=()=>Promise.resolve({...firestore,runTransaction:undefined});
+ repo.reset();
+ let protectedFailure=false;
+ try{
+  await repo.writeChecked("matriculas",{...remote},{expected:{exists:false},requireTransaction:true});
+ }catch(error){protectedFailure=/no admite transacciones/.test(error.message);}
+ check(protectedFailure,"La ruta de solo creación exige transacciones Firebase.");
+ check(firestore.writes.length===writesBefore,"La ausencia de transacciones nunca provoca escritura.");
+ sandbox.BL2Sync.ensureFirebase=priorEnsure;
+ repo.reset();
+ const status=repo.status();
 check(status.readDocuments>=3,"El estado debe contar documentos leídos, no solo consultas");
 check(status.queries>=2,"El estado debe contar consultas");
 check(status.conflicts>=1,"El estado debe contar conflictos");

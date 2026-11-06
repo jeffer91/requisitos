@@ -70,7 +70,7 @@ for(let n=0;n<58;n++){
    sourceHash:"hash-"+n,updatedAt:"2026-11-05T14:00:00.000Z",
    estadoSync:"PENDIENTE",remoteHash:"",historialCambios:[]});
 }
-let writes=0,reads=0,allowWrite=true,guarded=0;
+let writes=0,reads=0,allowWrite=true,guarded=0,inflight=0,maximumConcurrent=0;
 const store=window.NcomplexNucleosStore={
  async list(p){return rows.filter(r=>r.periodoId===p).map(r=>({...r}));},
  async update(id,fields,guard){
@@ -92,13 +92,18 @@ window.RequisitosFirebaseRepository={
  async getById(entity,id){assert.equal(entity,"evaluaciones_nucleos");reads++;return cloud.get(id)||null;},
  async writeChecked(entity,doc,options){
   assert.equal(entity,"evaluaciones_nucleos");
-  const id=doc.periodoId+"__"+doc.cedula+"__N"+doc.nucleo;
-  const old=cloud.get(id);
-  if(old){
-   assert.equal(options.expected.hash,old.data.dataHash);
-  }else assert.equal(options.expected.exists,false);
-  writes++;cloud.set(id,{data:{...doc,version:old?2:1,createdAt:"2026-11-05T14:01:00.000Z"}});
-  return {ok:true,unchanged:false};
+  assert.equal(options.expected.exists,false,"El publicador solo puede crear notas nuevas.");
+  assert.equal(options.requireTransaction,true,"Nunca aceptar escrituras no atómicas.");
+  inflight++;maximumConcurrent=Math.max(maximumConcurrent,inflight);
+  try{
+   await Promise.resolve(); // Simula latencia simultánea.
+   const id=doc.periodoId+"__"+doc.cedula+"__N"+doc.nucleo;
+   const old=cloud.get(id);
+   if(old&&old.data.dataHash===doc.dataHash)return {ok:true,unchanged:true};
+   if(old){const error=new Error("Nota remota ya existente.");error.code="FIREBASE_CONFLICT";throw error;}
+   writes++;cloud.set(id,{data:{...doc,version:1,createdAt:"2026-11-05T14:01:00.000Z"}});
+   return {ok:true,unchanged:false};
+  }finally{inflight--;}
  }
 };
 function remoteId(r){return r.periodoId+"__"+r.cedula+"__N"+r.nucleo;}
@@ -120,6 +125,8 @@ const run=async()=>{
  assert.equal(conflicts,1,"No pisar un registro remoto ajeno");
  assert.equal(errors,0);
  assert.equal(writes,57);
+ assert.ok(maximumConcurrent>=2&&maximumConcurrent<=4,
+  "Publicación de núcleos paralela pero con máximo de cuatro operaciones.");
  assert.equal(rows[0].estadoSync,"CONFLICTO");
  assert.equal(rows.filter(r=>r.estadoSync==="SINCRONIZADO").length,57);
  const denied=rows[1];
@@ -129,12 +136,13 @@ const run=async()=>{
  assert.equal(denied.estadoSync,"PENDIENTE");
  allowWrite=true;
  const decision=await window.NcomplexNucleosResolver.resolve(rows[0],"local");
- assert.equal(decision.status,"PENDIENTE");
+ assert.equal(decision.status,"CONFLICTO","Conservar local nunca habilita sobrescribir Firebase.");
  assert.equal(rows[0].remoteHash,other.dataHash);
  const reconciled=await publisher.push({periodoId:period,grupoInforme:"PRESENCIAL",limit:25});
- assert.ok(reconciled.published>=1);
- assert.equal(rows[0].estadoSync,"SINCRONIZADO");
- assert.equal(cloud.get(remoteId(rows[0])).data.totalMoodle,8);
+ assert.equal(reconciled.published,0);
+ assert.equal(rows[0].estadoSync,"CONFLICTO");
+ assert.equal(cloud.get(remoteId(rows[0])).data.evaluaciones[0],2,
+  "La nota remota previa permanece intacta.");
  // Elegir la versión de Firebase copia las notas verificadas sin sobrescribir cloud.
  const row=rows[2],changed={...publisher.remote(row),evaluaciones:[4,4,4,4],totalMoodle:4};
  changed.dataHash=publisher.hash({...changed,dataHash:undefined});
@@ -145,7 +153,7 @@ const run=async()=>{
  assert.equal(row.evaluaciones[0],4);
  assert.equal(row.totalMoodle,4);
  assert.ok(guarded>0);
- assert.ok(reads>=60);
+ assert.ok(reads>=57);
  const ui=src("Ncomplex/ncomplex.html"),center=src("Ncomplex/ncomplex.center.js");
  ["nc-show-conflicts","nc-firebase-login","nc-show-pending"].forEach(m=>assert.ok(ui.includes(m)));
  assert.ok(center.includes("moodlePeriodHint"));
@@ -155,6 +163,6 @@ const run=async()=>{
  const rules=src("firestore.rules");
  assert.ok(rules.includes("request.auth.token.ncomplex_write"));
  assert.ok(src("BDLocal/conexiones/cone.inf.js").includes("evaluaciones_nucleos"));
- console.log("NCOMPLEX HARDENING: OK (58 notas, lotes, rol, discrepancias y 2 conciliaciones).");
+ console.log("NCOMPLEX HARDENING: OK (58 notas, concurrencia 4, no sobrescritura, rol, diferencias).");
 };
 run().catch(error=>{console.error(error);process.exitCode=1;});

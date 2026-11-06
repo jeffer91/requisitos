@@ -29,6 +29,7 @@ const window={
   async getById(entity,documentId){assert.equal(entity,"complexivo");return remote.get(documentId)||null;},
   async writeChecked(entity,doc,options){
    assert.equal(entity,"complexivo");assert.equal(options.expected.exists,false);
+   assert.equal(options.requireTransaction,true,"Solo creación transaccional sin reemplazo.");
    const key=doc.periodoId+"__"+doc.cedula;
    if(remote.has(key))throw Error("duplicate");
    saved.push(doc);
