@@ -115,7 +115,8 @@ async function run(){
  await window.NcomplexCenter.parse();
  assert.match(dom["nc-review"].children[0].textContent,/1 de otras carreras apartadas/);
  assert.equal(dom["nc-review"].children.filter(x=>x.className==="nc-manual-row").length,0);
- assert.equal(dom["nc-review"].children.find(x=>x.className==="nc-duplicate-group").textContent,"");
+ assert.equal(dom["nc-review"].children.some(x=>x.className==="nc-duplicate-group"),false,
+  "Un duplicado ya resuelto no debe volver a solicitar selección.");
  assert.equal(dom["nc-save"].disabled,false);
  await window.NcomplexCenter.save();
  assert.equal(savedNuclei.length,2,"Solo guardar estudiantes de la carrera seleccionada.");
