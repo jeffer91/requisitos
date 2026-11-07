@@ -1,5 +1,5 @@
 "use strict";
-/* Publicación manual de exámenes complexivos: idempotencia y no sobrescritura. */
+/* Publicación automática de exámenes en /complexivos: idempotencia y no sobrescritura. */
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const source=fs.readFileSync(path.join(__dirname,"../Ncomplex/ncomplex.firebase-complexivo.js"),"utf8");
 const period="2025-10__2026-03",id="0101234567";
@@ -26,9 +26,9 @@ const window={
  },
  RequisitosFirebaseOperationCenter:{async ensure(){if(disconnected)throw Error("offline");}},
  RequisitosFirebaseRepository:{
-  async getById(entity,documentId){assert.equal(entity,"complexivo");return remote.get(documentId)||null;},
+  async getById(entity,documentId){assert.equal(entity,"complexivos");return remote.get(documentId)||null;},
   async writeChecked(entity,doc,options){
-   assert.equal(entity,"complexivo");assert.equal(options.expected.exists,false);
+   assert.equal(entity,"complexivos");assert.equal(options.expected.exists,false);
    assert.equal(options.requireTransaction,true,"Solo creación transaccional sin reemplazo.");
    const key=doc.periodoId+"__"+doc.cedula;
    if(remote.has(key))throw Error("duplicate");
@@ -50,14 +50,14 @@ async function main(){
  assert.equal(remote.size,1);
  await api.publish();
  assert.equal(saved.length,1,"Reimportación idéntica no duplica");
- assert.equal(confirms,1,"Sin cambios no se pide una nueva publicación");
+ assert.equal(confirms,0,"La publicación automática no debe mostrar confirmaciones manuales");
  remote.set(period+"__"+id,{data:{...saved[0],dataHash:"diferente"}});
  await api.publish();
  assert.equal(saved.length,1,"No sobrescribe examen ajeno");
  assert.match(elements["ncomplex-firebase-status"].textContent,/conflictos: 1/);
  remote.clear();
  elements["ncomplex-complexivo-grupo"].value="ONLINE";
- await api.publish();
+ await api.publish({anyGroup:false});
  assert.equal(saved.length,1,"No publica matrícula presencial en grupo online");
  elements["ncomplex-complexivo-grupo"].value="PRESENCIAL";
  eligible=false;
@@ -76,12 +76,12 @@ async function main(){
   NombreCarrera:"ADMINISTRACION ONLINE",modalidadEstudio:"ONLINE"});
  noteRows.push({...note,cedula:onlineId,grupoInforme:"ONLINE",NombreCarrera:"ADMINISTRACION ONLINE"});
  elements["ncomplex-complexivo-grupo"].value="PRESENCIAL";
- const presencial=await api.publish();
+ const presencial=await api.publish({anyGroup:false});
  assert.equal(presencial.published,1);
  assert.equal(presencial.invalid.length,0,"Online no se marca como conflicto al sincronizar presencial.");
  assert.equal(remote.size,1);
  elements["ncomplex-complexivo-grupo"].value="ONLINE";
- const online=await api.publish();
+ const online=await api.publish({anyGroup:false});
  assert.equal(online.published,1,"Online se publica sin reutilizar la modalidad presencial.");
  assert.equal(online.invalid.length,0);
  assert.equal(remote.size,2);
