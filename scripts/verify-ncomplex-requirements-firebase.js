@@ -41,9 +41,9 @@ window.ConNcomplex={
 };
 window.RequisitosFirebaseOperationCenter={async ensure(){}};
 window.RequisitosFirebaseRepository={
- async getById(entity,key){assert.equal(entity,"complexivo");return remote.get(key)||null;},
+ async getById(entity,key){assert.equal(entity,"complexivos");return remote.get(key)||null;},
  async writeChecked(entity,doc,option){
-  assert.equal(entity,"complexivo");assert.equal(option.expected.exists,false);
+  assert.equal(entity,"complexivos");assert.equal(option.expected.exists,false);
   assert.equal(option.requireTransaction,true,"El examen complexivo exige escritura transaccional sin reemplazos.");
   const key=period+"__"+doc.cedula;
   assert.equal(remote.has(key),false);
@@ -68,7 +68,7 @@ async function run(){
  assert.equal(result.published,0,"Repetir no duplica documentos");
  assert.equal(cloudWrites.length,1);
  el["ncomplex-complexivo-grupo"].value="";
- result=await window.NcomplexFirebaseComplexivo.publish();
+ result=await window.NcomplexFirebaseComplexivo.publish({anyGroup:false});
  assert.equal(result.ok,false);
  assert.match(el["ncomplex-firebase-status"].textContent,/Grupo/);
  // Regresión: el servicio Ncomplex debe recibir el repositorio real de requisitos
