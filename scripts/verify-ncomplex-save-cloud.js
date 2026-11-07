@@ -24,7 +24,10 @@ const window={
  NcomplexCalculator:{recalculate(x){return x;}},
  ConNcomplex:{saveMany(rows){localSaves++;return Promise.resolve(rows);}},
  NcomplexFirebaseComplexivo:{async publish(args){
-  cloudCalls++;assert.equal(args.onlyCedulas[0],cedula);return {ok:true,published:1};
+  cloudCalls++;assert.equal(args.onlyCedulas[0],cedula);
+  assert.equal(args.periodoId,period);
+  assert.equal(args.anyGroup,true,"Cada matrícula determina su grupo; no requiere selector global");
+  return {ok:true,published:1};
  }}
 };
 const ctx=vm.createContext({window,document:doc,console,Promise,Date});
@@ -34,13 +37,13 @@ async function run(){
  assert.equal(result.saved,1);
  assert.equal(result.firebase.published,1);
  assert.equal(cloudCalls,1);
- assert.match(status.textContent,/Firebase complexivo: 1/);
+ assert.match(status.textContent,/Firebase complexivos: 1/);
  assert.equal(localSaves,1);
  group="";dirty=true;state.dirty={x:true};
  result=await window.NcomplexSave.save();
  assert.equal(result.saved,1);
- assert.equal(cloudCalls,1,"Sin grupo no se intenta crear documento remoto");
- assert.match(status.textContent,/SOLO EN BDLocal/);
- console.log("VERIFICACIÓN GUARDADO BDLOCAL/FIREBASE: OK (grupo, confirmación y estado claro)");
+ assert.equal(cloudCalls,2,"La sincronización automática no depende del selector global de grupo");
+ assert.match(status.textContent,/Firebase complexivos: 1/);
+ console.log("VERIFICACIÓN GUARDADO BDLOCAL/FIREBASE: OK (sin grupo global y publicación automática)");
 }
 run().catch(err=>{console.error(err);process.exitCode=1;});
