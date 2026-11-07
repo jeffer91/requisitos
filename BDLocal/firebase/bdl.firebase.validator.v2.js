@@ -23,6 +23,7 @@ Función o funciones:
     requisitos:["periodoId","cedula","valores"],
     notas:["periodoId","cedula"],
     complexivo:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
+    complexivos:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
     evaluaciones_nucleos:["periodoId","cedula","grupoInforme","nucleo","evaluaciones","estadoCarga"],
     periodos:["periodoId","label"],
     carreras:["codigoCarrera","nombreCarrera"],
@@ -159,7 +160,7 @@ Función o funciones:
       errors.push("valores debe ser un objeto con los requisitos.");
     }
 
-    if(entity === "notas" || entity === "complexivo"){
+    if(entity === "notas" || entity === "complexivo" || entity === "complexivos"){
       NOTE_FIELDS.forEach(function(field){
         var value = document[field];
         if(value === undefined || value === null || text(value) === ""){ return; }
@@ -198,7 +199,7 @@ Función o funciones:
       if(["PENDIENTE","CONCILIADO","INHABILITADO"].indexOf(text(document.estadoCarga))<0)
         errors.push("Estado de carga no reconocido.");
     }
-    if(entity === "complexivo"){
+    if(entity === "complexivo" || entity === "complexivos"){
       if(["PRESENCIAL","ONLINE","PVC"].indexOf(text(document.grupoInforme))<0)errors.push("grupoInforme inválido.");
       if(text(document.modalidadTitulacion)!=="EXAMEN_COMPLEXIVO")errors.push("Modalidad de evaluación incorrecta.");
       if(["ORDINARIA","SUPLETORIO"].indexOf(text(document.oportunidadAplicada))<0)errors.push("Oportunidad inválida.");

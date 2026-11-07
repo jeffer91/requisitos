@@ -17,7 +17,7 @@
    var complex=w.NcomplexFirebaseComplexivo;
    if(!complex||!complex.normalize)return "";
    var prepared=complex.normalize(Object.assign({},st,entry),period,
-    text(entry.grupoInforme)||group(st));
+    text(entry.grupoInforme)||(/online|virtual|en.linea/i.test(group(st))?"ONLINE":/pvc/i.test(group(st))?"PVC":/presencial/i.test(group(st))?"PRESENCIAL":""));
    return text(prepared&&prepared.dataHash);
   }catch(error){return "";}
  }
@@ -29,7 +29,7 @@
   if(mode==="nucleos"&&![1,2,3,4].includes(nucleus))throw Error("Selecciona un núcleo válido.");
   var auth=w.NcomplexFirebaseAuth,center=w.RequisitosFirebaseOperationCenter;
   if(!auth||typeof auth.requireUser!=="function")throw Error("Conecta Firebase para consultar las calificaciones subidas.");
-  await auth.requireUser();
+  if(mode==="complexivo")await auth.requireWriter();else await auth.requireUser();
   if(!center||typeof center.ensure!=="function")throw Error("Centro Firebase no disponible.");
   await (typeof center.ensureNcomplex==="function"?center.ensureNcomplex():center.ensure());
   var repo=w.RequisitosFirebaseRepository;
@@ -60,7 +60,7 @@
     if(byCed[id]&&byCed[id].length){state.status="Matrícula ambigua";state.error="Existen varias matrículas de esta cédula en BDLocal.";}
     else{
      try{
-      var remote=await repo.getById(mode==="nucleos"?"evaluaciones_nucleos":"complexivo",key);
+      var remote=await repo.getById(mode==="nucleos"?"evaluaciones_nucleos":"complexivos",key);
       if(remote&&remote.data){
        state.uploaded=true;state.status="Subido en Firebase";
        var h=localHash(mode,entry,item.student,period),remoteHash=text(remote.data.dataHash);

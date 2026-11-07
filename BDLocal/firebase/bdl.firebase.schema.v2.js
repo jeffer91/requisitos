@@ -27,6 +27,7 @@ Función o funciones:
       requisitos:"requisitos",
       notas:"notas",
       complexivo:"complexivo",
+      complexivos:"complexivos",
       evaluaciones_nucleos:"evaluaciones_nucleos",
       periodos:"periodos",
       carreras:"carreras",
@@ -40,6 +41,7 @@ Función o funciones:
       requisitos:"periodoId__cedula",
       notas:"periodoId__cedula",
       complexivo:"periodoId__cedula",
+      complexivos:"periodoId__cedula",
       evaluaciones_nucleos:"periodoId__cedula__Nnucleo",
       periodos:"periodoId",
       carreras:"codigoCarrera",
@@ -53,6 +55,7 @@ Función o funciones:
       requisitos:"cedula__periodoId",
       notas:"cedula__periodoId",
       complexivo:"cedula__periodoId",
+      complexivos:"cedula__periodoId",
       evaluaciones_nucleos:"cedula__periodoId__Nnucleo",
       periodos:"periodoId",
       carreras:"codigoCarrera",
@@ -109,6 +112,13 @@ Función o funciones:
       },
       complexivo:{
         description:"Calificaciones de examen complexivo por estudiante y período.",
+        fields:["periodoId","cedula","grupoInforme","nombre","carrera","modalidadTitulacion",
+          "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
+          "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
+          "oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+      },
+      complexivos:{
+        description:"Notas oficiales de Examen Complexivo en colección nueva protegida.",
         fields:["periodoId","cedula","grupoInforme","nombre","carrera","modalidadTitulacion",
           "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
           "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",

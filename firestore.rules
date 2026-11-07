@@ -135,6 +135,37 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* Colección de calificaciones nueva y protegida; la colección /complexivo es legado. */
+    function canPublishComplexivos() {
+      return request.auth != null &&
+        (request.auth.token.ncomplex_write == true ||
+         request.auth.token.titulacion_admin == true);
+    }
+    function validComplexivoGrade(value) {return value is number && value >= 0 && value <= 10;}
+    match /complexivos/{documentId} {
+      allow read: if canPublishComplexivos();
+      allow create: if canPublishComplexivos()
+        && request.resource.data.keys().hasAll([
+          'periodoId','cedula','grupoInforme','modalidadTitulacion',
+          'oportunidadAplicada','estadoEvaluacion','notaOficial','dataHash'
+        ])
+        && validStudentPeriodDocument(documentId,request.resource.data)
+        && validReportGroup(request.resource.data)
+        && request.resource.data.modalidadTitulacion == 'EXAMEN_COMPLEXIVO'
+        && request.resource.data.dataHash is string
+        && request.resource.data.estadoEvaluacion is string
+        && validComplexivoGrade(request.resource.data.notaOficial)
+        && (
+          (request.resource.data.oportunidadAplicada == 'ORDINARIA' &&
+            validComplexivoGrade(request.resource.data.notaTeorica) &&
+            validComplexivoGrade(request.resource.data.notaPractica))
+          || (request.resource.data.oportunidadAplicada == 'SUPLETORIO' &&
+            validComplexivoGrade(request.resource.data.notaTeoricaSupletorio) &&
+            validComplexivoGrade(request.resource.data.notaPracticaSupletorio))
+        );
+      allow update, delete: if false;
+    }
+
     match /titulacion/{documentId} {
       allow read: if true;
       allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)

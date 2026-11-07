@@ -207,6 +207,11 @@ function mode(v){
  ui.tabN.setAttribute("aria-selected",v==="nucleos"?"true":"false");
  ui.tabE.setAttribute("aria-selected",v==="complexivo"?"true":"false");
  ui.picker.hidden=v!=="nucleos";render();
+ if(v==="complexivo"&&data.period&&data.career&&data.exams.length){
+  w.setTimeout(function(){
+   if(data.mode==="complexivo"&&!data.working)sync().catch(function(error){msg(error.message||String(error),"error");});
+  },0);
+ }
 }
 function nucleus(number){
  if(!data.working){progressReset();clearInventory();}
@@ -823,6 +828,29 @@ async function save(){
    (skipped?skipped+" sin modificar. ":"")+
    "Para publicarlos utiliza Guardar Firebase. "+
    "Ninguna nota fue enviada a la nube durante este guardado.","ok");
+  // El guardado local permanece exitoso aunque la red o Firestore fallen.
+  if(data.mode==="complexivo"&&stored.length){
+   try{
+    progressUpdate("Firebase /complexivos",0,stored.length,"Validando y publicando notas guardadas…",95);
+    var cloudResult=await publishSavedRecords(stored,"complexivo",data.period,function(done,total,detail){
+     progressUpdate("Firebase /complexivos",done,total,detail,95+Math.round(done/Math.max(1,total)*4));
+    });
+    var complete=cloudResult&&cloudResult.ok===true;
+    var created=Number(cloudResult&&cloudResult.published||0),unchanged=Number(cloudResult&&cloudResult.unchanged||0);
+    progressUpdate(complete?"BDLocal y Firebase confirmadas":"BDLocal guardada · Firebase pendiente",
+     stored.length,stored.length,created+" nuevas, "+unchanged+" idénticas"+
+      (complete?" · verificadas":" · "+t(cloudResult&&cloudResult.reason||"Revisar incidencias")),
+     100,complete?"success":"warning");
+    msg(stored.length+" notas guardadas en BDLocal. Firebase /complexivos: "+created+" nuevas; "+
+     unchanged+" idénticas. "+(complete?"Lectura y escritura confirmadas.":
+      "Pendientes: "+t(cloudResult&&cloudResult.reason||"revisar autorización, requisitos o notas 40/60.")),
+     complete?"ok":"error");
+   }catch(cloudError){
+    progressUpdate("BDLocal guardada · Firebase pendiente",stored.length,stored.length,
+     cloudError.message||String(cloudError),100,"warning");
+    msg("BDLocal guardada. Firebase /complexivos pendiente: "+(cloudError.message||String(cloudError)),"error");
+   }
+  }
  }catch(error){
   progressUpdate("BDLocal: guardado interrumpido",0,0,
    "No se confirmó la operación completa: "+(error.message||String(error))+
@@ -1029,7 +1057,10 @@ async function signInFirebase(event){
   showFirebaseSession(w.NcomplexFirebaseAuth.status&&w.NcomplexFirebaseAuth.status()||
    {authenticated:true,email:user.email});
   msg("Firebase Authentication: "+user.email+
-   ". Si tu cuenta tiene el rol ncomplex_write o titulacion_admin, ya puedes publicar las notas.","ok");
+   ". Si tu cuenta tiene el rol ncomplex_write o titulacion_admin, puedes sincronizar las notas.","ok");
+  if(data.mode==="complexivo"&&data.period&&!data.working){
+   w.setTimeout(function(){sync().catch(function(error){msg(error.message||String(error),"error");});},0);
+  }
  }catch(error){msg("No se pudo autenticar en Firebase: "+(error.message||error),"error");}
  finally{password.value="";button.disabled=false;}
 }

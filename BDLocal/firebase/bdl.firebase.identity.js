@@ -175,7 +175,7 @@ Función o funciones:
         ? identity.remoteId + "__N" + nucleus : "";
     }
 
-    if(["matriculas","requisitos","notas","complexivo"].indexOf(entity) >= 0){
+    if(["matriculas","requisitos","notas","complexivo","complexivos"].indexOf(entity) >= 0){
       return identityFromRow(row).remoteId;
     }
 
