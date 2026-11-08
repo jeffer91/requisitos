@@ -102,7 +102,7 @@ async function publish(options){
    status(message,blocked.length>0||conflicts.length>0||invalid.length>0);
    return {ok:!blocked.length&&!conflicts.length&&!invalid.length,published:0,same,conflicts,invalid,blocked,pending:blocked.length+invalid.length+conflicts.length};
   }
-  const batch=pending.slice(0,25);
+  const batch=pending;
   // Publicación sin confirmación extra: el guardado local inicia el flujo.
   let saved=0;
   for(const doc of batch){
@@ -121,9 +121,9 @@ async function publish(options){
   }
   status("Firebase complexivos: "+saved+" documentos creados; iguales: "+same+"; conflictos: "+conflicts.length+
    "; inválidos: "+invalid.length+"; bloqueados 9/9: "+blocked.length+
-   (pending.length>25?"; siguientes por publicar: "+(pending.length-25):"")+
+   "; revisados: "+batch.length+
    (blocked.length?". "+blocked.slice(0,2).join(" | "):""),!!conflicts.length||!!blocked.length);
-  return {ok:!blocked.length&&!conflicts.length&&!invalid.length,published:saved,same,conflicts,invalid,blocked,pending:Math.max(0,selected.length-saved-same)};
+  return {ok:!blocked.length&&!conflicts.length&&!invalid.length&&saved+same===selected.length,published:saved,same,conflicts,invalid,blocked,pending:Math.max(0,selected.length-saved-same)};
  }catch(error){
    const detail=t(error&&error.message||error);
    status("Firebase complexivos NO guardado: "+detail+

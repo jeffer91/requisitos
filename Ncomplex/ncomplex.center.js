@@ -622,32 +622,24 @@ async function publishSavedRecords(rows,mode,period,onProgress){
  if(mode==="complexivo"){
   var publisher=w.NcomplexFirebaseComplexivo;
   if(!publisher||typeof publisher.publish!=="function")
-   return {ok:false,published:0,pending:rows.length,errors:1,conflicts:0,reason:"Publicador de complexivo no disponible."};
-  var published=0,conflicts=0,errors=0,reason="",validIds=rows.map(studentId),alreadyChecked=0;
-  for(var i=0;i<Math.ceil(rows.length/25)+1;i++){
-   var baseline=published;
-   var response=await publisher.publish({
-    periodoId:period,anyGroup:true,onlyCedulas:validIds,confirmedByCenter:true,
-    onProgress:function(status){
-     var n=Math.max(0,Math.min(rows.length,baseline+Number(status&&status.processed||0)));
-     notify(n,rows.length,"Firebase: "+n+" de "+rows.length+" registros enviados para verificación");
-    }
-   });
-   if(!response||response.ok!==true){
-    errors++;reason=t(response&&(response.error||response.reason))||"Firebase no confirmó el examen.";
-    break;
+   return {ok:false,published:0,unchanged:0,pending:rows.length,errors:1,conflicts:0,
+    reason:"Publicador de /complexivos no disponible."};
+  var response=await publisher.publish({
+   periodoId:period,anyGroup:true,onlyCedulas:rows.map(studentId),confirmedByCenter:true,
+   onProgress:function(progress){
+    notify(Number(progress&&progress.processed||0),rows.length,
+     "Firebase: "+Number(progress&&progress.published||0)+" nuevas; "+
+     Number(progress&&progress.same||0)+" idénticas verificadas");
    }
-   published+=Number(response.published||0);
-   alreadyChecked=Math.max(alreadyChecked,published+Number(response.same||0));
-   notify(Math.min(rows.length,alreadyChecked),rows.length,
-    "Firebase: "+published+" publicados; "+Number(response.same||0)+" existentes iguales");
-   conflicts+=(response.conflicts||[]).length;
-   errors+=(response.invalid||[]).length+(response.blocked||[]).length;
-   if(!response.published)break;
-  }
-  return {ok:!errors&&!conflicts,published:published,conflicts:conflicts,errors:errors,
-   pending:errors?rows.length:0,reason:reason||(
-    errors?"Hay notas sin modalidad verificable o requisitos incompletos.":"")};
+  });
+  return {ok:!!response&&response.ok===true,
+   published:Number(response&&response.published||0),
+   unchanged:Number(response&&response.same||0),
+   pending:Number(response&&response.pending||0),
+   conflicts:(response&&response.conflicts||[]).length,
+   errors:(response&&response.invalid||[]).length+(response&&response.blocked||[]).length+
+     (response&&response.errors||[]).length,
+   reason:t(response&&(response.reason||response.error))};
  }
  var grouped=Object.create(null),published=0,unchanged=0,conflicts=0,errors=0,pending=0,unknown=0,done=0,
   details=[];
@@ -822,13 +814,13 @@ async function save(){
    catch(error){msg("Notas locales guardadas, pero el historial de importación necesita revisión: "+error.message,"error");}
   }
   data.preview=null;ui.review.textContent="";clearInventory();await refresh();
-  progressUpdate("BDLocal: guardado finalizado",stored.length,stored.length,
-   stored.length+" guardadas · "+skipped+" sin modificar · No se enviaron a Firebase",100,"success");
-  msg(stored.length+" registro(s) guardado(s) en BDLocal. "+
-   (skipped?skipped+" sin modificar. ":"")+
-   "Para publicarlos utiliza Guardar Firebase. "+
-   "Ninguna nota fue enviada a la nube durante este guardado.","ok");
-  // El guardado local permanece exitoso aunque la red o Firestore fallen.
+  if(data.mode==="nucleos"||!stored.length){
+    progressUpdate("BDLocal: guardado finalizado",stored.length,stored.length,
+     stored.length+" guardadas · "+skipped+" sin modificar",100,"success");
+    msg(stored.length+" registro(s) guardado(s) en BDLocal. "+
+     (data.mode==="nucleos"?"Los núcleos mantienen su publicación independiente.":"No hay nuevas notas de examen por sincronizar."),"ok");
+   }
+   // El guardado local permanece exitoso aunque la red o Firestore fallen.
   if(data.mode==="complexivo"&&stored.length){
    try{
     progressUpdate("Firebase /complexivos",0,stored.length,"Validando y publicando notas guardadas…",95);
@@ -947,11 +939,12 @@ async function sync(){
   if(!authStatus||authStatus.authenticated!==true){
    progressReset();
    showFirebaseSession(authStatus||{authenticated:false});
-   msg("La conexión a utet-4387a ya está preparada igual que en Carga. "+
-    "Pero firestore.rules exige una identidad autorizada para evaluaciones_nucleos "+
-    "(ncomplex_write o titulacion_admin). Carga no necesita esa identidad para sus "+
-    "otras colecciones. Usa 'Autorizar notas' si tienes una cuenta con ese permiso. "+
-    "No se intentó publicar ninguna de las "+rows.length+" notas y BDLocal sigue intacta.","error");
+   msg("La conexión a utet-4387a está configurada. Ncomplex necesita una sesión "+
+     "de Firebase Authentication con el rol ncomplex_write o titulacion_admin "+
+     "para publicar en "+(data.mode==="complexivo"?"/complexivos":"/evaluaciones_nucleos")+
+     ". Este control lo hace la aplicación, independientemente de las reglas "+
+     "que actualmente estén desplegadas. Pulsa 'Autorizar notas'. "+
+     rows.length+" nota(s) permanecen intactas en BDLocal.","error");
    return;
   }
  }catch(error){
@@ -1006,10 +999,10 @@ function showFirebaseSession(info){
  if(label){
   label.textContent=signed?
    "Firebase: sesión iniciada"+(info.email?" · "+info.email:"")+
-   ". Se recuperará automáticamente al volver a abrir la aplicación.":
+   ". La sesión se recuperará automáticamente; los permisos se comprueban al publicar.":
    (info.error?"Firebase: no se pudo recuperar la sesión · "+info.error:
     "Firebase: conexión directa a utet-4387a (igual que Carga). Para publicar "+
-    "evaluaciones individuales, Firestore exige una cuenta autorizada.");
+    "notas, Ncomplex exige una cuenta autorizada antes de escribir.");
   label.className="nc-firebase-session"+(signed?" is-connected":" is-disconnected");
  }
  if(connect)connect.textContent=signed?"Cambiar cuenta autorizada":"Autorizar notas";
