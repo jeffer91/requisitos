@@ -276,7 +276,7 @@ async function run(){
   "Sin una sesión válida, nunca se intenta escribir en Firebase.");
  assert.equal(dom["nc-firebase-login"].hidden,true,
   "No abrir automáticamente formularios de contraseña: Carga solo prepara Firebase.");
- assert.match(dom["nc-message"].textContent,/La conexión a utet-4387a ya está preparada igual que en Carga/);
+ assert.match(dom["nc-message"].textContent,/La conexión a utet-4387a está configurada.*Ncomplex necesita una sesión/);
  assert.match(dom["nc-message"].textContent,/ncomplex_write o titulacion_admin/,
   "Explicar la diferencia de permisos entre Carga y las notas protegidas.");
  console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, fallos de rol y bloqueo seguro).");
