@@ -108,13 +108,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* Evaluaciones individuales: diferentes de los agregados existentes en /nucleos.
-       Solo usuarios autenticados pueden leer o escribir estas notas. */
+    /* Evaluaciones individuales por núcleo (Ncomplex).
+       Escritura directa igual que Carga: sin Firebase Auth, con validación estructural. */
     match /evaluaciones_nucleos/{documentId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null
-        && (request.auth.token.ncomplex_write == true || request.auth.token.titulacion_admin == true)
-        && validPeriod(request.resource.data.periodoId)
+      allow read: if true;
+      allow create, update: if validPeriod(request.resource.data.periodoId)
         && validIdentification(request.resource.data.cedula)
         && request.resource.data.nucleo is int
         && request.resource.data.nucleo >= 1
@@ -135,35 +133,33 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* Colección de calificaciones nueva y protegida; la colección /complexivo es legado. */
-    function canPublishComplexivos() {
-      return request.auth != null &&
-        (request.auth.token.ncomplex_write == true ||
-         request.auth.token.titulacion_admin == true);
-    }
+    /* Notas oficiales de Examen Complexivo (Ncomplex).
+       Escritura directa igual que Carga: sin Firebase Auth, con validación de notas. */
     function validComplexivoGrade(value) {return value is number && value >= 0 && value <= 10;}
-    match /complexivos/{documentId} {
-      allow read: if canPublishComplexivos();
-      allow create: if canPublishComplexivos()
-        && request.resource.data.keys().hasAll([
+    function validComplexivoDocument(documentId, data) {
+      return data.keys().hasAll([
           'periodoId','cedula','grupoInforme','modalidadTitulacion',
           'oportunidadAplicada','estadoEvaluacion','notaOficial','dataHash'
         ])
-        && validStudentPeriodDocument(documentId,request.resource.data)
-        && validReportGroup(request.resource.data)
-        && request.resource.data.modalidadTitulacion == 'EXAMEN_COMPLEXIVO'
-        && request.resource.data.dataHash is string
-        && request.resource.data.estadoEvaluacion is string
-        && validComplexivoGrade(request.resource.data.notaOficial)
+        && validStudentPeriodDocument(documentId, data)
+        && validReportGroup(data)
+        && data.modalidadTitulacion == 'EXAMEN_COMPLEXIVO'
+        && data.dataHash is string
+        && data.estadoEvaluacion is string
+        && validComplexivoGrade(data.notaOficial)
         && (
-          (request.resource.data.oportunidadAplicada == 'ORDINARIA' &&
-            validComplexivoGrade(request.resource.data.notaTeorica) &&
-            validComplexivoGrade(request.resource.data.notaPractica))
-          || (request.resource.data.oportunidadAplicada == 'SUPLETORIO' &&
-            validComplexivoGrade(request.resource.data.notaTeoricaSupletorio) &&
-            validComplexivoGrade(request.resource.data.notaPracticaSupletorio))
+          (data.oportunidadAplicada == 'ORDINARIA' &&
+            validComplexivoGrade(data.notaTeorica) &&
+            validComplexivoGrade(data.notaPractica))
+          || (data.oportunidadAplicada == 'SUPLETORIO' &&
+            validComplexivoGrade(data.notaTeoricaSupletorio) &&
+            validComplexivoGrade(data.notaPracticaSupletorio))
         );
-      allow update, delete: if false;
+    }
+    match /complexivos/{documentId} {
+      allow read: if true;
+      allow create, update: if validComplexivoDocument(documentId, request.resource.data);
+      allow delete: if false;
     }
 
     match /titulacion/{documentId} {

@@ -50,9 +50,12 @@ function activeStudent(s){
  var estado=t(s.estadoMatricula||s._estadoMatricula).toUpperCase();
  return s.eliminado!==true&&s.retirado!==true&&estado==="ACTIVO";
 }
+// Núcleos: 8 requisitos (Titulación no aplica todavía). Complexivo: 9.
+function stage(){return data.mode==="nucleos"?"nucleos":"complexivo";}
+function reqWord(){return data.mode==="nucleos"?"ocho":"nueve";}
 function nineRequirements(s){
  var policy=w.NcomplexNucleosPolicy;
- return !!(policy&&policy.check(s&&s._ncomplexRequirements,"complexivo").eligible);
+ return !!(policy&&policy.check(s&&s._ncomplexRequirements,stage()).eligible);
 }
 function currentRows(){return data.students.filter(function(s){
  return sameCareer(studentCode(s))&&nineRequirements(s);
@@ -105,7 +108,7 @@ function currentConflicts(){return data.nuclei.filter(function(r){
 });}
 function nucleusRequirements(student){
  var check=student&&student._ncomplexRequirements;
- return w.NcomplexNucleosPolicy&&w.NcomplexNucleosPolicy.check(check,"complexivo");
+ return w.NcomplexNucleosPolicy&&w.NcomplexNucleosPolicy.check(check,"nucleos");
 }
 function careerInfo(){
  var first=currentRows()[0]||data.students.find(function(s){return sameCareer(studentCode(s));});
@@ -121,10 +124,17 @@ function groupGuess(st){
  var name=studentCareer(st).toLowerCase(),code=studentCode(st).toLowerCase(),
   study=t(st.modalidadEstudio||st.tipoModalidad||st.Modalidad||"").toLowerCase();
  var registered=t(st.grupoInforme).toUpperCase();
+ // Código oficial de carrera: 550411C02-P-1701 (P = presencial), 550411C02-L-1701 (L = en línea).
+ var letter=(code.match(/-([a-z])-\d+\s*$/)||[])[1]||"";
  return /pvc/.test(study+" "+name+" "+code)?"PVC":
-  /online|en.linea|virtual/.test(study+" "+name+" "+code)?"ONLINE":
-  /presencial/.test(study)?"PRESENCIAL":
+  /online|en.linea|virtual/.test(study+" "+name)||letter==="l"?"ONLINE":
+  /presencial/.test(study)||letter==="p"?"PRESENCIAL":
   ["PRESENCIAL","ONLINE","PVC"].indexOf(registered)>=0?registered:"";
+}
+function groupForRecord(r){
+ var ced=t(r&&r.cedula),found=data.students.filter(function(st){return studentId(st)===ced;});
+ var g=found.length?groupGuess(found[0]):"";
+ return g||groupGuess({NombreCarrera:r&&r.nombreCarrera,CodigoCarrera:r&&r.codigoCarrera});
 }
 function showGroup(){
  var roster=currentRows(),groups=roster.map(groupGuess),
@@ -235,7 +245,7 @@ function showPending(){
  currentRows().forEach(function(st){
   var row=ids[studentId(st)],reasons=[];
   var checked=st._ncomplexRequirements,requirements=checked&&checked.requirements||[];
-  var check=w.NcomplexNucleosPolicy.check(checked,"complexivo");
+  var check=w.NcomplexNucleosPolicy.check(checked,stage());
   if(!check.eligible)reasons=reasons.concat(check.missing);
   if(!row)reasons.push("Sin calificaciones");
   else if(data.mode==="nucleos"){
@@ -269,7 +279,7 @@ function guide(){
  detail.textContent=task?(same?"Pega las calificaciones de este núcleo o elige otro si ya las tienes.":
   "Siguiente pendiente: "+task.name+" · Núcleo "+task.nucleus):
   data.mode==="nucleos"?
-   (!currentRows().length?"No hay matrículas con nueve requisitos CUMPLE verificados. Consulta el diagnóstico al analizar Moodle.":
+   (!currentRows().length?"No hay matrículas con "+reqWord()+" requisitos CUMPLE verificados. Consulta el diagnóstico al analizar Moodle.":
     "No hay núcleos pendientes registrados para esta carrera."):
    "Revisa las notas del complexivo y las incidencias del período.";
  next.hidden=!task||same;
@@ -518,11 +528,11 @@ async function analyze(){
    Object.keys(groupCounts).map(function(k){return k+" ("+groupCounts[k]+")";}).join(", ")+
    ". Los grupos no verificados no se inventan."));
  }
- if(!selected.length)issues.push("No hay matrículas habilitadas: se requieren los nueve requisitos en estado CUMPLE y matrícula ACTIVA.");
+ if(!selected.length)issues.push("No hay matrículas habilitadas: se requieren los "+reqWord()+" requisitos en estado CUMPLE y matrícula ACTIVA.");
  if(excludedByRequirements().length){
   var excludedActive=excludedByRequirements(),causes=requirementSummary(excludedActive);
   ui.review.appendChild(el("p",excludedActive.length+
-   " matrícula(s) activa(s) no tienen los nueve requisitos CUMPLE verificados. "+
+   " matrícula(s) activa(s) no tienen los "+reqWord()+" requisitos CUMPLE verificados. "+
    "No se presupone incumplimiento: revisa si el estado es PENDIENTE, NO CUMPLE o SIN DATO."));
   if(causes.length){
    var breakdown=el("div",null,"nc-requirements-breakdown");
@@ -585,7 +595,7 @@ async function analyze(){
     return (req.label||req.key)+" ("+(req.status||"SIN DATO")+")";
    });
    listing.appendChild(el("li",item.imported.nombreCompleto+" · "+item.imported.correo+
-    " — Matrícula activa sin los nueve requisitos CUMPLE. Detalle: "+(missing.join(", ")||diagnosis.reason)+"."));
+    " — Matrícula activa sin los "+reqWord()+" requisitos CUMPLE. Detalle: "+(missing.join(", ")||diagnosis.reason)+"."));
   });
   unlinked.forEach(function(item){
    listing.appendChild(el("li",item.row.nombreCompleto+" · "+item.row.correo+
@@ -610,7 +620,7 @@ function digest(v){var str=JSON.stringify(v),h=2166136261;for(var i=0;i<str.leng
 // explícitas. El progreso solo confirma persistencia o lectura ya completada.
 async function publishSavedRecords(rows,mode,period,onProgress){
  var notify=typeof onProgress==="function"?onProgress:function(){};
- notify(0,rows&&rows.length||0,"Comprobando permisos institucionales…");
+ notify(0,rows&&rows.length||0,"Conectando con Firebase…");
  if(!rows||!rows.length)return {ok:true,published:0,pending:0};
  var auth=w.NcomplexFirebaseAuth;
  if(!auth||typeof auth.requireWriter!=="function")
@@ -644,7 +654,9 @@ async function publishSavedRecords(rows,mode,period,onProgress){
  var grouped=Object.create(null),published=0,unchanged=0,conflicts=0,errors=0,pending=0,unknown=0,done=0,
   details=[];
  rows.forEach(function(row){
-  var group=t(row.grupoInforme),bucket=grouped[group]||(grouped[group]=[]);
+  var group=t(row.grupoInforme).toUpperCase();
+  if(["PRESENCIAL","ONLINE","PVC"].indexOf(group)<0)group=t(groupForRecord(row));
+  var bucket=grouped[group]||(grouped[group]=[]);
   bucket.push(row);
  });
  for(var group of Object.keys(grouped)){
@@ -655,11 +667,12 @@ async function publishSavedRecords(rows,mode,period,onProgress){
    if(!w.NcomplexNucleosFirebase||typeof w.NcomplexNucleosFirebase.push!=="function"){
     pending+=block.length;errors+=block.length;details.push("No está disponible el publicador de núcleos.");continue;
    }
-   for(var i=0;i<Math.ceil(block.length/25)+1;i++){
+   for(var i=0;i<Math.ceil(block.length/100)+1;i++){
     try{
      var offset=done;
      var result=await w.NcomplexNucleosFirebase.push({periodoId:period,grupoInforme:group,
-      onlyIds:block.map(function(row){return row.id;}),skipIds:Object.keys(attempted),limit:25,
+      resolveGroup:groupForRecord,
+      onlyIds:block.map(function(row){return row.id;}),skipIds:Object.keys(attempted),limit:100,
       onProgress:function(status){
        var current=Math.min(rows.length,offset+Number(status&&status.processed||0));
        notify(current,rows.length,"Firebase: verificando "+current+" de "+rows.length+" registros");
@@ -737,7 +750,7 @@ async function save(){
      if(!w.confirm("La calificación de "+studentName(st)+" es diferente de la guardada. ¿Actualizar únicamente la copia local? Firebase comprobará versiones antes de publicar.")){skipped++;continue;}
     }
     var eligibility=await con.checkRequirements(data.period,ced);
-    var check=w.NcomplexNucleosPolicy.check(eligibility,"complexivo");
+    var check=w.NcomplexNucleosPolicy.check(eligibility,stage());
     var missing=check.missing;
     var eligible=check.eligible;
     if(!eligible){skipped++;continue;} // No guardar notas si los nueve requisitos dejan de cumplirse.
@@ -919,7 +932,7 @@ async function sync(){
  currentRows().forEach(function(st){eligible[studentId(st)]=true;});
  var rows=data.mode==="nucleos"?data.nuclei.filter(function(r){
   return sameCareer(r.codigoCarrera)&&Number(r.nucleo)===data.nucleus&&
-   eligible[t(r.cedula)]&&r.estadoSync!=="SINCRONIZADO"&&r.estadoSync!=="CONFLICTO";
+   eligible[t(r.cedula)]&&r.estadoSync!=="SINCRONIZADO";
  }):data.exams.filter(function(r){
   return eligible[studentId(r)]&&studentMode(r)==="EXAMEN_COMPLEXIVO";
  });
@@ -939,24 +952,20 @@ async function sync(){
   if(!authStatus||authStatus.authenticated!==true){
    progressReset();
    showFirebaseSession(authStatus||{authenticated:false});
-   msg("La conexión a utet-4387a está configurada. Ncomplex necesita una sesión "+
-     "de Firebase Authentication con el rol ncomplex_write o titulacion_admin "+
-     "para publicar en "+(data.mode==="complexivo"?"/complexivos":"/evaluaciones_nucleos")+
-     ". Este control lo hace la aplicación, independientemente de las reglas "+
-     "que actualmente estén desplegadas. Pulsa 'Autorizar notas'. "+
-     rows.length+" nota(s) permanecen intactas en BDLocal.","error");
+   msg("No se pudo preparar la conexión directa a utet-4387a. Revisa la conexión a internet y "+
+     "vuelve a intentar. "+rows.length+" nota(s) permanecen intactas en BDLocal.","error");
    return;
   }
  }catch(error){
-  msg("No se pudo recuperar Firebase Authentication: "+(error.message||String(error))+
+  msg("No se pudo conectar con Firebase: "+(error.message||String(error))+
    ". Las calificaciones locales no se modificaron.","error");
   return;
  }
  var wasSaveDisabled=ui.save.disabled;
  data.working=true;ui.publish.disabled=true;ui.save.disabled=true;
  progressUpdate("Firebase: iniciando publicación",0,rows.length,
-  "Autenticando y preparando "+rows.length+" registros pendientes…",0);
- msg("Validando permisos y publicando por período y cédula, sin escoger un grupo global…");
+  "Preparando "+rows.length+" registros pendientes…",0);
+ msg("Subiendo directo a Firebase por período y cédula…");
  try{
   var result=await publishSavedRecords(rows,data.mode,data.period,function(done,total,detail){
    progressUpdate("Guardando en Firebase",done,total,detail,
@@ -966,9 +975,9 @@ async function sync(){
      (result.errors&&result.pending<rows.length))await refresh();
   if(result.ok){
    progressUpdate("Firebase: publicación finalizada",rows.length,rows.length,
-    result.published+" nuevas · "+Number(result.unchanged||0)+" idénticas confirmadas; no se reemplazó ninguna nota",100,"success");
+    result.published+" escritas · "+Number(result.unchanged||0)+" ya estaban iguales en Firebase",100,"success");
    msg("Firebase comprobó la carga: "+result.published+
-    " nota(s) nueva(s) publicada(s). Identificación por período y cédula"+
+    " nota(s) escrita(s) y verificada(s). Identificación por período y cédula"+
     (data.mode==="nucleos"?" y núcleo":"")+".","ok");
   }else{
    progressUpdate("Firebase: publicación con incidencias",0,rows.length,
@@ -997,7 +1006,9 @@ function showFirebaseSession(info){
   logout=$("nc-logout-firebase");
  var signed=info.authenticated===true;
  if(label){
-  label.textContent=signed?
+  label.textContent=info.openWrite?
+   "Firebase: conexión directa a utet-4387a (igual que Carga). Las notas se suben sin iniciar sesión.":
+   signed?
    "Firebase: sesión iniciada"+(info.email?" · "+info.email:"")+
    ". La sesión se recuperará automáticamente; los permisos se comprueban al publicar.":
    (info.error?"Firebase: no se pudo recuperar la sesión · "+info.error:
@@ -1005,8 +1016,8 @@ function showFirebaseSession(info){
     "notas, Ncomplex exige una cuenta autorizada antes de escribir.");
   label.className="nc-firebase-session"+(signed?" is-connected":" is-disconnected");
  }
- if(connect)connect.textContent=signed?"Cambiar cuenta autorizada":"Autorizar notas";
- if(logout)logout.hidden=!signed;
+ if(connect){connect.textContent=signed?"Cambiar cuenta autorizada":"Autorizar notas";connect.hidden=!!info.openWrite;}
+ if(logout)logout.hidden=!signed||!!info.openWrite;
 }
 function resumeFirebaseSession(){
  var manager=w.NcomplexFirebaseAuth;

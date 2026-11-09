@@ -1,4 +1,5 @@
-/* Conciliación deliberada de conflictos sin sobrescritura ciega. */
+/* Conciliación deliberada de conflictos: elegir BDLocal (se sube en la próxima
+ * subida directa) o copiar a BDLocal la versión verificada de Firebase. */
 (function(w){"use strict";
 var entity="evaluaciones_nucleos";
 function id(row){return row.periodoId+"__"+row.cedula+"__N"+row.nucleo;}
@@ -16,12 +17,12 @@ async function resolve(row,choice){
   throw Error("Las notas locales cambiaron; recarga antes de conciliar.");
  var guard={updatedAt:row.updatedAt,sourceHash:row.sourceHash};
  if(choice==="local"){
-  // Conservar las notas locales NO autoriza reemplazar una nota ya publicada.
-  // El conflicto permanece visible; una publicación posterior jamás sobrescribe.
-  await local.update(row.id,{estadoSync:"CONFLICTO",remoteHash:remote.data.dataHash,
-   cloudError:"Se conserva BDLocal; Firebase contiene una nota diferente y no se sobrescribirá automáticamente.",
+  // Subida directa (igual que Carga): conservar BDLocal deja el registro
+  // pendiente y la próxima subida escribe la nota local sobre la de Firebase.
+  await local.update(row.id,{estadoSync:"PENDIENTE",remoteHash:remote.data.dataHash,
+   cloudError:"Se conserva BDLocal; la próxima subida reemplazará la nota de Firebase.",
    conciliacionAt:new Date().toISOString()},guard);
-  return {choice:choice,status:"CONFLICTO"};
+  return {choice:choice,status:"PENDIENTE"};
  }
  var document=remote.data;
  var expected=w.RequisitosFirebaseValidator&&w.RequisitosFirebaseValidator.validate(entity,document,{documentId:id(row)});

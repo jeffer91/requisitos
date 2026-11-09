@@ -33,7 +33,7 @@ const el={
 };
 window.confirm=()=>{confirmations++;return true;};
 window.NcomplexState={get:()=>({dirty:{}})};
-window.NcomplexFirebaseAuth={async requireWriter(){return {uid:"test-user"};}};
+window.NcomplexFirebaseAuth={async requireWriter(){return {openWrite:true};}};
 window.ConNcomplex={
  async listEvaluations(){return [note];},
  async listStudents(){return [student];},
@@ -43,10 +43,10 @@ window.RequisitosFirebaseOperationCenter={async ensure(){}};
 window.RequisitosFirebaseRepository={
  async getById(entity,key){assert.equal(entity,"complexivos");return remote.get(key)||null;},
  async writeChecked(entity,doc,option){
-  assert.equal(entity,"complexivos");assert.equal(option.expected.exists,false);
-  assert.equal(option.requireTransaction,true,"El examen complexivo exige escritura transaccional sin reemplazos.");
+  assert.equal(entity,"complexivos");
   const key=period+"__"+doc.cedula;
-  assert.equal(remote.has(key),false);
+  // Escritura directa con base en el estado remoto recién leído.
+  assert.equal(option.expected.exists,remote.has(key),"La base de versión corresponde al remoto leído.");
   cloudWrites.push(doc);remote.set(key,{data:doc});return {ok:true};
  }
 };

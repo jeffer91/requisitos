@@ -1,5 +1,7 @@
-/* Publicación automática de resultados Ncomplex en la colección complexivos.
- * No se sobrescriben notas remotas existentes: los conflictos deben conciliarse.
+/* Publicación DIRECTA de resultados Ncomplex en la colección complexivos
+ * (igual que Carga). BDLocal es la autoridad: si el documento remoto es igual
+ * no se escribe; si falta o difiere se escribe con control de versión sobre el
+ * estado remoto recién leído y se verifica con una lectura posterior.
  */
 (function(w,d){"use strict";
 const $=id=>d.getElementById(id),t=v=>String(v==null?"":v).trim();
@@ -64,8 +66,12 @@ async function publish(options){
    const st=found[0];
    const study=t(st.modalidadEstudio||st.Modalidad||st.modalidad||st.tipoModalidad).toLowerCase();
    const career=t(st.NombreCarrera||st.Carrera||st.carrera).toLowerCase();
-   const inferred=/online|en.linea|virtual/.test(study)||/\bonline\b/.test(career)?"ONLINE":
-     /pvc/.test(study)?"PVC":/presencial/.test(study)?"PRESENCIAL":"";
+   // Código oficial de carrera: -P- presencial, -L- en línea (p. ej. 550411C02-L-1701).
+   const code=t(st.CodigoCarrera||st.codigoCarrera).toLowerCase();
+   const letter=(code.match(/-([a-z])-\d+\s*$/)||[])[1]||"";
+   const inferred=/pvc/.test(study+" "+career)?"PVC":
+     /online|en.linea|virtual/.test(study)||/\bonline\b/.test(career)||letter==="l"?"ONLINE":
+     /presencial/.test(study)||letter==="p"?"PRESENCIAL":"";
    const savedGroup=t(r.grupoInforme).toUpperCase();
    // Una carga Moodle puede contener presencial y online. Publicar cada
    // matrícula únicamente cuando su grupo persistido corresponde al solicitado.
@@ -90,8 +96,10 @@ async function publish(options){
   const pending=[],conflicts=[];let same=0;
   for(const doc of valid){
    const remote=await repo.getById("complexivos",period+"__"+doc.cedula);
-   if(remote){if(remote.data&&remote.data.dataHash===doc.dataHash)same++;else conflicts.push(doc.cedula);}
-   else pending.push(doc);
+   if(remote&&remote.data&&remote.data.dataHash===doc.dataHash){same++;continue;}
+   doc.__expected=remote&&remote.data?{exists:true,hash:t(remote.data.dataHash),
+     version:Number(remote.data.version||0),updatedAt:t(remote.data.updatedAt)}:{exists:false};
+   pending.push(doc);
   }
   if(!pending.length){
    const detail=blocked.slice(0,3).join(" | ");
@@ -106,9 +114,13 @@ async function publish(options){
   // Publicación sin confirmación extra: el guardado local inicia el flujo.
   let saved=0;
   for(const doc of batch){
-    const response=await repo.writeChecked("complexivos",doc,{
-      expected:{exists:false},requireTransaction:true
-    });
+    const expected=doc.__expected||{exists:false};delete doc.__expected;
+    let response;
+    try{response=await repo.writeChecked("complexivos",doc,{expected});}
+    catch(error){
+      if(error&&error.code==="FIREBASE_CONFLICT"){conflicts.push(doc.cedula);continue;}
+      throw error;
+    }
     if(!response||response.ok!==true)throw new Error("Firebase no confirmó escritura para "+doc.cedula+".");
     const confirmed=await repo.getById("complexivos",period+"__"+doc.cedula);
     if(!confirmed||!confirmed.data||confirmed.data.dataHash!==doc.dataHash)
@@ -119,7 +131,7 @@ async function publish(options){
      catch(callbackError){/* La visualización nunca cancela una escritura confirmada. */}
     }
   }
-  status("Firebase complexivos: "+saved+" documentos creados; iguales: "+same+"; conflictos: "+conflicts.length+
+  status("Firebase complexivos: "+saved+" documentos escritos; iguales: "+same+"; conflictos: "+conflicts.length+
    "; inválidos: "+invalid.length+"; bloqueados 9/9: "+blocked.length+
    "; revisados: "+batch.length+
    (blocked.length?". "+blocked.slice(0,2).join(" | "):""),!!conflicts.length||!!blocked.length);

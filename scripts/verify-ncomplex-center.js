@@ -80,7 +80,7 @@ assert.equal(window.RequisitosFirebaseSchema.collections.evaluaciones_nucleos,"e
 const invalid=window.RequisitosFirebaseValidator.validate("evaluaciones_nucleos",
  {...remote,evaluaciones:[9,11,null,null],version:1},{documentId:remoteId});
 assert.equal(invalid.ok,false,"No admitir calificaciones mayores de 10.");
-let local={...record},cloud=new Map(),writes=0,updateCalls=0;
+let local={...record},cloud=new Map(),writes=0,updateCalls=0,concurrent=false;
 window.NcomplexNucleosStore={
  async list(periodId){return periodId===period?[{...local}]:[];},
  async update(localId,fields){assert.equal(localId,id);local={...local,...fields};updateCalls++;return local;}
@@ -90,11 +90,12 @@ window.RequisitosFirebaseRepository={
  async getById(entity,key){assert.equal(entity,"evaluaciones_nucleos");return cloud.get(key)||null;},
  async writeChecked(entity,doc,opts){
    assert.equal(entity,"evaluaciones_nucleos");
-   assert.equal(opts.expected.exists,false);assert.equal(opts.requireTransaction,true);
    const key=period+"__"+doc.cedula+"__N"+doc.nucleo;
-   const old=cloud.get(key);
+   const old=cloud.get(key),expected=opts.expected||{};
    if(old&&old.data.dataHash===doc.dataHash)return {ok:true,unchanged:true};
-   if(old){const err=Error("Nota remota ya existente");err.code="FIREBASE_CONFLICT";throw err;}
+   // Igual que el repositorio real: solo escribe si el remoto sigue siendo el leído.
+   const same=expected.exists===false?!old:!!old&&old.data.dataHash===expected.hash;
+   if(!same||concurrent){const err=Error("Cambió en Firebase");err.code="FIREBASE_CONFLICT";throw err;}
    writes++;cloud.set(key,{data:{...doc}});return {ok:true,unchanged:false};
  }
 };
@@ -109,13 +110,26 @@ async function run(){
  const second=await sync.push({periodoId:period,grupoInforme:"PRESENCIAL"});
  assert.equal(second.published,0);
  assert.equal(writes,1,"No duplicar sincronización idéntica");
- // Otra versión remota: solo detectar, nunca sobreescribir.
+ // Otra versión remota: BDLocal es la autoridad (igual que Carga) y se actualiza.
  local.estadoSync="PENDIENTE";local.totalMoodle=8.83;
- cloud.set(remoteId,{data:{dataHash:"otra_version"}});
+ cloud.set(remoteId,{data:{dataHash:"otra_version",version:1}});
  const changed=await sync.push({periodoId:period,grupoInforme:"PRESENCIAL"});
- assert.equal(changed.conflicts,1);
- assert.equal(writes,1);
+ assert.equal(changed.published,1,"Actualiza la versión distinta con la nota local");
+ assert.equal(writes,2);
+ assert.equal(cloud.get(remoteId).data.totalMoodle,8.83);
+ assert.equal(local.estadoSync,"SINCRONIZADO");
+ // Cambio de otro equipo entre la lectura y la escritura: conflicto, sin pisar.
+ local.estadoSync="PENDIENTE";local.totalMoodle=7.5;
+ concurrent=true;
+ const raced=await sync.push({periodoId:period,grupoInforme:"PRESENCIAL"});
+ concurrent=false;
+ assert.equal(raced.conflicts,1);
+ assert.equal(writes,2);
  assert.equal(local.estadoSync,"CONFLICTO");
+ // Un registro en conflicto se reintenta en la siguiente subida directa.
+ const retried=await sync.push({periodoId:period,grupoInforme:"PRESENCIAL"});
+ assert.equal(retried.published,1);
+ assert.equal(local.estadoSync,"SINCRONIZADO");
  assert.ok(updateCalls>=2);
  const html=source("Ncomplex/ncomplex.html");
  for(const marker of ["nc-tab-nucleos","nc-tab-complexivo","nc-publish","nc-paste","nc-table","nc-legacy"]){
@@ -123,7 +137,10 @@ async function run(){
  }
  const rules=source("firestore.rules");
  assert.ok(rules.includes("match /evaluaciones_nucleos/{documentId}"));
- assert.ok(rules.includes("request.auth != null"),"No autorizar subida pública de notas");
+ const block=rules.slice(rules.indexOf("match /evaluaciones_nucleos/{documentId}"));
+ const nucleosRule=block.slice(0,block.indexOf("allow delete"));
+ assert.ok(!nucleosRule.includes("request.auth"),"Subida directa sin login, igual que Carga");
+ assert.ok(nucleosRule.includes("evaluaciones.size() == 4"),"Se conserva la validación estructural");
  console.log("NCOMPLEX CENTRO: OK; Moodle, ceros, identidades, Firebase, conflictos y UI.");
 }
 run().catch(err=>{console.error(err);process.exitCode=1;});

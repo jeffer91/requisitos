@@ -37,6 +37,9 @@ function environment(store){
   document:{createElement(){throw Error("SDK de prueba ya se encuentra cargado.");}}
  };
  sandbox.window=sandbox;
+ // Las pruebas de sesión cubren el modo con login (desactivable); el modo
+ // directo por defecto se comprueba al final.
+ sandbox.NCOMPLEX_FIREBASE_OPEN_WRITE=store.openWrite===true?undefined:false;
  new vm.Script(source,{filename:"ncomplex.firebase-auth.js"}).runInNewContext(sandbox);
  return {api:sandbox.NcomplexFirebaseAuth,store,metrics:()=>({authLoads,signIns,signOuts})};
 }
@@ -75,6 +78,16 @@ async function main(){
  assert.equal(store.user,null,"Cerrar sesión revoca la sesión local.");
  assert.equal(second.api.status().authenticated,false);
  await assert.rejects(second.api.requireWriter(),/Inicia sesión/);
- console.log("VERIFICACIÓN SESIÓN FIREBASE NCOMPLEX: OK (persistencia, recuperación, roles y cierre).");
+ // Modo directo por defecto (igual que Carga): sin sesión ni rol se puede publicar.
+ const direct=environment({user:null,persistence:null,openWrite:true});
+ assert.equal(direct.api.openWrite,true);
+ const openInfo=await direct.api.load();
+ assert.equal(openInfo.openWrite,true);
+ assert.equal(openInfo.authenticated,true,"La conexión directa no espera una sesión.");
+ assert.equal((await direct.api.requireWriter()).openWrite,true);
+ assert.equal((await direct.api.requireUser()).openWrite,true);
+ assert.ok(direct.metrics().authLoads>=1,"Igual que Carga, prepara Firestore antes de escribir.");
+ assert.equal(direct.metrics().signIns,0,"Nunca pide correo ni contraseña.");
+ console.log("VERIFICACIÓN SESIÓN FIREBASE NCOMPLEX: OK (modo directo sin login; modo con sesión: persistencia, roles y cierre).");
 }
 main().catch(e=>{console.error("VERIFICACIÓN SESIÓN FIREBASE NCOMPLEX: ERROR",e);process.exitCode=1;});

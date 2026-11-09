@@ -1,5 +1,31 @@
 # Ncomplex — Centro de calificaciones
 
+## Subida directa a Firebase (noviembre 2026)
+
+Ncomplex y Defensas suben notas **directo a Firebase, igual que Carga**: sin iniciar sesión y sin cola de 25 cambios.
+
+| Módulo | Colección | ID del documento |
+|---|---|---|
+| Ncomplex · Núcleos | `evaluaciones_nucleos` | `periodoId__cedula__N1…N4` |
+| Ncomplex · Examen complexivo | `complexivos` | `periodoId__cedula` |
+| Defensas (N-ART, N-DEF, N-FIN) | `notas` | `periodoId__cedula` |
+
+- **BDLocal es la autoridad.** Se lee cada documento remoto: si es igual (`dataHash`) no se escribe; si falta o es distinto, se escribe usando como base de versión lo recién leído y se verifica con una lectura posterior. Si otro equipo lo cambia justo en medio, queda como conflicto y se reintenta en la siguiente subida.
+- **Modalidad (`grupoInforme`)**: además del nombre de la carrera, se usa el código oficial (`-P-` = PRESENCIAL, `-L-` = ONLINE).
+- **Requisitos**: Núcleos exige 8 (Titulación no aplica todavía); Examen complexivo exige 9.
+- **Defensas**: el botón «Subir a Firebase» (`defart/defart.firebase-direct.js`) envía todas las notas del período guardadas en BDLocal y registra `importaciones` e `historial`. Los botones de la cola antigua quedan ocultos.
+- `NcomplexFirebaseAuth` funciona en modo directo por defecto. Para volver a exigir sesión, define `window.NCOMPLEX_FIREBASE_OPEN_WRITE=false` antes de cargarlo.
+- **Reglas**: `firestore.rules` permite escribir sin autenticación en `evaluaciones_nucleos` y `complexivos`, con validación estructural y sin borrados, igual que las colecciones de Carga. Hay que desplegarlas con `firebase deploy --only firestore:rules`. **Ese comando reemplaza todas las reglas activas del proyecto**, así que primero hay que compararlas con las de la consola.
+
+```bash
+node scripts/verify-defart-firebase-direct.js
+node scripts/verify-ncomplex-center.js
+node scripts/verify-complexivo-publish.js
+```
+
+> Las secciones siguientes describen el diseño anterior, que exigía login. Se conservan como historial.
+
+
 ## Funcionamiento
 
 El módulo ahora presenta una interfaz mínima con dos pestañas:

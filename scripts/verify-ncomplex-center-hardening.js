@@ -92,21 +92,23 @@ window.RequisitosFirebaseRepository={
  async getById(entity,id){assert.equal(entity,"evaluaciones_nucleos");reads++;return cloud.get(id)||null;},
  async writeChecked(entity,doc,options){
   assert.equal(entity,"evaluaciones_nucleos");
-  assert.equal(options.expected.exists,false,"El publicador solo puede crear notas nuevas.");
-  assert.equal(options.requireTransaction,true,"Nunca aceptar escrituras no atómicas.");
+  assert.ok(options.expected&&typeof options.expected.exists==="boolean","Toda escritura lleva la base remota leída.");
   inflight++;maximumConcurrent=Math.max(maximumConcurrent,inflight);
   try{
    await Promise.resolve(); // Simula latencia simultánea.
    const id=doc.periodoId+"__"+doc.cedula+"__N"+doc.nucleo;
    const old=cloud.get(id);
    if(old&&old.data.dataHash===doc.dataHash)return {ok:true,unchanged:true};
-   if(old){const error=new Error("Nota remota ya existente.");error.code="FIREBASE_CONFLICT";throw error;}
+   const base=options.expected,matches=base.exists===false?!old:!!old&&old.data.dataHash===base.hash;
+   // rows[0]: otro equipo escribe justo entre la lectura y la escritura.
+   if(!matches||id===raceId){const error=new Error("Cambió en Firebase.");error.code="FIREBASE_CONFLICT";throw error;}
    writes++;cloud.set(id,{data:{...doc,version:1,createdAt:"2026-11-05T14:01:00.000Z"}});
    return {ok:true,unchanged:false};
   }finally{inflight--;}
  }
 };
 function remoteId(r){return r.periodoId+"__"+r.cedula+"__N"+r.nucleo;}
+var raceId=remoteId(rows[0]);
 const publisher=window.NcomplexNucleosFirebase;
 const other={...publisher.remote(rows[0]),evaluaciones:[2,2,2,2]};
 other.dataHash=publisher.hash({...other,dataHash:undefined});
@@ -122,7 +124,7 @@ const run=async()=>{
  }
  assert.equal(processed,58,"Todos los registros deben ser intentados sin repetición");
  assert.equal(new Set(skip).size,58,"Cada nota debe procesarse una sola vez");
- assert.equal(conflicts,1,"No pisar un registro remoto ajeno");
+ assert.equal(conflicts,1,"No pisar un cambio remoto concurrente");
  assert.equal(errors,0);
  assert.equal(writes,57);
  assert.ok(maximumConcurrent>=2&&maximumConcurrent<=4,
@@ -135,14 +137,15 @@ const run=async()=>{
  await assert.rejects(()=>publisher.push({periodoId:period,grupoInforme:"PRESENCIAL"}),/Sin rol institucional/);
  assert.equal(denied.estadoSync,"PENDIENTE");
  allowWrite=true;
+ raceId="";
  const decision=await window.NcomplexNucleosResolver.resolve(rows[0],"local");
- assert.equal(decision.status,"CONFLICTO","Conservar local nunca habilita sobrescribir Firebase.");
+ assert.equal(decision.status,"PENDIENTE","Conservar BDLocal deja la nota lista para la próxima subida.");
  assert.equal(rows[0].remoteHash,other.dataHash);
  const reconciled=await publisher.push({periodoId:period,grupoInforme:"PRESENCIAL",limit:25});
- assert.equal(reconciled.published,0);
- assert.equal(rows[0].estadoSync,"CONFLICTO");
- assert.equal(cloud.get(remoteId(rows[0])).data.evaluaciones[0],2,
-  "La nota remota previa permanece intacta.");
+ assert.equal(reconciled.published,1,"La subida directa escribe la versión elegida de BDLocal.");
+ assert.equal(rows[0].estadoSync,"SINCRONIZADO");
+ assert.equal(cloud.get(remoteId(rows[0])).data.evaluaciones[0],rows[0].evaluaciones[0],
+  "Firebase queda igual a BDLocal.");
  // Elegir la versión de Firebase copia las notas verificadas sin sobrescribir cloud.
  const row=rows[2],changed={...publisher.remote(row),evaluaciones:[4,4,4,4],totalMoodle:4};
  changed.dataHash=publisher.hash({...changed,dataHash:undefined});
@@ -161,8 +164,9 @@ const run=async()=>{
   "Ncomplex concilia solo filas de matrículas habilitadas y aparta las excluidas.");
  assert.ok(center.includes("nineRequirements(s)"),"Requiere 9/9 requisitos CUMPLE para mostrar un estudiante.");
  const rules=src("firestore.rules");
- assert.ok(rules.includes("request.auth.token.ncomplex_write"));
+ const nucleosRule=rules.slice(rules.indexOf("match /evaluaciones_nucleos/"),rules.indexOf("match /complexivo/{"));
+ assert.ok(!nucleosRule.includes("request.auth"),"Subida directa sin login, igual que Carga.");
  assert.ok(src("BDLocal/conexiones/cone.inf.js").includes("evaluaciones_nucleos"));
- console.log("NCOMPLEX HARDENING: OK (58 notas, concurrencia 4, no sobrescritura, rol, diferencias).");
+ console.log("NCOMPLEX HARDENING: OK (58 notas, concurrencia 4, cambios concurrentes, conciliación, diferencias).");
 };
 run().catch(error=>{console.error(error);process.exitCode=1;});

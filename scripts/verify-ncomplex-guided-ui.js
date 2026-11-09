@@ -199,7 +199,7 @@ async function run(){
  const exclusions=excluded.children.find(x=>x.tagName==="ul").children;
  assert.equal(exclusions.length,5);
  assert.equal(exclusions.filter(x=>/retirada\/inactiva en BDLocal/.test(x.textContent)).length,3);
- assert.equal(exclusions.filter(x=>/nueve requisitos CUMPLE/.test(x.textContent)).length,1);
+ assert.equal(exclusions.filter(x=>/ocho requisitos CUMPLE/.test(x.textContent)).length,1,"Núcleos exige 8 requisitos (Titulación no aplica).");
  assert.equal(exclusions.filter(x=>/Verifica el retiro en BDLocal/.test(x.textContent)).length,1);
  assert.equal(dom["nc-review"].children.some(x=>x.className==="nc-duplicate-group"),false);
  assert.equal(dom["nc-save"].disabled,false);
@@ -276,9 +276,18 @@ async function run(){
   "Sin una sesión válida, nunca se intenta escribir en Firebase.");
  assert.equal(dom["nc-firebase-login"].hidden,true,
   "No abrir automáticamente formularios de contraseña: Carga solo prepara Firebase.");
- assert.match(dom["nc-message"].textContent,/La conexión a utet-4387a está configurada.*Ncomplex necesita una sesión/);
- assert.match(dom["nc-message"].textContent,/ncomplex_write o titulacion_admin/,
-  "Explicar la diferencia de permisos entre Carga y las notas protegidas.");
- console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, fallos de rol y bloqueo seguro).");
+ assert.match(dom["nc-message"].textContent,/No se pudo preparar la conexión directa a utet-4387a/);
+ assert.match(dom["nc-message"].textContent,/permanecen intactas en BDLocal/);
+ // Modo directo (igual que Carga): sin sesión, la conexión abierta permite subir.
+ window.NcomplexFirebaseAuth.status=function(){return {ready:true,authenticated:true,openWrite:true,email:"",uid:""};};
+ window.NcomplexFirebaseAuth.requireWriter=async function(){return {openWrite:true};};
+ savedNuclei.forEach(r=>{r.estadoSync="PENDIENTE";});
+ if(window.NcomplexCenter.refresh)await window.NcomplexCenter.refresh();
+ const callsBeforeOpen=firebasePushCalls.length;
+ await window.NcomplexCenter.sync();
+ assert.ok(firebasePushCalls.length>callsBeforeOpen,"La subida directa no exige iniciar sesión: "+dom["nc-message"].textContent);
+ assert.ok(firebasePushCalls.slice(callsBeforeOpen).every(c=>typeof c.resolveGroup==="function"),
+  "El publicador recibe cómo resolver la modalidad desde el código de carrera.");
+ console.log("NCOMPLEX UI GUIADA: OK (cuatro grupos, lectura real, subida directa sin login y bloqueo sin conexión).");
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

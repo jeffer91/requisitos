@@ -1,4 +1,7 @@
-/* Publicación de notas de núcleos, con control optimista de conflictos.
+/* Publicación DIRECTA de notas de núcleos (igual que Carga).
+ * BDLocal es la autoridad: se lee el documento remoto, si es idéntico no se
+ * escribe; si falta o difiere se escribe con control de versión optimista
+ * (expected = estado remoto recién leído) y se verifica con lectura posterior.
  * Debe iniciarse mediante acción expresa del usuario, no al abrir la pantalla. */
 (function(w){"use strict";
 var entity="evaluaciones_nucleos",active=false;
@@ -41,29 +44,39 @@ async function push(options){
   var repo=repository();
   if(!repo||typeof repo.writeChecked!=="function"||typeof repo.getById!=="function")
    throw Error("Repositorio Firebase de escritura y verificación no disponible.");
-  var records=(await local.list(period)).filter(function(r){
-   return r.estadoSync!=="SINCRONIZADO"&&r.estadoSync!=="CONFLICTO"&&
+  var resolveGroup=typeof options.resolveGroup==="function"?options.resolveGroup:function(){return "";};
+  var records=(await local.list(period)).map(function(r){
+   var g=text(r.grupoInforme).toUpperCase();
+   if(["PRESENCIAL","ONLINE","PVC"].indexOf(g)<0){
+    try{g=text(resolveGroup(r)).toUpperCase();}catch(e){g="";}
+   }
+   return g&&g!==r.grupoInforme?Object.assign({},r,{grupoInforme:g,_grupoResuelto:true}):r;
+  }).filter(function(r){
+   return (options.includeSynced===true||r.estadoSync!=="SINCRONIZADO")&&
      !excluded[r.id]&&(!onlyIds||scoped[r.id])&&(!group||r.grupoInforme===group);
   }).sort(function(a,b){return a.id.localeCompare(b.id);});
   summary.pending=records.length;
-  var limit=Math.max(1,Math.min(25,Number(options.limit||25)));
+  var limit=Math.max(1,Math.min(400,Number(options.limit||100)));
   var selected=records.slice(0,limit),next=0;
   async function upload(row){
    var doc=remote(row),id=doc.periodoId+"__"+doc.cedula+"__N"+doc.nucleo;
    var guard={updatedAt:row.updatedAt,sourceHash:row.sourceHash};
    try{
-    // SOLO CREACIÓN: si ya existe una nota diferente, la transacción la bloquea.
-    // Si existe idéntica, writeChecked la devuelve como unchanged sin escribir.
-    // Nunca usar remoteHash como permiso para sustituir una calificación.
-    var saved=await repo.writeChecked(entity,doc,{
-     expected:{exists:false},requireTransaction:true
-    });
+    // Igual que Carga: leer el remoto y escribir con ese estado como base.
+    // Si otro equipo lo cambia entre la lectura y la escritura, la transacción
+    // lo detecta como conflicto y no se pisa esa versión intermedia.
+    var current=await repo.getById(entity,id);
+    var base=current&&current.data?{exists:true,hash:text(current.data.dataHash),
+      version:Number(current.data.version||0),updatedAt:text(current.data.updatedAt)}:{exists:false};
+    var saved=await repo.writeChecked(entity,doc,{expected:base});
     if(!saved||saved.ok!==true)throw Error("Firebase no confirmó la escritura.");
     var verified=await repo.getById(entity,id);
     if(!verified||!verified.data||verified.data.dataHash!==doc.dataHash)
      throw Error("No fue posible verificar en Firebase la versión guardada.");
-    await local.update(row.id,{estadoSync:"SINCRONIZADO",remoteHash:doc.dataHash,
-     cloudError:"",lastSyncedAt:new Date().toISOString()},guard);
+    var patch={estadoSync:"SINCRONIZADO",remoteHash:doc.dataHash,
+     cloudError:"",lastSyncedAt:new Date().toISOString()};
+    if(row._grupoResuelto)patch.grupoInforme=row.grupoInforme;
+    await local.update(row.id,patch,guard);
     if(saved.unchanged)summary.unchanged++;
     else summary.published++;
    }catch(error){
