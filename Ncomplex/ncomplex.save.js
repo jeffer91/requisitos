@@ -173,7 +173,7 @@ Con qué se conecta:
         return Promise.resolve(cloud.publish({periodoId:current.selectedPeriodId,anyGroup:true,confirmedByCenter:true,onlyCedulas:complexRows.map(function(row){return text(row.cedula||row.numeroIdentificacion);})}))
           .then(function(result){
             if(result&&result.ok&&result.published>0)
-              setStatus("BDLocal: "+saved.length+" guardada(s). Firebase complexivos: "+result.published+" documento(s) creado(s).","success");
+              setStatus("BDLocal: "+saved.length+" guardada(s). Firebase notas_complexivo: "+result.published+" documento(s) creado(s).","success");
             else if(result&&result.ok)
               setStatus("BDLocal: "+saved.length+" guardada(s). Firebase: 0 documentos nuevos. Revise los requisitos, conflictos y avisos del panel Firebase.","warning");
             else

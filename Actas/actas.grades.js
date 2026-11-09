@@ -1,4 +1,5 @@
-/* Consulta remota de núcleos y complexivo; nunca convierte ausencias en notas. */
+/* Consulta remota de núcleos (/notas_nucleos) y complexivo (/notas_complexivo); nunca convierte ausencias en notas.
+ * Nota: Actas no carga este lector por ahora (las actas no consultan calificaciones). */
 (function(w){"use strict";
 const txt=v=>String(v==null?"":v).trim(),period=v=>txt(v).replace(/_+/g,"__");
 const ced=row=>{
@@ -26,7 +27,7 @@ function target(row,students,id){
 }
 async function enrich(p,students){
  const id=period(p),client=await db();
- const [nuclei,exams]=await Promise.all([fetch(client,"nucleos",id),fetch(client,"complexivo",id)]);
+ const [nuclei,exams]=await Promise.all([fetch(client,"notas_nucleos",id),fetch(client,"notas_complexivo",id)]);
  const index=new Map(students.map(s=>[ced(s),{n:[],e:[]}]));
  for(const [list,key] of [[nuclei,"n"],[exams,"e"]])for(const row of list){
   const student=target(row,students,id),group=student&&index.get(ced(student));

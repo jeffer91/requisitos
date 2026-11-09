@@ -41,9 +41,9 @@ window.ConNcomplex={
 };
 window.RequisitosFirebaseOperationCenter={async ensure(){}};
 window.RequisitosFirebaseRepository={
- async getById(entity,key){assert.equal(entity,"complexivos");return remote.get(key)||null;},
+ async getById(entity,key){assert.equal(entity,"notas_complexivo");return remote.get(key)||null;},
  async writeChecked(entity,doc,option){
-  assert.equal(entity,"complexivos");
+  assert.equal(entity,"notas_complexivo");
   const key=period+"__"+doc.cedula;
   // Escritura directa con base en el estado remoto recién leído.
   assert.equal(option.expected.exists,remote.has(key),"La base de versión corresponde al remoto leído.");

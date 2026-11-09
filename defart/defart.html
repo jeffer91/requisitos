@@ -12,7 +12,7 @@ Función o funciones:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Defensas</title>
+  <title>Notas · Artículo académico</title>
   <link rel="stylesheet" href="defart.css" />
   <link rel="stylesheet" href="defart.table.visual.css" />
   <link rel="stylesheet" href="defart.pagination.css" />
@@ -24,9 +24,9 @@ Función o funciones:
 </head>
 <body>
   <main class="def-app">
-    <section id="def-status" class="def-status is-info" style="display:block;">Preparando Defensas...</section>
+    <section id="def-status" class="def-status is-info" style="display:block;">Preparando Artículo académico...</section>
 
-    <section class="def-toolbar" aria-label="Filtros de Defensas">
+    <section class="def-toolbar" aria-label="Filtros de Artículo académico">
       <div class="def-toolbar-row def-toolbar-row-main">
         <label><span>Período</span><select id="def-filter-periodo"><option value="">Todos</option></select></label>
         <label><span>División</span><select id="def-filter-division"><option value="">Todas</option></select></label>
@@ -88,7 +88,7 @@ Función o funciones:
           <p>Elija el método de carga. Moodle conserva la carga rápida de N-ART y Excel permite cargar N-ART y N-DEF con análisis previo.</p>
           <div class="def-bulk-meta">
             <span class="def-bulk-chip">Período: <strong id="def-bulk-period">Sin período seleccionado</strong></span>
-            <span class="def-bulk-chip">Guardado: ruta oficial de Defensas</span>
+            <span class="def-bulk-chip">Guardado: ruta oficial de Artículo</span>
           </div>
         </div>
         <button class="def-bulk-close" type="button" data-def-bulk-close aria-label="Cerrar">×</button>
@@ -163,7 +163,7 @@ Función o funciones:
           </div>
 
           <footer class="def-bulk-footer">
-            <div class="def-bulk-footer-copy">Excel puede actualizar N-ART y N-DEF. N-FIN se recalcula en Defensas; la columna “Nota final” del archivo se usa solo como control.</div>
+            <div class="def-bulk-footer-copy">Excel puede actualizar N-ART y N-DEF. N-FIN se recalcula en Artículo; la columna “Nota final” del archivo se usa solo como control.</div>
             <div class="def-bulk-footer-actions">
               <button type="button" data-def-bulk-close>Cancelar</button>
               <button id="def-excel-apply" class="def-bulk-primary" type="button" disabled>Guardar notas analizadas</button>

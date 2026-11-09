@@ -15,7 +15,7 @@ Función:
   var VERSION="1.1.0-safe-cursor-conflicts";
   var DEFAULT_LIMIT=250;
   var MAX_BATCH=400;
-  var PERIOD_SCOPED={matriculas:true,requisitos:true,notas:true,evaluaciones_nucleos:true};
+  var PERIOD_SCOPED={matriculas:true,requisitos:true,notas:true,notas_nucleos:true,notas_complexivo:true,notas_articulo:true,notas_trabajo:true};
   var state={firestore:null,readyPromise:null,queryCount:0,readDocuments:0,writes:0,conflicts:0,lastError:"",lastOperationAt:""};
 
   function text(value){return String(value==null?"":value).trim();}

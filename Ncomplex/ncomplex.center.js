@@ -633,7 +633,7 @@ async function publishSavedRecords(rows,mode,period,onProgress){
   var publisher=w.NcomplexFirebaseComplexivo;
   if(!publisher||typeof publisher.publish!=="function")
    return {ok:false,published:0,unchanged:0,pending:rows.length,errors:1,conflicts:0,
-    reason:"Publicador de /complexivos no disponible."};
+    reason:"Publicador de /notas_complexivo no disponible."};
   var response=await publisher.publish({
    periodoId:period,anyGroup:true,onlyCedulas:rows.map(studentId),confirmedByCenter:true,
    onProgress:function(progress){
@@ -836,9 +836,9 @@ async function save(){
    // El guardado local permanece exitoso aunque la red o Firestore fallen.
   if(data.mode==="complexivo"&&stored.length){
    try{
-    progressUpdate("Firebase /complexivos",0,stored.length,"Validando y publicando notas guardadas…",95);
+    progressUpdate("Firebase /notas_complexivo",0,stored.length,"Validando y publicando notas guardadas…",95);
     var cloudResult=await publishSavedRecords(stored,"complexivo",data.period,function(done,total,detail){
-     progressUpdate("Firebase /complexivos",done,total,detail,95+Math.round(done/Math.max(1,total)*4));
+     progressUpdate("Firebase /notas_complexivo",done,total,detail,95+Math.round(done/Math.max(1,total)*4));
     });
     var complete=cloudResult&&cloudResult.ok===true;
     var created=Number(cloudResult&&cloudResult.published||0),unchanged=Number(cloudResult&&cloudResult.unchanged||0);
@@ -846,14 +846,14 @@ async function save(){
      stored.length,stored.length,created+" nuevas, "+unchanged+" idénticas"+
       (complete?" · verificadas":" · "+t(cloudResult&&cloudResult.reason||"Revisar incidencias")),
      100,complete?"success":"warning");
-    msg(stored.length+" notas guardadas en BDLocal. Firebase /complexivos: "+created+" nuevas; "+
+    msg(stored.length+" notas guardadas en BDLocal. Firebase /notas_complexivo: "+created+" nuevas; "+
      unchanged+" idénticas. "+(complete?"Lectura y escritura confirmadas.":
       "Pendientes: "+t(cloudResult&&cloudResult.reason||"revisar autorización, requisitos o notas 40/60.")),
      complete?"ok":"error");
    }catch(cloudError){
     progressUpdate("BDLocal guardada · Firebase pendiente",stored.length,stored.length,
      cloudError.message||String(cloudError),100,"warning");
-    msg("BDLocal guardada. Firebase /complexivos pendiente: "+(cloudError.message||String(cloudError)),"error");
+    msg("BDLocal guardada. Firebase /notas_complexivo pendiente: "+(cloudError.message||String(cloudError)),"error");
    }
   }
  }catch(error){
@@ -1082,7 +1082,7 @@ async function showConflicts(){
   card.appendChild(el("div",(row.nombreCarrera||row.codigoCarrera)+" · Núcleo "+row.nucleo+" · "+row.cedula));
   card.appendChild(el("small","Local: "+row.evaluaciones.map(fmt).join(" / ")+" · Total "+fmt(row.totalMoodle)));
   var remote=null;
-  try{remote=await w.RequisitosFirebaseRepository.getById("evaluaciones_nucleos",row.periodoId+"__"+row.cedula+"__N"+row.nucleo);}
+  try{remote=await w.RequisitosFirebaseRepository.getById("notas_nucleos",row.periodoId+"__"+row.cedula+"__N"+row.nucleo);}
   catch(error){card.appendChild(el("small","Firebase: "+error.message));panel.appendChild(card);continue;}
   if(!remote||!remote.data){card.appendChild(el("small","No se encontró el documento remoto."));panel.appendChild(card);continue;}
   card.appendChild(el("small","Firebase: "+(remote.data.evaluaciones||[]).map(fmt).join(" / ")+" · Total "+fmt(remote.data.totalMoodle)));
@@ -1126,6 +1126,9 @@ async function boot(){
  });
  ui.tabN.addEventListener("click",function(){mode("nucleos");});
  ui.tabE.addEventListener("click",function(){mode("complexivo");});
+ // Menú Notas → Núcleos / Complexivo abre esta misma pantalla con ?modo=…
+ try{var requested=(new URLSearchParams(w.location&&w.location.search||"")).get("modo");
+  if(requested==="complexivo"||requested==="nucleos")mode(requested);}catch(error){}
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(button){
   button.addEventListener("click",function(){nucleus(Number(button.dataset.ncNucleus));});
  });

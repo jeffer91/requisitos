@@ -4,7 +4,7 @@
  * (expected = estado remoto recién leído) y se verifica con lectura posterior.
  * Debe iniciarse mediante acción expresa del usuario, no al abrir la pantalla. */
 (function(w){"use strict";
-var entity="evaluaciones_nucleos",active=false;
+var entity="notas_nucleos",active=false;
 function text(v){return String(v==null?"":v).trim();}
 function stable(v){
  if(Array.isArray(v))return "["+v.map(stable).join(",")+"]";

@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- =========================================================
+Nombre completo: trabajo.html
+Ruta: /Trabajo/trabajo.html
+Función:
+- Menú Notas → Trabajo: cargar las actas SENESCYT de trabajo de titulación.
+- Validar cada acta (cálculos, matrícula, carrera y 9 requisitos).
+- Guardar en BDLocal y subir directo a Firebase /notas_trabajo.
+========================================================= -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notas · Trabajo de titulación</title>
+  <link rel="stylesheet" href="trabajo.css" />
+</head>
+<body>
+  <main class="tt-app">
+    <header class="tt-head">
+      <div>
+        <h1>Trabajo de titulación</h1>
+        <span>Actas SENESCYT · escrito 60 % + defensa oral 40 % · Firebase /notas_trabajo</span>
+      </div>
+    </header>
+
+    <section class="tt-card">
+      <div class="tt-row">
+        <label>Período de la matrícula
+          <select id="tt-period"><option value="">Cargando…</option></select>
+        </label>
+        <p class="tt-hint">El período es el de la <strong>matrícula</strong> del estudiante, no la fecha del acta.</p>
+      </div>
+      <label class="tt-paste-label">Pegue una o varias actas (cada una empieza con «Nombres: Cedula: Código de Carrera: Carrera:»)
+        <textarea id="tt-paste" spellcheck="false" placeholder="Nombres:&#9;Cedula:&#9;Código de Carrera:&#9;Carrera:"></textarea>
+      </label>
+      <div class="tt-actions">
+        <button type="button" id="tt-analyze" class="tt-primary">Analizar</button>
+        <button type="button" id="tt-clear">Limpiar</button>
+      </div>
+      <div id="tt-message" class="tt-message" aria-live="polite"></div>
+    </section>
+
+    <section id="tt-results" class="tt-card" hidden>
+      <div class="tt-metrics">
+        <div><span>Actas leídas</span><strong id="tt-count-total">0</strong></div>
+        <div><span>Listas</span><strong id="tt-count-ready">0</strong></div>
+        <div><span>Bloqueadas</span><strong id="tt-count-blocked">0</strong></div>
+      </div>
+      <div class="tt-table-scroll">
+        <table id="tt-table">
+          <thead><tr>
+            <th>Estudiante</th><th>Acta</th><th>Fecha</th><th>1. Escrito</th><th>2. Práctica</th>
+            <th>3. Defensa</th><th>4. Oral</th><th>5. Final</th><th>Estado</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="tt-actions">
+        <button type="button" id="tt-save" class="tt-primary" disabled>Guardar y subir a Firebase</button>
+      </div>
+    </section>
+
+    <section class="tt-card tt-saved-card">
+      <span id="tt-saved"></span>
+      <button type="button" id="tt-resync" disabled>Volver a subir lo guardado</button>
+    </section>
+  </main>
+
+  <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+  <script src="trabajo.parser.js"></script>
+  <script src="trabajo.firebase.js"></script>
+  <script src="trabajo.app.js"></script>
+</body>
+</html>

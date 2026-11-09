@@ -23,8 +23,10 @@ Función o funciones:
     requisitos:["periodoId","cedula","valores"],
     notas:["periodoId","cedula"],
     complexivo:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
-    complexivos:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
-    evaluaciones_nucleos:["periodoId","cedula","grupoInforme","nucleo","evaluaciones","estadoCarga"],
+    notas_complexivo:["periodoId","cedula","grupoInforme","modalidadTitulacion","notaOficial","estadoEvaluacion"],
+    notas_nucleos:["periodoId","cedula","grupoInforme","nucleo","evaluaciones","estadoCarga"],
+    notas_articulo:["periodoId","cedula"],
+    notas_trabajo:["periodoId","cedula","codigoCarrera","numeroActaSenescyt","promedioTrabajoEscrito","promedioDefensaOral","notaFinal"],
     periodos:["periodoId","label"],
     carreras:["codigoCarrera","nombreCarrera"],
     historial:["entidad","entidadId","accion","createdAt"],
@@ -160,7 +162,7 @@ Función o funciones:
       errors.push("valores debe ser un objeto con los requisitos.");
     }
 
-    if(entity === "notas" || entity === "complexivo" || entity === "complexivos"){
+    if(entity === "notas" || entity === "complexivo" || entity === "notas_complexivo" || entity === "notas_articulo"){
       NOTE_FIELDS.forEach(function(field){
         var value = document[field];
         if(value === undefined || value === null || text(value) === ""){ return; }
@@ -171,7 +173,7 @@ Función o funciones:
       });
     }
 
-    if(entity === "evaluaciones_nucleos"){
+    if(entity === "notas_nucleos"){
       var n=Number(document.nucleo);
       if(!Number.isInteger(n)||n<1||n>4)errors.push("El núcleo debe estar entre 1 y 4.");
       if(["PRESENCIAL","ONLINE","PVC"].indexOf(text(document.grupoInforme))<0)
@@ -199,7 +201,19 @@ Función o funciones:
       if(["PENDIENTE","CONCILIADO","INHABILITADO"].indexOf(text(document.estadoCarga))<0)
         errors.push("Estado de carga no reconocido.");
     }
-    if(entity === "complexivo" || entity === "complexivos"){
+    if(entity === "notas_trabajo"){
+      ["calificacionTutor","calificacionLector","promedioTrabajoEscrito","promedioEvaluacionPractica",
+       "promedioEvaluacionDefensa","promedioDefensaOral","notaFinal"].forEach(function(field){
+        var g=document[field];
+        if(!Number.isFinite(g)||g<0||g>10)errors.push(field+" debe ser una nota entre 0 y 10.");
+      });
+      if(text(document.modalidadTitulacion)!=="TRABAJO_TITULACION")errors.push("Modalidad de evaluación incorrecta.");
+      if(!/^\d+$/.test(text(document.numeroActaSenescyt)))errors.push("Número de acta SENESCYT inválido.");
+      if(Number.isFinite(document.notaFinal)&&Number.isFinite(document.promedioTrabajoEscrito)&&Number.isFinite(document.promedioDefensaOral)&&
+        Math.abs(document.notaFinal-(document.promedioTrabajoEscrito*.6+document.promedioDefensaOral*.4))>.051)
+        errors.push("Nota final distinta de 60 % escrito + 40 % defensa oral.");
+    }
+    if(entity === "complexivo" || entity === "notas_complexivo"){
       if(["PRESENCIAL","ONLINE","PVC"].indexOf(text(document.grupoInforme))<0)errors.push("grupoInforme inválido.");
       if(text(document.modalidadTitulacion)!=="EXAMEN_COMPLEXIVO")errors.push("Modalidad de evaluación incorrecta.");
       if(["ORDINARIA","SUPLETORIO"].indexOf(text(document.oportunidadAplicada))<0)errors.push("Oportunidad inválida.");

@@ -27,8 +27,11 @@ Función o funciones:
       requisitos:"requisitos",
       notas:"notas",
       complexivo:"complexivo",
-      complexivos:"complexivos",
-      evaluaciones_nucleos:"evaluaciones_nucleos",
+      /* Colecciones oficiales de notas (menú Notas). */
+      notas_nucleos:"notas_nucleos",
+      notas_complexivo:"notas_complexivo",
+      notas_articulo:"notas_articulo",
+      notas_trabajo:"notas_trabajo",
       periodos:"periodos",
       carreras:"carreras",
       historial:"historial",
@@ -41,8 +44,10 @@ Función o funciones:
       requisitos:"periodoId__cedula",
       notas:"periodoId__cedula",
       complexivo:"periodoId__cedula",
-      complexivos:"periodoId__cedula",
-      evaluaciones_nucleos:"periodoId__cedula__Nnucleo",
+      notas_nucleos:"periodoId__cedula__Nnucleo",
+      notas_complexivo:"periodoId__cedula",
+      notas_articulo:"periodoId__cedula",
+      notas_trabajo:"periodoId__cedula",
       periodos:"periodoId",
       carreras:"codigoCarrera",
       historial:"auto",
@@ -55,8 +60,10 @@ Función o funciones:
       requisitos:"cedula__periodoId",
       notas:"cedula__periodoId",
       complexivo:"cedula__periodoId",
-      complexivos:"cedula__periodoId",
-      evaluaciones_nucleos:"cedula__periodoId__Nnucleo",
+      notas_nucleos:"cedula__periodoId__Nnucleo",
+      notas_complexivo:"cedula__periodoId",
+      notas_articulo:"cedula__periodoId",
+      notas_trabajo:"cedula__periodoId",
       periodos:"periodoId",
       carreras:"codigoCarrera",
       historial:"auto",
@@ -117,15 +124,28 @@ Función o funciones:
           "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
           "oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
-      complexivos:{
-        description:"Notas oficiales de Examen Complexivo en colección nueva protegida.",
+      notas_complexivo:{
+        description:"Notas → Complexivo: notas oficiales de Examen Complexivo (Ncomplex).",
         fields:["periodoId","cedula","grupoInforme","nombre","carrera","modalidadTitulacion",
           "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
           "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
           "oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
-      evaluaciones_nucleos:{
-        description:"Cuatro evaluaciones por núcleo y estudiante, separadas del total oficial del examen complexivo.",
+      notas_articulo:{
+        description:"Notas → Artículo: artículo académico (antes Defensas): N-ART, N-DEF y N-FIN.",
+        fields:["periodoId","cedula","modalidadTitulacion","notaArticulo","notaDefensa","notaFinal",
+          "estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+      },
+      notas_trabajo:{
+        description:"Notas → Trabajo: acta SENESCYT completa del trabajo de titulación.",
+        fields:["periodoId","cedula","nombres","codigoCarrera","nombreCarrera","grupoInforme","modalidadTitulacion",
+          "numeroActaSenescyt","fechaActaGrado","calificacionTutor","calificacionLector","promedioTrabajoEscrito",
+          "vocales","evaluacionPractica","evaluacionDefensa","promedioEvaluacionPractica","promedioEvaluacionDefensa",
+          "promedioDefensaOral","notaFinal","notaMinimaAprobacion","estadoEvaluacion","textoOriginalHash",
+          "origen","createdAt","updatedAt","version","dataHash"]
+      },
+      notas_nucleos:{
+        description:"Notas → Núcleos: cuatro evaluaciones por núcleo y estudiante, separadas del total oficial del examen complexivo.",
         fields:["periodoId","cedula","codigoCarrera","nombreCarrera","grupoInforme","nucleo","nombreNucleo",
           "cursoMoodle","evaluaciones","taller","prueba","casoEstudio","actividadesAdicionales","totalMoodle","estadoCarga","habilitado",
           "requisitosPendientes","observaciones","origen","sourceHash","importacionId","historialCambios","createdAt","updatedAt",

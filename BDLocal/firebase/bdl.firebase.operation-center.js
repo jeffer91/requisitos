@@ -149,7 +149,7 @@ Función:
     return readyPromise;
   }
 
-  // Ncomplex escribe exclusivamente /evaluaciones_nucleos y /complexivo.
+  // Ncomplex escribe /notas_nucleos y /notas_complexivo; Artículo /notas_articulo; Trabajo /notas_trabajo.
   // No debe esperar Outbox, Target ni el repositorio de personas, que pertenecen
   // a operaciones masivas de otras pantallas y pueden no existir en este iframe.
   var notesReadyPromise=null;

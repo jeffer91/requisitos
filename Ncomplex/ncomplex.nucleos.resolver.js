@@ -1,7 +1,7 @@
 /* Conciliación deliberada de conflictos: elegir BDLocal (se sube en la próxima
  * subida directa) o copiar a BDLocal la versión verificada de Firebase. */
 (function(w){"use strict";
-var entity="evaluaciones_nucleos";
+var entity="notas_nucleos";
 function id(row){return row.periodoId+"__"+row.cedula+"__N"+row.nucleo;}
 async function resolve(row,choice){
  if(!row||row.estadoSync!=="CONFLICTO")throw Error("El registro no está marcado como conflicto.");

@@ -89,9 +89,9 @@ window.NcomplexFirebaseAuth={
 };
 window.RequisitosFirebaseOperationCenter={async ensure(){}};
 window.RequisitosFirebaseRepository={
- async getById(entity,id){assert.equal(entity,"evaluaciones_nucleos");reads++;return cloud.get(id)||null;},
+ async getById(entity,id){assert.equal(entity,"notas_nucleos");reads++;return cloud.get(id)||null;},
  async writeChecked(entity,doc,options){
-  assert.equal(entity,"evaluaciones_nucleos");
+  assert.equal(entity,"notas_nucleos");
   assert.ok(options.expected&&typeof options.expected.exists==="boolean","Toda escritura lleva la base remota leída.");
   inflight++;maximumConcurrent=Math.max(maximumConcurrent,inflight);
   try{
@@ -164,7 +164,7 @@ const run=async()=>{
   "Ncomplex concilia solo filas de matrículas habilitadas y aparta las excluidas.");
  assert.ok(center.includes("nineRequirements(s)"),"Requiere 9/9 requisitos CUMPLE para mostrar un estudiante.");
  const rules=src("firestore.rules");
- const nucleosRule=rules.slice(rules.indexOf("match /evaluaciones_nucleos/"),rules.indexOf("match /complexivo/{"));
+ const nucleosRule=rules.slice(rules.indexOf("match /notas_nucleos/"),rules.indexOf("function validComplexivoDocument"));
  assert.ok(!nucleosRule.includes("request.auth"),"Subida directa sin login, igual que Carga.");
  assert.ok(src("BDLocal/conexiones/cone.inf.js").includes("evaluaciones_nucleos"));
  console.log("NCOMPLEX HARDENING: OK (58 notas, concurrencia 4, cambios concurrentes, conciliación, diferencias).");

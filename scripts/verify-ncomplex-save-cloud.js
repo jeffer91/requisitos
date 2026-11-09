@@ -37,13 +37,13 @@ async function run(){
  assert.equal(result.saved,1);
  assert.equal(result.firebase.published,1);
  assert.equal(cloudCalls,1);
- assert.match(status.textContent,/Firebase complexivos: 1/);
+ assert.match(status.textContent,/Firebase notas_complexivo: 1/);
  assert.equal(localSaves,1);
  group="";dirty=true;state.dirty={x:true};
  result=await window.NcomplexSave.save();
  assert.equal(result.saved,1);
  assert.equal(cloudCalls,2,"La sincronización automática no depende del selector global de grupo");
- assert.match(status.textContent,/Firebase complexivos: 1/);
+ assert.match(status.textContent,/Firebase notas_complexivo: 1/);
  console.log("VERIFICACIÓN GUARDADO BDLOCAL/FIREBASE: OK (sin grupo global y publicación automática)");
 }
 run().catch(err=>{console.error(err);process.exitCode=1;});

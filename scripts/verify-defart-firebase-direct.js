@@ -1,5 +1,5 @@
 "use strict";
-/* Subida directa de Defensas a /notas (igual que Carga). Firestore simulado:
+/* Notas → Artículo: subida directa a /notas_articulo (igual que Carga). Firestore simulado:
  * no se conecta a Firebase real ni usa calificaciones institucionales. */
 const assert=require("node:assert/strict");
 const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
@@ -50,7 +50,7 @@ sandbox.ConDefart={async ready(){return {ok:true};}};
 sandbox.BDLRepoNotas={async list(options){return notes.filter(n=>!options||!options.periodoId||n.periodoId===options.periodoId).map(n=>({...n}));}};
 load("defart/defart.firebase-direct.js",context);
 const api=sandbox.DefartFirebaseDirect;
-const notas=()=>firestore.stored.notas||new Map();
+const notas=()=>firestore.stored.notas_articulo||new Map();
 
 (async()=>{
  // 1) Primera subida: todas las notas con calificación del período, sin cola ni lotes de 25.
@@ -64,6 +64,9 @@ const notas=()=>firestore.stored.notas||new Map();
  assert.equal(doc.notaArticulo,8.5);
  assert.equal(doc.notaDefensa,9);
  assert.equal(doc.notaFinal,8.7);
+ assert.equal(doc.notaEscrito,undefined,"Sin campos duplicados de trabajo de titulación.");
+ assert.equal(doc.notaTeorica,undefined,"Sin campos de complexivo.");
+ assert.equal(firestore.stored.notas,undefined,"Ya no escribe en la colección genérica /notas.");
  assert.equal(notas().has("2025-10__2026-03__0401234567"),false,"No sube otros períodos.");
  assert.equal((firestore.stored.importaciones||new Map()).size,1,"Registra la importación.");
  assert.equal((firestore.stored.historial||new Map()).size,1,"Registra el historial.");

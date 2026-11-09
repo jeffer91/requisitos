@@ -96,21 +96,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    /* Colecciones nuevas de Informtit. No modifican las colecciones oficiales existentes. */
-    match /nucleos/{documentId} {
-      allow read: if true;
-      allow create, update: if validPeriod(request.resource.data.periodoId)
-        && validReportGroup(request.resource.data)
-        && request.resource.data.nucleo is int
-        && request.resource.data.nucleo >= 1
-        && documentId.matches('^[0-9]{4}-[0-9]{2}__[0-9]{4}-[0-9]{2}__.+__N[0-9]+$')
-        && validMetadata(request.resource.data);
-      allow delete: if false;
+    /* =========================================================
+       MENÚ NOTAS — colecciones oficiales de calificaciones.
+       Escritura directa igual que Carga: sin Firebase Auth, con validación
+       estructural y sin borrados.
+         notas_nucleos     Núcleos (Ncomplex)        periodoId__cedula__N1..N4
+         notas_complexivo  Examen complexivo (Ncomplex) periodoId__cedula
+         notas_articulo    Artículo académico         periodoId__cedula
+         notas_trabajo     Acta SENESCYT de trabajo   periodoId__cedula
+       ========================================================= */
+    function validGrade(value) {return value is number && value >= 0 && value <= 10;}
+    function validOptionalGrade(data, field) {
+      return !(field in data) || data[field] == null || validGrade(data[field]);
     }
 
-    /* Evaluaciones individuales por núcleo (Ncomplex).
-       Escritura directa igual que Carga: sin Firebase Auth, con validación estructural. */
-    match /evaluaciones_nucleos/{documentId} {
+    match /notas_nucleos/{documentId} {
       allow read: if true;
       allow create, update: if validPeriod(request.resource.data.periodoId)
         && validIdentification(request.resource.data.cedula)
@@ -126,16 +126,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /complexivo/{documentId} {
-      allow read: if true;
-      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
-        && validReportGroup(request.resource.data);
-      allow delete: if false;
-    }
-
-    /* Notas oficiales de Examen Complexivo (Ncomplex).
-       Escritura directa igual que Carga: sin Firebase Auth, con validación de notas. */
-    function validComplexivoGrade(value) {return value is number && value >= 0 && value <= 10;}
     function validComplexivoDocument(documentId, data) {
       return data.keys().hasAll([
           'periodoId','cedula','grupoInforme','modalidadTitulacion',
@@ -146,21 +136,55 @@ service cloud.firestore {
         && data.modalidadTitulacion == 'EXAMEN_COMPLEXIVO'
         && data.dataHash is string
         && data.estadoEvaluacion is string
-        && validComplexivoGrade(data.notaOficial)
+        && validGrade(data.notaOficial)
         && (
           (data.oportunidadAplicada == 'ORDINARIA' &&
-            validComplexivoGrade(data.notaTeorica) &&
-            validComplexivoGrade(data.notaPractica))
+            validGrade(data.notaTeorica) &&
+            validGrade(data.notaPractica))
           || (data.oportunidadAplicada == 'SUPLETORIO' &&
-            validComplexivoGrade(data.notaTeoricaSupletorio) &&
-            validComplexivoGrade(data.notaPracticaSupletorio))
+            validGrade(data.notaTeoricaSupletorio) &&
+            validGrade(data.notaPracticaSupletorio))
         );
     }
-    match /complexivos/{documentId} {
+    match /notas_complexivo/{documentId} {
       allow read: if true;
       allow create, update: if validComplexivoDocument(documentId, request.resource.data);
       allow delete: if false;
     }
+
+    match /notas_articulo/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
+        && validOptionalGrade(request.resource.data, 'notaArticulo')
+        && validOptionalGrade(request.resource.data, 'notaDefensa')
+        && validOptionalGrade(request.resource.data, 'notaFinal');
+      allow delete: if false;
+    }
+
+    match /notas_trabajo/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
+        && request.resource.data.modalidadTitulacion == 'TRABAJO_TITULACION'
+        && request.resource.data.numeroActaSenescyt is string
+        && request.resource.data.numeroActaSenescyt.matches('^[0-9]+$')
+        && validGrade(request.resource.data.calificacionTutor)
+        && validGrade(request.resource.data.calificacionLector)
+        && validGrade(request.resource.data.promedioTrabajoEscrito)
+        && validGrade(request.resource.data.promedioEvaluacionPractica)
+        && validGrade(request.resource.data.promedioEvaluacionDefensa)
+        && validGrade(request.resource.data.promedioDefensaOral)
+        && validGrade(request.resource.data.notaFinal)
+        && request.resource.data.vocales is list
+        && request.resource.data.vocales.size() == 3;
+      allow delete: if false;
+    }
+
+    /* Colecciones antiguas: solo lectura. Nada las escribe ya; las notas viven
+       en las colecciones notas_* de arriba. */
+    match /nucleos/{documentId} { allow read: if true; allow write: if false; }
+    match /complexivo/{documentId} { allow read: if true; allow write: if false; }
+    match /evaluaciones_nucleos/{documentId} { allow read: if true; allow write: if false; }
+    match /complexivos/{documentId} { allow read: if true; allow write: if false; }
 
     match /titulacion/{documentId} {
       allow read: if true;

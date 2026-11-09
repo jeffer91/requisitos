@@ -145,8 +145,15 @@ contains("BDLocal/diagnostics/bdl.diagnostics.general.js",'safeCount("evaluacion
 contains("BDLocal/diagnostics/bdl.diagnostics.general.js",'ConNcomplex:exists(window.ConNcomplex)',"Diagnóstico verifica ConNcomplex");
 
 contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Ncomplex/ncomplex.html"',"Maqueta registra ruta Ncomplex");
-contains("Maqueta/maq-menu.js",'moduloId:"ncomplex",etiqueta:"Ncomplex"',"Menú principal incluye Ncomplex");
-contains("Maqueta/maq-config-service.js",'moduloId:"ncomplex",etiqueta:"Ncomplex"',"Configuración efectiva conserva Ncomplex");
+["Maqueta/maq-menu.js","Maqueta/maq-config-service.js"].forEach(function(file){
+  contains(file,'{tipo:"grupo",id:"notas",etiqueta:"Notas"',"Menú Notas agrupa las calificaciones ("+file+")");
+  contains(file,'moduloId:"notas_nucleos",etiqueta:"Núcleos"',"Notas → Núcleos abre Ncomplex ("+file+")");
+  contains(file,'moduloId:"notas_complexivo",etiqueta:"Complexivo"',"Notas → Complexivo abre Ncomplex ("+file+")");
+  contains(file,'moduloId:"defart",etiqueta:"Artículo"',"Notas → Artículo abre Defart ("+file+")");
+  contains(file,'moduloId:"notas_trabajo",etiqueta:"Trabajo"',"Notas → Trabajo ("+file+")");
+});
+contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Ncomplex/ncomplex.html?modo=complexivo"',"Complexivo abre Ncomplex en su pestaña");
+contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Trabajo/trabajo.html"',"Maqueta registra la pantalla Trabajo");
 
 contains("Ncomplex/ncomplex.html",'id="ncomplex-filter-periodo"',"Pantalla Ncomplex tiene selector de período");
 contains("Ncomplex/ncomplex.html",'id="ncomplex-filter-carrera"',"Pantalla Ncomplex tiene selector de carrera");

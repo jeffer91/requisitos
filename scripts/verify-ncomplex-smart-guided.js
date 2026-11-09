@@ -99,7 +99,7 @@ const savedCombined=smart.nextTask([{code:"ADMINISTRACION",label:"ADMINISTRACION
  "ADMINISTRACION",4);
 assert.equal(savedCombined.nucleus,2,"El avance de ambas modalidades se reconoce en conjunto.");
 const html=source("Ncomplex/ncomplex.html");
-assert.equal((html.match(/<h1>Ncomplex<\/h1>/g)||[]).length,1);
+assert.equal((html.match(/<h1>Núcleos y complexivo<\/h1>/g)||[]).length,1);
 assert.ok(html.includes("ncomplex.smart.js"));
 assert.ok(html.includes('id="nc-guide-title"'));
 const js=source("Ncomplex/ncomplex.center.js");

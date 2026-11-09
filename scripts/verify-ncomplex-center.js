@@ -70,14 +70,14 @@ assert.equal(window.NcomplexNucleosPolicy.check(good,"complexivo").eligible,fals
 const explicit=parser.match(parsed.rows,students,{"1":"0101010101"});
 assert.equal(explicit.matched,2);
 const identity=window.RequisitosFirebaseIdentity;
-const remoteId=identity.entityDocumentId("evaluaciones_nucleos",record);
+const remoteId=identity.entityDocumentId("notas_nucleos",record);
 assert.equal(remoteId,period+"__"+cedula+"__N4");
-assert.equal(identity.entityLocalId("evaluaciones_nucleos",record),id);
-const valid=window.RequisitosFirebaseValidator.validate("evaluaciones_nucleos",
+assert.equal(identity.entityLocalId("notas_nucleos",record),id);
+const valid=window.RequisitosFirebaseValidator.validate("notas_nucleos",
  {...remote,version:1,createdAt:record.createdAt},{documentId:remoteId});
 assert.equal(valid.ok,true,valid.errors.join("; "));
-assert.equal(window.RequisitosFirebaseSchema.collections.evaluaciones_nucleos,"evaluaciones_nucleos");
-const invalid=window.RequisitosFirebaseValidator.validate("evaluaciones_nucleos",
+assert.equal(window.RequisitosFirebaseSchema.collections.notas_nucleos,"notas_nucleos");
+const invalid=window.RequisitosFirebaseValidator.validate("notas_nucleos",
  {...remote,evaluaciones:[9,11,null,null],version:1},{documentId:remoteId});
 assert.equal(invalid.ok,false,"No admitir calificaciones mayores de 10.");
 let local={...record},cloud=new Map(),writes=0,updateCalls=0,concurrent=false;
@@ -87,9 +87,9 @@ window.NcomplexNucleosStore={
 };
 window.RequisitosFirebaseOperationCenter={async ensure(){}};
 window.RequisitosFirebaseRepository={
- async getById(entity,key){assert.equal(entity,"evaluaciones_nucleos");return cloud.get(key)||null;},
+ async getById(entity,key){assert.equal(entity,"notas_nucleos");return cloud.get(key)||null;},
  async writeChecked(entity,doc,opts){
-   assert.equal(entity,"evaluaciones_nucleos");
+   assert.equal(entity,"notas_nucleos");
    const key=period+"__"+doc.cedula+"__N"+doc.nucleo;
    const old=cloud.get(key),expected=opts.expected||{};
    if(old&&old.data.dataHash===doc.dataHash)return {ok:true,unchanged:true};
@@ -136,8 +136,8 @@ async function run(){
   assert.ok(html.includes(marker),"Falta control visual "+marker);
  }
  const rules=source("firestore.rules");
- assert.ok(rules.includes("match /evaluaciones_nucleos/{documentId}"));
- const block=rules.slice(rules.indexOf("match /evaluaciones_nucleos/{documentId}"));
+ assert.ok(rules.includes("match /notas_nucleos/{documentId}"));
+ const block=rules.slice(rules.indexOf("match /notas_nucleos/{documentId}"));
  const nucleosRule=block.slice(0,block.indexOf("allow delete"));
  assert.ok(!nucleosRule.includes("request.auth"),"Subida directa sin login, igual que Carga");
  assert.ok(nucleosRule.includes("evaluaciones.size() == 4"),"Se conserva la validación estructural");

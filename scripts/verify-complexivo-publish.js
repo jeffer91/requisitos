@@ -1,5 +1,5 @@
 "use strict";
-/* Publicación directa (igual que Carga) en /complexivos: idempotencia, actualización con
+/* Publicación directa (igual que Carga) en /notas_complexivo: idempotencia, actualización con
  * control de versión y detección de cambios concurrentes. */
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const source=fs.readFileSync(path.join(__dirname,"../Ncomplex/ncomplex.firebase-complexivo.js"),"utf8");
@@ -28,9 +28,9 @@ const window={
  },
  RequisitosFirebaseOperationCenter:{async ensure(){if(disconnected)throw Error("offline");}},
  RequisitosFirebaseRepository:{
-  async getById(entity,documentId){assert.equal(entity,"complexivos");return remote.get(documentId)||null;},
+  async getById(entity,documentId){assert.equal(entity,"notas_complexivo");return remote.get(documentId)||null;},
   async writeChecked(entity,doc,options){
-   assert.equal(entity,"complexivos");
+   assert.equal(entity,"notas_complexivo");
    const key=doc.periodoId+"__"+doc.cedula,current=remote.get(key);
    const expected=options.expected||{};
    // Semántica del repositorio: la escritura solo procede si el remoto sigue

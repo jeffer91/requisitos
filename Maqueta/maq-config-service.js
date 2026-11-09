@@ -18,9 +18,13 @@ Función o funciones:
     {tipo:"modulo",moduloId:"stat_main",etiqueta:"Estadísticas"},
     {tipo:"modulo",moduloId:"coordi",etiqueta:"Coordi"},
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
-    {tipo:"modulo",moduloId:"defart",etiqueta:"Defensas"},
+    {tipo:"grupo",id:"notas",etiqueta:"Notas",hijos:[
+      {tipo:"modulo",moduloId:"notas_nucleos",etiqueta:"Núcleos"},
+      {tipo:"modulo",moduloId:"notas_complexivo",etiqueta:"Complexivo"},
+      {tipo:"modulo",moduloId:"defart",etiqueta:"Artículo"},
+      {tipo:"modulo",moduloId:"notas_trabajo",etiqueta:"Trabajo"}
+    ]},
     {tipo:"modulo",moduloId:"stat_not",etiqueta:"Stat Not"},
-    {tipo:"modulo",moduloId:"ncomplex",etiqueta:"Ncomplex"},
     {tipo:"modulo",moduloId:"actas",etiqueta:"Actas"}
     ,{tipo:"modulo",moduloId:"inf",etiqueta:"Inf"}
   ];

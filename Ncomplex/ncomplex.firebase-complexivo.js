@@ -1,4 +1,4 @@
-/* Publicación DIRECTA de resultados Ncomplex en la colección complexivos
+/* Publicación DIRECTA de resultados Ncomplex en la colección notas_complexivo
  * (igual que Carga). BDLocal es la autoridad: si el documento remoto es igual
  * no se escribe; si falta o difiere se escribe con control de versión sobre el
  * estado remoto recién leído y se verifica con una lectura posterior.
@@ -32,7 +32,7 @@ async function publish(options){
  const period=t(options.periodoId||$("ncomplex-filter-periodo")&&$("ncomplex-filter-periodo").value).replace(/_+/g,"__");
  const anyGroup=options.anyGroup!==false;
  const group=anyGroup?"":t(options.grupoInforme||$("ncomplex-complexivo-grupo")&&$("ncomplex-complexivo-grupo").value);
- if(!period||(!group&&!anyGroup)){status("Solo se guardó en BDLocal. Para crear complexivo en Firebase, seleccione período y Grupo (Presencial/Online/PVC) y pulse Publicar en complexivos.",true);return {ok:false,reason:"Seleccione período y grupo"};}
+ if(!period||(!group&&!anyGroup)){status("Solo se guardó en BDLocal. Para crear complexivo en Firebase, seleccione período y Grupo (Presencial/Online/PVC) y pulse Publicar en notas_complexivo.",true);return {ok:false,reason:"Seleccione período y grupo"};}
  const state=w.NcomplexState&&w.NcomplexState.get&&w.NcomplexState.get();
  if(state&&Object.keys(state.dirty||{}).length){status("Primero guarde las calificaciones pendientes en Base Local.",true);return {ok:false,reason:"Cambios locales pendientes"};}
  const con=w.ConNcomplex,center=w.RequisitosFirebaseOperationCenter;
@@ -95,7 +95,7 @@ async function publish(options){
   }
   const pending=[],conflicts=[];let same=0;
   for(const doc of valid){
-   const remote=await repo.getById("complexivos",period+"__"+doc.cedula);
+   const remote=await repo.getById("notas_complexivo",period+"__"+doc.cedula);
    if(remote&&remote.data&&remote.data.dataHash===doc.dataHash){same++;continue;}
    doc.__expected=remote&&remote.data?{exists:true,hash:t(remote.data.dataHash),
      version:Number(remote.data.version||0),updatedAt:t(remote.data.updatedAt)}:{exists:false};
@@ -103,7 +103,7 @@ async function publish(options){
   }
   if(!pending.length){
    const detail=blocked.slice(0,3).join(" | ");
-   const message="No se crearon documentos en complexivos. Iguales: "+same+"; conflictos: "+conflicts.length+
+   const message="No se crearon documentos en notas_complexivo. Iguales: "+same+"; conflictos: "+conflicts.length+
      "; notas inválidas: "+invalid.length+"; bloqueados por requisitos: "+blocked.length+
      (detail?". "+detail:"")+
      (selected.length===0?". No hay evaluaciones guardadas de Examen Complexivo en el período.":"");
@@ -116,13 +116,13 @@ async function publish(options){
   for(const doc of batch){
     const expected=doc.__expected||{exists:false};delete doc.__expected;
     let response;
-    try{response=await repo.writeChecked("complexivos",doc,{expected});}
+    try{response=await repo.writeChecked("notas_complexivo",doc,{expected});}
     catch(error){
       if(error&&error.code==="FIREBASE_CONFLICT"){conflicts.push(doc.cedula);continue;}
       throw error;
     }
     if(!response||response.ok!==true)throw new Error("Firebase no confirmó escritura para "+doc.cedula+".");
-    const confirmed=await repo.getById("complexivos",period+"__"+doc.cedula);
+    const confirmed=await repo.getById("notas_complexivo",period+"__"+doc.cedula);
     if(!confirmed||!confirmed.data||confirmed.data.dataHash!==doc.dataHash)
       throw new Error("No se pudo verificar en Firebase el documento recién publicado de "+doc.cedula+".");
     saved++;
@@ -131,14 +131,14 @@ async function publish(options){
      catch(callbackError){/* La visualización nunca cancela una escritura confirmada. */}
     }
   }
-  status("Firebase complexivos: "+saved+" documentos escritos; iguales: "+same+"; conflictos: "+conflicts.length+
+  status("Firebase notas_complexivo: "+saved+" documentos escritos; iguales: "+same+"; conflictos: "+conflicts.length+
    "; inválidos: "+invalid.length+"; bloqueados 9/9: "+blocked.length+
    "; revisados: "+batch.length+
    (blocked.length?". "+blocked.slice(0,2).join(" | "):""),!!conflicts.length||!!blocked.length);
   return {ok:!blocked.length&&!conflicts.length&&!invalid.length&&saved+same===selected.length,published:saved,same,conflicts,invalid,blocked,pending:Math.max(0,selected.length-saved-same)};
  }catch(error){
    const detail=t(error&&error.message||error);
-   status("Firebase complexivos NO guardado: "+detail+
+   status("Firebase notas_complexivo NO guardado: "+detail+
     (/permission-denied|insufficient permissions/i.test(detail)?
       ". Revise las reglas Firestore desplegadas y los permisos del proyecto UTET.":""),
     true);

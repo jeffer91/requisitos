@@ -60,7 +60,7 @@
     if(byCed[id]&&byCed[id].length){state.status="Matrícula ambigua";state.error="Existen varias matrículas de esta cédula en BDLocal.";}
     else{
      try{
-      var remote=await repo.getById(mode==="nucleos"?"evaluaciones_nucleos":"complexivos",key);
+      var remote=await repo.getById(mode==="nucleos"?"notas_nucleos":"notas_complexivo",key);
       if(remote&&remote.data){
        state.uploaded=true;state.status="Subido en Firebase";
        var h=localHash(mode,entry,item.student,period),remoteHash=text(remote.data.dataHash);

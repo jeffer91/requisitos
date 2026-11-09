@@ -2,8 +2,9 @@
 Nombre completo: defart.firebase-direct.js
 Ruta: /defart/defart.firebase-direct.js
 Función:
-- Subir DIRECTAMENTE a Firebase (/notas) las calificaciones de Defensas del
-  período seleccionado, igual que Carga sube sus datos.
+- Menú Notas → Artículo (antes Defensas).
+- Subir DIRECTAMENTE a Firebase (/notas_articulo) las notas del artículo
+  académico (N-ART, N-DEF, N-FIN) del período seleccionado, igual que Carga.
 - No usa la cola cambios_pendientes ni el límite de 25 cambios por clic:
   toma todas las notas guardadas en BDLocal para el período.
 - Compara cada documento con Firebase por dataHash: los iguales no se escriben;
@@ -14,7 +15,8 @@ Función:
 (function(window,document){
   "use strict";
 
-  var VERSION="1.0.0-direct-like-carga";
+  var VERSION="1.1.0-notas-articulo";
+  var COLLECTION="notas_articulo";
   var CONCURRENCY=8;
   var running=false;
   var scriptBase=(document.currentScript&&document.currentScript.src)||window.location.href;
@@ -83,9 +85,19 @@ Función:
     rows.forEach(function(row){
       if(!row||row.eliminado===true||!hasDefenseGrade(row)){return;}
       if(canon(row.periodoId||row.periodId)!==period){return;}
-      var doc=map.notesDocument(row,{});
-      if(!doc){skipped.push(text(row.cedula)||text(row.id));return;}
-      var id=repo.documentId("notas",doc);
+      var full=map.notesDocument(row,{});
+      if(!full){skipped.push(text(row.cedula)||text(row.id));return;}
+      // Solo los campos del artículo académico: sin duplicados de trabajo/complexivo.
+      var doc={id:full.id,localId:full.localId,periodoId:full.periodoId,cedula:full.cedula,
+        modalidadTitulacion:full.modalidadTitulacion||"",
+        notaArticulo:full.notaArticulo==null?null:full.notaArticulo,
+        notaDefensa:full.notaDefensa==null?null:full.notaDefensa,
+        notaFinal:full.notaFinal==null?null:full.notaFinal,
+        estadoEvaluacion:full.estadoEvaluacion||"",origen:"articulo",
+        createdAt:full.createdAt,updatedAt:full.updatedAt,version:full.version,
+        eliminado:false,eliminadoEn:""};
+      doc.dataHash=map.dataHash({entity:COLLECTION,data:map.functionalContent(doc)});
+      var id=repo.documentId(COLLECTION,doc);
       if(!id){skipped.push(text(doc.cedula));return;}
       if(seen[id]){return;}
       seen[id]=true;
@@ -116,14 +128,14 @@ Función:
       return doc;
     }
     var importDoc=withHash("importaciones",{
-      id:"defensas__"+period+"__"+token,periodoId:period,archivoNombre:"Defensas (BDLocal)",archivoTipo:"notas_defensas",
+      id:"articulo__"+period+"__"+token,periodoId:period,archivoNombre:"Artículo académico (BDLocal)",archivoTipo:"notas_articulo",
       totalFilas:summary.total,nuevos:summary.nuevos,actualizados:summary.modificados,sinCambios:summary.iguales,
       retirados:0,errores:summary.errores+summary.conflictos,estado:summary.errores||summary.conflictos?"CON_INCIDENCIAS":"COMPLETADO",
-      source:"Defensas.firebase.direct",createdAt:stamp,updatedAt:stamp
+      source:"Articulo.firebase.direct",createdAt:stamp,updatedAt:stamp
     });
     var historyDoc=withHash("historial",{
-      id:"defensas_firebase__"+period+"__"+token,entidad:"notas",entidadId:period,periodoId:period,
-      accion:"ACTUALIZAR_FIREBASE_DESDE_DEFENSAS",pantalla:"Defensas",source:"Defensas.firebase.direct",
+      id:"articulo_firebase__"+period+"__"+token,entidad:COLLECTION,entidadId:period,periodoId:period,
+      accion:"ACTUALIZAR_FIREBASE_DESDE_ARTICULO",pantalla:"Artículo",source:"Articulo.firebase.direct",
       metadata:{total:summary.total,nuevos:summary.nuevos,modificados:summary.modificados,iguales:summary.iguales,
         conflictos:summary.conflictos,errores:summary.errores},
       createdAt:stamp,updatedAt:stamp
@@ -137,7 +149,7 @@ Función:
     options=options||{};
     var period=canon(options.periodoId||periodId());
     if(!period){return Promise.reject(new Error("Seleccione un período."));}
-    if(running){return Promise.reject(new Error("Ya hay una subida de Defensas en curso."));}
+    if(running){return Promise.reject(new Error("Ya hay una subida de notas de artículo en curso."));}
     running=true;
     var progress=typeof options.onProgress==="function"?options.onProgress:function(){};
     var summary={ok:false,periodoId:period,total:0,nuevos:0,modificados:0,iguales:0,conflictos:0,errores:0,
@@ -155,7 +167,7 @@ Función:
       // 1) Leer el estado remoto (como Carga) para no reescribir lo igual.
       var pending=[];
       return pool(built.entries,function(entry){
-        return repo.getById("notas",entry.id).then(function(remote){
+        return repo.getById(COLLECTION,entry.id).then(function(remote){
           var data=remote&&remote.data||null;
           if(data&&text(data.dataHash)&&text(data.dataHash)===text(entry.document.dataHash)){summary.iguales++;return;}
           entry.expected=data?{exists:true,hash:text(data.dataHash),version:Number(data.version||0),updatedAt:text(data.updatedAt)}:{exists:false};
@@ -166,9 +178,9 @@ Función:
         if(!pending.length){return null;}
         // 2) Escribir con control de versión y 3) verificar con lectura posterior.
         return pool(pending,function(entry){
-          return repo.writeChecked("notas",entry.document,{expected:entry.expected,documentId:entry.id}).then(function(result){
+          return repo.writeChecked(COLLECTION,entry.document,{expected:entry.expected,documentId:entry.id}).then(function(result){
             if(!result||result.ok!==true){throw new Error("Firebase no confirmó la escritura.");}
-            return repo.getById("notas",entry.id);
+            return repo.getById(COLLECTION,entry.id);
           }).then(function(check){
             if(!check||!check.data||text(check.data.dataHash)!==text(entry.document.dataHash)){
               summary.noVerificados++;summary.detalles.push(entry.id+": no se pudo verificar la lectura posterior.");return;
@@ -195,8 +207,8 @@ Función:
     setNumber("defFirebaseModified",summary.modificados);
     setNumber("defFirebaseUnchanged",summary.iguales);
     setNumber("defFirebaseConflicts",summary.conflictos);
-    if(!summary.total){status("No hay notas de Defensas guardadas en BDLocal para este período.","is-warn");return;}
-    var line="Firebase /notas: "+summary.nuevos+" nuevas · "+summary.modificados+" actualizadas · "+summary.iguales+" ya iguales";
+    if(!summary.total){status("No hay notas de artículo guardadas en BDLocal para este período.","is-warn");return;}
+    var line="Firebase /notas_articulo: "+summary.nuevos+" nuevas · "+summary.modificados+" actualizadas · "+summary.iguales+" ya iguales";
     if(summary.ok){status(line+". Todo verificado.","is-ok");}
     else{
       status(line+" · "+summary.conflictos+" conflictos · "+(summary.errores+summary.noVerificados)+" errores. "+
@@ -210,7 +222,7 @@ Función:
     var button=document.createElement("button");
     button.type="button";button.id="def-btn-firebase-direct";
     button.textContent="Subir a Firebase";
-    button.title="Sube directo todas las notas de Defensas del período (igual que Carga)";
+    button.title="Sube directo a /notas_articulo todas las notas de artículo del período (igual que Carga)";
     parent.insertBefore(button,parent.firstChild);
     // Un solo camino de subida: la cola antigua de 25 cambios queda oculta para no
     // reenviar copias viejas encima de las notas actuales.
@@ -218,7 +230,7 @@ Función:
       var node=byId(id);if(node){node.hidden=true;}
     });
     var copy=document.querySelector(".def-firebase-copy span");
-    if(copy){copy.textContent="Sube directo a Firebase N-ART, N-DEF, N-FIN y el estado de evaluación de todo el período seleccionado, igual que Carga.";}
+    if(copy){copy.textContent="Sube directo a Firebase (/notas_articulo) N-ART, N-DEF, N-FIN y el estado de todo el período seleccionado, igual que Carga.";}
     function refreshState(){button.disabled=running||!periodId();}
     button.addEventListener("click",function(){
       if(running||!periodId()){return;}

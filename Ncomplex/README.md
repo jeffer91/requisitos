@@ -1,23 +1,33 @@
 # Ncomplex — Centro de calificaciones
 
-## Subida directa a Firebase (noviembre 2026)
+## Menú Notas y colecciones de Firebase (noviembre 2026)
 
-Ncomplex y Defensas suben notas **directo a Firebase, igual que Carga**: sin iniciar sesión y sin cola de 25 cambios.
+En el menú, **Notas** agrupa las cuatro pantallas de calificaciones. Todas suben **directo a Firebase, igual que Carga**: sin iniciar sesión y sin cola.
 
-| Módulo | Colección | ID del documento |
-|---|---|---|
-| Ncomplex · Núcleos | `evaluaciones_nucleos` | `periodoId__cedula__N1…N4` |
-| Ncomplex · Examen complexivo | `complexivos` | `periodoId__cedula` |
-| Defensas (N-ART, N-DEF, N-FIN) | `notas` | `periodoId__cedula` |
+| Menú Notas → | Pantalla | Colección | ID del documento |
+|---|---|---|---|
+| Núcleos | `Ncomplex/ncomplex.html?modo=nucleos` | `notas_nucleos` | `periodoId__cedula__N1…N4` |
+| Complexivo | `Ncomplex/ncomplex.html?modo=complexivo` | `notas_complexivo` | `periodoId__cedula` |
+| Artículo (antes Defensas) | `defart/defart.html` | `notas_articulo` | `periodoId__cedula` |
+| Trabajo | `Trabajo/trabajo.html` | `notas_trabajo` | `periodoId__cedula` |
 
-- **BDLocal es la autoridad.** Se lee cada documento remoto: si es igual (`dataHash`) no se escribe; si falta o es distinto, se escribe usando como base de versión lo recién leído y se verifica con una lectura posterior. Si otro equipo lo cambia justo en medio, queda como conflicto y se reintenta en la siguiente subida.
-- **Modalidad (`grupoInforme`)**: además del nombre de la carrera, se usa el código oficial (`-P-` = PRESENCIAL, `-L-` = ONLINE).
-- **Requisitos**: Núcleos exige 8 (Titulación no aplica todavía); Examen complexivo exige 9.
-- **Defensas**: el botón «Subir a Firebase» (`defart/defart.firebase-direct.js`) envía todas las notas del período guardadas en BDLocal y registra `importaciones` e `historial`. Los botones de la cola antigua quedan ocultos.
-- `NcomplexFirebaseAuth` funciona en modo directo por defecto. Para volver a exigir sesión, define `window.NCOMPLEX_FIREBASE_OPEN_WRITE=false` antes de cargarlo.
-- **Reglas**: `firestore.rules` permite escribir sin autenticación en `evaluaciones_nucleos` y `complexivos`, con validación estructural y sin borrados, igual que las colecciones de Carga. Hay que desplegarlas con `firebase deploy --only firestore:rules`. **Ese comando reemplaza todas las reglas activas del proyecto**, así que primero hay que compararlas con las de la consola.
+- **BDLocal es la autoridad.** Lo que ya está igual en Firebase (`dataHash`) no se escribe; lo nuevo o distinto se escribe usando como base de versión el remoto recién leído, y se verifica con una lectura posterior. Si otro equipo lo cambia justo en medio, queda como conflicto y se reintenta.
+- **Artículo** guarda solo `notaArticulo`, `notaDefensa`, `notaFinal` y `estadoEvaluacion`, sin campos duplicados.
+- **Trabajo** guarda el acta SENESCYT completa: tutor, lector, 3 vocales, 8 criterios y los 5 promedios. Fórmula: final = 60 % escrito + 40 % defensa oral. Un acta se **bloquea** si:
+  - el texto copiado no cuadra con sus propios cálculos;
+  - el estudiante no tiene matrícula ACTIVA en el período;
+  - el código de carrera no coincide con el de la matrícula;
+  - no cumple los 9 requisitos;
+  - ya tiene notas de complexivo.
+- El período de una nota de trabajo es el de la **matrícula**, no la fecha del acta.
+- **Modalidad (`grupoInforme`)**: se toma del código de carrera (`-P-` = PRESENCIAL, `-L-` = ONLINE).
+- **Requisitos**: Núcleos exige 8 (Titulación no aplica todavía); Complexivo y Trabajo exigen 9.
+- Las colecciones antiguas `nucleos`, `complexivo`, `evaluaciones_nucleos` y `complexivos` quedan en solo lectura. `notas` sigue abierta para la cola general de BDLocal.
+- `NcomplexFirebaseAuth` funciona en modo directo por defecto. Para volver a exigir sesión, define `window.NCOMPLEX_FIREBASE_OPEN_WRITE=false`.
+- **Reglas**: se despliegan con `firebase deploy --only firestore:rules`. **Ese comando reemplaza todas las reglas activas**, así que primero hay que compararlas con las de la consola.
 
 ```bash
+node scripts/verify-trabajo-actas.js
 node scripts/verify-defart-firebase-direct.js
 node scripts/verify-ncomplex-center.js
 node scripts/verify-complexivo-publish.js
