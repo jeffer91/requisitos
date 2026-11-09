@@ -26,10 +26,11 @@ Función:
     <section class="tt-card">
       <div class="tt-row">
         <label>Período de la matrícula
-          <select id="tt-period"><option value="">Cargando…</option></select>
+          <select id="tt-period" data-periodo-global="true"><option value="">Cargando…</option></select>
         </label>
-        <p class="tt-hint">El período es el de la <strong>matrícula</strong> del estudiante, no la fecha del acta.</p>
+        <p class="tt-hint">El período es el de la <strong>matrícula</strong>, no la fecha del acta. Solo se cargan estudiantes con <strong>Aprobación final</strong>.</p>
       </div>
+      <details id="tt-roster" class="tt-roster" hidden></details>
       <label class="tt-paste-label">Pegue una o varias actas (cada una empieza con «Nombres: Cedula: Código de Carrera: Carrera:»)
         <textarea id="tt-paste" spellcheck="false" placeholder="Nombres:&#9;Cedula:&#9;Código de Carrera:&#9;Carrera:"></textarea>
       </label>

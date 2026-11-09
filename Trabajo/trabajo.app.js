@@ -4,9 +4,12 @@ Ruta: /Trabajo/trabajo.app.js
 Función:
 - Menú Notas → Trabajo: pegar una o varias actas SENESCYT de trabajo de
   titulación, validarlas contra BDLocal y guardarlas.
+- Al elegir el período se lee BDLocal UNA vez: habilitados = matrícula
+  ACTIVA con Aprobación final (Aprobación titulación + Aprobación
+  complexivo/proyecto en CUMPLE).
 - Bloquea el acta si: el texto no cuadra, no hay matrícula ACTIVA en el
-  período, el código de carrera no coincide, no cumple los 9 requisitos o el
-  estudiante ya tiene notas de examen complexivo.
+  período, el código de carrera no coincide, no tiene Aprobación final o el
+  estudiante ya está en examen complexivo.
 - Guarda en BDLocal (evaluaciones_titulacion) y sube directo a
   Firebase /notas_trabajo, igual que Carga.
 ========================================================= */
@@ -14,7 +17,7 @@ Función:
   "use strict";
 
   var VERSION="1.0.0";
-  var state={period:"",periods:[],students:Object.create(null),checked:[],working:false};
+  var state={period:"",periods:[],students:Object.create(null),checked:[],working:false,roster:null,readyAnnounced:false};
   var base=(document.currentScript&&document.currentScript.src)||document.baseURI;
 
   function $(id){return document.getElementById(id);}
@@ -90,10 +93,56 @@ Función:
     },Promise.resolve(""));
   }
 
+  function hasValue(v){return v!==null&&v!==undefined&&text(v)!=="";}
+  function habilitado(st){var f=st&&st._aprobacionFinal;return !!st&&(st.aprobacionFinal===true||(f&&f.eligible===true));}
+  function finalReason(st){var f=st&&st._aprobacionFinal;return text(st&&st.aprobacionFinalFaltante||f&&f.reason)||"sin verificación";}
+  // Quien está en examen complexivo no puede tener trabajo de titulación (y al revés).
+  function inComplexivo(ev){
+    return !!ev&&text(ev.modalidadTitulacion)==="EXAMEN_COMPLEXIVO"&&
+      [ev.notaTeorica,ev.notaPractica,ev.notaComplexivo,ev.notaSupletorio,ev.notaTeoricaSupletorio,ev.notaPracticaSupletorio,ev.notaOficial].some(hasValue);
+  }
+  function announceReady(){
+    if(state.readyAnnounced){return;}state.readyAnnounced=true;
+    try{window.dispatchEvent(new CustomEvent("maqueta:screen-render-complete",{detail:{source:"trabajo"}}));}catch(error){}
+  }
+  // Una sola lectura de BDLocal por período: matrículas + requisitos + evaluaciones.
+  function loadRoster(period){
+    state.period=period;state.checked=[];state.roster=null;render();renderRoster();
+    if(!period){message("Selecciona el período de la matrícula para cargar los estudiantes habilitados.");return refreshSaved();}
+    var started=Date.now();message("Leyendo "+periodName(period)+" en BDLocal…");
+    return Promise.all([studentsOf(period),con().listEvaluations({periodoId:period}).catch(function(){return [];})]).then(function(out){
+      if(state.period!==period){return;}
+      var evalByCed=Object.create(null);
+      (out[1]||[]).forEach(function(ev){if(ev&&ev.eliminado!==true&&canon(ev.periodoId)===period){evalByCed[studentId(ev)]=ev;}});
+      var activos=out[0].filter(active),list=activos.filter(habilitado);
+      state.roster={period:period,list:list,activos:activos.length,evalByCed:evalByCed,ms:Date.now()-started};
+      var withActa=list.filter(function(st){var ev=evalByCed[studentId(st)];return ev&&ev.actaTrabajo;}).length;
+      message("BDLocal leída en "+(state.roster.ms/1000).toFixed(1).replace(".",",")+" s · "+list.length+" habilitado(s) con Aprobación final de "+
+        activos.length+" matrícula(s) activa(s) · "+withActa+" con acta guardada. Pegue las actas y pulse Analizar.",list.length?"ok":"error");
+    }).catch(function(error){message("No se pudo leer BDLocal: "+(error.message||error),"error");})
+      .then(function(){renderRoster();announceReady();return refreshSaved();});
+  }
+  function renderRoster(){
+    var box=$("tt-roster");if(!box){return;}
+    box.textContent="";
+    var roster=state.roster;box.hidden=!roster;
+    if(!roster){return;}
+    var summary=el("summary",roster.list.length+" estudiante(s) habilitado(s) con Aprobación final en "+periodName(roster.period));
+    box.appendChild(summary);
+    var list=el("ul");
+    roster.list.slice().sort(function(a,b){return text(a.NombreCarrera||a.nombreCarrera).localeCompare(text(b.NombreCarrera||b.nombreCarrera),"es")||
+      text(a.Nombres||a.nombres).localeCompare(text(b.Nombres||b.nombres),"es");}).forEach(function(st){
+      var ev=roster.evalByCed[studentId(st)];
+      var state2=ev&&ev.actaTrabajo?"acta "+text(ev.actaTrabajo.numeroActaSenescyt)+" guardada":inComplexivo(ev)?"en examen complexivo":"sin acta";
+      list.appendChild(el("li",text(st.Nombres||st.nombres)+" · "+studentId(st)+" · "+text(st.NombreCarrera||st.nombreCarrera)+" — "+state2));
+    });
+    box.appendChild(list);
+  }
+
   function check(result){
     var acta=result.acta,item={result:result,acta:acta,blocked:result.errors.slice(),warnings:result.warnings.slice(),student:null,group:""};
     if(!result.ok){return Promise.resolve(item);}
-    var c=con(),period=state.period;
+    var period=state.period,roster=state.roster;
     return studentsOf(period).then(function(rows){
       var matches=rows.filter(function(st){return studentId(st)===acta.cedula;});
       var current=matches.filter(active)[0]||null;
@@ -110,21 +159,11 @@ Función:
       }
       item.group=groupFromCode(acta.codigoCarrera,acta.nombreCarrera)||groupFromCode(studentCode(current),current.NombreCarrera||current.nombreCarrera);
       if(!item.group){item.blocked.push("No se pudo deducir la modalidad (Presencial/Online/PVC) del código de carrera.");}
-      return Promise.all([
-        c.checkRequirements(period,acta.cedula).catch(function(error){return {eligible:false,reason:error.message||String(error)};}),
-        c.getEvaluation(period,acta.cedula).catch(function(){return null;})
-      ]).then(function(out){
-        var req=out[0]||{},existing=out[1];
-        if(!req.eligible){item.blocked.push("No cumple los 9 requisitos: "+(text(req.reason)||"sin verificación")+".");}
-        if(existing){
-          var mode=text(existing.modalidadTitulacion);
-          var hasComplexivo=[existing.notaTeorica,existing.notaPractica,existing.notaComplexivo,existing.notaSupletorio]
-            .some(function(v){return v!==null&&v!==undefined&&text(v)!=="";});
-          if(mode==="EXAMEN_COMPLEXIVO"&&hasComplexivo){item.blocked.push("Ya tiene notas de examen complexivo en este período.");}
-          var prev=existing.actaTrabajo&&text(existing.actaTrabajo.numeroActaSenescyt);
-          if(prev&&prev!==acta.numeroActaSenescyt){item.warnings.push("Reemplaza el acta "+prev+" guardada antes.");}
-        }
-      });
+      if(!habilitado(current)){item.blocked.push("No está habilitado: falta Aprobación final ("+finalReason(current)+").");}
+      var existing=roster&&roster.period===period?roster.evalByCed[acta.cedula]:null;
+      if(inComplexivo(existing)){item.blocked.push("Ya está en examen complexivo: no puede tener trabajo de titulación.");}
+      var prev=existing&&existing.actaTrabajo&&text(existing.actaTrabajo.numeroActaSenescyt);
+      if(prev&&prev!==acta.numeroActaSenescyt){item.warnings.push("Reemplaza el acta "+prev+" guardada antes.");}
     }).then(function(){return item;});
   }
 
@@ -203,6 +242,11 @@ Función:
       if(summary.ok){message(line+". Todo verificado.","ok");}
       else{message(line+" · "+(summary.errores+summary.conflictos)+" con error. "+summary.detalles.slice(0,2).join(" | ")+" Las notas quedaron en BDLocal; vuelva a pulsar Guardar.","error");
         ready.forEach(function(item){if(item.upload==="ERROR"||item.upload==="CONFLICTO"){delete item.upload;}});}
+      if(state.roster){
+        return con().listEvaluations({periodoId:state.period}).then(function(rows){
+          (rows||[]).forEach(function(ev){if(ev&&canon(ev.periodoId)===state.period){state.roster.evalByCed[studentId(ev)]=ev;}});
+        }).catch(function(){}).then(function(){renderRoster();return refreshSaved();});
+      }
       return refreshSaved();
     }).catch(function(error){
       message("No se pudo completar: "+(error.message||error)+". Lo guardado en BDLocal se conserva.","error");
@@ -253,18 +297,22 @@ Función:
     state.periods.forEach(function(id){var o=el("option",periodName(id));o.value=id;select.appendChild(o);});
   }
   function init(){
-    $("tt-period").addEventListener("change",function(){state.period=canon(this.value);state.checked=[];render();message(state.period?"Pegue las actas y pulse Analizar.":"Seleccione un período.");refreshSaved();});
+    // El período (propio o el global de la app) carga la lista de habilitados.
+    $("tt-period").addEventListener("change",function(){loadRoster(canon(this.value));});
     $("tt-analyze").addEventListener("click",analyze);
     $("tt-save").addEventListener("click",save);
     $("tt-resync").addEventListener("click",resync);
     $("tt-clear").addEventListener("click",function(){$("tt-paste").value="";state.checked=[];render();message("");});
     message("Conectando con BDLocal…");
     connect().then(function(c){return c.listPeriods();}).then(function(periods){
-      fillPeriods(periods);message("Seleccione el período de la matrícula y pegue las actas.");
-    }).catch(function(error){message("No se pudo conectar con BDLocal: "+(error.message||error),"error");});
+      fillPeriods(periods);
+      var current=canon($("tt-period").value);
+      if(current){return loadRoster(current);}
+      message("Selecciona el período de la matrícula para cargar los estudiantes habilitados (Aprobación final).");announceReady();
+    }).catch(function(error){message("No se pudo conectar con BDLocal: "+(error.message||error),"error");announceReady();});
     render();
   }
 
-  window.TrabajoApp={version:VERSION,init:init,analyze:analyze,save:save,_state:state};
+  window.TrabajoApp={version:VERSION,init:init,analyze:analyze,save:save,loadRoster:loadRoster,_state:state};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",init);}else{init();}
 })(window,document);

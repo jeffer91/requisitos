@@ -19,15 +19,15 @@ Función:
   <main class="cx-app">
     <header class="cx-head">
       <h1>Examen complexivo</h1>
-      <span>Moodle · ordinario y supletorio = 40 % teórico + 60 % práctico · aprueba con 7 · Firebase /notas_complexivo</span>
+      <span>Moodle · ordinario y supletorio = 40 % teórico + 60 % práctico · aprueba con 7 · solo estudiantes con Aprobación final</span>
     </header>
 
     <section class="cx-card">
       <div class="cx-row">
         <label>Período
-          <select id="cx-period"><option value="">Cargando…</option></select>
+          <select id="cx-period" data-periodo-global="true"><option value="">Cargando…</option></select>
         </label>
-        <p class="cx-hint">En automático, el período y la carrera se leen del título de cada libro (p. ej. «octubre marzo 2026» → 2025-10__2026-03).</p>
+        <p class="cx-hint">Al elegir el período se cargan solo los estudiantes con <strong>Aprobación final</strong> (Aprobación titulación y Aprobación complexivo/proyecto). La carrera se lee del título de cada libro.</p>
       </div>
       <label class="cx-paste-label">Pegue uno o varios libros de calificaciones de Moodle (cada uno empieza con «Examen Complexivo … ]»)
         <textarea id="cx-paste" spellcheck="false" placeholder="Examen Complexivo Administración octubre marzo 2026]"></textarea>
@@ -40,7 +40,8 @@ Función:
     </section>
 
     <section id="cx-results" class="cx-card" hidden>
-      <div class="cx-metrics">
+      <p id="cx-roster" class="cx-roster"></p>
+      <div id="cx-metrics" class="cx-metrics">
         <div><span>Filas leídas</span><strong id="cx-count-total">0</strong></div>
         <div><span>Listas</span><strong id="cx-count-ready">0</strong></div>
         <div><span>Bloqueadas</span><strong id="cx-count-blocked">0</strong></div>

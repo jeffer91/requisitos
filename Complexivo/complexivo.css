@@ -19,6 +19,8 @@ button.cx-primary{background:var(--cx-brand);border-color:var(--cx-brand);color:
 button:disabled{opacity:.5;cursor:not-allowed}
 .cx-message{margin-top:12px;font-size:13px;color:#46627e;min-height:20px}
 .cx-message.is-error{color:var(--cx-bad)}.cx-message.is-ok{color:var(--cx-ok)}
+.cx-roster{margin:0 0 12px;font-size:13px;color:#46627e}
+.cx-metrics[hidden]{display:none}
 .cx-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
 .cx-metrics>div{background:var(--cx-soft);padding:12px 14px;border-radius:10px;display:flex;flex-direction:column;gap:2px}
 .cx-metrics span{font-size:12px;color:var(--cx-muted)}.cx-metrics strong{font-size:22px}

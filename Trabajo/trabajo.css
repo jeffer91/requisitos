@@ -12,6 +12,9 @@ select,textarea{border:1px solid #c9d6e2;background:#fff;color:var(--tt-ink);bor
 select{min-width:220px;min-height:38px}
 .tt-hint{margin:0 0 8px;font-size:12px;color:var(--tt-muted)}
 .tt-paste-label{margin-top:14px}
+.tt-roster{margin-top:14px;border:1px solid var(--tt-line);border-radius:10px;padding:10px 14px;background:var(--tt-soft);font-size:13px}
+.tt-roster summary{cursor:pointer;font-weight:600;color:#284866}
+.tt-roster ul{margin:10px 0 0;padding-left:18px;max-height:240px;overflow:auto;color:#46627e;font-size:12px;line-height:1.6}
 textarea{min-height:190px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5}
 .tt-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 button{border:1px solid #c3d0db;border-radius:8px;background:#fff;color:#284866;padding:9px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}

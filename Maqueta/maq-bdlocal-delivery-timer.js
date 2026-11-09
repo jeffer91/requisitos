@@ -14,7 +14,7 @@ Función:
   var READY_EVENT="maqueta:screen-render-complete";
   var DATA_EVENTS=["bdlocal:screen-data-updated","bdlocal:pantallas:updated","bdlocal:connections:updated","carga:periods-refreshed"];
   var ALL_EVENTS=DATA_EVENTS.concat([READY_EVENT]);
-  var EXPLICIT_READY_MODULES={carga_excel:true,baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,ncomplex:true,cr_def:true,titulacion:true};
+  var EXPLICIT_READY_MODULES={carga_excel:true,baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,ncomplex:true,notas_nucleos:true,notas_complexivo:true,notas_trabajo:true,cr_def:true,titulacion:true};
   var READY_PROBES={
     carga_excel:{path:"carga.render-ready.js",global:"CargaRenderReady"},
     baselocal:{path:"centro-datos/centro-datos.render-ready.js",global:"CentroDatosRenderReady"},
@@ -58,28 +58,32 @@ Función:
   }
   function timeout(){if(!state.running){return;}state.elapsedMs=Math.max(0,clock()-state.startedAt);state.lastDurationMs=Math.round(state.elapsedMs);state.lastModuleId=state.moduloId;state.lastModuleName=state.moduloNombre;state.lastReason="timeout";state.lastCompletedAt=new Date().toISOString();state.timeouts+=1;state.running=false;clearTimers();detach();render("No lista","timeout","La pantalla no confirmó su carga dentro de 30 segundos.");}
 
+  // Notas → Núcleos abre la pantalla Ncomplex con otro id de módulo.
+  // Complexivo y Trabajo avisan con «maqueta:screen-render-complete» cuando están listas.
+  var MODULE_PROBE_ALIAS={notas_nucleos:"ncomplex"};
+  function probeId(){return MODULE_PROBE_ALIAS[state.moduloId]||state.moduloId;}
   function doc(){try{return boundChild&&boundChild.document||null;}catch(error){return null;}}
   function byId(id){var current=doc();return current&&current.getElementById?current.getElementById(id):null;}
   function nodeText(id){var node=byId(id);return text(node&&node.textContent);}
   function notLoading(value){return !/cargando|conectando|preparando|procesando|actualizando|recuperando|leyendo/i.test(text(value));}
-  function probeApi(){var cfg=READY_PROBES[state.moduloId];if(!cfg||!boundChild){return null;}try{return boundChild[cfg.global]||null;}catch(error){return null;}}
+  function probeApi(){var cfg=READY_PROBES[probeId()];if(!cfg||!boundChild){return null;}try{return boundChild[cfg.global]||null;}catch(error){return null;}}
   function probeReady(){var api=probeApi();if(!api||typeof api.status!=="function"){return false;}try{var current=api.status()||{};return current.ready===true||Number(current.emissions||0)>0||Number(current.lastReadyAt||0)>0;}catch(error){return false;}}
 
   function moduleReady(){
     if(!state.running||!boundChild){return false;}var currentDoc=doc();if(!currentDoc||currentDoc.readyState!=="complete"){return false;}if(probeReady()){return true;}
     try{
-      if(state.moduloId==="carga_excel"){var cargaState=boundChild.CargaUI&&boundChild.CargaUI.status?boundChild.CargaUI.status():{};var cargaPeriod=byId("cargaPeriodoSelect");var cargaFile=byId("cargaArchivoInput");var cargaCreate=byId("cargaBtnPeriodoCrear");return !!boundChild.CargaUI&&cargaState.booted===true&&!!cargaPeriod&&!!cargaFile&&!!cargaCreate&&!cargaPeriod.disabled&&!cargaFile.disabled&&!cargaCreate.disabled;}
-      if(state.moduloId==="tabla_principal"){var tableState=boundChild.TablaApp&&boundChild.TablaApp.getState?boundChild.TablaApp.getState():{};var wrap=byId("tabla-table-wrap");return !!boundChild.TablaApp&&tableState.rendering!==true&&notLoading(nodeText("tabla-status"))&&!!wrap&&(wrap.querySelectorAll("tbody tr").length>0||/sin datos/i.test(text(wrap.textContent)));}
-      if(state.moduloId==="ficha_estudiante"){var fichaState=boundChild.FichaApp&&boundChild.FichaApp.getState?boundChild.FichaApp.getState():{};var period=byId("ficha-periodo");return !!boundChild.FichaApp&&fichaState.rendering!==true&&notLoading(nodeText("ficha-status"))&&period&&period.options.length>1&&notLoading(nodeText("ficha-list"));}
-      if(state.moduloId==="stat_main"){var statsState=boundChild.StatsApp&&boundChild.StatsApp.getState?boundChild.StatsApp.getState():{};var statsPeriod=byId("stats-periodo");return !!boundChild.StatsApp&&statsState.rendering!==true&&!statsState.pendingRender&&notLoading(nodeText("stats-status"))&&statsPeriod&&statsPeriod.options.length>1&&notLoading(nodeText("stats-notes"));}
-      if(state.moduloId==="coordi"){var coordiState=boundChild.CoordiApp&&boundChild.CoordiApp.getState?boundChild.CoordiApp.getState():{};var coordiPeriod=byId("coordi-periodo");return !!boundChild.CoordiApp&&coordiState.loading!==true&&!coordiState.pendingRender&&notLoading(nodeText("coordi-status"))&&coordiPeriod&&coordiPeriod.options.length>1;}
-      if(state.moduloId==="baselocal"){return /BDLocal lista/i.test(nodeText("bl2-db-pill"))&&notLoading(nodeText("bl2-view-status"));}
-      if(state.moduloId==="global"){var globalState=byId("globalSectionState"),body=byId("globalSectionBody");return !!boundChild.GlobalApp&&globalState&&/success|ready/.test(text(globalState.getAttribute("data-state")))&&notLoading(globalState.textContent)&&body&&body.children.length>0;}
-      if(state.moduloId==="modulo_reporte"){var preview=byId("repo-preview");return !!boundChild.RepoApp&&notLoading(nodeText("repo-status"))&&preview&&!!text(preview.value);}
-      if(state.moduloId==="defart"){var def=boundChild.DefartApp&&boundChild.DefartApp.getState?boundChild.DefartApp.getState():{};return def.booted===true&&def.rendering!==true&&def.renderQueued!==true&&notLoading(nodeText("def-visible-count"));}
-      if(state.moduloId==="ncomplex"){var nc=boundChild.NcomplexState&&boundChild.NcomplexState.get?boundChild.NcomplexState.get():{};return nc.ready===true&&nc.loading!==true&&nc.saving!==true&&notLoading(nodeText("ncomplex-status"));}
-      if(state.moduloId==="cr_def"){var cr=boundChild.CR_DEF_APP&&boundChild.CR_DEF_APP.state||{};var help=currentDoc.querySelector&&currentDoc.querySelector("[data-cr-periodo-help]");return !!boundChild.CR_DEF_APP&&cr.loading!==true&&notLoading(help&&help.textContent);}
-      if(state.moduloId==="titulacion"){var ip=boundChild.InPVCApp&&boundChild.InPVCApp.state||{};return !!boundChild.InPVCApp&&Array.isArray(ip.periods)&&notLoading(nodeText("inpvc-status"));}
+      if(probeId()==="carga_excel"){var cargaState=boundChild.CargaUI&&boundChild.CargaUI.status?boundChild.CargaUI.status():{};var cargaPeriod=byId("cargaPeriodoSelect");var cargaFile=byId("cargaArchivoInput");var cargaCreate=byId("cargaBtnPeriodoCrear");return !!boundChild.CargaUI&&cargaState.booted===true&&!!cargaPeriod&&!!cargaFile&&!!cargaCreate&&!cargaPeriod.disabled&&!cargaFile.disabled&&!cargaCreate.disabled;}
+      if(probeId()==="tabla_principal"){var tableState=boundChild.TablaApp&&boundChild.TablaApp.getState?boundChild.TablaApp.getState():{};var wrap=byId("tabla-table-wrap");return !!boundChild.TablaApp&&tableState.rendering!==true&&notLoading(nodeText("tabla-status"))&&!!wrap&&(wrap.querySelectorAll("tbody tr").length>0||/sin datos/i.test(text(wrap.textContent)));}
+      if(probeId()==="ficha_estudiante"){var fichaState=boundChild.FichaApp&&boundChild.FichaApp.getState?boundChild.FichaApp.getState():{};var period=byId("ficha-periodo");return !!boundChild.FichaApp&&fichaState.rendering!==true&&notLoading(nodeText("ficha-status"))&&period&&period.options.length>1&&notLoading(nodeText("ficha-list"));}
+      if(probeId()==="stat_main"){var statsState=boundChild.StatsApp&&boundChild.StatsApp.getState?boundChild.StatsApp.getState():{};var statsPeriod=byId("stats-periodo");return !!boundChild.StatsApp&&statsState.rendering!==true&&!statsState.pendingRender&&notLoading(nodeText("stats-status"))&&statsPeriod&&statsPeriod.options.length>1&&notLoading(nodeText("stats-notes"));}
+      if(probeId()==="coordi"){var coordiState=boundChild.CoordiApp&&boundChild.CoordiApp.getState?boundChild.CoordiApp.getState():{};var coordiPeriod=byId("coordi-periodo");return !!boundChild.CoordiApp&&coordiState.loading!==true&&!coordiState.pendingRender&&notLoading(nodeText("coordi-status"))&&coordiPeriod&&coordiPeriod.options.length>1;}
+      if(probeId()==="baselocal"){return /BDLocal lista/i.test(nodeText("bl2-db-pill"))&&notLoading(nodeText("bl2-view-status"));}
+      if(probeId()==="global"){var globalState=byId("globalSectionState"),body=byId("globalSectionBody");return !!boundChild.GlobalApp&&globalState&&/success|ready/.test(text(globalState.getAttribute("data-state")))&&notLoading(globalState.textContent)&&body&&body.children.length>0;}
+      if(probeId()==="modulo_reporte"){var preview=byId("repo-preview");return !!boundChild.RepoApp&&notLoading(nodeText("repo-status"))&&preview&&!!text(preview.value);}
+      if(probeId()==="defart"){var def=boundChild.DefartApp&&boundChild.DefartApp.getState?boundChild.DefartApp.getState():{};return def.booted===true&&def.rendering!==true&&def.renderQueued!==true&&notLoading(nodeText("def-visible-count"));}
+      if(probeId()==="ncomplex"){var nc=boundChild.NcomplexState&&boundChild.NcomplexState.get?boundChild.NcomplexState.get():{};return nc.ready===true&&nc.loading!==true&&nc.saving!==true&&notLoading(nodeText("ncomplex-status"));}
+      if(probeId()==="cr_def"){var cr=boundChild.CR_DEF_APP&&boundChild.CR_DEF_APP.state||{};var help=currentDoc.querySelector&&currentDoc.querySelector("[data-cr-periodo-help]");return !!boundChild.CR_DEF_APP&&cr.loading!==true&&notLoading(help&&help.textContent);}
+      if(probeId()==="titulacion"){var ip=boundChild.InPVCApp&&boundChild.InPVCApp.state||{};return !!boundChild.InPVCApp&&Array.isArray(ip.periods)&&notLoading(nodeText("inpvc-status"));}
     }catch(error){return false;}
     /* Respaldo futuro: generic-dom-stable. */
     return false;
@@ -88,7 +92,7 @@ Función:
   function verify(reason){if(!state.running){return false;}if(moduleReady()){markData(reason||"visible-state");return finishAfterPaint(reason||"visible-state");}return false;}
   function triggerReadyProbe(){var api=probeApi();if(api&&typeof api.track==="function"){try{api.track("main-module-activated");}catch(error){}}return verify("probe-status");}
   function ensureProbe(){
-    var cfg=READY_PROBES[state.moduloId];if(!cfg||!boundChild){return false;}
+    var cfg=READY_PROBES[probeId()];if(!cfg||!boundChild){return false;}
     try{if(boundChild[cfg.global]){return true;}var currentDoc=boundChild.document;var href=text(boundChild.location&&boundChild.location.href||"");if(!currentDoc||!href||href==="about:blank"||!currentDoc.createElement){return false;}if(currentDoc.querySelector&&currentDoc.querySelector('script[data-maq-ready-probe="'+state.moduloId+'"]')){return true;}var script=currentDoc.createElement("script");script.src=new URL(cfg.path,href).href;script.async=false;script.defer=false;script.setAttribute("data-maq-ready-probe",state.moduloId);script.onload=function(){triggerReadyProbe();};(currentDoc.head||currentDoc.documentElement).appendChild(script);return true;}catch(error){return false;}
   }
   function eventMatches(detail){detail=detail&&typeof detail==="object"?detail:{};var target=text(detail.targetModuleId||detail.moduleId||detail.moduloId||"");return !target||target===state.moduloId;}

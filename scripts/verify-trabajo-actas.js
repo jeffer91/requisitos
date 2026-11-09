@@ -53,7 +53,7 @@ function el(id){
   appendChild(c){this.children.push(c);return c;},addEventListener(){},querySelector(){return tbody;}};
 }
 const tbody=el("tbody");
-const ids=["tt-period","tt-paste","tt-analyze","tt-save","tt-resync","tt-clear","tt-message","tt-results","tt-table","tt-count-total","tt-count-ready","tt-count-blocked","tt-saved"];
+const ids=["tt-period","tt-roster","tt-paste","tt-analyze","tt-save","tt-resync","tt-clear","tt-message","tt-results","tt-table","tt-count-total","tt-count-ready","tt-count-blocked","tt-saved"];
 const dom=Object.fromEntries(ids.map(id=>[id,el(id)]));
 Object.defineProperty(dom["tt-table"],"querySelector",{value:()=>tbody});
 Object.defineProperty(tbody,"textContent",{set(v){this.children=[];},get(){return "";}});
@@ -65,14 +65,17 @@ const students={
  ],
  "2026-04__2026-09":[{cedula:"1700000004",periodoId:"2026-04__2026-09",estadoMatricula:"ACTIVO",CodigoCarrera:"550417A01-P-1701"}]
 };
-let requirementsOk={"1700000001":true,"1700000002":false,"1700000003":true};
+// Lo que adjunta BDLocal al listar: Aprobación final (Aprobación titulación + Aprobación complexivo/proyecto).
+let approved={"1700000001":true,"1700000002":false,"1700000003":true,"1700000004":true};
+const withFinal=s=>({...s,aprobacionFinal:approved[s.cedula]===true,
+ _aprobacionFinal:approved[s.cedula]?{eligible:true,reason:""}:{eligible:false,reason:"Aprobación titulación (NO CUMPLE)"}});
 const evaluations=new Map();const savedRows=[];
 const ConNcomplex={
  async ready(){return {ok:true};},
  async listPeriods(){return Object.keys(students).map(id=>({id}));},
- async listStudents(o){return (students[o.periodoId]||[]).map(s=>({...s}));},
- async checkRequirements(p,c){return requirementsOk[c]?{eligible:true}:{eligible:false,reason:"Titulación (NO CUMPLE)"};},
- async getEvaluation(p,c){return evaluations.get(p+"__"+c)||null;},
+ async listStudents(o){return (students[o.periodoId]||[]).map(withFinal);},
+ async checkRequirements(){throw Error("Ya no se consulta estudiante por estudiante.");},
+ async getEvaluation(){throw Error("Ya no se consulta estudiante por estudiante.");},
  async saveMany(rows){rows.forEach(r=>{savedRows.push(r);evaluations.set(r.periodoId+"__"+r.cedula,{...r});});return rows;},
  async listEvaluations(o){return [...evaluations.values()].filter(r=>r.periodoId===o.periodoId);}
 };
@@ -100,7 +103,12 @@ async function until(test){for(let i=0;i<200;i++){if(test())return;await tick();
  // Sin período no analiza.
  dom["tt-paste"].value=F.text();
  app.analyze();assert.match(dom["tt-message"].textContent,/Seleccione el período/);
- st.period=period;st.periods=Object.keys(students);
+ st.periods=Object.keys(students);
+ // Elegir el período: una sola lectura arma la lista de habilitados.
+ dom["tt-period"].value=period;
+ await app.loadRoster(period);
+ assert.match(dom["tt-message"].textContent,/BDLocal leída en .* 2 habilitado\(s\) con Aprobación final de 3 matrícula\(s\) activa\(s\) · 0 con acta guardada/);
+ assert.equal(dom["tt-roster"].hidden,false,"Se ve la lista de habilitados.");
  // Cuarto estudiante matriculado en otro período: se indica dónde está.
  const extra=F.block({...F.actas[0],cedula:"1700000004",acta:"4999"});
  dom["tt-paste"].value=F.text()+"\n\n"+extra;
@@ -109,7 +117,7 @@ async function until(test){for(let i=0;i<200;i++){if(test())return;await tick();
  const by=c=>st.checked.find(i=>i.acta.cedula===c);
  assert.equal(by("1700000001").blocked.length,0,by("1700000001").blocked.join(" | "));
  assert.equal(by("1700000001").group,"PRESENCIAL");
- assert.ok(by("1700000002").blocked.some(b=>/No cumple los 9 requisitos: Titulación \(NO CUMPLE\)/.test(b)),"Requisitos incompletos bloquean.");
+ assert.ok(by("1700000002").blocked.some(b=>/falta Aprobación final \(Aprobación titulación \(NO CUMPLE\)\)/.test(b)),"Sin Aprobación final se bloquea.");
  assert.ok(by("1700000004").blocked.some(b=>/tiene matrícula activa en Abril 2026 a Septiembre 2026/.test(b)));
  assert.equal(dom["tt-count-ready"].textContent,2);
  assert.equal(dom["tt-save"].disabled,false);
@@ -139,10 +147,11 @@ async function until(test){for(let i=0;i<200;i++){if(test())return;await tick();
 
  // Ya tiene notas de complexivo: se bloquea.
  evaluations.set(period+"__1700000002",{periodoId:period,cedula:"1700000002",modalidadTitulacion:"EXAMEN_COMPLEXIVO",notaTeorica:8});
- requirementsOk["1700000002"]=true;
+ approved["1700000002"]=true;delete st.students[period];
+ await app.loadRoster(period);
  dom["tt-paste"].value=F.block(F.actas[1]);
  app.analyze();await until(()=>!st.working);
- assert.ok(st.checked[0].blocked.some(b=>/Ya tiene notas de examen complexivo/.test(b)));
+ assert.ok(st.checked[0].blocked.some(b=>/Ya está en examen complexivo: no puede tener trabajo de titulación/.test(b)));
 
  // Código de carrera distinto al de la matrícula: se bloquea.
  dom["tt-paste"].value=F.block({...F.actas[0],codigo:"550411C02-P-1701"});

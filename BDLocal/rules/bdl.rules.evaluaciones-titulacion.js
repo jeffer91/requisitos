@@ -26,6 +26,11 @@
     {key:"actualizaciondatos",label:"Actualización de datos",aliases:["actualizaciondatos","actualizaciondedatos"]},
     {key:"titulacion",label:"Titulación",aliases:["titulacion"]}
   ]);
+  // Aprobación final: fase final de titulación. Habilita Notas → Complexivo y Notas → Trabajo.
+  var FINAL_APPROVAL=Object.freeze([
+    {key:"aprobaciontitulacion",label:"Aprobación titulación",aliases:["aprobaciontitulacion"]},
+    {key:"aprobacioncomplexivoproyecto",label:"Aprobación complexivo/proyecto",aliases:["aprobacioncomplexivoproyecto","aprobacioncomplexivo","aprobacionproyecto"]}
+  ]);
   function requirementKey(value){
     return text(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
   }
@@ -34,11 +39,12 @@
     var key=requirementKey(value);
     return key==="cumple"?"CUMPLE":key==="noaplica"?"NO APLICA":key==="nocumple"?"NO CUMPLE":key==="pendiente"?"PENDIENTE":"SIN DATO";
   }
-  function evaluateRequirements(student,rows){
+  function evaluateRequirements(student,rows,definitions){
+    var DEFS=Array.isArray(definitions)?definitions:REQUIRED;
     var entries=Object.create(null);
     function take(key,value,source){
       var normalized=requirementKey(key);
-      var def=REQUIRED.filter(function(r){return r.aliases.some(function(alias){return normalized===alias;});})[0];
+      var def=DEFS.filter(function(r){return r.aliases.some(function(alias){return normalized===alias;});})[0];
       if(!def)return;
       var status=requirementStatus(value),previous=entries[def.key];
       if(!previous || source==="requisitos_estudiante" || previous.source!=="requisitos_estudiante")
@@ -57,7 +63,7 @@
         row.valor!==undefined?row.valor:row.estado!==undefined?row.estado:row.value,
         "requisitos_estudiante");
     });
-    var items=REQUIRED.map(function(r){
+    var items=DEFS.map(function(r){
       var entry=entries[r.key]||{status:"SIN DATO",source:"sin registro"};
       return {key:r.key,label:r.label,status:entry.status,source:entry.source};
     });
@@ -92,5 +98,6 @@
   }
   function apply(payload,ctx){return Array.isArray(payload)?payload.map(function(r){return build(r,ctx);}):build(payload,ctx);}
   if(window.BDLRules&&typeof window.BDLRules.register==="function"){window.BDLRules.register("evaluaciones_titulacion.normalize",apply);window.BDLRules.register("ncomplex.normalize",apply);}
-  window.BDLRulesEvaluacionesTitulacion={version:VERSION,MOD_COMPLEXIVO:MOD_COMPLEXIVO,MOD_TRABAJO:MOD_TRABAJO,parseNota:note,normalizeCedula:cedula,canonicalPeriodId:period,makeId:makeId,modality:modality,complexivo:complexivo,trabajo:trabajo,REQUIRED:REQUIRED,evaluateRequirements:evaluateRequirements,requirementStatus:requirementStatus,build:build,apply:apply};
+  window.BDLRulesEvaluacionesTitulacion={version:VERSION,MOD_COMPLEXIVO:MOD_COMPLEXIVO,MOD_TRABAJO:MOD_TRABAJO,parseNota:note,normalizeCedula:cedula,canonicalPeriodId:period,makeId:makeId,modality:modality,complexivo:complexivo,trabajo:trabajo,REQUIRED:REQUIRED,FINAL_APPROVAL:FINAL_APPROVAL,evaluateRequirements:evaluateRequirements,
+    evaluateFinalApproval:function(student,rows){return evaluateRequirements(student,rows,FINAL_APPROVAL);},requirementStatus:requirementStatus,build:build,apply:apply};
 })(window);

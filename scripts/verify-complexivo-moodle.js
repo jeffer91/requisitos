@@ -41,6 +41,21 @@ r=ev(sw,"cnorinde@itsqmet.edu.ec");assert.equal(r.estadoEvaluacion,"SIN_NOTAS");
 assert.equal(R.evaluate({ordinaria:{teorico:8,practico:9},supletorio:{teorico:5,practico:5}}).notaOficial,8.6,"Si aprobó el ordinario, el supletorio no cuenta.");
 assert.equal(R.evaluate({ordinaria:{teorico:8,practico:null},supletorio:{teorico:null,practico:null}}).estadoEvaluacion,"INCOMPLETO");
 
+// ---------- 2b. Regla de BDLocal: Aprobación final ----------
+{
+ const sb={console,Object,Array,String,Number,JSON,Math,Date,RegExp,BL2Config:{}};sb.window=sb;vm.createContext(sb);
+ new vm.Script(fs.readFileSync(path.join(ROOT,"BDLocal/rules/bdl.rules.evaluaciones-titulacion.js"),"utf8")).runInContext(sb);
+ const RT=sb.BDLRulesEvaluacionesTitulacion;
+ assert.equal(RT.evaluateFinalApproval({},[{valores:{AprobacionTitulacion:"CUMPLE",AprobacionComplexivoProyecto:"CUMPLE",Ingles:"NO CUMPLE"}}]).eligible,true,
+  "Aprobación final solo mira Aprobación titulación y Aprobación complexivo/proyecto.");
+ const no=RT.evaluateFinalApproval({},[{requisitoKey:"AprobacionTitulacion",valor:"CUMPLE"},{requisitoKey:"AprobacionComplexivoProyecto",valor:"NO CUMPLE"}]);
+ assert.equal(no.eligible,false);assert.equal(no.reason,"Aprobación complexivo/proyecto (NO CUMPLE)");
+ assert.equal(RT.evaluateFinalApproval({},[]).eligible,false,"Sin dato no habilita.");
+ assert.equal(RT.evaluateRequirements({},[{valores:{Ingles:"CUMPLE"}}]).total,9,"La regla de 9 requisitos sigue igual para Núcleos.");
+ const service=fs.readFileSync(path.join(ROOT,"BDLocal/services/bdl.service.ncomplex.js"),"utf8");
+ assert.ok(service.includes("_aprobacionFinal:final"),"BDLocal adjunta la Aprobación final en la misma lectura del período.");
+}
+
 // ---------- 3. Pantalla con BDLocal y Firestore simulados ----------
 function fakeFirestore(){
  const stored={};const rows=n=>stored[n]||(stored[n]=new Map());
@@ -54,9 +69,13 @@ const firestore=fakeFirestore();
 // El correo de cada fila de Moodle solo sirve aquí para ubicar la fila en la prueba.
 const moodleNameOf=email=>(parsed.libros.flatMap(b=>b.filas).find(f=>f.correo===email)||{}).nombreMoodle;
 let n=0;const st=(email,career,code,extra)=>({cedula:"17000001"+String(++n).padStart(2,"0"),periodoId:P,estadoMatricula:"ACTIVO",
- NombreCarrera:career,CodigoCarrera:code,Nombres:F.bdlocalNames[moodleNameOf(email)]||"SIN FILA EN MOODLE",_email:email,...extra});
+ NombreCarrera:career,CodigoCarrera:code,Nombres:F.bdlocalNames[moodleNameOf(email)]||"SIN FILA EN MOODLE",_email:email,
+ // Lo que adjunta BDLocal: Aprobación final (Aprobación titulación + Aprobación complexivo/proyecto).
+ aprobacionFinal:email!=="erequisitos@itsqmet.edu.ec",
+ _aprobacionFinal:email!=="erequisitos@itsqmet.edu.ec"?{eligible:true,reason:""}:{eligible:false,reason:"Aprobación complexivo/proyecto (NO CUMPLE)"},...extra});
 const students={[P]:[
  st("aordinaria@itsqmet.edu.ec","EDUCACIÓN BÁSICA","550113A01-P-1701"),
+ st("noaprobado@itsqmet.edu.ec","EDUCACIÓN BÁSICA","550113A01-P-1701",{aprobacionFinal:false,_aprobacionFinal:{eligible:false,reason:"Aprobación titulación (NO CUMPLE)"}}),
  st("bsupletorio@itsqmet.edu.ec","EDUCACIÓN BÁSICA","550113A01-P-1701"),
  st("csolosuple@itsqmet.edu.ec","EDUCACIÓN BÁSICA","550113A01-P-1701"),
  st("donline@itsqmet.edu.ec","EDUCACIÓN BÁSICA ONLINE","550113A01-L-1701"),
@@ -76,8 +95,8 @@ const ConNcomplex={
  async ready(){return {ok:true};},
  async listPeriods(){return Object.keys(students).map(id=>({id}));},
  async listStudents(o){return (students[o.periodoId]||[]).map(s=>({...s}));},
- async checkRequirements(p,c){return c===cedOf("erequisitos@itsqmet.edu.ec")?{eligible:false,reason:"Financiero (NO CUMPLE)"}:{eligible:true};},
- async getEvaluation(p,c){return evaluations.get(p+"__"+c)||null;},
+ async checkRequirements(){throw Error("Ya no se consulta estudiante por estudiante: la lista se arma en una sola lectura.");},
+ async getEvaluation(){throw Error("Ya no se consulta estudiante por estudiante.");},
  async saveMany(rows){rows.forEach(r=>{saved.push(r);evaluations.set(r.periodoId+"__"+r.cedula,{...r});});return rows;},
  async listEvaluations(o){return [...evaluations.values()].filter(r=>r.periodoId===o.periodoId);}
 };
@@ -85,7 +104,7 @@ function el(id){return {id,value:"",textContent:"",className:"",hidden:false,dis
  appendChild(c){this.children.push(c);return c;},addEventListener(){},querySelector(){return tbody;}};}
 const tbody=el("tbody");
 Object.defineProperty(tbody,"textContent",{set(){this.children=[];},get(){return "";}});
-const ids=["cx-period","cx-paste","cx-analyze","cx-save","cx-resync","cx-clear","cx-message","cx-results","cx-table","cx-count-total","cx-count-ready","cx-count-blocked","cx-count-skip","cx-saved"];
+const ids=["cx-period","cx-paste","cx-metrics","cx-roster","cx-analyze","cx-save","cx-resync","cx-clear","cx-message","cx-results","cx-table","cx-count-total","cx-count-ready","cx-count-blocked","cx-count-skip","cx-saved"];
 const dom=Object.fromEntries(ids.map(id=>[id,el(id)]));
 const sandbox={console,Date,Math,JSON,Number,Object,Array,String,Boolean,RegExp,Promise,Map,Set,setTimeout,clearTimeout,URL,
  CustomEvent:function(n,o){this.type=n;this.detail=o&&o.detail;},dispatchEvent(){},
@@ -109,11 +128,20 @@ async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw
  // Selector de período: etiqueta de BDLocal o, si falta, «Mes AAAA a Mes AAAA».
  await until(()=>dom["cx-period"].children.length>1);
  const labels=dom["cx-period"].children.map(o=>o.textContent);
- assert.equal(labels[0],"Automático (del título de Moodle)");
+ assert.equal(labels[0],"Selecciona un período");
  assert.ok(labels.includes("Octubre 2025 a Marzo 2026")&&labels.includes("Mayo 2026 a Noviembre 2026"),labels.join(" | "));
  assert.equal(dom["cx-period"].children[1].value,"2026-05__2026-11","El valor sigue siendo el código.");
- S.periods=Object.keys(students);
- dom["cx-paste"].value=F.all();
+ assert.match(dom["cx-message"].textContent,/Selecciona un período para cargar los estudiantes habilitados/);
+ // Sin período no se analiza.
+ dom["cx-paste"].value=F.all();app.analyze();
+ assert.match(dom["cx-message"].textContent,/Primero selecciona el período/);
+ // Elegir el período: UNA lectura arma la lista de habilitados (Aprobación final).
+ dom["cx-period"].value=P;
+ await app.loadRoster(P);
+ assert.equal(S.roster.list.length,students[P].length-2,"Solo con Aprobación final (excluye noaprobado y erequisitos).");
+ assert.match(dom["cx-message"].textContent,/BDLocal leída en .* 12 habilitado\(s\) con Aprobación final de 14 matrícula/);
+ assert.equal(dom["cx-results"].hidden,false,"La lista de habilitados se ve antes de pegar Moodle.");
+ assert.equal(dom["cx-metrics"].hidden,true);
  app.analyze();await until(()=>!S.working);
  assert.equal(S.books.length,4);
  const item=e=>S.items.find(i=>i.fila.correo===e);
@@ -122,7 +150,7 @@ async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw
   JSON.stringify(S.items.map(i=>[i.fila.correo,i.blocked,i.skipReason])));
  assert.equal(item("donline@itsqmet.edu.ec").group,"ONLINE","Un mismo libro mezcla presencial y online.");
  assert.equal(item("aordinaria@itsqmet.edu.ec").group,"PRESENCIAL");
- assert.ok(item("erequisitos@itsqmet.edu.ec").blocked.some(b=>/9 requisitos: Financiero/.test(b)));
+ assert.ok(item("erequisitos@itsqmet.edu.ec").blocked.some(b=>/falta Aprobación final \(Aprobación complexivo\/proyecto \(NO CUMPLE\)\)/.test(b)));
  assert.ok(item("operiodo@itsqmet.edu.ec").blocked.some(b=>/No tiene matrícula en Octubre 2025 a Marzo 2026; la tiene en Mayo 2026 a Noviembre 2026/.test(b)),"Los períodos se muestran con su nombre, no con el código.");
  assert.ok(item("fdoble@itsqmet.edu.ec").blocked.some(b=>/dos notas/.test(b)));
  assert.equal(item("dmena.prueba@itsqmet.edu.ec").skipReason,"Incompleto");
@@ -163,9 +191,14 @@ async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw
 
  // Ya tiene trabajo de titulación → bloquea.
  evaluations.set(P+"__"+cedOf("aordinaria@itsqmet.edu.ec"),{periodoId:P,cedula:cedOf("aordinaria@itsqmet.edu.ec"),modalidadTitulacion:"TRABAJO_TITULACION",notaTrabajoTitulacion:8});
- dom["cx-period"].value="";dom["cx-paste"].value=F.basica;
+ await app.loadRoster(P);
+ dom["cx-paste"].value=F.basica;
  app.analyze();await until(()=>!S.working);
- assert.ok(item("aordinaria@itsqmet.edu.ec").blocked.some(b=>/trabajo de titulación/.test(b)));
+ assert.ok(item("aordinaria@itsqmet.edu.ec").blocked.some(b=>/Ya está en Trabajo de titulación: no puede estar en complexivo/.test(b)));
+ // El libro de otro período se bloquea.
+ dom["cx-paste"].value=F.basica.replace("octubre marzo 2026","abril septiembre 2026");
+ app.analyze();await until(()=>!S.working);
+ assert.ok(S.items.every(i=>i.blocked.some(b=>/El libro es de Abril 2026 a Septiembre 2026 y el período elegido es Octubre 2025 a Marzo 2026/.test(b))||i.skip));
 
  // El validador de Firebase rechaza una nota oficial que no respeta 40/60.
  assert.equal(sandbox.RequisitosFirebaseValidator.validate("notas_complexivo",{...d,notaOficial:6.43}).ok,false);

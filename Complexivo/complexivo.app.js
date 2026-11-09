@@ -4,11 +4,14 @@ Ruta: /Complexivo/complexivo.app.js
 Función:
 - Menú Notas → Complexivo: pegar uno o varios libros de Moodle del Examen
   Complexivo, calcular la nota oficial (40/60) y guardarla.
-- Período y carrera se leen del título del libro. Cada fila se cruza con
+- Al elegir el período se lee BDLocal UNA vez y se arma la lista de
+  habilitados: matrícula ACTIVA con Aprobación final (Aprobación titulación +
+  Aprobación complexivo/proyecto en CUMPLE). Con ellos se trabaja.
+- La carrera se lee del título del libro y el período debe coincidir. Cada fila se cruza con
   BDLocal por el NOMBRE (sin importar el orden nombres/apellidos, las tildes
   ni las iniciales que Moodle pega delante). El correo no se usa ni se guarda.
-- Bloquea si: no hay matrícula ACTIVA en el período, no cumple los 9
-  requisitos o el estudiante ya tiene notas de trabajo de titulación.
+- Bloquea si: no hay matrícula ACTIVA en el período, no tiene Aprobación
+  final o el estudiante ya está en Trabajo de titulación.
 - No se guardan: «no rindió» ni supletorio/ordinario incompletos.
 - Guarda en BDLocal (evaluaciones_titulacion) y sube directo a
   Firebase /notas_complexivo, igual que Carga.
@@ -17,7 +20,8 @@ Función:
   "use strict";
 
   var VERSION="1.0.0";
-  var state={periods:[],students:Object.create(null),items:[],books:[],working:false};
+  var state={periods:[],students:Object.create(null),items:[],books:[],working:false,
+    roster:null,rosterLoading:"",readyAnnounced:false};
   var base=(document.currentScript&&document.currentScript.src)||document.baseURI;
 
   function $(id){return document.getElementById(id);}
@@ -109,6 +113,44 @@ Función:
     },Promise.resolve(""));
   }
 
+  function habilitado(st){
+    var final=st&&st._aprobacionFinal;
+    return st&&(st.aprobacionFinal===true||(final&&final.eligible===true));
+  }
+  function finalReason(st){
+    var final=st&&st._aprobacionFinal;
+    return text(st&&st.aprobacionFinalFaltante||final&&final.reason)||"sin verificación";
+  }
+  function hasValue(v){return v!==null&&v!==undefined&&text(v)!=="";}
+  // Un estudiante con trabajo de titulación no puede estar en complexivo (y al revés).
+  function inTrabajo(ev){
+    return !!ev&&(text(ev.modalidadTitulacion)==="TRABAJO_TITULACION"&&(!!ev.actaTrabajo||hasValue(ev.notaTrabajoTitulacion)||hasValue(ev.notaEscrito)));
+  }
+  function announceReady(){
+    if(state.readyAnnounced){return;}state.readyAnnounced=true;
+    try{window.dispatchEvent(new CustomEvent("maqueta:screen-render-complete",{detail:{source:"complexivo"}}));}catch(error){}
+  }
+  // Una sola lectura de BDLocal por período: matrículas + requisitos + evaluaciones.
+  function loadRoster(period){
+    if(!period){state.roster=null;render();message("Selecciona un período para cargar los estudiantes habilitados.");return Promise.resolve(null);}
+    var started=Date.now();state.rosterLoading=period;state.books=[];state.items=[];render();
+    message("Leyendo "+periodName(period)+" en BDLocal…");
+    return Promise.all([studentsOf(period),con().listEvaluations({periodoId:period}).catch(function(){return [];})]).then(function(out){
+      if(state.rosterLoading!==period){return null;}
+      var idx=out[0],evalByCed=Object.create(null);
+      (out[1]||[]).forEach(function(ev){if(ev&&ev.eliminado!==true&&canon(ev.periodoId)===period){evalByCed[studentId(ev)]=ev;}});
+      var activos=idx.list.filter(active);
+      var list=activos.filter(habilitado).sort(function(a,b){
+        return studentCareer(a).localeCompare(studentCareer(b),"es")||studentName(a).localeCompare(studentName(b),"es");});
+      state.roster={period:period,idx:idx,list:list,evalByCed:evalByCed,activos:activos.length,ms:Date.now()-started};
+      var trabajo=list.filter(function(st){return inTrabajo(evalByCed[studentId(st)]);}).length;
+      message("BDLocal leída en "+(state.roster.ms/1000).toFixed(1).replace(".",",")+" s · "+list.length+" habilitado(s) con Aprobación final de "+
+        activos.length+" matrícula(s) activa(s)"+(trabajo?" · "+trabajo+" ya en Trabajo de titulación":"")+". Pegue los libros de Moodle.",list.length?"ok":"error");
+      return state.roster;
+    }).catch(function(error){message("No se pudo leer BDLocal: "+(error.message||error),"error");})
+      .then(function(r){state.rosterLoading="";render();announceReady();return refreshSaved().then(function(){return r;});});
+  }
+
   function checkRow(book,fila,period){
     var rules=window.ComplexivoRules,item={book:book,fila:fila,periodoId:period,resultado:rules.evaluate(fila),
       blocked:fila.errors.slice(),warnings:[],student:null,group:"",skip:false};
@@ -116,7 +158,9 @@ Función:
     if(item.resultado.estadoEvaluacion==="SIN_NOTAS"){item.skip=true;item.skipReason="No rindió";}
     else if(item.resultado.estadoEvaluacion==="INCOMPLETO"){item.skip=true;item.skipReason="Incompleto";}
     if(!period){item.blocked.push("Sin período.");return Promise.resolve(item);}
-    return studentsOf(period).then(function(idx){
+    return Promise.resolve(state.roster&&state.roster.period===period?state.roster.idx:null).then(function(idx){
+      return idx||studentsOf(period);
+    }).then(function(idx){
       var matches=lookup(idx,fila.nombreMoodle);
       var current=matches.filter(active);
       if(current.length>1&&current.some(function(st){return studentId(st)!==studentId(current[0]);})){
@@ -142,19 +186,10 @@ Función:
       item.group=groupFromCode(studentCode(st),studentCareer(st));
       if(item.skip){return item;}
       if(!item.group){item.blocked.push("No se pudo deducir la modalidad (Presencial/Online/PVC) del código de carrera "+studentCode(st)+".");}
-      var c=con(),ced=studentId(st);
-      return Promise.all([
-        c.checkRequirements(period,ced).catch(function(e){return {eligible:false,reason:e.message||String(e)};}),
-        c.getEvaluation(period,ced).catch(function(){return null;})
-      ]).then(function(out){
-        var req=out[0]||{},existing=out[1];
-        if(!req.eligible){item.blocked.push("No cumple los 9 requisitos: "+(text(req.reason)||"sin verificación")+".");}
-        if(existing&&text(existing.modalidadTitulacion)==="TRABAJO_TITULACION"&&
-          (existing.actaTrabajo||[existing.notaTrabajoTitulacion,existing.notaEscrito].some(function(v){return v!==null&&v!==undefined&&text(v)!=="";}))){
-          item.blocked.push("Ya tiene notas de trabajo de titulación en este período.");
-        }
-        return item;
-      });
+      if(!habilitado(st)){item.blocked.push("No está habilitado: falta Aprobación final ("+finalReason(st)+").");}
+      var existing=state.roster&&state.roster.evalByCed[studentId(st)];
+      if(inTrabajo(existing)){item.blocked.push("Ya está en Trabajo de titulación: no puede estar en complexivo.");}
+      return item;
     });
   }
 
@@ -162,12 +197,47 @@ Función:
     // Estudiantes activos de la carrera del libro que no aparecen en Moodle.
     var key=careerKey(book.info.carrera),seen=Object.create(null);
     items.forEach(function(i){if(i.student){seen[studentId(i.student)]=true;}});
-    var idx=state.students[period];if(!idx||!key){return [];}
-    return idx.list.filter(function(st){return active(st)&&careerKey(studentCareer(st))===key&&!seen[studentId(st)];});
+    var roster=state.roster&&state.roster.period===period?state.roster:null;if(!roster||!key){return [];}
+    return roster.list.filter(function(st){return careerKey(studentCareer(st))===key&&!seen[studentId(st)]&&!inTrabajo(roster.evalByCed[studentId(st)]);});
   }
 
+  function rosterRow(st,ev){
+    var tr=el("tr"),trabajo=inTrabajo(ev),saved=ev&&text(ev.modalidadTitulacion)==="EXAMEN_COMPLEXIVO"&&hasValue(ev.notaOficial);
+    var who=el("td");who.appendChild(el("strong",studentName(st)));who.appendChild(el("small",studentId(st)));tr.appendChild(who);
+    tr.appendChild(el("td",groupFromCode(studentCode(st),studentCareer(st))||"—"));
+    var n=function(v){return hasValue(v)?Number(v):null;};
+    var r=saved?window.ComplexivoRules.evaluate({ordinaria:{teorico:n(ev.notaTeorica),practico:n(ev.notaPractica)},supletorio:{teorico:n(ev.notaTeoricaSupletorio),practico:n(ev.notaPracticaSupletorio)}}):null;
+    [saved?n(ev.notaTeorica):null,saved?n(ev.notaPractica):null,r&&r.notaOrdinaria,saved?n(ev.notaTeoricaSupletorio):null,saved?n(ev.notaPracticaSupletorio):null,r&&r.notaSupletorio]
+      .forEach(function(v,i){tr.appendChild(el("td",fmt(v),i===2||i===5?"cx-sub":""));});
+    tr.appendChild(el("td",saved?fmt(n(ev.notaOficial)):"—","cx-final"));
+    tr.appendChild(el("td",saved&&ev.oportunidadAplicada?ev.oportunidadAplicada.charAt(0)+ev.oportunidadAplicada.slice(1).toLowerCase():"—"));
+    var status=el("td");
+    status.appendChild(el("span",trabajo?"En trabajo de titulación":saved?"Guardada":"Sin notas","cx-chip "+(trabajo?"is-muted":saved?"is-ok":"is-ready")));
+    tr.appendChild(status);
+    if(trabajo){tr.className="is-skip";}
+    return tr;
+  }
+  function renderRoster(tbody){
+    var roster=state.roster;
+    $("cx-metrics").hidden=true;
+    if(!roster){$("cx-results").hidden=true;return;}
+    var byCareer=Object.create(null);
+    roster.list.forEach(function(st){var c=studentCareer(st)||"SIN CARRERA",k=careerKey(c)||c;(byCareer[k]=byCareer[k]||{label:c.replace(/\s+ONLINE$/i,""),rows:[]}).rows.push(st);});
+    Object.keys(byCareer).sort().forEach(function(k){
+      var group=byCareer[k],head=el("tr",null,"cx-book"),th=el("td",null);th.colSpan=11;
+      th.appendChild(el("strong",group.label));th.appendChild(el("span",group.rows.length+" habilitado(s)"));
+      head.appendChild(th);tbody.appendChild(head);
+      group.rows.sort(function(a,b){return studentName(a).localeCompare(studentName(b),"es");})
+        .forEach(function(st){tbody.appendChild(rosterRow(st,roster.evalByCed[studentId(st)]));});
+    });
+    $("cx-roster").textContent=roster.list.length+" estudiante(s) habilitado(s) con Aprobación final en "+periodName(roster.period)+". Pegue los libros de Moodle y pulse Analizar.";
+    $("cx-results").hidden=false;$("cx-save").disabled=true;
+  }
   function render(){
     var tbody=$("cx-table").querySelector("tbody");tbody.textContent="";
+    if(!state.books.length){renderRoster(tbody);return;}
+    $("cx-metrics").hidden=false;
+    $("cx-roster").textContent=state.roster?"Resultado del análisis sobre los "+state.roster.list.length+" habilitado(s) de "+periodName(state.roster.period)+".":"";
     var counts={ready:0,blocked:0,skip:0};
     state.books.forEach(function(entry){
       var head=el("tr",null,"cx-book");var th=el("td",null);th.colSpan=11;
@@ -210,14 +280,17 @@ Función:
     if(!text(raw)){message("Pegue uno o varios libros de calificaciones de Moodle.","error");return;}
     var parsed=window.ComplexivoMoodle.parse(raw);
     if(!parsed.total){message("No se encontró ningún libro. Cada libro empieza con su título «Examen Complexivo … ]».","error");return;}
-    var forced=canon($("cx-period").value);
+    var selected=canon($("cx-period").value);
+    if(!selected||!state.roster||state.roster.period!==selected){message("Primero selecciona el período: se cargan los estudiantes habilitados.","error");return;}
     state.working=true;state.books=[];state.items=[];render();
     message("Validando "+parsed.total+" libro(s) contra BDLocal…");
     parsed.libros.reduce(function(chain,book){
       return chain.then(function(){
-        var period=forced||book.info.periodoId;
+        var period=selected;
         var entry={book:book,period:period,items:[],missing:[]};state.books.push(entry);
-        if(period&&state.periods.indexOf(period)<0){book.errors.push("El período "+periodName(period)+" no está en BDLocal.");period="";entry.period="";}
+        if(book.info.periodoId&&book.info.periodoId!==selected){
+          book.errors.push("El libro es de "+periodName(book.info.periodoId)+" y el período elegido es "+periodName(selected)+".");
+        }
         if(book.errors.length&&!book.filas.length){return null;}
         return book.filas.reduce(function(c,fila){
           return c.then(function(){return checkRow(book,fila,period).then(function(item){
@@ -281,6 +354,9 @@ Función:
     persist(ready.map(entryOf)).then(function(acc){
       ready.forEach(function(i){i.upload=acc.resultados[studentId(i.student)]||"ERROR";});
       if(!report(acc)){ready.forEach(function(i){if(i.upload==="ERROR"||i.upload==="CONFLICTO"){delete i.upload;}});}
+      if(state.roster){return con().listEvaluations({periodoId:state.roster.period}).then(function(rows){
+        (rows||[]).forEach(function(ev){if(ev&&canon(ev.periodoId)===state.roster.period){state.roster.evalByCed[studentId(ev)]=ev;}});
+      }).catch(function(){}).then(refreshSaved);}
       return refreshSaved();
     }).catch(function(error){message("No se pudo completar: "+(error.message||error)+". Lo guardado en BDLocal se conserva.","error");})
       .then(function(){state.working=false;render();});
@@ -292,10 +368,10 @@ Función:
       return (rows||[]).filter(function(r){return text(r.modalidadTitulacion)==="EXAMEN_COMPLEXIVO"&&text(r.origen)==="complexivo_moodle"&&canon(r.periodoId)===period;});
     });
   }
-  function selectedPeriod(){return canon($("cx-period").value)||(state.books[0]&&state.books[0].period)||"";}
+  function selectedPeriod(){return canon($("cx-period").value);}
   function refreshSaved(){
     var period=selectedPeriod();
-    if(!period){$("cx-saved").textContent="Elija un período para ver lo guardado.";$("cx-resync").disabled=true;return Promise.resolve();}
+    if(!period){$("cx-saved").textContent="Selecciona un período para ver lo guardado.";$("cx-resync").disabled=true;return Promise.resolve();}
     return savedRows(period).then(function(rows){
       $("cx-saved").textContent=rows.length+" nota(s) de complexivo guardadas en BDLocal para "+periodName(period)+".";
       $("cx-resync").disabled=state.working||!rows.length;
@@ -330,22 +406,27 @@ Función:
     state.periods=(periods||[]).map(function(p){return canon(p&&(p.id||p.periodoId||p.periodId||p.value)||p);}).filter(Boolean)
       .filter(function(v,i,all){return all.indexOf(v)===i;}).sort().reverse();
     select.textContent="";
-    select.appendChild(el("option","Automático (del título de Moodle)")).value="";
+    select.appendChild(el("option","Selecciona un período")).value="";
     state.periods.forEach(function(id){var o=el("option",periodName(id));o.value=id;select.appendChild(o);});
   }
   function init(){
     $("cx-analyze").addEventListener("click",analyze);
     $("cx-save").addEventListener("click",save);
     $("cx-resync").addEventListener("click",resync);
-    $("cx-period").addEventListener("change",function(){refreshSaved();});
-    $("cx-clear").addEventListener("click",function(){$("cx-paste").value="";state.items=[];state.books=[];render();message("");});
+    // El período (propio o el global de la app) carga la lista de habilitados.
+    $("cx-period").addEventListener("change",function(){loadRoster(canon(this.value));});
+    $("cx-clear").addEventListener("click",function(){$("cx-paste").value="";state.items=[];state.books=[];render();
+      message(state.roster?state.roster.list.length+" habilitado(s) en "+periodName(state.roster.period)+". Pegue los libros de Moodle.":"");});
     message("Conectando con BDLocal…");
     connect().then(function(c){return c.listPeriods();}).then(function(periods){
-      fillPeriods(periods);message("Pegue uno o varios libros de Moodle y pulse Analizar.");refreshSaved();
-    }).catch(function(error){message("No se pudo conectar con BDLocal: "+(error.message||error),"error");});
+      fillPeriods(periods);
+      var current=canon($("cx-period").value);
+      if(current){return loadRoster(current);}
+      message("Selecciona un período para cargar los estudiantes habilitados (Aprobación final).");announceReady();return refreshSaved();
+    }).catch(function(error){message("No se pudo conectar con BDLocal: "+(error.message||error),"error");announceReady();});
     render();
   }
 
-  window.ComplexivoApp={version:VERSION,init:init,analyze:analyze,save:save,resync:resync,_state:state};
+  window.ComplexivoApp={version:VERSION,init:init,analyze:analyze,save:save,resync:resync,loadRoster:loadRoster,_state:state};
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",init);}else{init();}
 })(window,document);

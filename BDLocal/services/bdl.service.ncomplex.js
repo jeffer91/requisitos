@@ -89,6 +89,12 @@ Función:
       ? helper.evaluateRequirements(student||{},rows||[])
       : deniedRequirements("El validador de requisitos no está disponible.");
   }
+  function validateFinalApproval(student,rows){
+    var helper=rules();
+    return helper&&typeof helper.evaluateFinalApproval==="function"
+      ? helper.evaluateFinalApproval(student||{},rows||[])
+      : {eligible:false,complete:0,total:2,missing:[],reason:"El validador de Aprobación final no está disponible."};
+  }
   function readRequirements(options){
     var repo=requirementsRepo();
     if(!repo||typeof repo.list!=="function")
@@ -157,8 +163,12 @@ Función:
       return applyFilters(students.map(function(student){
         var id=studentPeriodId(studentPeriod(student),studentCedula(student));
         var row=mergeStudentEvaluation(student,map[id]||null,options);
-        var check=req.error?deniedRequirements(req.error):validateRequirements(student,reqByCed[studentCedula(student)]||[]);
-        return Object.assign({},row,{_ncomplexRequirements:check,requisitosCompletos:check.eligible,requisitosFaltantes:check.reason});
+        var own=reqByCed[studentCedula(student)]||[];
+        var check=req.error?deniedRequirements(req.error):validateRequirements(student,own);
+        // Aprobación final (Aprobación titulación + Aprobación complexivo/proyecto): habilita Complexivo y Trabajo.
+        var final=req.error?{eligible:false,complete:0,total:2,missing:[],reason:req.error}:validateFinalApproval(student,own);
+        return Object.assign({},row,{_ncomplexRequirements:check,requisitosCompletos:check.eligible,requisitosFaltantes:check.reason,
+          _aprobacionFinal:final,aprobacionFinal:final.eligible,aprobacionFinalFaltante:final.reason});
       }),options)
         .sort(function(a,b){var career=norm(studentCareer(a)).localeCompare(norm(studentCareer(b)));return career||norm(studentName(a)).localeCompare(norm(studentName(b)));});
     });
