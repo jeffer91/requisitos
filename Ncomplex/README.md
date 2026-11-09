@@ -6,12 +6,16 @@ En el menú, **Notas** agrupa las cuatro pantallas de calificaciones. Todas sube
 
 | Menú Notas → | Pantalla | Colección | ID del documento |
 |---|---|---|---|
-| Núcleos | `Ncomplex/ncomplex.html?modo=nucleos` | `notas_nucleos` | `periodoId__cedula__N1…N4` |
-| Complexivo | `Ncomplex/ncomplex.html?modo=complexivo` | `notas_complexivo` | `periodoId__cedula` |
+| Núcleos | `Ncomplex/ncomplex.html` (solo núcleos) | `notas_nucleos` | `periodoId__cedula__N1…N4` |
+| Complexivo | `Complexivo/complexivo.html` (carpeta y motores propios) | `notas_complexivo` | `periodoId__cedula` |
 | Artículo (antes Defensas) | `defart/defart.html` | `notas_articulo` | `periodoId__cedula` |
 | Trabajo | `Trabajo/trabajo.html` | `notas_trabajo` | `periodoId__cedula` |
 
 - **BDLocal es la autoridad.** Lo que ya está igual en Firebase (`dataHash`) no se escribe; lo nuevo o distinto se escribe usando como base de versión el remoto recién leído, y se verifica con una lectura posterior. Si otro equipo lo cambia justo en medio, queda como conflicto y se reintenta.
+- **Complexivo** lee uno o varios libros de Moodle pegados juntos. Las columnas se reconocen por su encabezado; «Versión 2» y «Supletorio» cuentan como supletorio. Toma el período y la carrera del título y cruza cada fila por el correo institucional.
+  - **La app calcula la nota y no usa los totales de Moodle**: ordinario = 40 % teórico + 60 % práctico, y supletorio igual.
+  - Ordinario y supletorio **no se mezclan**: quien pierde el ordinario debe rendir los dos componentes del supletorio. Si falta uno, la nota queda incompleta y no se guarda.
+  - «-» significa que no rindió; «0,00» es una nota real. Se aprueba con 7.
 - **Artículo** guarda solo `notaArticulo`, `notaDefensa`, `notaFinal` y `estadoEvaluacion`, sin campos duplicados.
 - **Trabajo** guarda el acta SENESCYT completa: tutor, lector, 3 vocales, 8 criterios y los 5 promedios. Fórmula: final = 60 % escrito + 40 % defensa oral. Un acta se **bloquea** si:
   - el texto copiado no cuadra con sus propios cálculos;
@@ -22,11 +26,13 @@ En el menú, **Notas** agrupa las cuatro pantallas de calificaciones. Todas sube
 - El período de una nota de trabajo es el de la **matrícula**, no la fecha del acta.
 - **Modalidad (`grupoInforme`)**: se toma del código de carrera (`-P-` = PRESENCIAL, `-L-` = ONLINE).
 - **Requisitos**: Núcleos exige 8 (Titulación no aplica todavía); Complexivo y Trabajo exigen 9.
+- Ncomplex ya no carga el examen complexivo. Si se le pega un libro de complexivo, avisa que se use Notas → Complexivo. El código anterior (`ncomplex.firebase-complexivo.js` y el modo interno) queda sin acceso desde el menú.
 - Las colecciones antiguas `nucleos`, `complexivo`, `evaluaciones_nucleos` y `complexivos` quedan en solo lectura. `notas` sigue abierta para la cola general de BDLocal.
 - `NcomplexFirebaseAuth` funciona en modo directo por defecto. Para volver a exigir sesión, define `window.NCOMPLEX_FIREBASE_OPEN_WRITE=false`.
 - **Reglas**: se despliegan con `firebase deploy --only firestore:rules`. **Ese comando reemplaza todas las reglas activas**, así que primero hay que compararlas con las de la consola.
 
 ```bash
+node scripts/verify-complexivo-moodle.js
 node scripts/verify-trabajo-actas.js
 node scripts/verify-defart-firebase-direct.js
 node scripts/verify-ncomplex-center.js

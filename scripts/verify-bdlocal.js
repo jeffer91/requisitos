@@ -148,11 +148,11 @@ contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Ncomplex/ncomplex.html"'
 ["Maqueta/maq-menu.js","Maqueta/maq-config-service.js"].forEach(function(file){
   contains(file,'{tipo:"grupo",id:"notas",etiqueta:"Notas"',"Menú Notas agrupa las calificaciones ("+file+")");
   contains(file,'moduloId:"notas_nucleos",etiqueta:"Núcleos"',"Notas → Núcleos abre Ncomplex ("+file+")");
-  contains(file,'moduloId:"notas_complexivo",etiqueta:"Complexivo"',"Notas → Complexivo abre Ncomplex ("+file+")");
+  contains(file,'moduloId:"notas_complexivo",etiqueta:"Complexivo"',"Notas → Complexivo ("+file+")");
   contains(file,'moduloId:"defart",etiqueta:"Artículo"',"Notas → Artículo abre Defart ("+file+")");
   contains(file,'moduloId:"notas_trabajo",etiqueta:"Trabajo"',"Notas → Trabajo ("+file+")");
 });
-contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Ncomplex/ncomplex.html?modo=complexivo"',"Complexivo abre Ncomplex en su pestaña");
+contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Complexivo/complexivo.html"',"Notas → Complexivo tiene su propia pantalla");
 contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Trabajo/trabajo.html"',"Maqueta registra la pantalla Trabajo");
 
 contains("Ncomplex/ncomplex.html",'id="ncomplex-filter-periodo"',"Pantalla Ncomplex tiene selector de período");

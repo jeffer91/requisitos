@@ -1,0 +1,75 @@
+<!doctype html>
+<!-- =========================================================
+Nombre completo: complexivo.html
+Ruta: /Complexivo/complexivo.html
+Función:
+- Menú Notas → Complexivo: cargar los libros de calificaciones de Moodle del
+  Examen Complexivo (uno o varios a la vez).
+- La app calcula la nota: ordinario y supletorio = 40 % teórico + 60 % práctico.
+- Guardar en BDLocal y subir directo a Firebase /notas_complexivo.
+========================================================= -->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notas · Examen complexivo</title>
+  <link rel="stylesheet" href="complexivo.css" />
+</head>
+<body>
+  <main class="cx-app">
+    <header class="cx-head">
+      <h1>Examen complexivo</h1>
+      <span>Moodle · ordinario y supletorio = 40 % teórico + 60 % práctico · aprueba con 7 · Firebase /notas_complexivo</span>
+    </header>
+
+    <section class="cx-card">
+      <div class="cx-row">
+        <label>Período
+          <select id="cx-period"><option value="">Cargando…</option></select>
+        </label>
+        <p class="cx-hint">En automático, el período y la carrera se leen del título de cada libro (p. ej. «octubre marzo 2026» → 2025-10__2026-03).</p>
+      </div>
+      <label class="cx-paste-label">Pegue uno o varios libros de calificaciones de Moodle (cada uno empieza con «Examen Complexivo … ]»)
+        <textarea id="cx-paste" spellcheck="false" placeholder="Examen Complexivo Administración octubre marzo 2026]"></textarea>
+      </label>
+      <div class="cx-actions">
+        <button type="button" id="cx-analyze" class="cx-primary">Analizar</button>
+        <button type="button" id="cx-clear">Limpiar</button>
+      </div>
+      <div id="cx-message" class="cx-message" aria-live="polite"></div>
+    </section>
+
+    <section id="cx-results" class="cx-card" hidden>
+      <div class="cx-metrics">
+        <div><span>Filas leídas</span><strong id="cx-count-total">0</strong></div>
+        <div><span>Listas</span><strong id="cx-count-ready">0</strong></div>
+        <div><span>Bloqueadas</span><strong id="cx-count-blocked">0</strong></div>
+        <div><span>No rindió / incompletas</span><strong id="cx-count-skip">0</strong></div>
+      </div>
+      <div class="cx-table-scroll">
+        <table id="cx-table">
+          <thead>
+            <tr><th rowspan="2">Estudiante</th><th rowspan="2">Grupo</th><th colspan="3">Ordinario</th><th colspan="3">Supletorio</th><th rowspan="2">Oficial</th><th rowspan="2">Vale</th><th rowspan="2">Estado</th></tr>
+            <tr><th>Teórico</th><th>Práctico</th><th>Nota</th><th>Teórico</th><th>Práctico</th><th>Nota</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="cx-actions">
+        <button type="button" id="cx-save" class="cx-primary" disabled>Guardar y subir a Firebase</button>
+      </div>
+    </section>
+
+    <section class="cx-card cx-saved-card">
+      <span id="cx-saved"></span>
+      <button type="button" id="cx-resync" disabled>Volver a subir lo guardado</button>
+    </section>
+  </main>
+
+  <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+  <script src="complexivo.moodle.js"></script>
+  <script src="complexivo.rules.js"></script>
+  <script src="complexivo.firebase.js"></script>
+  <script src="complexivo.app.js"></script>
+</body>
+</html>

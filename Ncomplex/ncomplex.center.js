@@ -401,6 +401,9 @@ async function analyze(){
  var smart=w.NcomplexSmart;
  var foundKind=smart&&smart.kind(raw);
  if(foundKind==="ambiguous"){msg("Se detectaron dos libros de calificaciones mezclados. Pega uno a la vez.","error");return;}
+ if(foundKind==="complexivo"&&!w.NCOMPLEX_ALLOW_COMPLEXIVO){
+  msg("Esto es un libro del Examen Complexivo. Cárguelo en Notas → Complexivo; esta pantalla es solo para Núcleos.","error");return;
+ }
  if(foundKind&&foundKind!==data.mode)mode(foundKind);
  var headerPeriod=smart&&smart.periodId(raw.slice(0,1200));
  if(!data.period&&headerPeriod&&data.periods.some(function(p){
@@ -1126,9 +1129,7 @@ async function boot(){
  });
  ui.tabN.addEventListener("click",function(){mode("nucleos");});
  ui.tabE.addEventListener("click",function(){mode("complexivo");});
- // Menú Notas → Núcleos / Complexivo abre esta misma pantalla con ?modo=…
- try{var requested=(new URLSearchParams(w.location&&w.location.search||"")).get("modo");
-  if(requested==="complexivo"||requested==="nucleos")mode(requested);}catch(error){}
+ // Notas → Núcleos. El Examen Complexivo vive en /Complexivo (Notas → Complexivo).
  Array.prototype.forEach.call(ui.picker.querySelectorAll("[data-nc-nucleus]"),function(button){
   button.addEventListener("click",function(){nucleus(Number(button.dataset.ncNucleus));});
  });

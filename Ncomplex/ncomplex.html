@@ -22,7 +22,7 @@ Función o funciones:
   <main class="ncomplex-app">
     <section class="nc-center" aria-label="Centro de carga de notas">
       <div class="nc-center-head">
-        <div><h1>Núcleos y complexivo</h1><span>Notas · Centro de calificaciones Ncomplex</span></div>
+        <div><h1>Núcleos</h1><span>Notas · Centro de calificaciones Ncomplex</span></div>
         <div class="nc-center-statuses">
           <span id="ncomplex-status" class="ncomplex-statusbar is-info" aria-live="polite">Conectando con BDLocal...</span>
           <span id="nc-cloud-state" class="nc-cloud-pill">Sin notas cargadas</span>
@@ -39,7 +39,8 @@ Función o funciones:
       </div>
       <div class="nc-tabs" role="tablist" aria-label="Tipo de evaluación">
         <button id="nc-tab-nucleos" class="is-active" role="tab" aria-selected="true" type="button">Núcleos</button>
-        <button id="nc-tab-complexivo" role="tab" aria-selected="false" type="button">Examen complexivo</button>
+        <!-- El Examen Complexivo tiene su propia pantalla: Notas → Complexivo (/Complexivo/complexivo.html). -->
+        <button id="nc-tab-complexivo" role="tab" aria-selected="false" type="button" hidden>Examen complexivo</button>
       </div>
       <div id="nc-nucleus-picker" class="nc-nucleus-picker" role="group" aria-label="Seleccionar núcleo">
         <button type="button" data-nc-nucleus="1" class="is-active">Núcleo 1</button>
