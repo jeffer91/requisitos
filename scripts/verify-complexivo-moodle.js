@@ -102,6 +102,13 @@ const tick=()=>new Promise(r=>setTimeout(r,0));
 async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw Error("timeout");}
 
 (async()=>{
+ app.init();
+ // Selector de período: etiqueta de BDLocal o, si falta, «Mes AAAA a Mes AAAA».
+ await until(()=>dom["cx-period"].children.length>1);
+ const labels=dom["cx-period"].children.map(o=>o.textContent);
+ assert.equal(labels[0],"Automático (del título de Moodle)");
+ assert.ok(labels.includes("Octubre 2025 a Marzo 2026")&&labels.includes("Mayo 2026 a Noviembre 2026"),labels.join(" | "));
+ assert.equal(dom["cx-period"].children[1].value,"2026-05__2026-11","El valor sigue siendo el código.");
  S.periods=Object.keys(students);
  dom["cx-paste"].value=F.all();
  app.analyze();await until(()=>!S.working);
@@ -113,7 +120,7 @@ async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw
  assert.equal(item("donline@itsqmet.edu.ec").group,"ONLINE","Un mismo libro mezcla presencial y online.");
  assert.equal(item("aordinaria@itsqmet.edu.ec").group,"PRESENCIAL");
  assert.ok(item("erequisitos@itsqmet.edu.ec").blocked.some(b=>/9 requisitos: Financiero/.test(b)));
- assert.ok(item("operiodo@itsqmet.edu.ec").blocked.some(b=>/la tiene en 2026-05__2026-11/.test(b)));
+ assert.ok(item("operiodo@itsqmet.edu.ec").blocked.some(b=>/No tiene matrícula en Octubre 2025 a Marzo 2026; la tiene en Mayo 2026 a Noviembre 2026/.test(b)),"Los períodos se muestran con su nombre, no con el código.");
  assert.ok(item("fdoble@itsqmet.edu.ec").blocked.some(b=>/dos notas/.test(b)));
  assert.equal(item("dmena.prueba@itsqmet.edu.ec").skipReason,"Incompleto");
  assert.equal(item("cnorinde@itsqmet.edu.ec").skipReason,"No rindió");

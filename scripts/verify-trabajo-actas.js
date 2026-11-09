@@ -110,7 +110,7 @@ async function until(test){for(let i=0;i<200;i++){if(test())return;await tick();
  assert.equal(by("1700000001").blocked.length,0,by("1700000001").blocked.join(" | "));
  assert.equal(by("1700000001").group,"PRESENCIAL");
  assert.ok(by("1700000002").blocked.some(b=>/No cumple los 9 requisitos: Titulación \(NO CUMPLE\)/.test(b)),"Requisitos incompletos bloquean.");
- assert.ok(by("1700000004").blocked.some(b=>/tiene matrícula activa en 2026-04__2026-09/.test(b)));
+ assert.ok(by("1700000004").blocked.some(b=>/tiene matrícula activa en Abril 2026 a Septiembre 2026/.test(b)));
  assert.equal(dom["tt-count-ready"].textContent,2);
  assert.equal(dom["tt-save"].disabled,false);
 

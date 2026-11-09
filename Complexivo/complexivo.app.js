@@ -30,6 +30,15 @@ Función:
   function el(tag,content,css){var node=document.createElement(tag);if(content!=null){node.textContent=String(content);}if(css){node.className=css;}return node;}
   function fmt(value){return value===null||value===undefined||!Number.isFinite(value)?"—":value.toFixed(2).replace(".",",");}
   function message(value,type){var node=$("cx-message");node.textContent=text(value);node.className="cx-message"+(type?" is-"+type:"");}
+  var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  var periodNames=Object.create(null);
+  // Igual que las demás pantallas: la etiqueta de BDLocal («Mayo 2026 a Noviembre 2026»);
+  // si no existe, se arma desde el código 2026-05__2026-11.
+  function periodName(id){
+    id=canon(id);if(periodNames[id]){return periodNames[id];}
+    var m=id.match(/^(\d{4})-(\d{2})__(\d{4})-(\d{2})$/);
+    return m?MESES[Number(m[2])-1]+" "+m[1]+" a "+MESES[Number(m[4])-1]+" "+m[3]:id;
+  }
   function con(){return window.ConNcomplex;}
 
   function loadScript(relative,test){
@@ -110,8 +119,8 @@ Función:
       if(!item.student){
         if(item.skip){return item;}
         return findElsewhere(fila.correo,period).then(function(other){
-          item.blocked.push(matches.length?"La matrícula en "+period+" no está ACTIVA.":
-            other?"No tiene matrícula en "+period+"; la tiene en "+other+".":"El correo no está en BDLocal para "+period+".");
+          item.blocked.push(matches.length?"La matrícula en "+periodName(period)+" no está ACTIVA.":
+            other?"No tiene matrícula en "+periodName(period)+"; la tiene en "+periodName(other)+".":"El correo no está en BDLocal para "+periodName(period)+".");
           return item;
         });
       }
@@ -152,7 +161,7 @@ Función:
     state.books.forEach(function(entry){
       var head=el("tr",null,"cx-book");var th=el("td",null);th.colSpan=11;
       th.appendChild(el("strong",entry.book.info.titulo.replace(/\]$/,"")));
-      th.appendChild(el("span",(entry.period||"sin período")+" · "+entry.items.length+" filas"+
+      th.appendChild(el("span",(entry.period?periodName(entry.period):"sin período")+" · "+entry.items.length+" filas"+
         (entry.missing.length?" · "+entry.missing.length+" matriculado(s) sin fila en Moodle":"")));
       if(entry.book.errors.length){th.appendChild(el("small",entry.book.errors.join(" ")));}
       if(entry.missing.length){th.appendChild(el("small","No están en el libro: "+entry.missing.slice(0,12).map(studentName).join(", ")+(entry.missing.length>12?"…":"")));}
@@ -197,7 +206,7 @@ Función:
       return chain.then(function(){
         var period=forced||book.info.periodoId;
         var entry={book:book,period:period,items:[],missing:[]};state.books.push(entry);
-        if(period&&state.periods.indexOf(period)<0){book.errors.push("El período "+period+" no está en BDLocal.");period="";entry.period="";}
+        if(period&&state.periods.indexOf(period)<0){book.errors.push("El período "+periodName(period)+" no está en BDLocal.");period="";entry.period="";}
         if(book.errors.length&&!book.filas.length){return null;}
         return book.filas.reduce(function(c,fila){
           return c.then(function(){return checkRow(book,fila,period).then(function(item){
@@ -234,10 +243,10 @@ Función:
       return Object.keys(byPeriod).reduce(function(chain,period){
         return chain.then(function(acc){
           var list=byPeriod[period];
-          message("Guardando "+list.length+" nota(s) de "+period+" en BDLocal…");
+          message("Guardando "+list.length+" nota(s) de "+periodName(period)+" en BDLocal…");
           return con().saveMany(list.map(localRow),{periodoId:period,source:"complexivo_moodle"}).then(function(){
             var docs=list.map(function(e){return api.buildDocument(e);});
-            return api.upload(docs,{periodoId:period,onProgress:function(d,t){message("Subiendo a Firebase /notas_complexivo ("+period+")… "+d+" / "+t);}});
+            return api.upload(docs,{periodoId:period,onProgress:function(d,t){message("Subiendo a Firebase /notas_complexivo ("+periodName(period)+")… "+d+" / "+t);}});
           }).then(function(summary){
             ["nuevos","actualizados","iguales","conflictos","errores"].forEach(function(k){acc[k]+=summary[k];});
             Object.assign(acc.resultados,summary.resultados);acc.detalles=acc.detalles.concat(summary.detalles);return acc;
@@ -277,7 +286,7 @@ Función:
     var period=selectedPeriod();
     if(!period){$("cx-saved").textContent="Elija un período para ver lo guardado.";$("cx-resync").disabled=true;return Promise.resolve();}
     return savedRows(period).then(function(rows){
-      $("cx-saved").textContent=rows.length+" nota(s) de complexivo guardadas en BDLocal para "+period+".";
+      $("cx-saved").textContent=rows.length+" nota(s) de complexivo guardadas en BDLocal para "+periodName(period)+".";
       $("cx-resync").disabled=state.working||!rows.length;
     }).catch(function(){$("cx-saved").textContent="";});
   }
@@ -302,11 +311,16 @@ Función:
 
   function fillPeriods(periods){
     var select=$("cx-period");
-    state.periods=(periods||[]).map(function(p){return canon(p.id||p.periodoId||p.periodId||p);}).filter(Boolean)
+    (periods||[]).forEach(function(p){
+      var id=canon(p&&(p.id||p.periodoId||p.periodId||p.value)||p);
+      var name=text(p&&(p.label||p.nombre||p.periodoLabel));
+      if(id&&name&&name!==id){periodNames[id]=name;}
+    });
+    state.periods=(periods||[]).map(function(p){return canon(p&&(p.id||p.periodoId||p.periodId||p.value)||p);}).filter(Boolean)
       .filter(function(v,i,all){return all.indexOf(v)===i;}).sort().reverse();
     select.textContent="";
     select.appendChild(el("option","Automático (del título de Moodle)")).value="";
-    state.periods.forEach(function(id){var o=el("option",id);o.value=id;select.appendChild(o);});
+    state.periods.forEach(function(id){var o=el("option",periodName(id));o.value=id;select.appendChild(o);});
   }
   function init(){
     $("cx-analyze").addEventListener("click",analyze);

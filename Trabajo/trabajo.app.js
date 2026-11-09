@@ -24,6 +24,15 @@ Función:
   function el(tag,content,css){var node=document.createElement(tag);if(content!=null){node.textContent=String(content);}if(css){node.className=css;}return node;}
   function fmt(value){return Number.isFinite(value)?value.toFixed(2).replace(".",","):"—";}
   function message(value,type){var node=$("tt-message");node.textContent=text(value);node.className="tt-message"+(type?" is-"+type:"");}
+  var MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  var periodNames=Object.create(null);
+  // Igual que las demás pantallas: la etiqueta de BDLocal («Mayo 2026 a Noviembre 2026»);
+  // si no existe, se arma desde el código 2026-05__2026-11.
+  function periodName(id){
+    id=canon(id);if(periodNames[id]){return periodNames[id];}
+    var m=id.match(/^(\d{4})-(\d{2})__(\d{4})-(\d{2})$/);
+    return m?MESES[Number(m[2])-1]+" "+m[1]+" a "+MESES[Number(m[4])-1]+" "+m[3]:id;
+  }
   function con(){var c=window.ConNcomplex;return c&&c.__loaderProxy!==true?c:c||null;}
 
   function loadScript(relative,test){
@@ -91,9 +100,9 @@ Función:
       item.student=current;
       if(!current){
         return findElsewhere(acta.cedula).then(function(other){
-          item.blocked.push(matches.length?"La matrícula en "+period+" no está ACTIVA (retirado o eliminado).":
-            other?"No tiene matrícula en "+period+"; tiene matrícula activa en "+other+". Elija ese período.":
-            "No tiene matrícula activa en "+period+".");
+          item.blocked.push(matches.length?"La matrícula en "+periodName(period)+" no está ACTIVA (retirado o eliminado).":
+            other?"No tiene matrícula en "+periodName(period)+"; tiene matrícula activa en "+periodName(other)+". Elija ese período.":
+            "No tiene matrícula activa en "+periodName(period)+".");
         });
       }
       if(studentCode(current)&&studentCode(current)!==acta.codigoCarrera){
@@ -232,11 +241,16 @@ Función:
 
   function fillPeriods(periods){
     var select=$("tt-period");
-    state.periods=(periods||[]).map(function(p){return canon(p.id||p.periodoId||p.periodId||p);}).filter(Boolean)
+    (periods||[]).forEach(function(p){
+      var id=canon(p&&(p.id||p.periodoId||p.periodId||p.value)||p);
+      var name=text(p&&(p.label||p.nombre||p.periodoLabel));
+      if(id&&name&&name!==id){periodNames[id]=name;}
+    });
+    state.periods=(periods||[]).map(function(p){return canon(p&&(p.id||p.periodoId||p.periodId||p.value)||p);}).filter(Boolean)
       .filter(function(v,i,all){return all.indexOf(v)===i;}).sort().reverse();
     select.textContent="";
-    select.appendChild(el("option","Seleccione…")).value="";
-    state.periods.forEach(function(id){var o=el("option",id);o.value=id;select.appendChild(o);});
+    select.appendChild(el("option","Selecciona un período")).value="";
+    state.periods.forEach(function(id){var o=el("option",periodName(id));o.value=id;select.appendChild(o);});
   }
   function init(){
     $("tt-period").addEventListener("change",function(){state.period=canon(this.value);state.checked=[];render();message(state.period?"Pegue las actas y pulse Analizar.":"Seleccione un período.");refreshSaved();});
