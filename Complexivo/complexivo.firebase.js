@@ -45,12 +45,12 @@ Función:
     return map&&typeof map.dataHash==="function"?map.dataHash({entity:COLLECTION,data:map.functionalContent(doc)}):"h"+Date.now();
   }
 
-  // entry: {periodoId, cedula, nombres, correo, codigoCarrera, nombreCarrera, grupoInforme, cursoMoodle, fila, resultado}
+  // entry: {periodoId, cedula, nombres, codigoCarrera, nombreCarrera, grupoInforme, cursoMoodle, fila, resultado}
   function buildDocument(entry){
     var o=entry.fila.ordinaria||{},s=entry.fila.supletorio||{},r=entry.resultado,stamp=new Date().toISOString();
     var doc={
       id:entry.periodoId+"__"+entry.cedula,localId:entry.cedula+"__"+entry.periodoId,
-      periodoId:entry.periodoId,cedula:entry.cedula,nombres:text(entry.nombres),correo:text(entry.correo),
+      periodoId:entry.periodoId,cedula:entry.cedula,nombres:text(entry.nombres),
       codigoCarrera:text(entry.codigoCarrera),nombreCarrera:text(entry.nombreCarrera),grupoInforme:text(entry.grupoInforme),
       modalidadTitulacion:"EXAMEN_COMPLEXIVO",cursoMoodle:text(entry.cursoMoodle),
       notaTeorica:num(o.teorico),notaPractica:num(o.practico),notaOrdinaria:num(r.notaOrdinaria),

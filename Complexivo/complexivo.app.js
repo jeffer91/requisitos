@@ -5,7 +5,8 @@ Función:
 - Menú Notas → Complexivo: pegar uno o varios libros de Moodle del Examen
   Complexivo, calcular la nota oficial (40/60) y guardarla.
 - Período y carrera se leen del título del libro. Cada fila se cruza con
-  BDLocal por el CORREO institucional.
+  BDLocal por el NOMBRE (sin importar el orden nombres/apellidos, las tildes
+  ni las iniciales que Moodle pega delante). El correo no se usa ni se guarda.
 - Bloquea si: no hay matrícula ACTIVA en el período, no cumple los 9
   requisitos o el estudiante ya tiene notas de trabajo de titulación.
 - No se guardan: «no rindió» ni supletorio/ordinario incompletos.
@@ -16,9 +17,6 @@ Función:
   "use strict";
 
   var VERSION="1.0.0";
-  var EMAIL_FIELDS=["correoInstitucional","CorreoInstitucional","emailInstitucional","EmailInstitucional",
-    "correoElectronico","CorreoElectronico","direccionCorreo","DireccionCorreo","correoPersonal","CorreoPersonal",
-    "correo","Correo","email","Email","correos","Correos"];
   var state={periods:[],students:Object.create(null),items:[],books:[],working:false};
   var base=(document.currentScript&&document.currentScript.src)||document.baseURI;
 
@@ -67,13 +65,22 @@ Función:
   function studentName(st){return text(st.Nombres||st.nombres||st.nombreCompleto||st.NombreCompleto);}
   function studentPeriod(st){return canon(st.periodoId||st.PeriodoId||st.periodId);}
   function active(st){var e=text(st.estadoMatricula||st._estadoMatricula).toUpperCase();return st.eliminado!==true&&st.retirado!==true&&e==="ACTIVO";}
-  function emailsOf(st){
-    var out=[];
-    EMAIL_FIELDS.forEach(function(f){
-      var v=st[f];if(typeof v!=="string"&&!Array.isArray(v)){return;}
-      ((Array.isArray(v)?v.join(" "):v).match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g)||[]).forEach(function(e){out.push(e.toLowerCase());});
-    });
-    return out;
+  // Nombre → clave: palabras sin tildes, ordenadas («ALVARADO PEREZ MALENA RACHELL»
+  // y «MALENA RACHELL ALVARADO PEREZ» dan la misma clave).
+  function tokens(value){return norm(value).replace(/[^A-Z ]/g," ").split(" ").filter(Boolean);}
+  function nameKey(list){return list.slice().sort().join(" ");}
+  // Moodle pega las iniciales del avatar al nombre: «MAMALENA RACHELL ALVARADO PEREZ» = MA + MALENA.
+  function moodleKeys(name){
+    var t=tokens(name),keys=[nameKey(t)];
+    if(t.length>1&&t[0].length>3&&t[0][0]===t[0][2]&&t.slice(1).some(function(w){return w[0]===t[0][1];})){
+      keys.unshift(nameKey([t[0].slice(2)].concat(t.slice(1))));
+    }
+    return keys;
+  }
+  function lookup(idx,name){
+    var keys=moodleKeys(name);
+    for(var i=0;i<keys.length;i++){if(idx.byName[keys[i]]){return idx.byName[keys[i]];}}
+    return [];
   }
   function careerKey(value){return norm(value).replace(/\b(ONLINE|EN LINEA|VIRTUAL|PVC|PRESENCIAL)\b/g,"").replace(/^TECNOLOGIA SUPERIOR EN /,"").replace(/[^A-Z0-9 ]/g,"").replace(/\s+/g," ").trim();}
   function groupFromCode(code,name){
@@ -87,17 +94,17 @@ Función:
     if(state.students[period]){return Promise.resolve(state.students[period]);}
     return con().listStudents({periodoId:period}).then(function(rows){
       var list=(rows||[]).filter(function(st){return !studentPeriod(st)||studentPeriod(st)===period;});
-      var byEmail=Object.create(null);
-      list.forEach(function(st){emailsOf(st).forEach(function(e){(byEmail[e]=byEmail[e]||[]).push(st);});});
-      state.students[period]={list:list,byEmail:byEmail};
+      var byName=Object.create(null);
+      list.forEach(function(st){var k=nameKey(tokens(studentName(st)));if(k){(byName[k]=byName[k]||[]).push(st);}});
+      state.students[period]={list:list,byName:byName};
       return state.students[period];
     });
   }
-  function findElsewhere(email,period){
+  function findElsewhere(name,period){
     return state.periods.filter(function(p){return p!==period;}).reduce(function(chain,p){
       return chain.then(function(found){
         if(found){return found;}
-        return studentsOf(p).then(function(idx){return (idx.byEmail[email]||[]).some(active)?p:"";}).catch(function(){return "";});
+        return studentsOf(p).then(function(idx){return lookup(idx,name).some(active)?p:"";}).catch(function(){return "";});
       });
     },Promise.resolve(""));
   }
@@ -110,17 +117,21 @@ Función:
     else if(item.resultado.estadoEvaluacion==="INCOMPLETO"){item.skip=true;item.skipReason="Incompleto";}
     if(!period){item.blocked.push("Sin período.");return Promise.resolve(item);}
     return studentsOf(period).then(function(idx){
-      var matches=(idx.byEmail[fila.correo]||[]);
+      var matches=lookup(idx,fila.nombreMoodle);
       var current=matches.filter(active);
       if(current.length>1&&current.some(function(st){return studentId(st)!==studentId(current[0]);})){
-        item.blocked.push("El correo pertenece a más de un estudiante en BDLocal.");return item;
+        item.blocked.push("Hay más de un estudiante activo con ese nombre en BDLocal ("+current.map(studentId).join(", ")+").");return item;
       }
       item.student=current[0]||null;
+      if(item.student){
+        var ced=studentId(item.student),dup=state.items.some(function(other){return other!==item&&other.student&&studentId(other.student)===ced&&!other.skip;});
+        if(dup&&!item.skip){item.blocked.push("Este estudiante ya aparece en otra fila pegada.");}
+      }
       if(!item.student){
         if(item.skip){return item;}
-        return findElsewhere(fila.correo,period).then(function(other){
+        return findElsewhere(fila.nombreMoodle,period).then(function(other){
           item.blocked.push(matches.length?"La matrícula en "+periodName(period)+" no está ACTIVA.":
-            other?"No tiene matrícula en "+periodName(period)+"; la tiene en "+periodName(other)+".":"El correo no está en BDLocal para "+periodName(period)+".");
+            other?"No tiene matrícula en "+periodName(period)+"; la tiene en "+periodName(other)+".":"No se encontró por nombre en BDLocal para "+periodName(period)+". Revise cómo está escrito en Moodle.");
           return item;
         });
       }
@@ -172,7 +183,7 @@ Función:
         if(item.skip){counts.skip++;}else if(ok){counts.ready++;}else{counts.blocked++;}
         var tr=el("tr",null,item.skip?"is-skip":ok?"":"is-blocked");
         var who=el("td");who.appendChild(el("strong",item.student?studentName(item.student):item.fila.nombreMoodle));
-        who.appendChild(el("small",item.fila.correo+(item.student?" · "+studentId(item.student):"")));tr.appendChild(who);
+        who.appendChild(el("small",item.student?studentId(item.student)+" · Moodle: "+item.fila.nombreMoodle:"Moodle: "+item.fila.nombreMoodle));tr.appendChild(who);
         tr.appendChild(el("td",item.group||"—"));
         [o.teorico,o.practico,r.notaOrdinaria,s.teorico,s.practico,r.notaSupletorio].forEach(function(v,i){tr.appendChild(el("td",fmt(v),i===2||i===5?"cx-sub":""));});
         tr.appendChild(el("td",fmt(r.notaOficial),"cx-final"));
@@ -223,7 +234,7 @@ Función:
 
   function entryOf(item){
     var st=item.student;
-    return {periodoId:item.periodoId,cedula:studentId(st),nombres:studentName(st),correo:item.fila.correo,
+    return {periodoId:item.periodoId,cedula:studentId(st),nombres:studentName(st),
       codigoCarrera:studentCode(st),nombreCarrera:studentCareer(st),grupoInforme:item.group,
       cursoMoodle:item.book.info.titulo.replace(/\]$/,""),fila:item.fila,resultado:item.resultado};
   }
@@ -232,7 +243,7 @@ Función:
     return {periodoId:entry.periodoId,cedula:entry.cedula,modalidadTitulacion:"EXAMEN_COMPLEXIVO",
       CodigoCarrera:entry.codigoCarrera,NombreCarrera:entry.nombreCarrera,grupoInforme:entry.grupoInforme,
       notaTeorica:o.teorico,notaPractica:o.practico,notaTeoricaSupletorio:s.teorico,notaPracticaSupletorio:s.practico,
-      oportunidadAplicada:entry.resultado.oportunidadAplicada,correoMoodle:entry.correo,cursoMoodle:entry.cursoMoodle,
+      oportunidadAplicada:entry.resultado.oportunidadAplicada,cursoMoodle:entry.cursoMoodle,
       nombresMoodle:entry.nombres,origen:"complexivo_moodle"};
   }
 
@@ -299,7 +310,7 @@ Función:
         var fila={ordinaria:{teorico:r.notaTeorica==null?null:Number(r.notaTeorica),practico:r.notaPractica==null?null:Number(r.notaPractica)},
           supletorio:{teorico:r.notaTeoricaSupletorio==null?null:Number(r.notaTeoricaSupletorio),practico:r.notaPracticaSupletorio==null?null:Number(r.notaPracticaSupletorio)}};
         var resultado=rules.evaluate(fila);
-        return resultado.publicable?api.buildDocument({periodoId:period,cedula:text(r.cedula),nombres:r.nombresMoodle,correo:r.correoMoodle,
+        return resultado.publicable?api.buildDocument({periodoId:period,cedula:text(r.cedula),nombres:r.nombresMoodle,
           codigoCarrera:r.CodigoCarrera||r.codigoCarrera,nombreCarrera:r.NombreCarrera||r.nombreCarrera,grupoInforme:r.grupoInforme,
           cursoMoodle:r.cursoMoodle,fila:fila,resultado:resultado}):null;
       }).filter(Boolean);

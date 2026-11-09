@@ -50,8 +50,11 @@ function fakeFirestore(){
   runTransaction(h){return Promise.resolve(h({get:r=>r.get(),set:(r,p)=>r.set(p)}));}};
 }
 const firestore=fakeFirestore();
+// BDLocal real: SIN correos y con el nombre en orden «APELLIDOS NOMBRES».
+// El correo de cada fila de Moodle solo sirve aquí para ubicar la fila en la prueba.
+const moodleNameOf=email=>(parsed.libros.flatMap(b=>b.filas).find(f=>f.correo===email)||{}).nombreMoodle;
 let n=0;const st=(email,career,code,extra)=>({cedula:"17000001"+String(++n).padStart(2,"0"),periodoId:P,estadoMatricula:"ACTIVO",
- correoInstitucional:email,NombreCarrera:career,CodigoCarrera:code,Nombres:"BDLOCAL "+email.split("@")[0].toUpperCase(),...extra});
+ NombreCarrera:career,CodigoCarrera:code,Nombres:F.bdlocalNames[moodleNameOf(email)]||"SIN FILA EN MOODLE",_email:email,...extra});
 const students={[P]:[
  st("aordinaria@itsqmet.edu.ec","EDUCACIÓN BÁSICA","550113A01-P-1701"),
  st("bsupletorio@itsqmet.edu.ec","EDUCACIÓN BÁSICA","550113A01-P-1701"),
@@ -66,8 +69,8 @@ const students={[P]:[
  st("wcero@itsqmet.edu.ec","DESARROLLO DE SOFTWARE","550613A01-P-1701"),
  st("cnorinde@itsqmet.edu.ec","DESARROLLO DE SOFTWARE","550613A01-P-1701"),
  st("jblancos@itsqmet.edu.ec","DESARROLLO DE SOFTWARE","550613A01-P-1701")
-],"2026-05__2026-11":[{cedula:"1700000999",periodoId:"2026-05__2026-11",estadoMatricula:"ACTIVO",correoInstitucional:"operiodo@itsqmet.edu.ec",NombreCarrera:"DESARROLLO DE SOFTWARE",CodigoCarrera:"550613A01-P-1701"}]};
-const cedOf=e=>students[P].find(s=>s.correoInstitucional===e).cedula;
+],"2026-05__2026-11":[{cedula:"1700000999",periodoId:"2026-05__2026-11",estadoMatricula:"ACTIVO",Nombres:"PERIODO SOLIS OTTO RENE",NombreCarrera:"DESARROLLO DE SOFTWARE",CodigoCarrera:"550613A01-P-1701"}]};
+const cedOf=e=>students[P].find(s=>s._email===e).cedula;
 const evaluations=new Map(),saved=[];
 const ConNcomplex={
  async ready(){return {ok:true};},
@@ -124,6 +127,8 @@ async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw
  assert.ok(item("fdoble@itsqmet.edu.ec").blocked.some(b=>/dos notas/.test(b)));
  assert.equal(item("dmena.prueba@itsqmet.edu.ec").skipReason,"Incompleto");
  assert.equal(item("cnorinde@itsqmet.edu.ec").skipReason,"No rindió");
+ assert.equal(item("aordinaria@itsqmet.edu.ec").student.cedula,cedOf("aordinaria@itsqmet.edu.ec"),"«AQANA LUCIA QUISPE ORTIZ» = QUISPE ORTIZ ANA LUCIA (iniciales de Moodle).");
+ assert.equal(item("yversion@itsqmet.edu.ec").student.cedula,cedOf("yversion@itsqmet.edu.ec"),"Tildes y Ñ no impiden el cruce.");
  assert.equal(S.books[0].missing.length,1,"Avisa quién está matriculado y no aparece en Moodle.");
  assert.equal(dom["cx-count-ready"].textContent,8);
 
@@ -138,6 +143,8 @@ async function until(t){for(let i=0;i<400;i++){if(t())return;await tick();}throw
  assert.equal(docs.get(P+"__"+cedOf("wcero@itsqmet.edu.ec")).estadoEvaluacion,"NO_APROBADO");
  assert.equal(docs.has(P+"__"+cedOf("dmena.prueba@itsqmet.edu.ec")),false,"El supletorio incompleto no se sube.");
  assert.match(dom["cx-message"].textContent,/8 nuevas .* Todo verificado/);
+ assert.ok(!JSON.stringify([...docs.values()]).includes("@"),"El correo no se sube a Firebase.");
+ assert.ok(!JSON.stringify(saved).includes("@"),"El correo no se guarda en BDLocal.");
  const local=saved.find(x=>x.cedula===cedOf("yversion@itsqmet.edu.ec"));
  assert.equal(local.modalidadTitulacion,"EXAMEN_COMPLEXIVO");assert.equal(local.oportunidadAplicada,"SUPLETORIO");assert.equal(local.notaTeoricaSupletorio,9.6);
 
