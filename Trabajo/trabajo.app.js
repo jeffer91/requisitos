@@ -133,7 +133,7 @@ Función:
     roster.list.slice().sort(function(a,b){return text(a.NombreCarrera||a.nombreCarrera).localeCompare(text(b.NombreCarrera||b.nombreCarrera),"es")||
       text(a.Nombres||a.nombres).localeCompare(text(b.Nombres||b.nombres),"es");}).forEach(function(st){
       var ev=roster.evalByCed[studentId(st)];
-      var state2=ev&&ev.actaTrabajo?"acta "+text(ev.actaTrabajo.numeroActaSenescyt)+" guardada":inComplexivo(ev)?"en examen complexivo":"sin acta";
+      var state2=ev&&ev.actaTrabajo?"acta "+text(ev.actaTrabajo.numeroActaSenescyt)+" guardada":inComplexivo(ev)?"en examen complexivo":ev&&text(ev.modalidadTitulacion)==="TRABAJO_TITULACION"&&ev.notaTrabajoTitulacion!=null?"nota consolidada institucional "+fmt(Number(ev.notaTrabajoTitulacion))+" (sin acta)":"sin acta";
       list.appendChild(el("li",text(st.Nombres||st.nombres)+" · "+studentId(st)+" · "+text(st.NombreCarrera||st.nombreCarrera)+" — "+state2));
     });
     box.appendChild(list);
