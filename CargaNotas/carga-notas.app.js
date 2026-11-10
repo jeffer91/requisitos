@@ -86,6 +86,7 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
 function render(){
  var total=state.items.length,ready=state.items.filter(function(i){return i.status==="ready";}).length;
  var blocked=state.items.filter(function(i){return i.status==="blocked"||i.status==="error";}).length;
+ var retry=state.items.filter(function(i){return i.status==="error";}).length;
  $("cn-total").textContent=total;$("cn-ready").textContent=ready;$("cn-blocked").textContent=blocked;
  $("cn-other").textContent=state.other;$("cn-results").hidden=!total;
  var q=norm($("cn-search").value),filter=$("cn-filter").value,tbody=$("cn-body");tbody.textContent="";
@@ -105,7 +106,7 @@ function render(){
   (item.errors.concat(item.detail?[item.detail]:[]).concat(item.warnings)).forEach(function(msg){note.appendChild(el("small",msg));});
   tr.appendChild(note);tbody.appendChild(tr);
  });
- $("cn-save").disabled=state.working||ready===0;
+ $("cn-save").disabled=state.working||(ready+retry)===0;
 }
 async function connect(){
  var c=w.ConNcomplex;
@@ -209,7 +210,7 @@ async function saveOne(item,c){
 }
 async function save(){
  if(state.working||!state.period||!state.items.length)return;
- var ready=state.items.filter(function(i){return i.status==="ready";});
+ var ready=state.items.filter(function(i){return i.status==="ready"||i.status==="error";});
  if(!ready.length)return;
  if(!w.confirm("¿Guardar y publicar "+ready.length+" estudiante(s) en las colecciones de Firebase del período seleccionado? Los registros en revisión NO se guardarán."))return;
  state.working=true;render();var ok=0,fail=0,c=null;
