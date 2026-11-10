@@ -24,7 +24,7 @@ function ensure(){
  });
 }
 function valueConflict(a,b){
- if(a===undefined||a===null||b===undefined||b===null)return false;
+ if(a===undefined||a===null||a===""||b===undefined||b===null||b==="")return false;
  if(typeof a==="number"&&typeof b==="number")return Math.abs(a-b)>0.025;
  return JSON.stringify(a)!==JSON.stringify(b);
 }
