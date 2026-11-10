@@ -44,6 +44,8 @@ Función:
     notaDefensa:["notaDefensa","Notdef","Ndef","notdef"],
     notaFinal:["notaFinal","Notafinal","Nfinal","notafinal"],
     notaOficial:["notaOficial"],
+    promedioNucleos:["promedioNucleos"],
+    notaFinalIntegral:["notaFinalIntegral"],
     estadoEvaluacion:["estadoEvaluacion","estadoDefensa","resultadoTitulacion"]
   };
   var HASH_EXCLUDED={
