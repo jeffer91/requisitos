@@ -5,6 +5,17 @@ const fs=require("node:fs"),path=require("node:path"),vm=require("node:vm");
 const root=path.resolve(__dirname,"..");
 const sandbox={window:{}};
 vm.runInNewContext(fs.readFileSync(path.join(root,"CargaNotas/carga-notas.rules.js"),"utf8"),sandbox,{filename:"carga-notas.rules.js"});
+const {spawnSync}=require("node:child_process");
+["CargaNotas/carga-notas.app.js","CargaNotas/carga-notas.rules.js",
+ "CargaNotas/carga-notas.firebase.js"].forEach(file=>{
+ const result=spawnSync(process.execPath,["--check",path.join(root,file)],{encoding:"utf8"});
+ assert.equal(result.status,0,file+": "+(result.stderr||"error de sintaxis"));
+});
+const html=fs.readFileSync(path.join(root,"CargaNotas/carga-notas.html"),"utf8");
+["cone.ncomplex.js","carga.reader.file.js","carga-notas.app.js","carga-notas.firebase.js"].forEach(name=>
+ assert.ok(html.includes(name),"Dependencia no cargada: "+name));
+const rules=fs.readFileSync(path.join(root,"firestore.rules"),"utf8");
+assert.ok(rules.includes("CONSOLIDADO_INSTITUCIONAL"),"Falta el contrato de Trabajo institucional");
 const R=sandbox.window.CargaNotasRules;
 function row(overrides){return Object.assign({
  identificacion_estudiante:"1725633638",periodo_academico:"OCTUBRE 2025 - MARZO 2026",
