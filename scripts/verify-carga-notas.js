@@ -120,6 +120,22 @@ assert.equal(item.status,"ready");assert.ok(item.warnings.some(e=>e.includes("pe
 item=app.assess(R.parse(row()),[Object.assign({},student,{aprobacionFinal:false})],
  Object.create(null),Object.create(null),Object.create(null));
 assert.equal(item.status,"blocked");assert.ok(item.errors.some(e=>e.includes("Aprobación final")));
+// Sin período elegido: cada cédula va al período de su matrícula activa
+// (primero el que dice el sistema, luego con Aprobación final, luego el más reciente).
+let m=app.enrollment([{period:"2025-10__2026-03",st:student},{period:"2026-04__2026-09",st:Object.assign({},student,{aprobacionFinal:false})}],["2026-04__2026-09"]);
+assert.equal(m.period,"2026-04__2026-09");assert.equal(m.count,2);
+m=app.enrollment([{period:"2025-10__2026-03",st:student},{period:"2026-04__2026-09",st:Object.assign({},student,{aprobacionFinal:false})}],["2024-01__2024-06"]);
+assert.equal(m.period,"2025-10__2026-03");
+m=app.enrollment([{period:"2025-10__2026-03",st:Object.assign({},student,{estadoMatricula:"RETIRADO"})},{period:"2026-04__2026-09",st:student}],["2025-10__2026-03"]);
+assert.equal(m.period,"2026-04__2026-09","Se prefiere la matrícula ACTIVA.");
+// Código de carrera incompleto: Presencial por el nombre, con aviso; «… ONLINE» no se adivina.
+assert.equal(fb.group({CodigoCarrera:"550613A01",NombreCarrera:"DESARROLLO DE SOFTWARE"}),"PRESENCIAL");
+assert.equal(fb.group({CodigoCarrera:"550613A01",NombreCarrera:"DESARROLLO DE SOFTWARE ONLINE"}),"ONLINE");
+item=app.assess(R.parse(row()),[Object.assign({},student,{CodigoCarrera:"550413A02"})],Object.create(null),Object.create(null),Object.create(null));
+assert.equal(item.status,"ready");assert.ok(item.warnings.some(e=>e.includes("no indica modalidad")));
+// Complexivo sin examen pero con núcleos: se cargan solo los núcleos.
+item=app.assess(R.parse(row({nota2:"",notaTeorico:"",notaPractico:"",notaTrabajoTitulacion:""})),[student],Object.create(null),Object.create(null),Object.create(null));
+assert.equal(item.status,"ready");assert.equal(item.onlyNucleos,true);
 // Varias filas de la misma cédula: gana la del período elegido.
 const twins=[R.parse(row({periodo_academico:"ABRIL 2026 - SEPTIEMBRE 2026",notaTrabajoTitulacion:"9.00"})),R.parse(row())];
 assert.equal(app.pick(twins,"2025-10__2026-03")[0].final,9.02);
@@ -159,6 +175,7 @@ client.RequisitosFirebaseRepository={
  assert.equal(supplement.notaOrdinaria,4.3);
  assert.equal(supplement.notaOficial,7.53);
  assert.equal(fb.general(ps,student).notaFinalIntegral,7.89);
+ assert.equal(fb.complexivo(parsed,student).tipoRegistro,"CONSOLIDADO_INSTITUCIONAL");
  const work=fb.trabajo(R.parse(row({trabajoTitulacion:"Trabajo Titulación",
   tipo_titulacion:"Trabajo Titulación",nota1:"8.00",nota2:"9.00",notaTrabajoTitulacion:"8.40"})),student);
  assert.equal(work.tipoRegistro,"CONSOLIDADO_INSTITUCIONAL");

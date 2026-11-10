@@ -129,7 +129,7 @@ Función o funciones:
         fields:["periodoId","cedula","grupoInforme","nombre","carrera","modalidadTitulacion",
           "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
           "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
-          "promedioNucleos","notaFinalIntegral","camposCalculados","oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+          "promedioNucleos","notaFinalIntegral","camposCalculados","tipoRegistro","oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
       notas_articulo:{
         description:"Notas → Artículo: artículo académico (antes Defensas): N-ART, N-DEF y N-FIN.",

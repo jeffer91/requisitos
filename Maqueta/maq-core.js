@@ -51,7 +51,7 @@ Función:
     tabla:"tabla_principal","tabla principal":"tabla_principal",ficha:"ficha_estudiante","ficha estudiante":"ficha_estudiante",
     stats:"stat_main",estadisticas:"stat_main",estadísticas:"stat_main","stat main":"stat_main",coordinador:"coordi",coordi:"coordi",
     global:"global",globals:"global",reporte:"modulo_reporte",reportes:"modulo_reporte",repor:"modulo_reporte",
-    "cargar notas":"carga_notas","carga notas":"carga_notas",
+    "cargar notas":"carga_notas","carga notas":"carga_notas","cargado de notas":"carga_notas",
     defensas:"defart",defensa:"defart",defart:"defart",articulo:"defart",artículo:"defart",nucleos:"notas_nucleos",núcleos:"notas_nucleos",trabajo:"notas_trabajo","trabajo de titulacion":"notas_trabajo",statnot:"stat_not","stat not":"stat_not","estadisticas notas":"stat_not",ncomplex:"ncomplex",complexivo:"ncomplex",
     actas:"actas","actas de titulacion":"actas","actas de titulación":"actas",
     inf:"inf","informe final":"inf","informes de titulación":"inf",

@@ -3,14 +3,19 @@
 Carga el reporte oficial del sistema académico (`NotasTitulacion_<PERIODO>_<fecha>.xls`) y lo publica en Firebase.
 
 ## Flujo
-1. Elegir el **período** (el de la app/BDLocal) y el archivo.
-2. **Analizar**: se cotejan las **cédulas** con la matrícula activa de ese período. El período que trae el sistema solo se muestra como aviso (el sistema etiqueta a online y febrero–agosto con otros períodos).
-3. **Guardar**: se escribe en BDLocal y en Firebase, con verificación de cada documento.
+1. **Subir el archivo**. Se analiza solo: cada cédula se busca en la base local en todos los períodos
+   y se ubica en el de su matrícula ACTIVA (primero el que dice el sistema, luego el que tiene
+   Aprobación final, luego el más reciente). Opcionalmente se puede limitar a un período.
+2. La modalidad (complexivo / trabajo / artículo) sale del archivo.
+3. **Guardar notas**: escribe en BDLocal y en Firebase (4 estudiantes en paralelo) y verifica cada documento.
+   Volver a guardar es seguro: lo que ya está igual no se reescribe.
 
 ## Reglas
 - **El sistema gana**: si la app o Firebase tienen otra nota, se reemplaza y se avisa antes de guardar.
 - Modalidad: se toma de `trabajoTitulacion`; `tipo_titulacion` trae errores y solo genera aviso.
-- Complexivo y Trabajo exigen **Aprobación final**.
+- Complexivo y Trabajo exigen **Aprobación final** (AprobacionTitulacion + AprobacionComplexivoProyecto en CUMPLE).
+- Complexivo sin examen pero con núcleos: se cargan solo los núcleos.
+- Código de carrera sin -P-/-L- (p. ej. «550613A01»): Presencial si el nombre no dice ONLINE, con aviso.
 - Fórmulas: examen = 40 % teórico + 60 % práctico (ordinario o supletorio, nunca mezclados); titulación = (promedio de núcleos + examen) / 2; trabajo = 60 % escrito + 40 % defensa; artículo = 70 % escrito + 30 % defensa.
 - Lo que no cuadra con la fórmula se conserva tal como viene del sistema y se marca «No cuadra».
 
@@ -24,3 +29,9 @@ Carga el reporte oficial del sistema académico (`NotasTitulacion_<PERIODO>_<fec
 `notas_nucleos`, `notas_complexivo`, `notas_trabajo` (tipoRegistro `CONSOLIDADO_INSTITUCIONAL`), `notas_articulo` y el resumen en `notas`. No se guarda el correo.
 
 Pruebas: `node scripts/verify-carga-notas.js`.
+
+Prueba completa (10/11/2026) con la exportación real de Firebase sembrada en BDLocal y un Firestore
+simulado que aplica las mismas reglas de `firestore.rules`:
+- Octubre 2025 – Marzo 2026: 813 en la base local, 504 cargados (344 complexivo, 6 trabajo, 154 artículo),
+  309 sin Aprobación final (matriculados en Abril–Septiembre 2026), 192 cédulas no están en la base local.
+- Febrero – Agosto 2026: 79/79 artículos cargados.

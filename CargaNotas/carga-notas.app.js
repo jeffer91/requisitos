@@ -30,7 +30,7 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
  // El sistema gana: diferencias con la app o Firebase son avisos, no bloqueos.
  var errors=parsed.errors.slice(),warnings=parsed.warnings.slice(),replaced=[],st=null;
  var found=roster.filter(function(row){return id(row)===parsed.cedula;});
- if(found.length!==1)errors.push(found.length?"Cédula duplicada en BDLocal.":"La cédula no existe en la matrícula del período.");
+ if(found.length!==1)errors.push(found.length?"Cédula duplicada en BDLocal.":"La cédula no está matriculada en la base local.");
  else st=found[0];
  if(st){
   if(!active(st))errors.push("Matrícula no ACTIVA.");
@@ -48,6 +48,7 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
     if(base!==c)warnings.push("Código de núcleo "+key+" no coincide con la carrera "+c+".");
   });
   var group=w.CargaNotasFirebase.group(st);
+  if(group&&w.CargaNotasFirebase.groupGuessed(st))warnings.push("El código de carrera «"+code(st)+"» no indica modalidad; se toma Presencial por el nombre de la carrera.");
   if(parsed.tipo==="EXAMEN_COMPLEXIVO"&&!group)errors.push("Grupo Presencial/Online/PVC no identificado en BDLocal.");
   if(parsed.tipo==="TRABAJO_TITULACION"&&!group)errors.push("Grupo de trabajo no identificado.");
   if((parsed.tipo==="EXAMEN_COMPLEXIVO"||parsed.tipo==="TRABAJO_TITULACION")&&
@@ -78,13 +79,16 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
   });
  }
  if(parsed.tipo==="TRABAJO_TITULACION"&&(parsed.nota1===null||parsed.nota2===null||parsed.final===null))
-  errors.push("El resumen de Trabajo requiere escrito, defensa y nota final completos.");
- if(parsed.tipo==="EXAMEN_COMPLEXIVO"&&parsed.notaExamenAplicada===null)
-  errors.push("No hay examen válido para publicar.");
+  errors.push("El sistema aún no trae escrito, defensa y nota final de este trabajo.");
+ var onlyNucleos=false;
+ if(parsed.tipo==="EXAMEN_COMPLEXIVO"&&parsed.notaExamenAplicada===null){
+  if(parsed.nucleos.some(function(v){return v!==null;})){onlyNucleos=true;warnings.push("Sin examen complexivo en el sistema: se cargan solo los núcleos.");}
+  else errors.push("Sin notas de núcleos ni de examen.");
+ }
  if(parsed.tipo==="ARTICULO_ACADEMICO"&&parsed.nota1===null&&parsed.nota2===null)
   errors.push("Sin calificaciones de artículo o defensa.");
  if(parsed.calculados&&parsed.calculados.length)warnings.push("Calculado: "+parsed.calculados.join(", ")+".");
- return {parsed:parsed,student:st,errors:errors,warnings:replaced.concat(warnings),replaced:replaced,
+ return {parsed:parsed,student:st,errors:errors,warnings:replaced.concat(warnings),replaced:replaced,onlyNucleos:onlyNucleos,
   status:errors.length?"blocked":"ready",detail:""};
 }
 function render(){
@@ -118,13 +122,17 @@ async function connect(){
  var result=await c.ready();if(result&&result.ok===false)throw Error(result.error||"BDLocal no está lista.");
  return c;
 }
+var AUTO="*";
 async function periods(){
  try{var c=await connect(),rows=await c.listPeriods(),select=$("cn-period");
-  select.textContent="";select.appendChild(new Option("Seleccione el período",""));
-  (rows||[]).forEach(function(row){var id=canonical(row.id||row.periodoId||row.periodId);if(id)select.appendChild(new Option(txt(row.label||row.nombre||id),id));});
-  message("Selecciona el período y el archivo de calificaciones.");
+  state.periods=(rows||[]).map(function(row){return {id:canonical(row.id||row.periodoId||row.periodId),label:txt(row.label||row.nombre)};}).filter(function(r){return r.id;});
+  select.textContent="";select.appendChild(new Option("Todos · detectar por cédula (recomendado)",AUTO));
+  state.periods.forEach(function(row){select.appendChild(new Option(row.label||row.id,row.id));});
+  select.value=AUTO;
+  message(state.periods.length?"Sube el archivo de notas del sistema; se analiza solo.":"La base local no tiene períodos. Carga primero los estudiantes en Carga.",!state.periods.length);
  }catch(error){message("No se pudieron obtener períodos: "+error.message,true);}
 }
+function periodLabel(id){var f=(state.periods||[]).filter(function(p){return p.id===id;})[0];return f&&f.label||id;}
 /* Una fila por cédula. Si el sistema trae varias, gana la del mismo período;
    después, la que tiene nota final; si aún difieren, la última del archivo. */
 function pick(rows,period){
@@ -139,48 +147,92 @@ function pick(rows,period){
   return best;
  });
 }
+function approved(st){return st&&(st.aprobacionFinal===true||(st._aprobacionFinal&&st._aprobacionFinal.eligible===true));}
+/* Matrícula de cada cédula. Si está en varios períodos: el que dice el sistema,
+   luego el que tiene Aprobación final, luego el más reciente. */
+function enrollment(candidates,systemPeriods){
+ var act=candidates.filter(function(m){return active(m.st);});
+ var list=act.length?act:candidates;
+ if(!list.length)return null;
+ list=list.slice().sort(function(a,b){
+  var sa=(systemPeriods.indexOf(a.period)>=0?4:0)+(approved(a.st)?2:0),sb=(systemPeriods.indexOf(b.period)>=0?4:0)+(approved(b.st)?2:0);
+  return sb-sa||b.period.localeCompare(a.period);
+ });
+ return {period:list[0].period,st:list[0].st,count:list.length};
+}
+function key(period,cedula){return period+"|"+cedula;}
 async function analyze(){
  if(state.working)return;
- var file=$("cn-file").files&&$("cn-file").files[0],period=canonical($("cn-period").value);
- if(!period||!file){message("Selecciona el período y el archivo de notas.",true);return;}
- state.working=true;state.items=[];state.other=0;state.period=period;state.file=file.name;render();
+ var file=$("cn-file").files&&$("cn-file").files[0],choice=canonical($("cn-period").value)||AUTO;
+ if(!file){message("Sube el archivo de notas del sistema (NotasTitulacion_*.xls).",true);return;}
+ state.working=true;state.items=[];state.other=0;state.unmatched=[];state.period=choice;state.file=file.name;render();
  try{
-  message("Leyendo el archivo y BDLocal…");
+  message("Leyendo el archivo…");
   var c=await connect();
   var parsed=await w.CargaReaderFile.read(file);
-  var all=(parsed.rows||[]).map(w.CargaNotasRules.parse);
-  if(!all.length)throw Error("El archivo no contiene filas.");
-  if(canonical($("cn-period").value)!==period||$("cn-file").files[0]!==file)throw Error("El período o archivo cambió durante el análisis. Ejecuta Analizar de nuevo.");
-  // Se cotejan CÉDULAS contra la matrícula del período elegido en BDLocal. El
-  // período que trae el sistema no siempre coincide con el de la app (online
-  // nov–may, febrero–agosto), así que solo se muestra como aviso.
-  var local=await Promise.all([c.listStudents({periodoId:period}),c.listEvaluations({periodoId:period}),
-     w.NcomplexNucleosStore.list(period)]);
-  var enrolled=Object.create(null);
-  (local[0]||[]).forEach(function(st){enrolled[id(st)]=true;});
-  var selected=pick(all.filter(function(r){return r.cedula&&enrolled[r.cedula];}),period);
-  selected.forEach(function(r){r.periodoId=period;});
-  state.other=all.filter(function(r){return !r.cedula||!enrolled[r.cedula];}).length;
-  if(!selected.length)throw Error("Ninguna cédula del archivo está matriculada en el período seleccionado.");
+  var all=(parsed.rows||[]).map(w.CargaNotasRules.parse).filter(function(r){return r.cedula||r.tipo;});
+  if(!all.length)throw Error("El archivo no contiene filas de notas.");
+  if(!all.some(function(r){return r.tipo;}))throw Error("El archivo no parece el reporte de notas de titulación (faltan las columnas trabajoTitulacion / tipo_titulacion).");
+  if(!state.periods||!state.periods.length)await periods();
+  var targets=choice===AUTO?(state.periods||[]).map(function(p){return p.id;}):[choice];
+  if(!targets.length)throw Error("La base local no tiene períodos.");
+  message("Cotejando "+all.length+" filas con la base local ("+targets.length+" período(s))…");
+  var rosters=await Promise.all(targets.map(function(p){return c.listStudents({periodoId:p});}));
+  if($("cn-file").files[0]!==file)throw Error("El archivo cambió durante el análisis.");
+  var byCed=Object.create(null);
+  rosters.forEach(function(rows,i){(rows||[]).forEach(function(st){
+   var k=id(st);if(!k)return;(byCed[k]=byCed[k]||[]).push({period:targets[i],st:st});});});
+  var rowsByCed=Object.create(null),order=[];
+  all.forEach(function(r){if(!rowsByCed[r.cedula]){rowsByCed[r.cedula]=[];order.push(r.cedula);}rowsByCed[r.cedula].push(r);});
+  var chosen=[],used=Object.create(null);
+  order.forEach(function(ced){
+   var rows=rowsByCed[ced],cands=ced&&byCed[ced]||[];
+   if(!cands.length){state.other++;state.unmatched.push(ced);return;}
+   var m=enrollment(cands,rows.map(function(r){return r.periodoSistemaId;}));
+   var row=pick(rows,m.period)[0];
+   row.periodoId=m.period;
+   if(m.count>1)row.warnings.push("Matriculado en "+m.count+" períodos; se usa "+periodLabel(m.period)+".");
+   chosen.push({row:row,st:m.st,others:cands.map(function(x){return x.st;})});
+   used[m.period]=true;
+  });
+  if(!chosen.length)throw Error("Ninguna cédula del archivo está en la base local"+(choice===AUTO?"":" para "+periodLabel(choice))+".");
+  var periodsUsed=Object.keys(used);
+  message("Leyendo notas existentes de "+periodsUsed.length+" período(s)…");
   var articleRepo=w.BDLRepoNotas||(w.BDLRepositories&&w.BDLRepositories.get&&w.BDLRepositories.get("notas"));
-  var articleRows=articleRepo&&typeof articleRepo.list==="function"?await articleRepo.list({periodoId:period}):null;
-  var articlesExist=selected.some(function(r){return r.tipo==="ARTICULO_ACADEMICO";});
-  if(articlesExist&&!articleRows)throw Error("No se pudo obtener el repositorio local de Artículo.");
+  var extra=await Promise.all(periodsUsed.map(function(p){return Promise.all([c.listEvaluations({periodoId:p}),
+    w.NcomplexNucleosStore.list(p),articleRepo&&typeof articleRepo.list==="function"?articleRepo.list({periodoId:p}):[]]);}));
   var evalMap=Object.create(null),artMap=Object.create(null),nucMap=Object.create(null);
-  (local[1]||[]).forEach(function(r){evalMap[w.CargaNotasRules.cid(r.cedula)]=r;});
-  (articleRows||[]).forEach(function(r){artMap[w.CargaNotasRules.cid(r.cedula)]=r;});
-  (local[2]||[]).forEach(function(r){nucMap[w.CargaNotasRules.cid(r.cedula)+"__N"+r.nucleo]=r;});
-  state.nucleos=nucMap;state.evaluaciones=evalMap;state.roster=local[0];
-  state.items=selected.map(function(p){return assess(p,local[0]||[],evalMap,artMap,nucMap);});
-  state.items.sort(function(a,b){return career(a.student).localeCompare(career(b.student),"es")||a.parsed.cedula.localeCompare(b.parsed.cedula);});
+  extra.forEach(function(set,i){var p=periodsUsed[i];
+   (set[0]||[]).forEach(function(r){evalMap[key(p,w.CargaNotasRules.cid(r.cedula))]=r;});
+   (set[1]||[]).forEach(function(r){nucMap[key(p,w.CargaNotasRules.cid(r.cedula))+"__N"+r.nucleo]=r;});
+   (set[2]||[]).forEach(function(r){artMap[key(p,w.CargaNotasRules.cid(r.cedula))]=r;});
+  });
+  state.nucleos=nucMap;state.evaluaciones=evalMap;
+  state.items=chosen.map(function(x){
+   var p=x.row,k=key(p.periodoId,p.cedula),e=Object.create(null),a=Object.create(null),n=Object.create(null);
+   if(evalMap[k])e[p.cedula]=evalMap[k];if(artMap[k])a[p.cedula]=artMap[k];
+   for(var i=1;i<=4;i++)if(nucMap[k+"__N"+i])n[p.cedula+"__N"+i]=nucMap[k+"__N"+i];
+   return assess(p,[x.st],e,a,n);
+  });
+  state.items.sort(function(a,b){return (b.status==="blocked")-(a.status==="blocked")||career(a.student).localeCompare(career(b.student),"es")||a.parsed.cedula.localeCompare(b.parsed.cedula);});
   var count=state.items.filter(function(i){return i.status==="ready";}).length;
+  var types={EXAMEN_COMPLEXIVO:0,TRABAJO_TITULACION:0,ARTICULO_ACADEMICO:0};
+  state.items.forEach(function(i){if(i.status==="ready"&&types[i.parsed.tipo]!==undefined)types[i.parsed.tipo]++;});
   var replacing=state.items.filter(function(i){return i.replaced&&i.replaced.length;}).length;
-  message("Analizadas "+state.items.length+" cédulas matriculadas en el período ("+state.other+" filas del archivo son de otras cédulas). "+count+" listas, "+replacing+" reemplazan notas de la app"+" y "+(state.items.length-count)+" requieren revisión. Todavía no se ha escrito ninguna nota.");
+  message(state.items.length+" estudiantes encontrados en la base local · "+count+" listos ("+types.EXAMEN_COMPLEXIVO+" complexivo, "+types.TRABAJO_TITULACION+" trabajo, "+types.ARTICULO_ACADEMICO+" artículo)"
+   +(replacing?" · "+replacing+" reemplazan notas de la app":"")+" · "+state.unmatched.length+" cédulas del archivo no están en la base local."
+   +(count?" Pulsa «Guardar notas» para cargar.":""));
+  var reasons=Object.create(null);
+  state.items.forEach(function(i){if(i.status!=="blocked")return;var r=i.errors[0]||"Revisar";
+   if(/Aprobación final/.test(r))r="Sin Aprobación final en "+periodLabel(i.parsed.periodoId);(reasons[r]=reasons[r]||0);reasons[r]++;});
+  state.reasons=Object.keys(reasons).map(function(r){return reasons[r]+" · "+r;});
+  $("cn-reasons").textContent=state.reasons.length?"En revisión: "+state.reasons.join(" | "):"";
  }catch(error){message("Análisis detenido: "+(error.message||error),true);state.items=[];}
  finally{state.working=false;render();try{w.dispatchEvent(new CustomEvent("maqueta:screen-render-complete",{detail:{source:"carga-notas"}}));}catch(e){}}
 }
+function existingNucleus(p,n){return state.nucleos[key(p.periodoId,p.cedula)+"__N"+n]||null;}
 function localNucleus(item,n){
- var p=item.parsed,st=item.student,old=state.nucleos[p.cedula+"__N"+n]||{},doc=w.CargaNotasFirebase.nucleus(p,st,n,old);
+ var p=item.parsed,st=item.student,old=existingNucleus(p,n)||{},doc=w.CargaNotasFirebase.nucleus(p,st,n,old);
  doc.id=p.cedula+"__"+p.periodoId+"__N"+n;
  doc.createdAt=old.createdAt||new Date().toISOString();doc.updatedAt=new Date().toISOString();
  doc.estadoSync="PENDIENTE";
@@ -191,18 +243,17 @@ async function saveOne(item,c){
  if(p.tipo==="EXAMEN_COMPLEXIVO"){
   for(var n=1;n<=4;n++){
    if(p.nucleos[n-1]===null)continue;
-   docs.push({entity:"notas_nucleos",doc:fb.nucleus(p,st,n,state.nucleos[p.cedula+"__N"+n]),local:localNucleus(item,n)});
+   docs.push({entity:"notas_nucleos",doc:fb.nucleus(p,st,n,existingNucleus(p,n)),local:localNucleus(item,n)});
   }
-  docs.push({entity:"notas_complexivo",doc:fb.complexivo(p,st)});
+  if(!item.onlyNucleos)docs.push({entity:"notas_complexivo",doc:fb.complexivo(p,st)});
  }else if(p.tipo==="ARTICULO_ACADEMICO")docs.push({entity:"notas_articulo",doc:fb.article(p,st)});
  else docs.push({entity:"notas_trabajo",doc:fb.trabajo(p,st)});
- docs.push({entity:"notas",doc:fb.general(p,st)});
- // Prevalidación: si el documento remoto contiene una nota distinta, se
- // cancela todo el estudiante ANTES de actualizar su base local.
+ if(!item.onlyNucleos)docs.push({entity:"notas",doc:fb.general(p,st)});
+ // Revisión previa (registros eliminados en Firebase) ANTES de tocar la base local.
  await fb.preflight(docs);
  if(p.tipo==="EXAMEN_COMPLEXIVO"){
   if(docs.some(function(i){return i.local;}))await w.NcomplexNucleosStore.saveMany(docs.filter(function(i){return i.local;}).map(function(i){return i.local;}));
-  await c.saveEvaluation({periodoId:p.periodoId,cedula:p.cedula,modalidadTitulacion:"EXAMEN_COMPLEXIVO",
+  if(!item.onlyNucleos)await c.saveEvaluation({periodoId:p.periodoId,cedula:p.cedula,modalidadTitulacion:"EXAMEN_COMPLEXIVO",
    notaTeorica:p.supletorio===null?p.teorico:(p.ordinarioCalculado?p.ordinarioCalculado.teorico:null),
    notaPractica:p.supletorio===null?p.practico:(p.ordinarioCalculado?p.ordinarioCalculado.practico:null),
    notaComplexivo:p.nota2,notaTeoricaSupletorio:p.supletorio===null?null:p.teorico,
@@ -225,33 +276,43 @@ async function saveOne(item,c){
  return docs.length;
 }
 async function save(){
- if(state.working||!state.period||!state.items.length)return;
+ if(state.working||!state.items.length)return;
  var ready=state.items.filter(function(i){return i.status==="ready"||i.status==="error";});
  if(!ready.length)return;
  var replacing=ready.filter(function(i){return i.replaced&&i.replaced.length;}).length;
- if(!w.confirm("¿Guardar y publicar "+ready.length+" estudiante(s) en Firebase?"+(replacing?" "+replacing+" tienen notas distintas en la app y se REEMPLAZARÁN por las del sistema.":"")+" Los registros en revisión NO se guardarán."))return;
- state.working=true;render();var ok=0,fail=0,c=null;
+ if(!w.confirm("¿Cargar las notas de "+ready.length+" estudiante(s) en la base local y en Firebase?"+(replacing?" "+replacing+" tienen notas distintas en la app y se REEMPLAZARÁN por las del sistema.":"")+" Los registros en revisión NO se guardarán."))return;
+ state.working=true;render();var ok=0,fail=0,c=null,done=0;
  try{
   c=await connect();await w.CargaNotasFirebase.ensure();
-  for(var j=0;j<ready.length;j++){
-   var item=ready[j];item.status="uploading";
-   progress("Procesando "+(j+1)+" / "+ready.length+" · "+item.parsed.cedula);
-   try{await saveOne(item,c);item.status="saved";ok++;}
-   catch(err){item.status="error";item.detail=(err&&err.message)||String(err);fail++;}
-   if((j+1)%5===0||j===ready.length-1){render();await new Promise(function(resolve){setTimeout(resolve,0);});}
+  var queue=ready.slice(),started=Date.now();
+  async function worker(){
+   while(queue.length){
+    var item=queue.shift();item.status="uploading";
+    try{await saveOne(item,c);item.status="saved";item.detail="";ok++;}
+    catch(err){item.status="error";item.detail=(err&&err.message)||String(err);fail++;}
+    done++;
+    if(done%10===0||done===ready.length){
+     var secs=Math.round((Date.now()-started)/1000),left=done?Math.round(secs/done*(ready.length-done)):0;
+     progress("Cargando "+done+" / "+ready.length+(left?" · faltan ~"+left+" s":""));render();
+     await new Promise(function(resolve){setTimeout(resolve,0);});
+    }
+   }
   }
-  message("Importación: "+ok+" estudiantes guardados y verificados; "+fail+" con error. Los conflictos requieren revisión.",!!fail);
- }catch(error){message("Se detuvo la subida: "+(error&&error.message||error),true);}
+  // Cuatro estudiantes a la vez: cada uno escribe y verifica sus propios documentos.
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  message(fail?"Carga terminada: "+ok+" estudiantes guardados y verificados; "+fail+" con error (puedes pulsar Guardar otra vez para reintentar).":"Listo: "+ok+" estudiantes cargados y verificados en Firebase.",!!fail);
+ }catch(error){message("Se detuvo la carga: "+(error&&error.message||error),true);}
  finally{state.working=false;progress("");render();}
 }
-function clear(){if(state.working)return;$("cn-file").value="";state.items=[];state.other=0;message("Selecciona un archivo para comenzar.");render();}
+function clear(){if(state.working)return;$("cn-file").value="";$("cn-reasons").textContent="";state.items=[];state.other=0;message("Sube el archivo de notas del sistema; se analiza solo.");render();}
 function init(){
  $("cn-analyze").addEventListener("click",analyze);$("cn-save").addEventListener("click",save);
- $("cn-clear").addEventListener("click",clear);$("cn-period").addEventListener("change",function(){state.items=[];state.period="";render();});
- $("cn-file").addEventListener("change",function(){state.items=[];state.period="";render();message("Archivo cambiado. Pulsa Analizar antes de guardar.");});
+ $("cn-clear").addEventListener("click",clear);
+ $("cn-period").addEventListener("change",function(){state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
+ $("cn-file").addEventListener("change",function(){state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
  $("cn-search").addEventListener("input",render);$("cn-filter").addEventListener("change",render);
  periods();
 }
-w.CargaNotasApp={version:"2.0.0",analyze:analyze,save:save,state:state,assess:assess,pick:pick};
+w.CargaNotasApp={version:"3.0.0",analyze:analyze,save:save,state:state,assess:assess,pick:pick,enrollment:enrollment};
 if(d.readyState==="loading")d.addEventListener("DOMContentLoaded",init);else init();
 })(window,document);

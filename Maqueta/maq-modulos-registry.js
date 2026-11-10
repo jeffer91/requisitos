@@ -54,7 +54,7 @@ Con qué se conecta:
     global:"global",globals:"global",historico:"global",histórico:"global","analisis global":"global","análisis global":"global",
     reporte:"modulo_reporte",reportes:"modulo_reporte",repor:"modulo_reporte",
     defensas:"defart",defensa:"defart",defart:"defart",articulo:"defart",artículo:"defart","notas articulo":"defart","notas artículo":"defart",
-    "cargar notas":"carga_notas","carga notas":"carga_notas",
+    "cargar notas":"carga_notas","carga notas":"carga_notas","cargado de notas":"carga_notas",
     nucleos:"notas_nucleos",núcleos:"notas_nucleos","notas nucleos":"notas_nucleos","notas núcleos":"notas_nucleos",
     "notas complexivo":"notas_complexivo",
     trabajo:"notas_trabajo","trabajo de titulacion":"notas_trabajo","trabajo de titulación":"notas_trabajo","notas trabajo":"notas_trabajo",

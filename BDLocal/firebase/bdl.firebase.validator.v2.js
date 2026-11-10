@@ -212,8 +212,10 @@ Función o funciones:
         if(!Number.isFinite(g)||g<0||g>10)errors.push(field+" debe ser una nota entre 0 y 10.");
       });
       if(text(document.modalidadTitulacion)!=="TRABAJO_TITULACION")errors.push("Modalidad de evaluación incorrecta.");
-      if(!/^\d+$/.test(text(document.numeroActaSenescyt)))errors.push("Número de acta SENESCYT inválido.");
-      if(Number.isFinite(document.notaFinal)&&Number.isFinite(document.promedioTrabajoEscrito)&&Number.isFinite(document.promedioDefensaOral)&&
+      // El consolidado institucional (Cargado de notas) no trae acta y sus notas
+      // vienen del sistema académico, que manda aunque no cuadren al centésimo.
+      if(!consolidated&&!/^\d+$/.test(text(document.numeroActaSenescyt)))errors.push("Número de acta SENESCYT inválido.");
+      if(!consolidated&&Number.isFinite(document.notaFinal)&&Number.isFinite(document.promedioTrabajoEscrito)&&Number.isFinite(document.promedioDefensaOral)&&
         Math.abs(document.notaFinal-(document.promedioTrabajoEscrito*.6+document.promedioDefensaOral*.4))>.051)
         errors.push("Nota final distinta de 60 % escrito + 40 % defensa oral.");
     }
@@ -225,7 +227,8 @@ Función o funciones:
       var a=sup?document.notaTeoricaSupletorio:document.notaTeorica;
       var b=sup?document.notaPracticaSupletorio:document.notaPractica;
       if(a==null||b==null)errors.push("Faltan componentes teórico y práctico.");
-      else if(Math.abs(Number(document.notaOficial)-Math.round((Number(a)*.4+Number(b)*.6)*100)/100)>.025)errors.push("Nota oficial distinta del desglose.");
+      else if(Math.abs(Number(document.notaOficial)-Math.round((Number(a)*.4+Number(b)*.6)*100)/100)>.025)
+        (text(document.tipoRegistro)==="CONSOLIDADO_INSTITUCIONAL"?warnings:errors).push("Nota oficial distinta del desglose.");
     }
     if(entity === "matriculas"){
       var status = text(document.estadoMatricula).toUpperCase();

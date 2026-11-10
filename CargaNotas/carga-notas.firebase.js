@@ -123,10 +123,14 @@ function group(st){
  if(/PVC/.test(c+" "+name))return "PVC";
  if(/-L-/.test(c)||/ONLINE|EN LINEA/.test(name))return "ONLINE";
  if(/-P-/.test(c))return "PRESENCIAL";
+ // Código incompleto (sin -P-/-L-, p. ej. «550613A01»): las carreras online se
+ // llaman «… ONLINE», así que un nombre sin esa marca es presencial.
+ if(c&&!/-[A-Z]-/.test(c)&&name)return "PRESENCIAL";
  return "";
 }
+function groupGuessed(st){var c=text(st&&(st.CodigoCarrera||st.codigoCarrera)).toUpperCase();return !!c&&!/-[A-Z]-/.test(c)&&!/PVC/.test(c)&&group(st)==="PRESENCIAL";}
 function complexivo(row,st){
- var doc=Object.assign({},core(row,st),{grupoInforme:group(st),modalidadTitulacion:"EXAMEN_COMPLEXIVO",
+ var doc=Object.assign({},core(row,st),{grupoInforme:group(st),modalidadTitulacion:"EXAMEN_COMPLEXIVO",tipoRegistro:"CONSOLIDADO_INSTITUCIONAL",
   oportunidadAplicada:row.supletorio!==null?"SUPLETORIO":"ORDINARIA",
   estadoEvaluacion:row.notaExamenAplicada!==null&&row.notaExamenAplicada>=7?"APROBADO":"NO_APROBADO",
   notaMinimaAprobacion:7,notaOficial:row.notaExamenAplicada,
@@ -166,6 +170,6 @@ function general(row,st){
  else{note.notaArticulo=row.nota1;note.notaDefensa=row.nota2;note.notaFinal=row.final;}
  return note;
 }
-w.CargaNotasFirebase=Object.freeze({ensure:ensure,preflight:preflight,publish:publish,group:group,changes:changes,
+w.CargaNotasFirebase=Object.freeze({ensure:ensure,preflight:preflight,publish:publish,group:group,groupGuessed:groupGuessed,changes:changes,
  nucleus:nucleus,complexivo:complexivo,article:article,trabajo:trabajo,general:general});
 })(window);
