@@ -1,0 +1,16 @@
+/* carga-notas.css — /CargaNotas. Diseño compacto sin encabezados duplicados. */
+:root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#142339;background:#f4f7fc}*{box-sizing:border-box}
+body{margin:0}.cn{padding:18px;max-width:1800px;margin:auto}header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+h1{font-size:21px;margin:0;font-weight:750}h2{font-size:16px;margin:0 0 10px}header p{font-size:12px;color:#64748b;margin:0}
+.panel{border:1px solid #dde4ef;border-radius:12px;background:white;padding:15px;margin-bottom:12px;box-shadow:0 2px 6px rgba(7,29,58,.04)}
+.selectors{display:grid;grid-template-columns:minmax(220px,1fr) minmax(250px,2fr);gap:14px}label{font-weight:650;font-size:12px;display:flex;flex-direction:column;gap:5px}
+input,select{padding:9px 11px;color:#142339;background:white;border:1px solid #cdd8e6;border-radius:7px;max-width:100%;font:inherit;font-weight:400}
+input[type=file]{font-size:13px}.hint{font-size:12px;color:#60708a;line-height:1.5;margin:9px 0}.actions{display:flex;gap:9px;align-items:center;margin-top:12px;flex-wrap:wrap}
+button{border:1px solid #bdcbda;border-radius:7px;padding:9px 15px;background:#fff;color:#173455;cursor:pointer;font-weight:650}button.primary{background:#0b325f;color:white;border-color:#0b325f}
+button:disabled{opacity:.45;cursor:not-allowed}#cn-msg{font-size:12px;margin:9px 0 0;color:#334155}#cn-msg.bad{color:#a11a20}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.stats div{background:#f5f8fd;padding:9px;border-radius:8px;display:flex;flex-direction:column;gap:3px}.stats small{font-size:11px;color:#64748b}.stats strong{font-size:20px}
+.toolbar{display:flex;gap:14px;align-items:flex-end;margin:11px 0;flex-wrap:wrap}.toolbar label{min-width:180px}.scroll{max-height:440px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}th{position:sticky;top:0;background:#102e50;color:#fff;font-weight:700;text-align:left;white-space:nowrap;padding:9px}
+td{padding:9px 8px;border-bottom:1px solid #e5eaf2;vertical-align:top}td small{display:block;color:#64748b;margin-top:3px}tbody tr.bad{background:#fff6f5}tbody tr.ok{background:#f5fbfa}tbody tr.saved{background:#eef7ff}
+.state{font-size:11px;font-weight:650}.bad .state{color:#af1e29}.ok .state{color:#0d6759}.saved .state{color:#235ca0}#cn-progress{font-size:12px;color:#48627d}
+@media(max-width:650px){.cn{padding:10px}.selectors{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.scroll{max-height:56vh}header p{display:block}}
