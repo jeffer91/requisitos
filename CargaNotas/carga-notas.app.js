@@ -21,7 +21,7 @@ function progress(t){$("cn-progress").textContent=txt(t);}
 function el(tag,content){var n=d.createElement(tag);if(content!==undefined)n.textContent=txt(content);return n;}
 function same(a,b){return !w.CargaNotasRules.compare(a,b,0.025);}
 function gradeMismatch(previous,incoming,field,errors,label){
- if(previous==null||incoming==null)return;
+ if(previous==null||incoming==null||txt(previous)===""||txt(incoming)==="")return;
  if(!Number.isFinite(Number(previous))||!Number.isFinite(Number(incoming)))return;
  if(!same(Number(previous),Number(incoming)))errors.push((label||field)+": BDLocal "+previous+" / Excel "+incoming+".");
 }
