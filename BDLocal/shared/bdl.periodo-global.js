@@ -8,10 +8,18 @@ Función o funciones:
 - Mantener Global independiente para que compare varios períodos.
 - Sincronizar el período general con BL2Core cuando esté disponible.
 ========================================================= */
-(function(window,document){
+(function(window){
   "use strict";
 
-  var VERSION="1.1.0-reliable-change-events";
+  // Siempre el documento ACTUAL de la ventana. Maqueta puede inyectar este script
+  // mientras el iframe aún está en about:blank; Chrome reutiliza la misma ventana
+  // al cargar la pantalla y un `document` capturado quedaría apuntando al documento
+  // vacío (los selectores nunca se enlazaban y el período no se compartía).
+  function doc(){return window.document;}
+  var existing=window.RequisitosPeriodoGlobal;
+  if(existing&&existing.documentRef===window.document&&typeof existing.scan==="function"){existing.scan();return;}
+
+  var VERSION="1.2.0-live-document";
   var STORAGE_KEY="REQ_PERIODO_GLOBAL_V1";
   var SIGNAL_KEY="REQ_PERIODO_GLOBAL_SIGNAL_V1";
   var CHANNEL_NAME="requisitos-periodo-global";
@@ -40,7 +48,7 @@ Función o funciones:
     return match?match[1]+"-"+match[2]+"__"+match[3]+"-"+match[4]:value.replace(/_+/g,"__");
   }
   function screenName(){
-    var body=document.body;
+    var body=doc().body;
     var value=text(body&&(body.getAttribute("data-bdl-screen")||body.getAttribute("data-screen"))).toLowerCase();
     if(value){return value;}
     try{
@@ -119,7 +127,7 @@ Función o funciones:
       return new CustomEvent("change",{bubbles:true,detail:{periodoGlobal:true,periodoId:period.id,periodoLabel:period.label}});
     }catch(error){
       try{
-        var event=document.createEvent("Event");
+        var event=doc().createEvent("Event");
         event.initEvent("change",true,false);
         event.periodoGlobal=true;
         event.periodoId=period.id;
@@ -167,7 +175,7 @@ Función o funciones:
   function applyToAll(period,options){
     if(!state.enabled||!period){return 0;}
     var applied=0;
-    Array.prototype.slice.call(document.querySelectorAll("select")).forEach(function(select){
+    Array.prototype.slice.call(doc().querySelectorAll("select")).forEach(function(select){
       if(applyToSelect(select,period,options||{})){applied+=1;}
     });
     return applied;
@@ -224,10 +232,25 @@ Función o funciones:
     else{captureSelect(select);}
     return true;
   }
+  function observe(){
+    if(!state.observer||state.observedDoc===doc()){return;}
+    var target=doc().documentElement||doc().body;
+    if(!target){return;}
+    try{state.observer.disconnect();}catch(error){}
+    state.observer.observe(target,{childList:true,subtree:true});
+    state.observedDoc=doc();
+  }
+  function refreshDocument(){
+    if(api.documentRef===doc()){return;}
+    api.documentRef=doc();
+    state.enabled=!isGlobalScreen();
+  }
   function scan(){
+    refreshDocument();
     if(!state.enabled){return 0;}
+    observe();
     var bound=0;
-    Array.prototype.slice.call(document.querySelectorAll("select")).forEach(function(select){
+    Array.prototype.slice.call(doc().querySelectorAll("select")).forEach(function(select){
       if(bindSelect(select)){bound+=1;}
       if(state.period){applyToSelect(select,state.period,{dispatch:true});}
     });
@@ -272,14 +295,14 @@ Función o funciones:
     });
     if(typeof window.MutationObserver==="function"){
       state.observer=new MutationObserver(function(){scheduleScan(30);});
-      var target=document.documentElement||document.body;
-      if(target){state.observer.observe(target,{childList:true,subtree:true});}
+      observe();
     }
   }
   function init(){
     if(state.initialized){return api;}
     state.initialized=true;
     state.enabled=!isGlobalScreen();
+    api.documentRef=doc();
     state.period=readStored();
     if(state.enabled){
       bindCommunication();
@@ -301,6 +324,7 @@ Función o funciones:
     storageKey:STORAGE_KEY,
     eventName:EVENT_CHANGED,
     init:init,
+    documentRef:null,
     enabled:function(){return state.enabled;},
     isGlobalScreen:isGlobalScreen,
     get:function(){return clone(state.period);},
@@ -316,11 +340,11 @@ Función o funciones:
         enabled:state.enabled,
         globalIndependent:!state.enabled,
         period:clone(state.period),
-        bound:Array.prototype.slice.call(document.querySelectorAll("select")).filter(function(select){return !!select[SELECT_MARK];}).length
+        bound:Array.prototype.slice.call(doc().querySelectorAll("select")).filter(function(select){return !!select[SELECT_MARK];}).length
       };
     }
   };
 
   window.RequisitosPeriodoGlobal=api;
   init();
-})(window,document);
+})(window);

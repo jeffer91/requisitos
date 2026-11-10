@@ -7,7 +7,7 @@
 <section class="panel">
  <div class="selectors">
   <label>Archivo de notas del sistema (NotasTitulacion_*.xls)<input id="cn-file" type="file" accept=".xls,.xlsx,.html,.htm"></label>
-  <label>Período<select id="cn-period"><option value="*">Cargando períodos…</option></select></label>
+  <label>Período<select id="cn-period" data-periodo-global="false"><option value="*">Cargando períodos…</option></select></label>
  </div>
  <p class="hint">Sube el archivo y se analiza solo: cada cédula se busca en la base local, se ubica en su período de matrícula y se identifica si es complexivo, trabajo de titulación o artículo. Las notas del sistema mandan; el desglose que falta se calcula. Nada se guarda hasta pulsar «Guardar».</p>
  <div class="actions"><button id="cn-analyze" type="button">Volver a analizar</button><button id="cn-clear" type="button">Limpiar</button></div>
