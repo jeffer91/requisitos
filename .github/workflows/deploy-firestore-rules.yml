@@ -1,0 +1,62 @@
+name: Publicar reglas de Firestore
+# Publica firestore.rules en el proyecto utet-4387a cada vez que cambian en main.
+# Requiere UNA vez el secreto FIREBASE_SERVICE_ACCOUNT (JSON de la cuenta de servicio:
+# Consola de Firebase → Configuración del proyecto → Cuentas de servicio →
+# Generar nueva clave privada; pegar el contenido en GitHub → Settings →
+# Secrets and variables → Actions → New repository secret).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'firebase.json'
+      - '.github/workflows/deploy-firestore-rules.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: firestore-rules
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROJECT_ID: utet-4387a
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Revisión básica del archivo de reglas
+        run: |
+          node -e '
+            const s=require("fs").readFileSync("firestore.rules","utf8");
+            const count=c=>s.split(c).length-1;
+            if(count("{")!==count("}"))throw new Error("Llaves desbalanceadas en firestore.rules");
+            if(count("(")!==count(")"))throw new Error("Paréntesis desbalanceados en firestore.rules");
+            ["notas_nucleos","notas_complexivo","notas_articulo","notas_trabajo","matriculas","requisitos"].forEach(c=>{
+              if(!s.includes("match /"+c+"/"))throw new Error("Falta la colección "+c+" en firestore.rules");
+            });
+            console.log("firestore.rules: estructura correcta ("+s.split("\n").length+" líneas)");
+          '
+      - name: Verificar que existe la credencial
+        id: cred
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::warning::Falta el secreto FIREBASE_SERVICE_ACCOUNT; las reglas NO se publicaron. Agrégalo en Settings → Secrets and variables → Actions."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publicar reglas en Firebase
+        if: steps.cred.outputs.ok == 'true'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --project "$PROJECT_ID" --non-interactive
+      - name: Borrar credencial temporal
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
