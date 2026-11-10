@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- carga-notas.html — /CargaNotas. Importación revisada del Excel institucional. -->
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Notas · Cargar notas</title><link rel="stylesheet" href="carga-notas.css"></head>
+<body><main class="cn">
+<header><h1>Cargar notas</h1><p>Excel institucional de titulación · conciliación por cédula, período, carrera y modalidad</p></header>
+<section class="panel">
+ <div class="selectors">
+  <label>Período académico<select id="cn-period" data-periodo-global="true"><option value="">Cargando períodos…</option></select></label>
+  <label>Archivo de calificaciones (.xls / .xlsx / .html)<input id="cn-file" type="file" accept=".xls,.xlsx,.html,.htm"></label>
+ </div>
+ <p class="hint">El archivo puede contener varios períodos. Solo se analiza y guarda el período seleccionado. Los archivos .xls exportados como HTML se reconocen automáticamente.</p>
+ <div class="actions"><button id="cn-analyze" type="button" class="primary">Analizar sin guardar</button><button id="cn-clear" type="button">Limpiar</button></div>
+ <p id="cn-msg" role="status" aria-live="polite">Selecciona un período y un archivo.</p>
+</section>
+<section class="panel" id="cn-results" hidden>
+ <h2>Vista previa de importación</h2>
+ <div class="stats"><div><small>Filas del período</small><strong id="cn-total">0</strong></div><div><small>Listas</small><strong id="cn-ready">0</strong></div><div><small>Requieren revisión</small><strong id="cn-blocked">0</strong></div><div><small>Ignoradas (otros períodos)</small><strong id="cn-other">0</strong></div></div>
+ <div class="toolbar"><label>Filtrar carrera o cédula<input id="cn-search" type="search" placeholder="Buscar en la vista previa"></label>
+ <label>Mostrar<select id="cn-filter"><option value="all">Todas</option><option value="ready">Listas</option><option value="blocked">Revisión</option><option value="saved">Guardadas</option></select></label></div>
+ <div class="scroll"><table><thead><tr><th>Cédula / estudiante</th><th>Carrera / grupo</th><th>Modalidad</th><th>Núcleos</th><th>Examen / notas</th><th>Final</th><th>Estado / motivo</th></tr></thead><tbody id="cn-body"></tbody></table></div>
+ <p class="hint">Las notas existentes diferentes, las modalidades dudosas y los cálculos inconsistentes no se sobrescriben. Sin inventar actividades de Moodle ni actas SENESCYT.</p>
+ <div class="actions"><button type="button" id="cn-save" class="primary" disabled>Guardar y verificar en Firebase</button><span id="cn-progress"></span></div>
+</section>
+</main>
+<script src="../Carga/readers/carga.reader.html.js"></script>
+<script src="../Carga/readers/carga.reader.xlsx.js"></script>
+<script src="../Carga/readers/carga.reader.file.js"></script>
+<script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+<script src="../Ncomplex/ncomplex.nucleos.store.js"></script>
+<script src="carga-notas.rules.js"></script>
+<script src="carga-notas.firebase.js"></script>
+<script src="carga-notas.app.js"></script>
+</body></html>
