@@ -134,6 +134,7 @@ async function analyze(){
   if(!all.length)throw Error("El archivo no contiene filas.");
   if(!all.some(function(r){return r.periodoId===period}))throw Error("El archivo no contiene registros del período seleccionado.");
   state.other=all.filter(function(r){return r.periodoId!==period;}).length;
+  if(canonical($("cn-period").value)!==period||$("cn-file").files[0]!==file)throw Error("El período o archivo cambió durante el análisis. Ejecuta Analizar de nuevo.");
   var selected=all.filter(function(r){return r.periodoId===period;});
   var local=await Promise.all([c.listStudents({periodoId:period}),c.listEvaluations({periodoId:period}),
      w.NcomplexNucleosStore.list(period)]);
@@ -230,7 +231,8 @@ async function save(){
 function clear(){if(state.working)return;$("cn-file").value="";state.items=[];state.other=0;message("Selecciona un archivo para comenzar.");render();}
 function init(){
  $("cn-analyze").addEventListener("click",analyze);$("cn-save").addEventListener("click",save);
- $("cn-clear").addEventListener("click",clear);$("cn-period").addEventListener("change",function(){state.items=[];render();});
+ $("cn-clear").addEventListener("click",clear);$("cn-period").addEventListener("change",function(){state.items=[];state.period="";render();});
+ $("cn-file").addEventListener("change",function(){state.items=[];state.period="";render();message("Archivo cambiado. Pulsa Analizar antes de guardar.");});
  $("cn-search").addEventListener("input",render);$("cn-filter").addEventListener("change",render);
  periods();
 }
