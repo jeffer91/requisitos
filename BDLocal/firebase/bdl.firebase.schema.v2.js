@@ -113,7 +113,7 @@ Función o funciones:
           "periodoId","cedula","modalidadTitulacion","notaTeorica","notaPractica",
           "notaComplexivo","notaTeoricaSupletorio","notaPracticaSupletorio",
           "notaSupletorio","notaEscrito","notaDefensaTrabajo","notaTrabajoTitulacion",
-          "notaArticulo","notaDefensa","notaFinal","notaOficial","estadoEvaluacion",
+          "notaArticulo","notaDefensa","notaFinal","notaOficial","promedioNucleos","notaFinalIntegral","estadoEvaluacion",
           "createdAt","updatedAt","version","dataHash"
         ]
       },
@@ -139,7 +139,7 @@ Función o funciones:
       notas_trabajo:{
         description:"Notas → Trabajo: acta SENESCYT completa del trabajo de titulación.",
         fields:["periodoId","cedula","nombres","codigoCarrera","nombreCarrera","grupoInforme","modalidadTitulacion",
-          "numeroActaSenescyt","fechaActaGrado","calificacionTutor","calificacionLector","promedioTrabajoEscrito",
+          "tipoRegistro","numeroActaSenescyt","fechaActaGrado","calificacionTutor","calificacionLector","promedioTrabajoEscrito",
           "vocales","evaluacionPractica","evaluacionDefensa","promedioEvaluacionPractica","promedioEvaluacionDefensa",
           "promedioDefensaOral","notaFinal","notaMinimaAprobacion","estadoEvaluacion","textoOriginalHash",
           "origen","createdAt","updatedAt","version","dataHash"]
