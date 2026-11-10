@@ -30,6 +30,8 @@ function valueConflict(a,b){
 }
 function merge(entity,input,remote){
  var old=remote||{},candidate=Object.assign({},old);
+ if(old.modalidadTitulacion&&input.modalidadTitulacion&&old.modalidadTitulacion!==input.modalidadTitulacion)
+   throw Error("Modalidad remota diferente de la fuente institucional.");
  (GRADES[entity]||[]).forEach(function(k){
   if(input[k]!==undefined&&input[k]!==null&&valueConflict(input[k],old[k])){
    var err=Error("Firebase ya tiene una nota diferente en "+k+" ("+old[k]+" frente a "+input[k]+").");
@@ -40,6 +42,7 @@ function merge(entity,input,remote){
   if(input[k]!==undefined&&input[k]!==null){
    if(k==="createdAt"&&old.createdAt)return;
    if((k==="origen"||k==="cursoMoodle"||k==="textoOriginalHash")&&old[k])return;
+   if(k==="tipoRegistro"&&old.numeroActaSenescyt)return;
    if(k==="evaluaciones"&&old.evaluaciones&&old.evaluaciones.some(function(v){return v!==null;}))return;
    if(k==="historialCambios"&&old.historialCambios)return;
    candidate[k]=input[k];
@@ -69,6 +72,15 @@ async function publish(entity,input){
      throw Error("No fue posible verificar "+entity+" / "+k);
  });
  return {ok:!!result.ok,unchanged:!!result.unchanged,entity:entity,id:id};
+}
+async function preflight(entries){
+ var repo=await ensure();
+ for(var j=0;j<entries.length;j++){
+  var item=entries[j],current=await repo.getById(item.entity,item.doc.id),old=current&&current.data||null;
+  if(old&&old.eliminado===true)throw Error("El registro remoto "+item.doc.id+" está eliminado.");
+  merge(item.entity,item.doc,old);
+ }
+ return true;
 }
 function identity(row){return row.periodoId+"__"+row.cedula;}
 function core(row,st){return {id:identity(row),periodoId:row.periodoId,cedula:row.cedula,
@@ -128,6 +140,6 @@ function general(row,st){
  else{note.notaArticulo=row.nota1;note.notaDefensa=row.nota2;note.notaFinal=row.final!==null?row.final:row.calculado;}
  return note;
 }
-w.CargaNotasFirebase=Object.freeze({ensure:ensure,publish:publish,group:group,
+w.CargaNotasFirebase=Object.freeze({ensure:ensure,preflight:preflight,publish:publish,group:group,
  nucleus:nucleus,complexivo:complexivo,article:article,trabajo:trabajo,general:general});
 })(window);
