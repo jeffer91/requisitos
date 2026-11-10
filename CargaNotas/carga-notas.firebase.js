@@ -124,7 +124,7 @@ function complexivo(row,st){
 }
 function article(row,st){return Object.assign({},core(row,st),{
  modalidadTitulacion:"ARTICULO_ACADEMICO",notaArticulo:row.nota1,notaDefensa:row.nota2,
- notaFinal:row.final!==null?row.final:row.calculado,
+ notaFinal:row.final,
  estadoEvaluacion:row.final===null?"INCOMPLETO":row.final>=7?"APROBADO":"NO_APROBADO"});}
 function trabajo(row,st){return Object.assign({},core(row,st),{
  grupoInforme:group(st),modalidadTitulacion:"TRABAJO_TITULACION",tipoRegistro:"CONSOLIDADO_INSTITUCIONAL",
@@ -134,10 +134,10 @@ function trabajo(row,st){return Object.assign({},core(row,st),{
 function general(row,st){
  var note=Object.assign({},core(row,st),{modalidadTitulacion:row.tipo});
  if(row.tipo==="EXAMEN_COMPLEXIVO"){
-  note.notaFinalIntegral=row.final!==null?row.final:row.calculado;
+  note.notaFinalIntegral=row.final;
   note.promedioNucleos=row.nota1;note.notaOficial=row.notaExamenAplicada;
- }else if(row.tipo==="TRABAJO_TITULACION"){note.notaTrabajoTitulacion=row.final!==null?row.final:row.calculado;}
- else{note.notaArticulo=row.nota1;note.notaDefensa=row.nota2;note.notaFinal=row.final!==null?row.final:row.calculado;}
+ }else if(row.tipo==="TRABAJO_TITULACION"){note.notaTrabajoTitulacion=row.final;}
+ else{note.notaArticulo=row.nota1;note.notaDefensa=row.nota2;note.notaFinal=row.final;}
  return note;
 }
 w.CargaNotasFirebase=Object.freeze({ensure:ensure,preflight:preflight,publish:publish,group:group,
