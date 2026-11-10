@@ -36,7 +36,7 @@ Función o funciones:
   var NOTE_FIELDS = [
     "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
     "notaPracticaSupletorio","notaSupletorio","notaEscrito","notaDefensaTrabajo",
-    "notaTrabajoTitulacion","notaArticulo","notaDefensa","notaFinal","notaOficial",
+    "notaTrabajoTitulacion","notaArticulo","notaDefensa","notaFinal","notaOficial","notaFinalIntegral","promedioNucleos",
     "notaMinimaAprobacion"
   ];
 
@@ -127,7 +127,9 @@ Función o funciones:
   }
 
   function validateRequired(entity,document,errors){
-    (REQUIRED[entity] || []).forEach(function(field){
+    var required=(entity==="notas_trabajo"&&text(document&&document.tipoRegistro)==="CONSOLIDADO_INSTITUCIONAL")
+      ?["periodoId","cedula","codigoCarrera","promedioTrabajoEscrito","promedioDefensaOral","notaFinal"]:(REQUIRED[entity]||[]);
+    required.forEach(function(field){
       var value = document && document[field];
       var missing = value === undefined || value === null || (typeof value !== "boolean" && !isObject(value) && !Array.isArray(value) && text(value) === "");
       if(missing){ errors.push("Falta el campo obligatorio " + field + "."); }
@@ -202,8 +204,10 @@ Función o funciones:
         errors.push("Estado de carga no reconocido.");
     }
     if(entity === "notas_trabajo"){
-      ["calificacionTutor","calificacionLector","promedioTrabajoEscrito","promedioEvaluacionPractica",
-       "promedioEvaluacionDefensa","promedioDefensaOral","notaFinal"].forEach(function(field){
+      var consolidated=text(document.tipoRegistro)==="CONSOLIDADO_INSTITUCIONAL";
+      (consolidated?["promedioTrabajoEscrito","promedioDefensaOral","notaFinal"]:
+       ["calificacionTutor","calificacionLector","promedioTrabajoEscrito","promedioEvaluacionPractica",
+       "promedioEvaluacionDefensa","promedioDefensaOral","notaFinal"]).forEach(function(field){
         var g=document[field];
         if(!Number.isFinite(g)||g<0||g>10)errors.push(field+" debe ser una nota entre 0 y 10.");
       });
