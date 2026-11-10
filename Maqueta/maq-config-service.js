@@ -19,6 +19,7 @@ Función o funciones:
     {tipo:"modulo",moduloId:"coordi",etiqueta:"Coordi"},
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
     {tipo:"grupo",id:"notas",etiqueta:"Notas",hijos:[
+      {tipo:"modulo",moduloId:"carga_notas",etiqueta:"Cargar notas"},
       {tipo:"modulo",moduloId:"notas_nucleos",etiqueta:"Núcleos"},
       {tipo:"modulo",moduloId:"notas_complexivo",etiqueta:"Complexivo"},
       {tipo:"modulo",moduloId:"defart",etiqueta:"Artículo"},
