@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- visor.html — /NotasVisor. Visualizador de notas (solo lectura) por carrera.
+     Un mismo diseño para Núcleos, Complexivo, Trabajo y Artículo: ?tipo=nucleos|complexivo|trabajo|articulo
+     Las notas se suben únicamente desde Notas → Cargado de notas. -->
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Notas</title><link rel="stylesheet" href="visor.css"></head>
+<body><main class="nv">
+<header>
+ <div><h1 id="nv-title">Notas</h1><p id="nv-sub">Solo lectura · las notas se suben en Notas → Cargado de notas</p></div>
+ <button id="nv-refresh" type="button">Actualizar</button>
+</header>
+<section class="filters">
+ <label>Período<select id="nv-period" data-periodo-global="true"><option value="">Cargando…</option></select></label>
+ <label>Carrera<select id="nv-career"><option value="">Todas las carreras</option></select></label>
+ <label>Estado<select id="nv-state"><option value="">Todos</option><option value="APROBADO">Aprobados</option><option value="NO_APROBADO">No aprobados</option><option value="PENDIENTE">Sin nota</option></select></label>
+ <label class="grow">Buscar<input id="nv-search" type="search" placeholder="Cédula o nombre"></label>
+ <button id="nv-export" type="button" title="Descargar lo que está en pantalla (Excel / CSV)">Descargar</button>
+</section>
+<p id="nv-msg" role="status" aria-live="polite">Preparando…</p>
+<section class="cards" id="nv-cards" hidden>
+ <div><small>Estudiantes</small><strong id="nv-total">0</strong></div>
+ <div class="ok"><small>Aprobados</small><strong id="nv-ok">0</strong></div>
+ <div class="bad"><small>No aprobados</small><strong id="nv-bad">0</strong></div>
+ <div class="mute"><small>Sin nota</small><strong id="nv-pend">0</strong></div>
+ <div><small>Promedio</small><strong id="nv-avg">—</strong></div>
+</section>
+<p class="legend" id="nv-legend" hidden><span class="g ok">7.00+</span><span class="g bad">menos de 7</span><span class="g calc">calculada por la app</span> · Haz clic en un estudiante para ver su detalle.</p>
+<div id="nv-body"></div>
+</main>
+<script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+<script src="../BDLocal/conexiones/cone.ncomplex.js"></script>
+<script src="../BDLocal/shared/bdl.periodo-global.js"></script>
+<script src="visor.config.js"></script>
+<script src="visor.app.js"></script>
+</body></html>

@@ -22,7 +22,7 @@ Función o funciones:
       {tipo:"modulo",moduloId:"carga_notas",etiqueta:"Cargado de notas"},
       {tipo:"modulo",moduloId:"notas_nucleos",etiqueta:"Núcleos"},
       {tipo:"modulo",moduloId:"notas_complexivo",etiqueta:"Complexivo"},
-      {tipo:"modulo",moduloId:"defart",etiqueta:"Artículo"},
+      {tipo:"modulo",moduloId:"notas_articulo",etiqueta:"Artículo"},
       {tipo:"modulo",moduloId:"notas_trabajo",etiqueta:"Trabajo"}
     ]},
     {tipo:"modulo",moduloId:"stat_not",etiqueta:"Stat Not"},

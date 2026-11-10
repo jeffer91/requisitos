@@ -14,7 +14,7 @@ Función:
   var READY_EVENT="maqueta:screen-render-complete";
   var DATA_EVENTS=["bdlocal:screen-data-updated","bdlocal:pantallas:updated","bdlocal:connections:updated","carga:periods-refreshed"];
   var ALL_EVENTS=DATA_EVENTS.concat([READY_EVENT]);
-  var EXPLICIT_READY_MODULES={carga_excel:true,baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,ncomplex:true,notas_nucleos:true,notas_complexivo:true,notas_trabajo:true,cr_def:true,titulacion:true};
+  var EXPLICIT_READY_MODULES={carga_excel:true,baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,ncomplex:true,notas_nucleos:true,notas_complexivo:true,notas_trabajo:true,notas_articulo:true,cr_def:true,titulacion:true};
   var READY_PROBES={
     carga_excel:{path:"carga.render-ready.js",global:"CargaRenderReady"},
     baselocal:{path:"centro-datos/centro-datos.render-ready.js",global:"CentroDatosRenderReady"},
@@ -58,9 +58,9 @@ Función:
   }
   function timeout(){if(!state.running){return;}state.elapsedMs=Math.max(0,clock()-state.startedAt);state.lastDurationMs=Math.round(state.elapsedMs);state.lastModuleId=state.moduloId;state.lastModuleName=state.moduloNombre;state.lastReason="timeout";state.lastCompletedAt=new Date().toISOString();state.timeouts+=1;state.running=false;clearTimers();detach();render("No lista","timeout","La pantalla no confirmó su carga dentro de 30 segundos.");}
 
-  // Notas → Núcleos abre la pantalla Ncomplex con otro id de módulo.
-  // Complexivo y Trabajo avisan con «maqueta:screen-render-complete» cuando están listas.
-  var MODULE_PROBE_ALIAS={notas_nucleos:"ncomplex"};
+  // Notas → Núcleos, Complexivo, Trabajo y Artículo son visualizadores (NotasVisor)
+  // que avisan con «maqueta:screen-render-complete» cuando terminan de pintar.
+  var MODULE_PROBE_ALIAS={};
   function probeId(){return MODULE_PROBE_ALIAS[state.moduloId]||state.moduloId;}
   function doc(){try{return boundChild&&boundChild.document||null;}catch(error){return null;}}
   function byId(id){var current=doc();return current&&current.getElementById?current.getElementById(id):null;}

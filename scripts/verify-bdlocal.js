@@ -149,11 +149,11 @@ contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Ncomplex/ncomplex.html"'
   contains(file,'{tipo:"grupo",id:"notas",etiqueta:"Notas"',"Menú Notas agrupa las calificaciones ("+file+")");
   contains(file,'moduloId:"notas_nucleos",etiqueta:"Núcleos"',"Notas → Núcleos abre Ncomplex ("+file+")");
   contains(file,'moduloId:"notas_complexivo",etiqueta:"Complexivo"',"Notas → Complexivo ("+file+")");
-  contains(file,'moduloId:"defart",etiqueta:"Artículo"',"Notas → Artículo abre Defart ("+file+")");
+  contains(file,'moduloId:"notas_articulo",etiqueta:"Artículo"',"Notas → Artículo abre el visualizador ("+file+")");
   contains(file,'moduloId:"notas_trabajo",etiqueta:"Trabajo"',"Notas → Trabajo ("+file+")");
 });
-contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Complexivo/complexivo.html"',"Notas → Complexivo tiene su propia pantalla");
-contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/Trabajo/trabajo.html"',"Maqueta registra la pantalla Trabajo");
+contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/NotasVisor/visor.html?tipo=complexivo"',"Notas → Complexivo es visualizador");
+contains("Maqueta/maq-modulos-registry.js",'ruta:base+"/NotasVisor/visor.html?tipo=trabajo"',"Notas → Trabajo es visualizador");
 
 contains("Ncomplex/ncomplex.html",'id="ncomplex-filter-periodo"',"Pantalla Ncomplex tiene selector de período");
 contains("Ncomplex/ncomplex.html",'id="ncomplex-filter-carrera"',"Pantalla Ncomplex tiene selector de carrera");
