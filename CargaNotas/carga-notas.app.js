@@ -144,16 +144,22 @@ async function analyze(){
   (local[1]||[]).forEach(function(r){evalMap[w.CargaNotasRules.cid(r.cedula)]=r;});
   (articleRows||[]).forEach(function(r){artMap[w.CargaNotasRules.cid(r.cedula)]=r;});
   (local[2]||[]).forEach(function(r){nucMap[w.CargaNotasRules.cid(r.cedula)+"__N"+r.nucleo]=r;});
-  var duplicates=Object.create(null);selected.forEach(function(r){duplicates[r.cedula]=(duplicates[r.cedula]||0)+1;});
+  var first=Object.create(null),conflicting=Object.create(null),unique=[],identical=0;
+  selected.forEach(function(p){
+    var k=p.cedula;
+    if(!first[k]){first[k]=p;unique.push(p);return;}
+    if(JSON.stringify(first[k].raw)===JSON.stringify(p.raw)){identical++;return;}
+    conflicting[k]=true;unique.push(p);
+  });
   state.nucleos=nucMap;state.evaluaciones=evalMap;state.roster=local[0];
-  state.items=selected.map(function(p){
+  state.items=unique.map(function(p){
     var item=assess(p,local[0]||[],evalMap,artMap,nucMap);
-    if(duplicates[p.cedula]>1){item.errors.push("Cédula duplicada en el período: revisar incluso si las filas son iguales.");item.status="blocked";}
+    if(conflicting[p.cedula]){item.errors.push("Dos filas de esta cédula tienen calificaciones diferentes.");item.status="blocked";}
     return item;
   });
   state.items.sort(function(a,b){return career(a.student).localeCompare(career(b.student),"es")||a.parsed.cedula.localeCompare(b.parsed.cedula);});
   var count=state.items.filter(function(i){return i.status==="ready";}).length;
-  message("Analizadas "+state.items.length+" filas del período. "+count+" listas; "+(state.items.length-count)+" requieren revisión. Todavía no se ha escrito ninguna nota.");
+  message("Analizadas "+state.items.length+" cédulas del período. "+identical+" filas idénticas omitidas; "+count+" listas y "+(state.items.length-count)+" requieren revisión. Todavía no se ha escrito ninguna nota.");
  }catch(error){message("Análisis detenido: "+(error.message||error),true);state.items=[];}
  finally{state.working=false;render();try{w.dispatchEvent(new CustomEvent("maqueta:screen-render-complete",{detail:{source:"carga-notas"}}));}catch(e){}}
 }
