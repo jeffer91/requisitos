@@ -73,7 +73,7 @@ const student={cedula:"1725633638",periodoId:"2025-10__2026-03",Nombres:"ARAUJO 
  estadoMatricula:"ACTIVO",aprobacionFinal:true};
 let item=app.assess(R.parse(row()),[student],Object.create(null),Object.create(null),Object.create(null));
 assert.equal(item.status,"ready",item.errors.join(" | "));
-item=app.assess(R.parse(row()),[Object.assign({},student,{CodigoCarrera:"OTRA-CARRERA"})],
+item=app.assess(R.parse(row()),[Object.assign({},student,{CodigoCarrera:"550413A03-P-1701"})],
  Object.create(null),Object.create(null),Object.create(null));
 assert.equal(item.status,"ready","La carrera se toma de BDLocal si el Excel no declara código en núcleos.");
 item=app.assess(R.parse(row({codigo_nucleo1:"CODIGO-INCORRECTO-714"})),[student],
