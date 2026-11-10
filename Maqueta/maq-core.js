@@ -34,7 +34,7 @@ Función:
     global:{id:"global",nombre:"Global",ruta:"../Global/global.html",estado:"activo"},
     modulo_reporte:{id:"modulo_reporte",nombre:"Reportes",ruta:"../Reportes/repo.html",estado:"activo"},
     defart:{id:"defart",nombre:"Artículo",ruta:"../defart/defart.html",estado:"activo"},
-    carga_notas:{id:"carga_notas",nombre:"Cargar notas",ruta:"../CargaNotas/carga-notas.html",estado:"activo"},
+    carga_notas:{id:"carga_notas",nombre:"Cargado de notas",ruta:"../CargaNotas/carga-notas.html",estado:"activo"},
     notas_nucleos:{id:"notas_nucleos",nombre:"Núcleos",ruta:"../Ncomplex/ncomplex.html",estado:"activo"},
     notas_complexivo:{id:"notas_complexivo",nombre:"Complexivo",ruta:"../Complexivo/complexivo.html",estado:"activo"},
     notas_trabajo:{id:"notas_trabajo",nombre:"Trabajo",ruta:"../Trabajo/trabajo.html",estado:"activo"},

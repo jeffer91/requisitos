@@ -19,7 +19,7 @@ Función o funciones:
     {tipo:"modulo",moduloId:"global",etiqueta:"Global"},
     {tipo:"modulo",moduloId:"modulo_reporte",etiqueta:"Reportes"},
     {tipo:"grupo",id:"notas",etiqueta:"Notas",hijos:[
-      {tipo:"modulo",moduloId:"carga_notas",etiqueta:"Cargar notas"},
+      {tipo:"modulo",moduloId:"carga_notas",etiqueta:"Cargado de notas"},
       {tipo:"modulo",moduloId:"notas_nucleos",etiqueta:"Núcleos"},
       {tipo:"modulo",moduloId:"notas_complexivo",etiqueta:"Complexivo"},
       {tipo:"modulo",moduloId:"defart",etiqueta:"Artículo"},

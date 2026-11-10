@@ -1,9 +1,9 @@
 <!doctype html>
 <!-- carga-notas.html — /CargaNotas. Importación revisada del Excel institucional. -->
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Notas · Cargar notas</title><link rel="stylesheet" href="carga-notas.css"></head>
+<title>Notas · Cargado de notas</title><link rel="stylesheet" href="carga-notas.css"></head>
 <body><main class="cn">
-<header><h1>Cargar notas</h1><p>Excel institucional de titulación · conciliación por cédula, período, carrera y modalidad</p></header>
+<header><h1>Cargado de notas</h1><p>Reporte del sistema académico (NotasTitulacion_*.xls) · coteja cédulas con la matrícula del período, pone las notas finales del sistema y calcula el desglose</p></header>
 <section class="panel">
  <div class="selectors">
   <label>Período académico<select id="cn-period" data-periodo-global="true"><option value="">Cargando períodos…</option></select></label>
@@ -15,7 +15,7 @@
 </section>
 <section class="panel" id="cn-results" hidden>
  <h2>Vista previa de importación</h2>
- <div class="stats"><div><small>Filas del período</small><strong id="cn-total">0</strong></div><div><small>Listas</small><strong id="cn-ready">0</strong></div><div><small>Requieren revisión</small><strong id="cn-blocked">0</strong></div><div><small>Ignoradas (otros períodos)</small><strong id="cn-other">0</strong></div></div>
+ <div class="stats"><div><small>Cédulas del período</small><strong id="cn-total">0</strong></div><div><small>Listas</small><strong id="cn-ready">0</strong></div><div><small>Requieren revisión</small><strong id="cn-blocked">0</strong></div><div><small>Filas de otras cédulas</small><strong id="cn-other">0</strong></div></div>
  <div class="toolbar"><label>Filtrar carrera o cédula<input id="cn-search" type="search" placeholder="Buscar en la vista previa"></label>
  <label>Mostrar<select id="cn-filter"><option value="all">Todas</option><option value="ready">Listas</option><option value="blocked">Revisión</option><option value="saved">Guardadas</option></select></label></div>
  <div class="scroll"><table><thead><tr><th>Cédula / estudiante</th><th>Carrera / grupo</th><th>Modalidad</th><th>Núcleos</th><th>Examen / notas</th><th>Final</th><th>Estado / motivo</th></tr></thead><tbody id="cn-body"></tbody></table></div>

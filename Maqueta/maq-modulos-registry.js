@@ -29,7 +29,7 @@ Con qué se conecta:
     global:{id:"global",nombre:"Global",ruta:base+"/Global/global.html",estado:"activo",pantallaConexion:"global",conexion:conBase+"cone.global.js"},
     modulo_reporte:{id:"modulo_reporte",nombre:"Reportes",ruta:base+"/Reportes/repo.html",estado:"activo",pantallaConexion:"reportes",conexion:conBase+"cone.reportes.js"},
     defart:{id:"defart",nombre:"Artículo",ruta:base+"/defart/defart.html",estado:"activo",pantallaConexion:"defart",conexion:conBase+"cone.defart.js"},
-    carga_notas:{id:"carga_notas",nombre:"Cargar notas",ruta:base+"/CargaNotas/carga-notas.html",estado:"activo",pantallaConexion:"ncomplex",conexion:conBase+"cone.ncomplex.js"},
+    carga_notas:{id:"carga_notas",nombre:"Cargado de notas",ruta:base+"/CargaNotas/carga-notas.html",estado:"activo",pantallaConexion:"ncomplex",conexion:conBase+"cone.ncomplex.js"},
     notas_nucleos:{id:"notas_nucleos",nombre:"Núcleos",ruta:base+"/Ncomplex/ncomplex.html",estado:"activo",pantallaConexion:"ncomplex",conexion:conBase+"cone.ncomplex.js"},
     notas_complexivo:{id:"notas_complexivo",nombre:"Complexivo",ruta:base+"/Complexivo/complexivo.html",estado:"activo",pantallaConexion:"ncomplex",conexion:conBase+"cone.ncomplex.js"},
     notas_trabajo:{id:"notas_trabajo",nombre:"Trabajo",ruta:base+"/Trabajo/trabajo.html",estado:"activo",pantallaConexion:"ncomplex",conexion:conBase+"cone.ncomplex.js"},

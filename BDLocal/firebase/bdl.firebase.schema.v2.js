@@ -129,25 +129,25 @@ Función o funciones:
         fields:["periodoId","cedula","grupoInforme","nombre","carrera","modalidadTitulacion",
           "notaTeorica","notaPractica","notaComplexivo","notaTeoricaSupletorio",
           "notaPracticaSupletorio","notaSupletorio","notaOficial","notaMinimaAprobacion",
-          "oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+          "promedioNucleos","notaFinalIntegral","camposCalculados","oportunidadAplicada","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
       notas_articulo:{
         description:"Notas → Artículo: artículo académico (antes Defensas): N-ART, N-DEF y N-FIN.",
         fields:["periodoId","cedula","modalidadTitulacion","notaArticulo","notaDefensa","notaFinal",
-          "estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+          "codigoCarrera","nombreCarrera","calificacionTutor","calificacionLector","promedioEvaluacionPractica","promedioEvaluacionDefensa","vocales","camposCalculados","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
       notas_trabajo:{
         description:"Notas → Trabajo: acta SENESCYT completa del trabajo de titulación.",
         fields:["periodoId","cedula","nombres","codigoCarrera","nombreCarrera","grupoInforme","modalidadTitulacion",
           "tipoRegistro","numeroActaSenescyt","fechaActaGrado","calificacionTutor","calificacionLector","promedioTrabajoEscrito",
           "vocales","evaluacionPractica","evaluacionDefensa","promedioEvaluacionPractica","promedioEvaluacionDefensa",
-          "promedioDefensaOral","notaFinal","notaMinimaAprobacion","estadoEvaluacion","textoOriginalHash",
+          "camposCalculados","promedioDefensaOral","notaFinal","notaMinimaAprobacion","estadoEvaluacion","textoOriginalHash",
           "origen","createdAt","updatedAt","version","dataHash"]
       },
       notas_nucleos:{
         description:"Notas → Núcleos: cuatro evaluaciones por núcleo y estudiante, separadas del total oficial del examen complexivo.",
         fields:["periodoId","cedula","codigoCarrera","nombreCarrera","grupoInforme","nucleo","nombreNucleo",
-          "cursoMoodle","evaluaciones","taller","prueba","casoEstudio","actividadesAdicionales","totalMoodle","estadoCarga","habilitado",
+          "cursoMoodle","evaluaciones","taller","prueba","casoEstudio","desgloseCalculado","actividadesAdicionales","totalMoodle","estadoCarga","habilitado",
           "requisitosPendientes","observaciones","origen","sourceHash","importacionId","historialCambios","createdAt","updatedAt",
           "version","dataHash"]
       },
