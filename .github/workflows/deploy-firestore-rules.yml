@@ -1,16 +1,10 @@
 name: Publicar reglas de Firestore
-# Publica firestore.rules en el proyecto utet-4387a cada vez que cambian en main.
-# Requiere UNA vez el secreto FIREBASE_SERVICE_ACCOUNT (JSON de la cuenta de servicio:
-# Consola de Firebase → Configuración del proyecto → Cuentas de servicio →
-# Generar nueva clave privada; pegar el contenido en GitHub → Settings →
-# Secrets and variables → Actions → New repository secret).
+# SOLO MANUAL (Actions → «Publicar reglas de Firestore» → Run workflow).
+# La consola de Firebase tiene hoy reglas abiertas (read, write: if true), igual
+# que Carga; publicar este firestore.rules las REEMPLAZARÍA por reglas más
+# estrictas. No se publica automáticamente para no romper ninguna pantalla.
+# Requiere el secreto FIREBASE_SERVICE_ACCOUNT si alguna vez se decide publicar.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'firestore.rules'
-      - 'firebase.json'
-      - '.github/workflows/deploy-firestore-rules.yml'
   workflow_dispatch:
 permissions:
   contents: read
