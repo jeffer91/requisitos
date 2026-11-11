@@ -15,7 +15,7 @@ const html=fs.readFileSync(path.join(root,"CargaNotas/carga-notas.html"),"utf8")
 ["cone.ncomplex.js","carga.reader.file.js","carga-notas.app.js","carga-notas.firebase.js"].forEach(name=>
  assert.ok(html.includes(name),"Dependencia no cargada: "+name));
 const rules=fs.readFileSync(path.join(root,"firestore.rules"),"utf8");
-assert.ok(rules.includes("CONSOLIDADO_INSTITUCIONAL"),"Falta el contrato de Trabajo institucional");
+assert.ok(/match \/notas_trabajo\/\{documentId\}[\s\S]{0,200}validStudentPeriodDocument\(documentId, request\.resource\.data\);/.test(rules),"notas_trabajo abierto como Carga");
 const R=sandbox.window.CargaNotasRules;
 function row(overrides){return Object.assign({
  identificacion_estudiante:"1725633638",periodo_academico:"OCTUBRE 2025 - MARZO 2026",
@@ -116,10 +116,17 @@ assert.ok(item.replaced.some(e=>e.includes("notaOficial")&&e.includes("se reempl
 item=app.assess(R.parse(row({periodo_academico:"OCTUBRE 2025 - MARZO 2026"})),
  [Object.assign({},student,{periodoId:"2025-11__2026-05"})],Object.create(null),Object.create(null),Object.create(null));
 assert.equal(item.status,"ready");assert.ok(item.warnings.some(e=>e.includes("período de su matrícula")));
-// Sin Aprobación final: complexivo y trabajo siguen bloqueados.
+// Igual que Carga, sin restricciones: sin Aprobación final, sin grupo, matrícula
+// no activa o trabajo incompleto se cargan igual (solo aviso).
 item=app.assess(R.parse(row()),[Object.assign({},student,{aprobacionFinal:false})],
  Object.create(null),Object.create(null),Object.create(null));
-assert.equal(item.status,"blocked");assert.ok(item.errors.some(e=>e.includes("Aprobación final")));
+assert.equal(item.status,"ready");assert.ok(item.warnings.some(e=>e.includes("Aprobación final")));
+item=app.assess(R.parse(row()),[Object.assign({},student,{CodigoCarrera:"",NombreCarrera:"",estadoMatricula:"RETIRADO"})],
+ Object.create(null),Object.create(null),Object.create(null));
+assert.equal(item.status,"ready",item.errors.join("|"));
+item=app.assess(R.parse(row({trabajoTitulacion:"Trabajo Titulación",nota1:"8.00",nota2:"",notaTrabajoTitulacion:"",notaTeorico:"",notaPractico:"",
+ nota_nucleo1:"",nota_nucleo2:"",nota_nucleo3:"",nota_nucleo4:""})),[student],Object.create(null),Object.create(null),Object.create(null));
+assert.equal(item.status,"ready");
 // Sin período elegido: cada cédula va al período de su matrícula activa
 // (primero el que dice el sistema, luego con Aprobación final, luego el más reciente).
 let m=app.enrollment([{period:"2025-10__2026-03",st:student},{period:"2026-04__2026-09",st:Object.assign({},student,{aprobacionFinal:false})}],["2026-04__2026-09"]);

@@ -98,92 +98,40 @@ service cloud.firestore {
 
     /* =========================================================
        MENÚ NOTAS — colecciones oficiales de calificaciones.
-       Escritura directa igual que Carga: sin Firebase Auth, con validación
-       estructural y sin borrados.
+       Escritura directa igual que Carga: sin Firebase Auth y sin borrados.
          notas_nucleos     Núcleos (Ncomplex)        periodoId__cedula__N1..N4
          notas_complexivo  Examen complexivo (Ncomplex) periodoId__cedula
          notas_articulo    Artículo académico         periodoId__cedula
-         notas_trabajo     Acta SENESCYT de trabajo   periodoId__cedula
+         notas_trabajo     Trabajo de titulación     periodoId__cedula
        ========================================================= */
-    function validGrade(value) {return value is number && value >= 0 && value <= 10;}
-    function validOptionalGrade(data, field) {
-      return !(field in data) || data[field] == null || validGrade(data[field]);
-    }
-
+    /* Igual que Carga: escritura directa desde la app (Notas → Cargado de notas),
+       sin Firebase Auth. Solo se exige la identidad del documento
+       (período + cédula + id); las notas se suben tal como vienen del sistema. */
     match /notas_nucleos/{documentId} {
       allow read: if true;
       allow create, update: if validPeriod(request.resource.data.periodoId)
         && validIdentification(request.resource.data.cedula)
-        && request.resource.data.nucleo is int
-        && request.resource.data.nucleo >= 1
-        && request.resource.data.nucleo <= 4
-        && validReportGroup(request.resource.data)
-        && request.resource.data.evaluaciones is list
-        && request.resource.data.evaluaciones.size() == 4
-        && documentId == request.resource.data.periodoId + '__' +
-          request.resource.data.cedula + '__N' + string(request.resource.data.nucleo)
+        && documentId.matches('^' + request.resource.data.periodoId + '__' +
+          request.resource.data.cedula + '__N[1-4]$')
         && validMetadata(request.resource.data);
       allow delete: if false;
     }
 
-    function validComplexivoDocument(documentId, data) {
-      return data.keys().hasAll([
-          'periodoId','cedula','grupoInforme','modalidadTitulacion',
-          'oportunidadAplicada','estadoEvaluacion','notaOficial','dataHash'
-        ])
-        && validStudentPeriodDocument(documentId, data)
-        && validReportGroup(data)
-        && data.modalidadTitulacion == 'EXAMEN_COMPLEXIVO'
-        && data.dataHash is string
-        && data.estadoEvaluacion is string
-        && validGrade(data.notaOficial)
-        && (
-          (data.oportunidadAplicada == 'ORDINARIA' &&
-            validGrade(data.notaTeorica) &&
-            validGrade(data.notaPractica))
-          || (data.oportunidadAplicada == 'SUPLETORIO' &&
-            validGrade(data.notaTeoricaSupletorio) &&
-            validGrade(data.notaPracticaSupletorio))
-        );
-    }
     match /notas_complexivo/{documentId} {
       allow read: if true;
-      allow create, update: if validComplexivoDocument(documentId, request.resource.data);
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data);
       allow delete: if false;
     }
 
     match /notas_articulo/{documentId} {
       allow read: if true;
-      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
-        && validOptionalGrade(request.resource.data, 'notaArticulo')
-        && validOptionalGrade(request.resource.data, 'notaDefensa')
-        && validOptionalGrade(request.resource.data, 'notaFinal');
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data);
       allow delete: if false;
     }
 
     match /notas_trabajo/{documentId} {
       allow read: if true;
-      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
-        && request.resource.data.modalidadTitulacion == 'TRABAJO_TITULACION'
-        && (
-          (request.resource.data.get('tipoRegistro','') == 'CONSOLIDADO_INSTITUCIONAL'
-            && validGrade(request.resource.data.promedioTrabajoEscrito)
-            && validGrade(request.resource.data.promedioDefensaOral)
-            && validGrade(request.resource.data.notaFinal)
-            && validReportGroup(request.resource.data))
-          || (
-            request.resource.data.numeroActaSenescyt is string
-            && request.resource.data.numeroActaSenescyt.matches('^[0-9]+$')
-            && validGrade(request.resource.data.calificacionTutor)
-            && validGrade(request.resource.data.calificacionLector)
-            && validGrade(request.resource.data.promedioTrabajoEscrito)
-            && validGrade(request.resource.data.promedioEvaluacionPractica)
-            && validGrade(request.resource.data.promedioEvaluacionDefensa)
-            && validGrade(request.resource.data.promedioDefensaOral)
-            && validGrade(request.resource.data.notaFinal)
-            && request.resource.data.vocales is list
-            && request.resource.data.vocales.size() == 3)
-        );
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data);
       allow delete: if false;
     }
 

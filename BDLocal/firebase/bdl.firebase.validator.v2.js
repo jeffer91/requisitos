@@ -271,10 +271,22 @@ Función o funciones:
       errors.push("Entidad Firebase desconocida: " + entity + ".");
     }
 
+    // Notas del sistema académico (Notas → Cargado de notas): se suben directo, igual
+    // que Carga. Solo bloquea la identidad (período + cédula + id del documento);
+    // el resto de observaciones queda como aviso.
+    var consolidated=/^notas(_|$)/.test(entity)&&text(document.tipoRegistro)==="CONSOLIDADO_INSTITUCIONAL";
+    if(consolidated){
+      ["periodoId","cedula"].forEach(function(field){if(!text(document[field])){errors.push("Falta el campo obligatorio "+field+".");}});
+      validateIdentity(entity,document,options.documentId,errors,warnings);
+      validateCommon(document,errors,warnings);
+      var soft=[];validateEntityTypes(entity,document,soft,warnings);
+      soft.forEach(function(message){warnings.push(message);});
+    }else{
     validateRequired(entity,document,errors);
     validateIdentity(entity,document,options.documentId,errors,warnings);
     validateCommon(document,errors,warnings);
     validateEntityTypes(entity,document,errors,warnings);
+    }
 
     var unknown = unknownFields(entity,document);
     if(unknown.length){

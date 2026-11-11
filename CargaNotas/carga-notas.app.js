@@ -33,7 +33,7 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
  if(found.length!==1)errors.push(found.length?"Cédula duplicada en BDLocal.":"La cédula no está matriculada en la base local.");
  else st=found[0];
  if(st){
-  if(!active(st))errors.push("Matrícula no ACTIVA.");
+  if(!active(st))warnings.push("Matrícula no activa en la base local; se carga igual.");
   if(parsed.periodoSistemaId&&periodOf(st)&&parsed.periodoSistemaId!==periodOf(st))
    warnings.push("El sistema lo registra en «"+(parsed.periodoSistema||parsed.periodoSistemaId)+"»; se guarda en el período de su matrícula.");
   var declared=w.CargaNotasRules.modality(st["Tipo de titulación"]||st.tipoTitulacion||st.modalidadTitulacion);
@@ -49,11 +49,11 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
   });
   var group=w.CargaNotasFirebase.group(st);
   if(group&&w.CargaNotasFirebase.groupGuessed(st))warnings.push("El código de carrera «"+code(st)+"» no indica modalidad; se toma Presencial por el nombre de la carrera.");
-  if(parsed.tipo==="EXAMEN_COMPLEXIVO"&&!group)errors.push("Grupo Presencial/Online/PVC no identificado en BDLocal.");
-  if(parsed.tipo==="TRABAJO_TITULACION"&&!group)errors.push("Grupo de trabajo no identificado.");
+  // Igual que Carga: se sube directo. Lo que antes bloqueaba ahora solo se avisa.
+  if(!group)warnings.push("Sin grupo Presencial/Online/PVC en la base local.");
   if((parsed.tipo==="EXAMEN_COMPLEXIVO"||parsed.tipo==="TRABAJO_TITULACION")&&
      st.aprobacionFinal!==true&&!(st._aprobacionFinal&&st._aprobacionFinal.eligible===true))
-    errors.push("No consta Aprobación final para registrar la evaluación de titulación.");
+    warnings.push("Aún sin Aprobación final en la base local; las notas se cargan igual.");
  }
  var evaluation=byEval[parsed.cedula]||{};
  if(parsed.tipo==="EXAMEN_COMPLEXIVO"){
@@ -79,14 +79,14 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
   });
  }
  if(parsed.tipo==="TRABAJO_TITULACION"&&(parsed.nota1===null||parsed.nota2===null||parsed.final===null))
-  errors.push("El sistema aún no trae escrito, defensa y nota final de este trabajo.");
+  warnings.push("El sistema aún no trae todas las notas de este trabajo; se carga lo que hay.");
  var onlyNucleos=false;
  if(parsed.tipo==="EXAMEN_COMPLEXIVO"&&parsed.notaExamenAplicada===null){
   if(parsed.nucleos.some(function(v){return v!==null;})){onlyNucleos=true;warnings.push("Sin examen complexivo en el sistema: se cargan solo los núcleos.");}
-  else errors.push("Sin notas de núcleos ni de examen.");
+  else errors.push("El sistema no trae ninguna nota de núcleos ni de examen.");
  }
  if(parsed.tipo==="ARTICULO_ACADEMICO"&&parsed.nota1===null&&parsed.nota2===null)
-  errors.push("Sin calificaciones de artículo o defensa.");
+  errors.push("El sistema no trae ninguna nota de este artículo.");
  if(parsed.calculados&&parsed.calculados.length)warnings.push("Calculado: "+parsed.calculados.join(", ")+".");
  return {parsed:parsed,student:st,errors:errors,warnings:replaced.concat(warnings),replaced:replaced,onlyNucleos:onlyNucleos,
   status:errors.length?"blocked":"ready",detail:""};
@@ -279,8 +279,7 @@ async function save(){
  if(state.working||!state.items.length)return;
  var ready=state.items.filter(function(i){return i.status==="ready"||i.status==="error";});
  if(!ready.length)return;
- var replacing=ready.filter(function(i){return i.replaced&&i.replaced.length;}).length;
- if(!w.confirm("¿Cargar las notas de "+ready.length+" estudiante(s) en la base local y en Firebase?"+(replacing?" "+replacing+" tienen notas distintas en la app y se REEMPLAZARÁN por las del sistema.":"")+" Los registros en revisión NO se guardarán."))return;
+ 
  state.working=true;render();var ok=0,fail=0,c=null,done=0;
  try{
   c=await connect();await w.CargaNotasFirebase.ensure();

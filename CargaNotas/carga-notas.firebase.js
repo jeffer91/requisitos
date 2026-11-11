@@ -100,7 +100,7 @@ function nucleus(row,st,number,existing){
  var realMoodle=previous.desgloseCalculado!==true&&Array.isArray(previous.evaluaciones)&&previous.evaluaciones.some(function(v){return v!==null&&v!==undefined;});
  var split=realMoodle?null:computed;
  var doc=Object.assign({},previous,core(row,st),{
-  id:identity(row)+"__N"+number,nucleo:number,
+  id:identity(row)+"__N"+number,nucleo:number,tipoRegistro:"CONSOLIDADO_INSTITUCIONAL",
   nombreNucleo:previous.nombreNucleo||"Núcleo "+number,
   grupoInforme:group(st),
   evaluaciones:split?split.evaluaciones.slice():(previous.evaluaciones||[null,null,null,null]),
@@ -153,7 +153,7 @@ function breakdown(row){
   camposCalculados:(row.calculados||[]).slice()};
 }
 function article(row,st){return Object.assign({},core(row,st),breakdown(row),{
- modalidadTitulacion:"ARTICULO_ACADEMICO",notaArticulo:row.nota1,notaDefensa:row.nota2,
+ modalidadTitulacion:"ARTICULO_ACADEMICO",tipoRegistro:"CONSOLIDADO_INSTITUCIONAL",notaArticulo:row.nota1,notaDefensa:row.nota2,
  notaFinal:row.final,
  estadoEvaluacion:row.final===null?"INCOMPLETO":row.final>=7?"APROBADO":"NO_APROBADO"});}
 function trabajo(row,st){return Object.assign({},core(row,st),breakdown(row),{

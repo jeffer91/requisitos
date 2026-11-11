@@ -140,7 +140,7 @@ async function run(){
  const block=rules.slice(rules.indexOf("match /notas_nucleos/{documentId}"));
  const nucleosRule=block.slice(0,block.indexOf("allow delete"));
  assert.ok(!nucleosRule.includes("request.auth"),"Subida directa sin login, igual que Carga");
- assert.ok(nucleosRule.includes("evaluaciones.size() == 4"),"Se conserva la validación estructural");
+ assert.ok(nucleosRule.includes("__N[1-4]$"),"Se valida la identidad del documento (período + cédula + núcleo)");
  console.log("NCOMPLEX CENTRO: OK; Moodle, ceros, identidades, Firebase, conflictos y UI.");
 }
 run().catch(err=>{console.error(err);process.exitCode=1;});
