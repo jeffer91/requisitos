@@ -135,6 +135,14 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* Notas → Modalidad: quién va a Trabajo de titulación (períodos regulares). */
+    match /modalidad_titulacion/{documentId} {
+      allow read: if true;
+      allow create, update: if validStudentPeriodDocument(documentId, request.resource.data)
+        && request.resource.data.modalidadTitulacion in ['EXAMEN_COMPLEXIVO', 'TRABAJO_TITULACION'];
+      allow delete: if false;
+    }
+
     /* Colecciones antiguas: solo lectura. Nada las escribe ya; las notas viven
        en las colecciones notas_* de arriba. */
     match /nucleos/{documentId} { allow read: if true; allow write: if false; }

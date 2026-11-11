@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- descargas.html — /NotasReportes. Excels de requisitos y notas del período global. -->
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Notas · Descargas</title><link rel="stylesheet" href="../NotasVisor/visor.css"><link rel="stylesheet" href="reportes.css"></head>
+<body><main class="nv">
+<header>
+ <div><h1>Notas · Descargas <span id="rd-kind" class="kind" hidden></span></h1>
+ <p>Excels del período: requisitos por área y notas por carrera. Las notas son las que subió «Cargado de notas».</p></div>
+ <div class="top-actions"><button id="rd-refresh" type="button">Actualizar</button><button id="rd-all" type="button" class="primary" disabled>Descargar todo</button></div>
+</header>
+<section class="filters">
+ <label>Período<select id="rd-period" data-periodo-global="true"><option value="">Cargando…</option></select></label>
+</section>
+<p id="rd-msg" role="status" aria-live="polite">Preparando…</p>
+<div id="rd-sets" class="sets"></div>
+<p class="legend" id="rd-legend" hidden>Regulares (Abr–Sep, Oct–Mar): requisitos para todos; Núcleos y Trabajo solo con los 8 requisitos en CUMPLE; Complexivo solo con Titulación en CUMPLE.
+ Quién va a Trabajo de titulación se marca en Notas → Modalidad. PVC: requisitos y notas de artículo, sin separar Presencial / Online.</p>
+</main>
+<script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+<script src="../BDLocal/conexiones/cone.ncomplex.js"></script>
+<script src="../BDLocal/shared/bdl.periodo-global.js"></script>
+<script src="reportes.rules.js"></script>
+<script src="reportes.datos.js"></script>
+<script src="descargas.app.js"></script>
+</body></html>

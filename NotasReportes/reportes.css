@@ -1,0 +1,22 @@
+/* reportes.css — /NotasReportes (sobre ../NotasVisor/visor.css) */
+.kind{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:#eff6ff;color:#1e40af;vertical-align:middle}
+.kind.pvc{background:#fdf4ff;color:#86198f}
+.sets{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:4px}
+.set{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.set h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.file{display:flex;align-items:center;gap:12px;border-top:1px solid #edf1f7;padding:10px 0}
+.file:first-of-type{border-top:0}
+.file div{flex:1;min-width:0}.file b{display:block;font-size:13.5px}.file small{display:block;color:var(--mute);font-size:11.5px;margin-top:2px}
+.file .count{font-variant-numeric:tabular-nums;font-weight:700;color:#0b325f;min-width:46px;text-align:right}
+.file button{white-space:nowrap}
+button.primary{background:#0b5cad;border-color:#0b5cad;color:#fff}button.primary:hover{background:#094c8f}
+button:disabled{opacity:.55;cursor:not-allowed}
+.top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid #cdd8e6;border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:6px 11px;font-size:12px;background:#fff;font-weight:650}
+.seg button+button{border-left:1px solid #cdd8e6}
+.seg button.on.cx{background:#0b5cad;color:#fff}.seg button.on.tt{background:#7c3aed;color:#fff}
+.seg.busy{opacity:.6;pointer-events:none}
+.tag{font-size:11px;color:var(--mute);margin-left:6px}
+.req-ok{color:var(--ok);font-weight:650}.req-bad{color:var(--bad);font-weight:650}
+.saved{color:var(--ok);font-size:11.5px;margin-left:6px}.err{color:var(--bad);font-size:11.5px;margin-left:6px}

@@ -14,7 +14,7 @@ Función:
   var READY_EVENT="maqueta:screen-render-complete";
   var DATA_EVENTS=["bdlocal:screen-data-updated","bdlocal:pantallas:updated","bdlocal:connections:updated","carga:periods-refreshed"];
   var ALL_EVENTS=DATA_EVENTS.concat([READY_EVENT]);
-  var EXPLICIT_READY_MODULES={carga_excel:true,baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,ncomplex:true,notas_nucleos:true,notas_complexivo:true,notas_trabajo:true,notas_articulo:true,cr_def:true,titulacion:true};
+  var EXPLICIT_READY_MODULES={carga_excel:true,baselocal:true,tabla_principal:true,ficha_estudiante:true,stat_main:true,coordi:true,global:true,modulo_reporte:true,defart:true,ncomplex:true,notas_nucleos:true,notas_complexivo:true,notas_trabajo:true,notas_articulo:true,notas_modalidad:true,notas_descargas:true,cr_def:true,titulacion:true};
   var READY_PROBES={
     carga_excel:{path:"carga.render-ready.js",global:"CargaRenderReady"},
     baselocal:{path:"centro-datos/centro-datos.render-ready.js",global:"CentroDatosRenderReady"},

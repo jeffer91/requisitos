@@ -23,7 +23,9 @@ Función o funciones:
       {tipo:"modulo",moduloId:"notas_nucleos",etiqueta:"Núcleos"},
       {tipo:"modulo",moduloId:"notas_complexivo",etiqueta:"Complexivo"},
       {tipo:"modulo",moduloId:"notas_articulo",etiqueta:"Artículo"},
-      {tipo:"modulo",moduloId:"notas_trabajo",etiqueta:"Trabajo"}
+      {tipo:"modulo",moduloId:"notas_trabajo",etiqueta:"Trabajo"},
+      {tipo:"modulo",moduloId:"notas_modalidad",etiqueta:"Modalidad"},
+      {tipo:"modulo",moduloId:"notas_descargas",etiqueta:"Descargas"}
     ]},
     {tipo:"modulo",moduloId:"stat_not",etiqueta:"Stat Not"},
     {tipo:"modulo",moduloId:"actas",etiqueta:"Actas"}

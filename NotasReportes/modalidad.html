@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- modalidad.html — /NotasReportes. Marca quién va a Trabajo de titulación (períodos regulares). -->
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Notas · Modalidad</title><link rel="stylesheet" href="../NotasVisor/visor.css"><link rel="stylesheet" href="reportes.css"></head>
+<body><main class="nv">
+<header>
+ <div><h1>Notas · Modalidad</h1>
+ <p>Marca quién va a <b>Trabajo de titulación</b>; los demás quedan en Examen complexivo. Se guarda al instante en Firebase.</p></div>
+ <button id="md-refresh" type="button">Actualizar</button>
+</header>
+<section class="filters">
+ <label>Período<select id="md-period" data-periodo-global="true"><option value="">Cargando…</option></select></label>
+ <label>Carrera<select id="md-career"><option value="">Todas las carreras</option></select></label>
+ <label>Mostrar<select id="md-show"><option value="">Todos</option><option value="TRABAJO_TITULACION">Solo Trabajo de titulación</option><option value="EXAMEN_COMPLEXIVO">Solo Examen complexivo</option></select></label>
+ <label class="grow">Buscar<input id="md-search" type="search" placeholder="Cédula o nombre"></label>
+</section>
+<p id="md-msg" role="status" aria-live="polite">Preparando…</p>
+<section class="cards" id="md-cards" hidden>
+ <div><small>Estudiantes</small><strong id="md-total">0</strong></div>
+ <div><small>Examen complexivo</small><strong id="md-cx">0</strong></div>
+ <div><small>Trabajo de titulación</small><strong id="md-tt">0</strong></div>
+ <div class="ok"><small>Con los 8 requisitos</small><strong id="md-ok">0</strong></div>
+ <div class="mute"><small>Sin los 8 requisitos</small><strong id="md-no">0</strong></div>
+</section>
+<div id="md-body"></div>
+</main>
+<script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
+<script src="../BDLocal/conexiones/cone.ncomplex.js"></script>
+<script src="../BDLocal/shared/bdl.periodo-global.js"></script>
+<script src="reportes.rules.js"></script>
+<script src="reportes.datos.js"></script>
+<script src="modalidad.app.js"></script>
+</body></html>
