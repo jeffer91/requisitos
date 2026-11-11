@@ -145,9 +145,14 @@ Función:
     return false;
   }
 
+  // Avisa a la pantalla que volvió a mostrarse (las pantallas se conservan ocultas en
+  // memoria); las que muestran datos remotos lo usan para refrescarse.
+  function notifyShown(frame){
+    try{var w=frame.contentWindow;if(w&&w.document&&w.document.readyState!=="loading"){w.dispatchEvent(new w.CustomEvent("maqueta:screen-shown",{detail:{at:Date.now()}}));}}catch(error){}
+  }
   function setFrameVisible(item,visible){
     if(!item||!item.iframe){return;}var frame=item.iframe;
-    if(visible){frame.hidden=false;frame.classList.remove("maq-frame-hidden");frame.style.display="block";frame.style.visibility="visible";frame.style.pointerEvents="auto";frame.setAttribute("aria-hidden","false");touch(item);window.setTimeout(function(){syncPeriodGlobal(frame);},0);}
+    if(visible){frame.hidden=false;frame.classList.remove("maq-frame-hidden");frame.style.display="block";frame.style.visibility="visible";frame.style.pointerEvents="auto";frame.setAttribute("aria-hidden","false");touch(item);window.setTimeout(function(){syncPeriodGlobal(frame);notifyShown(frame);},0);}
     else{frame.classList.add("maq-frame-hidden");frame.hidden=true;frame.style.display="none";frame.style.visibility="hidden";frame.style.pointerEvents="none";frame.setAttribute("aria-hidden","true");}
   }
   function hideAll(){Object.keys(pool).forEach(function(id){setFrameVisible(pool[id],false);});}

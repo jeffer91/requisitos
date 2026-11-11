@@ -115,8 +115,18 @@ function requisitosBook(list,ctx){
    .map(function(x,i){return [i+1,x.cedula,x.nombre,x.carrera].concat(showMod?[modLabel(x.modalidad)]:[]).concat([x.req[a.key]]);});
   sheets.push({name:sheetName(a.label,used),rows:[head].concat(rows),cols:[5,13,40,42].concat(showMod?[22]:[]).concat([12]),filter:true});
  });
+ // Datos que no cuadran: Titulación en CUMPLE sin los 8 requisitos. Estos estudiantes
+ // no entran a Núcleos/Complexivo/Trabajo/Artículo hasta que se corrija la base.
+ var odd=inconsistent(list);
+ if(odd.length){
+  sheets.push({name:sheetName("Revisar",used),cols:[5,13,40,42,60],filter:true,rows:[["#","Cédula","Estudiante","Carrera","Titulación en CUMPLE pero falta"]]
+   .concat(odd.map(function(x,i){return [i+1,x.cedula,x.nombre,x.carrera,missing(x).join(", ")];}))});
+  sum.push([],["Revisar: "+odd.length+" estudiante(s) con Titulación en CUMPLE sin los 8 requisitos (hoja «Revisar»)."]);
+ }
  return sheets;
 }
+function missing(x){return AREAS.slice(0,8).filter(function(a){return x.req[a.key]!=="CUMPLE";}).map(function(a){return a.label;});}
+function inconsistent(list){return list.filter(function(x){return x.req.Titulacion==="CUMPLE"&&!x.habilitado;});}
 function careerSummary(groups,ctx,label,finalOf){
  var rows=[[label+" · "+ctx.titulo],["Período: "+periodLong(ctx.periodoId)],[],["Carrera","Estudiantes","Con nota","Aprobados","Reprobados","Promedio"]];
  var tot={n:0,c:0,a:0,r:0,s:0};
@@ -223,9 +233,9 @@ function plan(all,periodoId){
   file("req_pvc","Requisitos PVC","PVC",all,requisitosBook,"Todos los estudiantes activos.");
   file("articulo","Artículo académico","PVC",all.filter(function(x){return x.habilitado;}),articuloBook,"Con los 8 requisitos en CUMPLE.");
  }
- return {kind:kind,files:files};
+ return {kind:kind,files:files,revisar:inconsistent(all).map(function(x){return {cedula:x.cedula,nombre:x.nombre,carrera:x.carrera,falta:missing(x)};})};
 }
 root.NotasReportesRules=Object.freeze({version:"1.0.0",AREAS:AREAS,GATE:GATE,periodKind:periodKind,periodShort:periodShort,periodLong:periodLong,
  group:group,status:status,requirements:requirements,enabled:enabled,students:students,plan:plan,sheetName:sheetName,
- requisitosBook:requisitosBook,nucleosBook:nucleosBook,complexivoBook:complexivoBook,trabajoBook:trabajoBook,articuloBook:articuloBook});
+ requisitosBook:requisitosBook,inconsistent:inconsistent,missing:missing,nucleosBook:nucleosBook,complexivoBook:complexivoBook,trabajoBook:trabajoBook,articuloBook:articuloBook});
 })(typeof window!=="undefined"?window:globalThis);

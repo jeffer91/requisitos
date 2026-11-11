@@ -37,7 +37,10 @@ assert.equal(f.trabajo.count,1);
 assert.ok(plan.files.every(x=>/^[0-9A-Za-z_-]+\.xlsx$/.test(x.fileName)),"Nombres de archivo sin tildes");
 // Contenido
 let sheets=f.req_PRESENCIAL.build();
-assert.equal(sheets.length,12,"Resumen + 11 áreas");
+assert.equal(sheets.length,13,"Resumen + 11 áreas + Revisar");
+const rev=sheets[12];assert.equal(rev.name,"Revisar");assert.equal(rev.rows.length,2);assert.equal(rev.rows[1][1],"0000000004");assert.equal(rev.rows[1][4],"Inglés");
+assert.equal(plan.revisar.length,1);
+assert.equal(R.plan(list.filter(x=>x.cedula!=="0000000004"),P).files[0].build().length,12,"Sin inconsistencias no hay hoja Revisar");
 assert.equal(sheets.map(s=>s.name).slice(1,4).join("|"),"Académico|Documentación|Financiero");
 const ing=sheets.find(s=>s.name==="Inglés");assert.equal(ing.rows[1][5],"CUMPLE");assert.equal(ing.rows[5][5],"NO CUMPLE","Primero los que cumplen");
 sheets=f.nuc_PRESENCIAL.build();assert.equal(sheets[0].name,"Resumen");assert.equal(sheets[1].name,"ADMINISTRACION");
@@ -56,4 +59,7 @@ const used={};const s1=R.sheetName("A".repeat(40),used),s2=R.sheetName("A".repea
 assert.ok(read("Maqueta/maq-menu.js").includes('moduloId:"notas_descargas",etiqueta:"Descargas"'));
 assert.ok(read("Maqueta/maq-menu.js").includes('moduloId:"notas_modalidad",etiqueta:"Modalidad"'));
 assert.ok(!/writeChecked|\.update\(|batch\(/.test(read("NotasReportes/descargas.app.js")),"Descargas no escribe");
+// Al volver a mostrarse, las pantallas se refrescan (Maqueta avisa con maqueta:screen-shown).
+assert.ok(read("Maqueta/maq-core.js").includes('new w.CustomEvent("maqueta:screen-shown"'));
+["NotasReportes/descargas.app.js","NotasReportes/modalidad.app.js","NotasVisor/visor.app.js"].forEach(f=>assert.ok(read(f).includes('"maqueta:screen-shown"'),f));
 console.log("NOTAS · MODALIDAD Y DESCARGAS: OK — períodos regular/PVC, etapas, Presencial/Online, Trabajo y contenido de los Excels.");

@@ -83,11 +83,19 @@ async function load(period){
  }catch(e){if(token!==state.token)return;state.loading=false;state.rows=[];render();msg("No se pudieron leer los datos: "+(e.message||e),true);}
  finally{if(token===state.token)ready();}
 }
+/* Maqueta conserva las pantallas ocultas en memoria y avisa con
+   «maqueta:screen-shown» cuando una vuelve a mostrarse: se recargan los datos para
+   no mostrar algo viejo (p. ej. tras subir notas o marcar Modalidad en otra pantalla). */
+function watchVisible(reload){
+ var last=Date.now();
+ w.addEventListener("maqueta:screen-shown",function(){if(Date.now()-last<1500)return;last=Date.now();reload();});
+}
 async function init(){
  $("md-period").addEventListener("change",function(){load($("md-period").value);});
  $("md-refresh").addEventListener("click",function(){load($("md-period").value);});
  ["md-career","md-show"].forEach(function(id){$(id).addEventListener("change",render);});
  $("md-search").addEventListener("input",render);
+ watchVisible(function(){if(state.period&&!state.loading)load(state.period);});
  try{
   var list=await D.periods(),sel=$("md-period");sel.textContent="";
   list.forEach(function(p){sel.appendChild(new Option(p.label||R.periodLong(p.id),p.id));});

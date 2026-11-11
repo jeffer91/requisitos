@@ -189,6 +189,13 @@ async function periods(){
   load(canonical(sel.value));
  }catch(error){msg("No se pudieron leer los períodos: "+(error.message||error),true);ready();}
 }
+/* Maqueta conserva las pantallas ocultas en memoria y avisa con
+   «maqueta:screen-shown» cuando una vuelve a mostrarse: se recargan los datos para
+   no mostrar algo viejo (p. ej. tras subir notas o marcar Modalidad en otra pantalla). */
+function watchVisible(reload){
+ var last=Date.now();
+ w.addEventListener("maqueta:screen-shown",function(){if(Date.now()-last<1500)return;last=Date.now();reload();});
+}
 function init(){
  d.title="Notas · "+T.title;$("nv-title").textContent="Notas · "+T.title;
  $("nv-period").addEventListener("change",function(){load(canonical($("nv-period").value));});
@@ -196,6 +203,7 @@ function init(){
  $("nv-search").addEventListener("input",render);
  $("nv-refresh").addEventListener("click",function(){load(canonical($("nv-period").value),true);});
  $("nv-export").addEventListener("click",exportCsv);
+ watchVisible(function(){var p=canonical($("nv-period").value);if(p&&!state.loading)load(p,true);});
  periods();
 }
 w.NotasVisorApp={tipo:TIPO,state:state,load:load,render:render};

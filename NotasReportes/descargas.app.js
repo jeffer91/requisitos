@@ -84,14 +84,24 @@ async function load(period,force){
   if(token!==state.token)return;
   var list=R.students(data);
   state.plan=R.plan(list,period);
-  msg(list.length+" estudiantes activos en "+R.periodLong(period)+". Elige el Excel o «Descargar todo».");
+  var rev=state.plan.revisar.length;
+  msg(list.length+" estudiantes activos en "+R.periodLong(period)+". Elige el Excel o «Descargar todo»."
+   +(rev?" Atención: "+rev+" estudiante(s) tienen Titulación en CUMPLE sin los 8 requisitos; no entran a las notas hasta corregirlo (ver hoja «Revisar» en Requisitos).":""));
  }catch(e){if(token!==state.token)return;msg("No se pudieron leer los datos: "+(e.message||e)+" Revisa la conexión y pulsa Actualizar.",true);}
  finally{if(token===state.token){state.loading=false;render();ready();}}
+}
+/* Maqueta conserva las pantallas ocultas en memoria y avisa con
+   «maqueta:screen-shown» cuando una vuelve a mostrarse: se recargan los datos para
+   no mostrar algo viejo (p. ej. tras subir notas o marcar Modalidad en otra pantalla). */
+function watchVisible(reload){
+ var last=Date.now();
+ w.addEventListener("maqueta:screen-shown",function(){if(Date.now()-last<1500)return;last=Date.now();reload();});
 }
 async function init(){
  $("rd-period").addEventListener("change",function(){load($("rd-period").value);});
  $("rd-refresh").addEventListener("click",function(){load($("rd-period").value,true);});
  $("rd-all").addEventListener("click",downloadAll);
+ watchVisible(function(){if(state.period&&!state.loading&&!state.busy)load(state.period,true);});
  try{
   var list=await D.periods(),sel=$("rd-period");sel.textContent="";
   list.forEach(function(p){sel.appendChild(new Option(p.label||R.periodLong(p.id),p.id));});
