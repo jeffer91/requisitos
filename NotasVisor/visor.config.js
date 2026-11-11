@@ -94,14 +94,19 @@ var TYPES={
   rows:function(data){
    return (data.notas_articulo||[]).map(function(d){
     var r={cedula:d.cedula,doc:d,final:num(d.notaFinal)};
-    r.cells=[cell(d.notaArticulo,calc(d,["Trabajo escrito"])),cell(d.notaDefensa,calc(d,["Defensa oral"])),cell(d.notaFinal,calc(d,["Nota final"]))];
+    r.cells=[cell(d.calificacionTutor,calc(d,["Calificación tutor"])),cell(d.calificacionLector,calc(d,["Calificación lector"])),
+     cell(d.notaArticulo,calc(d,["Trabajo escrito"])),cell(d.promedioEvaluacionPractica,calc(d,["Promedio evaluación práctica"])),
+     cell(d.promedioEvaluacionDefensa,calc(d,["Promedio evaluación defensa"])),cell(d.notaDefensa,calc(d,["Defensa oral"])),
+     cell(d.notaFinal,calc(d,["Nota final"])),{t:formulaOf(d,"70/30")}];
     r.state=stateOf(r.final,d);return r;
    });
   },
-  columns:["Escrito","Defensa","Final"],
-  detail:function(r){return committee(r.doc,"70 % escrito + 30 % defensa oral");}
+  columns:["Tutor","Lector","Escrito","Práctica","Defensa","Oral","Final","Fórmula"],
+  detail:function(r){var f=formulaOf(r.doc,"70/30");return committee(r.doc,f==="50/50"?"(escrito + oral) / 2 · 50/50":"70 % escrito + 30 % defensa oral");}
  }
 };
+// Fórmula con la que el sistema calculó la nota final (Cargado de notas la detecta).
+function formulaOf(d,fallback){var f=String(d&&d.formula||"");return /^\d+\/\d+$/.test(f)?f:fallback;}
 function committee(d,formula){
  var list=[["Fórmula",formula]];
  if(d.numeroActaSenescyt)list.push(["Acta SENESCYT",d.numeroActaSenescyt]);

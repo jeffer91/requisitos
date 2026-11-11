@@ -153,6 +153,7 @@ function breakdown(row){
  return {calificacionTutor:p.tutor.nota,calificacionLector:p.lector.nota,
   promedioEvaluacionPractica:p.promedioPractica,promedioEvaluacionDefensa:p.promedioDefensa,
   vocales:p.vocales.map(function(v){return {numero:v.numero,nombre:v.nombre,practica:v.practica,defensa:v.defensa};}),
+  formula:row.formula||"",pesoEscrito:p.pesoEscrito,
   camposCalculados:(row.calculados||[]).slice()};
 }
 function article(row,st){return Object.assign({},core(row,st),breakdown(row),{

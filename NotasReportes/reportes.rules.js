@@ -201,11 +201,12 @@ function trabajoBook(list,ctx){
 function articuloBook(list,ctx){
  var fin=function(x){return x.articulo?num(x.articulo.notaFinal):null;};
  var used={RESUMEN:1},groups=byCareer(list),sheets=[careerSummary(groups,ctx,"Artículo académico",fin)];
- var head=["#","Cédula","Estudiante","Carrera","Escrito (70 %)","Defensa (30 %)","Nota final","Estado","Titulación"];
+ var head=["#","Cédula","Estudiante","Carrera","Tutor","Lector","Escrito","Práctica","Defensa","Oral","Nota final","Fórmula","Estado","Titulación"];
  groups.forEach(function(gr){
-  var rows=gr.list.map(function(x,i){var d=x.articulo||{};
-   return [i+1,x.cedula,x.nombre,x.carrera,g(num(d.notaArticulo)),g(num(d.notaDefensa)),g(fin(x)),gradeState(fin(x)),x.req.Titulacion];});
-  sheets.push({name:sheetName(gr.carrera,used),rows:[head].concat(rows),cols:[5,13,40,40,12,12,10,11,12],filter:true});
+  var rows=gr.list.map(function(x,i){var d=x.articulo||{},f=/^\d+\/\d+$/.test(String(d.formula||""))?d.formula:(x.articulo?"70/30":"");
+   return [i+1,x.cedula,x.nombre,x.carrera,g(num(d.calificacionTutor)),g(num(d.calificacionLector)),g(num(d.notaArticulo)),
+    g(num(d.promedioEvaluacionPractica)),g(num(d.promedioEvaluacionDefensa)),g(num(d.notaDefensa)),g(fin(x)),f,gradeState(fin(x)),x.req.Titulacion];});
+  sheets.push({name:sheetName(gr.carrera,used),rows:[head].concat(rows),cols:[5,13,40,40,8,8,9,9,9,9,10,9,11,12],filter:true});
  });
  return sheets;
 }
@@ -228,7 +229,7 @@ function plan(all,periodoId){
    file("cx_"+gr,"Complexivo "+gl,gl,cx.filter(function(x){return x.habilitado&&x.req.Titulacion==="CUMPLE";}),complexivoBook,"Complexivo con Titulación en CUMPLE (aprobó núcleos).");
   });
   file("trabajo","Trabajo de titulación","Trabajo de titulación",all.filter(function(x){return x.modalidad==="TRABAJO_TITULACION"&&x.habilitado;}),trabajoBook,
-   "Marcados como Trabajo con los 8 requisitos en CUMPLE.");
+   "Trabajo de titulación (según el archivo del sistema) con los 8 requisitos en CUMPLE.");
  }else if(kind==="PVC"){
   file("req_pvc","Requisitos PVC","PVC",all,requisitosBook,"Todos los estudiantes activos.");
   file("articulo","Artículo académico","PVC",all.filter(function(x){return x.habilitado;}),articuloBook,"Con los 8 requisitos en CUMPLE.");

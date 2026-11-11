@@ -34,15 +34,13 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
  else st=found[0];
  if(st){
   if(!active(st))warnings.push("Matrícula no activa en la base local; se carga igual.");
-  if(parsed.periodoSistemaId&&periodOf(st)&&parsed.periodoSistemaId!==periodOf(st))
-   warnings.push("El sistema lo registra en «"+(parsed.periodoSistema||parsed.periodoSistemaId)+"»; se guarda en el período de su matrícula.");
   var declared=w.CargaNotasRules.modality(st["Tipo de titulación"]||st.tipoTitulacion||st.modalidadTitulacion);
   var existingEval=byEval[parsed.cedula];
   var savedMod=w.CargaNotasRules.modality(existingEval&&existingEval.modalidadTitulacion);
-  if(declared&&declared!==parsed.tipo)warnings.push("La ficha dice "+declared+"; se usa la modalidad del sistema.");
   if(savedMod&&savedMod!==parsed.tipo)replaced.push("Modalidad: la app tenía "+savedMod+"; se reemplaza por "+parsed.tipo+".");
   var c=code(st);
-  parsed.codigosNucleos.forEach(function(key){
+  // Los códigos de núcleo solo importan en complexivo (en artículo vienen de núcleos antiguos).
+  if(parsed.tipo==="EXAMEN_COMPLEXIVO")parsed.codigosNucleos.forEach(function(key){
     if(!key||!c)return;
     var base=key.toUpperCase().replace(/-\d+$/,"");
     if(base!==c)warnings.push("Código de núcleo "+key+" no coincide con la carrera "+c+".");
@@ -87,7 +85,8 @@ function assess(parsed,roster,byEval,byArticle,byNucleo){
  }
  if(parsed.tipo==="ARTICULO_ACADEMICO"&&parsed.nota1===null&&parsed.nota2===null)
   errors.push("El sistema no trae ninguna nota de este artículo.");
- if(parsed.calculados&&parsed.calculados.length)warnings.push("Calculado: "+parsed.calculados.join(", ")+".");
+ // Lo calculado (desglose de núcleos, ordinario en supletorio…) es lo esperado: queda
+ // marcado en los datos (camposCalculados) y se ve en cursiva en las pestañas, sin aviso.
  return {parsed:parsed,student:st,errors:errors,warnings:replaced.concat(warnings),replaced:replaced,onlyNucleos:onlyNucleos,
   status:errors.length?"blocked":"ready",detail:""};
 }
@@ -106,8 +105,13 @@ function render(){
   var c1=el("td");c1.appendChild(el("strong",p.cedula));c1.appendChild(el("small",studentName(st)||"Sin coincidencia"));tr.appendChild(c1);
   var c2=el("td",career(st)||"—");c2.appendChild(el("small",w.CargaNotasFirebase.group(st)||"—"));tr.appendChild(c2);
   tr.appendChild(el("td",p.tipo==="EXAMEN_COMPLEXIVO"?"Complexivo":p.tipo==="TRABAJO_TITULACION"?"Trabajo":p.tipo==="ARTICULO_ACADEMICO"?"Artículo":"Indefinida"));
-  tr.appendChild(el("td",p.nucleos.map(function(x){return x===null?"—":x.toFixed(2);}).join(" · ")));
-  var details=p.tipo==="EXAMEN_COMPLEXIVO"?"Examen "+(p.notaExamenAplicada===null?"—":p.notaExamenAplicada.toFixed(2))+(p.supletorio!==null?" (supletorio)":""):("N1 "+(p.nota1===null?"—":p.nota1.toFixed(2))+" / N2 "+(p.nota2===null?"—":p.nota2.toFixed(2)));
+  tr.appendChild(el("td",p.tipo==="EXAMEN_COMPLEXIVO"?p.nucleos.map(function(x){return x===null?"—":x.toFixed(2);}).join(" · "):"—"));
+  var f2=function(v){return v===null||v===undefined?"—":Number(v).toFixed(2);};
+  var details=p.tipo==="EXAMEN_COMPLEXIVO"?"Examen "+f2(p.notaExamenAplicada)+(p.supletorio!==null?" (supletorio)":"")
+   :"Escrito "+f2(p.nota1)+" · Oral "+f2(p.nota2)+(p.formula?" · "+p.formula:"");
+  if(p.proyecto&&p.tipo!=="EXAMEN_COMPLEXIVO"){
+   var pj=p.proyecto;details+="\nTutor "+f2(pj.tutor.nota)+" · Lector "+f2(pj.lector.nota)+" · Práctica "+f2(pj.promedioPractica)+" · Defensa "+f2(pj.promedioDefensa);
+  }
   tr.appendChild(el("td",details));tr.appendChild(el("td",p.final===null?"—":p.final.toFixed(2)));
   var note=el("td"),title=item.status==="ready"?"Lista":item.status==="saved"?"Guardada y verificada":item.status==="error"?"Error":item.status==="uploading"?"Subiendo":"Revisar";
   note.appendChild(el("span",title));note.lastChild.className="state";
@@ -120,18 +124,23 @@ function render(){
 function tipoLabel(t){return t==="EXAMEN_COMPLEXIVO"?"Complexivo":t==="TRABAJO_TITULACION"?"Trabajo":t==="ARTICULO_ACADEMICO"?"Artículo":"Indefinida";}
 /* Cédulas del archivo que no existen en la base local: no se suben porque no hay
    estudiante ni período de matrícula con qué cotejarlas. Se listan para agregarlas en Carga. */
-function renderUnmatched(){
- var box=$("cn-unmatched"),list=state.unmatched||[];if(!box)return;
- box.hidden=!list.length;if(!list.length)return;
- $("cn-unmatched-count").textContent=list.length;
- var tb=$("cn-unmatched-body");tb.textContent="";
+function fillList(boxId,countId,bodyId,list){
+ var box=$(boxId);if(!box)return;box.hidden=!list.length;if(!list.length)return;
+ $(countId).textContent=list.length;var tb=$(bodyId);tb.textContent="";
  list.forEach(function(p){var tr=el("tr");[p.cedula||"—",tipoLabel(p.tipo),p.periodoSistema||"—",p.final===null?"—":p.final.toFixed(2)].forEach(function(v){tr.appendChild(el("td",v));});tb.appendChild(tr);});
+}
+function renderUnmatched(){
+ fillList("cn-unmatched","cn-unmatched-count","cn-unmatched-body",state.unmatched||[]);
+ fillList("cn-othermod","cn-othermod-count","cn-othermod-body",state.otherModality||[]);
+ var hint=$("cn-othermod-hint");
+ if(hint)hint.textContent=state.kind==="PVC"?"Este período es PVC y solo recibe Artículo académico. Las notas de Complexivo y Trabajo se cargan eligiendo su período regular (Abr–Sep u Oct–Mar).":
+  "Este período es regular y solo recibe Examen complexivo y Trabajo de titulación. Las notas de Artículo se cargan eligiendo su período PVC.";
 }
 function downloadUnmatched(){
  var list=state.unmatched||[];if(!list.length)return;
  var lines=["Cédula;Modalidad;Período en el sistema;Nota final"].concat(list.map(function(p){return [p.cedula,tipoLabel(p.tipo),p.periodoSistema,p.final===null?"":p.final.toFixed(2).replace(".",",")].join(";");}));
  var a=d.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}));
- a.download="Cedulas_no_en_base_local.csv";d.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
+ a.download="Cedulas_no_matriculadas_"+(state.period||"periodo")+".csv";d.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
 }
 async function connect(){
  var c=w.ConNcomplex;
@@ -139,16 +148,26 @@ async function connect(){
  var result=await c.ready();if(result&&result.ok===false)throw Error(result.error||"BDLocal no está lista.");
  return c;
 }
-var AUTO="*";
+/* El período lo decide el selector (sigue al período global de la barra superior).
+   Regular (Abr–Sep, Oct–Mar): Examen complexivo o Trabajo de titulación.
+   PVC (cualquier otro):       solo Artículo académico. */
+function periodKind(id){var m=txt(id).match(/^(\d{4})-(\d{2})__(\d{4})-(\d{2})$/);if(!m)return "";var a=+m[2],b=+m[4];return (a===4&&b===9)||(a===10&&b===3)?"REGULAR":"PVC";}
+function allowed(kind,tipo){return kind==="PVC"?tipo==="ARTICULO_ACADEMICO":tipo==="EXAMEN_COMPLEXIVO"||tipo==="TRABAJO_TITULACION";}
+function kindLabel(kind){return kind==="PVC"?"PVC · solo Artículo académico":"Regular · Examen complexivo y Trabajo de titulación";}
 async function periods(){
  try{var c=await connect(),rows=await c.listPeriods(),select=$("cn-period");
-  state.periods=(rows||[]).map(function(row){return {id:canonical(row.id||row.periodoId||row.periodId),label:txt(row.label||row.nombre)};}).filter(function(r){return r.id;});
-  select.textContent="";select.appendChild(new Option("Todos · detectar por cédula (recomendado)",AUTO));
+  state.periods=(rows||[]).map(function(row){return {id:canonical(row.id||row.periodoId||row.periodId),label:txt(row.label||row.nombre)};}).filter(function(r){return r.id;})
+   .sort(function(a,b){return b.id.localeCompare(a.id);});
+  var keep=canonical(select.value);select.textContent="";
   state.periods.forEach(function(row){select.appendChild(new Option(row.label||row.id,row.id));});
-  select.value=AUTO;
-  message(state.periods.length?"Sube el archivo de notas del sistema; se analiza solo.":"La base local no tiene períodos. Carga primero los estudiantes en Carga.",!state.periods.length);
+  var g=w.RequisitosPeriodoGlobal&&w.RequisitosPeriodoGlobal.get&&w.RequisitosPeriodoGlobal.get();
+  var want=g&&g.id||keep;if(want&&state.periods.some(function(r){return r.id===want;}))select.value=want;
+  if(w.RequisitosPeriodoGlobal&&w.RequisitosPeriodoGlobal.scan)w.RequisitosPeriodoGlobal.scan();
+  showKind();
+  message(state.periods.length?"Elige el período y sube el archivo de notas del sistema; se analiza solo.":"La base local no tiene períodos. Carga primero los estudiantes en Carga.",!state.periods.length);
  }catch(error){message("No se pudieron obtener períodos: "+error.message,true);}
 }
+function showKind(){var k=periodKind(canonical($("cn-period").value)),n=$("cn-kind");if(!n)return;n.hidden=!k;n.textContent=k?kindLabel(k):"";n.className="kind"+(k==="PVC"?" pvc":"");}
 function periodLabel(id){var f=(state.periods||[]).filter(function(p){return p.id===id;})[0];return f&&f.label||id;}
 /* Una fila por cédula. Si el sistema trae varias, gana la del mismo período;
    después, la que tiene nota final; si aún difieren, la última del archivo. */
@@ -164,25 +183,14 @@ function pick(rows,period){
   return best;
  });
 }
-function approved(st){return st&&(st.aprobacionFinal===true||(st._aprobacionFinal&&st._aprobacionFinal.eligible===true));}
-/* Matrícula de cada cédula. Si está en varios períodos: el que dice el sistema,
-   luego el que tiene Aprobación final, luego el más reciente. */
-function enrollment(candidates,systemPeriods){
- var act=candidates.filter(function(m){return active(m.st);});
- var list=act.length?act:candidates;
- if(!list.length)return null;
- list=list.slice().sort(function(a,b){
-  var sa=(systemPeriods.indexOf(a.period)>=0?4:0)+(approved(a.st)?2:0),sb=(systemPeriods.indexOf(b.period)>=0?4:0)+(approved(b.st)?2:0);
-  return sb-sa||b.period.localeCompare(a.period);
- });
- return {period:list[0].period,st:list[0].st,count:list.length};
-}
 function key(period,cedula){return period+"|"+cedula;}
 async function analyze(){
  if(state.working)return;
- var file=$("cn-file").files&&$("cn-file").files[0],choice=canonical($("cn-period").value)||AUTO;
+ var file=$("cn-file").files&&$("cn-file").files[0],choice=canonical($("cn-period").value);
  if(!file){message("Sube el archivo de notas del sistema (NotasTitulacion_*.xls).",true);return;}
- state.working=true;state.items=[];state.other=0;state.unmatched=[];state.period=choice;state.file=file.name;render();
+ if(!periodKind(choice)){message("Elige el período al que pertenecen estas notas.",true);return;}
+ var kind=periodKind(choice);
+ state.working=true;state.items=[];state.other=0;state.unmatched=[];state.otherModality=[];state.period=choice;state.kind=kind;state.file=file.name;render();
  try{
   message("Leyendo el archivo…");
   var c=await connect();
@@ -190,31 +198,28 @@ async function analyze(){
   var all=(parsed.rows||[]).map(w.CargaNotasRules.parse).filter(function(r){return r.cedula||r.tipo;});
   if(!all.length)throw Error("El archivo no contiene filas de notas.");
   if(!all.some(function(r){return r.tipo;}))throw Error("El archivo no parece el reporte de notas de titulación (faltan las columnas trabajoTitulacion / tipo_titulacion).");
-  if(!state.periods||!state.periods.length)await periods();
-  var targets=choice===AUTO?(state.periods||[]).map(function(p){return p.id;}):[choice];
-  if(!targets.length)throw Error("La base local no tiene períodos.");
-  message("Cotejando "+all.length+" filas con la base local ("+targets.length+" período(s))…");
-  var rosters=await Promise.all(targets.map(function(p){return c.listStudents({periodoId:p});}));
-  if($("cn-file").files[0]!==file)throw Error("El archivo cambió durante el análisis.");
+  message("Cotejando "+all.length+" filas con los matriculados de "+periodLabel(choice)+"…");
+  var roster=await c.listStudents({periodoId:choice});
+  if($("cn-file").files[0]!==file||canonical($("cn-period").value)!==choice)throw Error("El archivo o el período cambió durante el análisis.");
   var byCed=Object.create(null);
-  rosters.forEach(function(rows,i){(rows||[]).forEach(function(st){
-   var k=id(st);if(!k)return;(byCed[k]=byCed[k]||[]).push({period:targets[i],st:st});});});
+  (roster||[]).forEach(function(st){var k=id(st);if(k&&!byCed[k])byCed[k]=st;});
   var rowsByCed=Object.create(null),order=[];
   all.forEach(function(r){if(!rowsByCed[r.cedula]){rowsByCed[r.cedula]=[];order.push(r.cedula);}rowsByCed[r.cedula].push(r);});
   var chosen=[],used=Object.create(null);
   order.forEach(function(ced){
-   var rows=rowsByCed[ced],cands=ced&&byCed[ced]||[];
-   if(!cands.length){state.other++;state.unmatched.push(pick(rows,"")[0]);return;}
-   var m=enrollment(cands,rows.map(function(r){return r.periodoSistemaId;}));
-   var row=pick(rows,m.period)[0];
-   row.periodoId=m.period;
-   if(m.count>1)row.warnings.push("Matriculado en "+m.count+" períodos; se usa "+periodLabel(m.period)+".");
-   chosen.push({row:row,st:m.st,others:cands.map(function(x){return x.st;})});
-   used[m.period]=true;
+   var rows=rowsByCed[ced],fit=rows.filter(function(r){return allowed(kind,r.tipo);});
+   // Solo se asignan notas al período elegido y a la modalidad que le corresponde.
+   if(!fit.length){state.otherModality.push(pick(rows,choice)[0]);return;}
+   var st=ced&&byCed[ced];
+   if(!st){state.other++;state.unmatched.push(pick(fit,choice)[0]);return;}
+   var row=pick(fit,choice)[0];
+   row.periodoId=choice;
+   chosen.push({row:row,st:st});
+   used[choice]=true;
   });
-  if(!chosen.length)throw Error("Ninguna cédula del archivo está en la base local"+(choice===AUTO?"":" para "+periodLabel(choice))+".");
+  if(!chosen.length)throw Error("Ninguna fila del archivo es de "+periodLabel(choice)+": "+state.unmatched.length+" de "+(kind==="PVC"?"artículo":"complexivo o trabajo")+" no están matriculados en este período y "+state.otherModality.length+" son de otra modalidad (ver listas abajo).");
   var periodsUsed=Object.keys(used);
-  message("Leyendo notas existentes de "+periodsUsed.length+" período(s)…");
+  message("Leyendo notas existentes de "+periodLabel(choice)+"…");
   var articleRepo=w.BDLRepoNotas||(w.BDLRepositories&&w.BDLRepositories.get&&w.BDLRepositories.get("notas"));
   var extra=await Promise.all(periodsUsed.map(function(p){return Promise.all([c.listEvaluations({periodoId:p}),
     w.NcomplexNucleosStore.list(p),articleRepo&&typeof articleRepo.list==="function"?articleRepo.list({periodoId:p}):[]]);}));
@@ -236,8 +241,9 @@ async function analyze(){
   var types={EXAMEN_COMPLEXIVO:0,TRABAJO_TITULACION:0,ARTICULO_ACADEMICO:0};
   state.items.forEach(function(i){if(i.status==="ready"&&types[i.parsed.tipo]!==undefined)types[i.parsed.tipo]++;});
   var replacing=state.items.filter(function(i){return i.replaced&&i.replaced.length;}).length;
-  message(state.items.length+" estudiantes encontrados en la base local · "+count+" listos ("+types.EXAMEN_COMPLEXIVO+" complexivo, "+types.TRABAJO_TITULACION+" trabajo, "+types.ARTICULO_ACADEMICO+" artículo)"
-   +(replacing?" · "+replacing+" reemplazan notas de la app":"")+" · "+state.unmatched.length+" cédulas del archivo no están en la base local."
+  message(periodLabel(choice)+" ("+(kind==="PVC"?"PVC":"regular")+"): "+state.items.length+" estudiantes del período · "+count+" listos ("
+   +(kind==="PVC"?types.ARTICULO_ACADEMICO+" artículo":types.EXAMEN_COMPLEXIVO+" complexivo, "+types.TRABAJO_TITULACION+" trabajo")+")"
+   +(replacing?" · "+replacing+" reemplazan notas de la app":"")+" · "+state.unmatched.length+" no matriculados en este período · "+state.otherModality.length+" de otra modalidad."
    +(count?" Pulsa «Guardar notas» para cargar.":""));
   var reasons=Object.create(null);
   state.items.forEach(function(i){if(i.status!=="blocked")return;var r=i.errors[0]||"Revisar";
@@ -322,16 +328,16 @@ async function save(){
  }catch(error){message("Se detuvo la carga: "+(error&&error.message||error),true);}
  finally{state.working=false;progress("");render();}
 }
-function clear(){if(state.working)return;$("cn-file").value="";state.unmatched=[];$("cn-reasons").textContent="";state.items=[];state.other=0;message("Sube el archivo de notas del sistema; se analiza solo.");render();}
+function clear(){if(state.working)return;$("cn-file").value="";state.unmatched=[];state.otherModality=[];$("cn-reasons").textContent="";state.items=[];state.other=0;message("Sube el archivo de notas del sistema; se analiza solo.");render();}
 function init(){
  $("cn-analyze").addEventListener("click",analyze);$("cn-save").addEventListener("click",save);
  $("cn-clear").addEventListener("click",clear);
- $("cn-period").addEventListener("change",function(){state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
+ $("cn-period").addEventListener("change",function(){showKind();state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
  $("cn-file").addEventListener("change",function(){state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
  $("cn-search").addEventListener("input",render);$("cn-filter").addEventListener("change",render);
  $("cn-unmatched-download").addEventListener("click",downloadUnmatched);
  periods();
 }
-w.CargaNotasApp={version:"3.0.0",analyze:analyze,save:save,state:state,assess:assess,pick:pick,enrollment:enrollment};
+w.CargaNotasApp={version:"4.0.0",analyze:analyze,save:save,state:state,assess:assess,pick:pick,periodKind:periodKind,allowed:allowed};
 if(d.readyState==="loading")d.addEventListener("DOMContentLoaded",init);else init();
 })(window,document);

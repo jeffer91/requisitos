@@ -26,5 +26,5 @@ assert.equal(s.value,"2025-10__2026-03","El selector del documento nuevo recibe 
 assert.equal(win.RequisitosPeriodoGlobal.status().bound,1);
 const html=fs.readFileSync(path.join(root,"Maqueta/maq-index.html"),"utf8");
 assert.ok(html.includes("maq-periodo-bar.js")&&html.includes("bdl.periodo-global.js"),"La barra superior tiene el período global");
-assert.ok(fs.readFileSync(path.join(root,"CargaNotas/carga-notas.html"),"utf8").includes('id="cn-period" data-periodo-global="false"'),"Cargado de notas conserva «Todos»");
+assert.ok(fs.readFileSync(path.join(root,"CargaNotas/carga-notas.html"),"utf8").includes('id="cn-period" data-periodo-global="true"'),"Cargado de notas usa el período elegido (global)");
 console.log("PERÍODO GLOBAL (documento vivo + barra): OK");

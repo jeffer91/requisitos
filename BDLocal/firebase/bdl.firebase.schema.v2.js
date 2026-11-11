@@ -134,14 +134,14 @@ Función o funciones:
       notas_articulo:{
         description:"Notas → Artículo: artículo académico (antes Defensas): N-ART, N-DEF y N-FIN.",
         fields:["periodoId","cedula","modalidadTitulacion","notaArticulo","notaDefensa","notaFinal",
-          "codigoCarrera","nombreCarrera","calificacionTutor","calificacionLector","promedioEvaluacionPractica","promedioEvaluacionDefensa","vocales","camposCalculados","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
+          "codigoCarrera","nombreCarrera","calificacionTutor","calificacionLector","promedioEvaluacionPractica","promedioEvaluacionDefensa","vocales","camposCalculados","formula","pesoEscrito","estadoEvaluacion","origen","createdAt","updatedAt","version","dataHash"]
       },
       notas_trabajo:{
         description:"Notas → Trabajo: acta SENESCYT completa del trabajo de titulación.",
         fields:["periodoId","cedula","nombres","codigoCarrera","nombreCarrera","grupoInforme","modalidadTitulacion",
           "tipoRegistro","numeroActaSenescyt","fechaActaGrado","calificacionTutor","calificacionLector","promedioTrabajoEscrito",
           "vocales","evaluacionPractica","evaluacionDefensa","promedioEvaluacionPractica","promedioEvaluacionDefensa",
-          "camposCalculados","promedioDefensaOral","notaFinal","notaMinimaAprobacion","estadoEvaluacion","textoOriginalHash",
+          "camposCalculados","formula","pesoEscrito","promedioDefensaOral","notaFinal","notaMinimaAprobacion","estadoEvaluacion","textoOriginalHash",
           "origen","createdAt","updatedAt","version","dataHash"]
       },
       notas_nucleos:{

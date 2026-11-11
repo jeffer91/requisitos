@@ -49,17 +49,17 @@ sheets=f.cx_PRESENCIAL.build();const cx=sheets[1].rows.find(r=>r[1]==="000000000
 assert.equal(sheets[1].rows.find(r=>r[1]==="0000000007")[14],"Sin nota");
 sheets=f.trabajo.build();assert.equal(sheets[1].rows[1][11],7.6);assert.equal(sheets[1].rows[1][13],"CUMPLE");
 // PVC
-const pvc=R.plan(R.students(Object.assign({},data,{periodoId:"2026-02__2026-08",notas_articulo:[{cedula:"0000000003",notaArticulo:8,notaDefensa:9,notaFinal:8.3}]})),"2026-02__2026-08");
+const pvc=R.plan(R.students(Object.assign({},data,{periodoId:"2026-02__2026-08",notas_articulo:[{cedula:"0000000003",notaArticulo:8,notaDefensa:9,notaFinal:8.3,formula:"70/30"}]})),"2026-02__2026-08");
 assert.equal(pvc.files.map(x=>x.id).join(","),"req_pvc,articulo");assert.equal(pvc.files[1].count,5);
-const art=pvc.files[1].build();assert.equal(art.find(s=>s.name==="ADMINISTRACION ONLINE").rows[1][6],8.3);
+const art=pvc.files[1].build(),arow=art.find(s=>s.name==="ADMINISTRACION ONLINE").rows[1];assert.equal(arow[10],8.3);assert.equal(arow[11],"70/30");
 // Nombres de hoja válidos y únicos (máx. 31)
 const used={};const s1=R.sheetName("A".repeat(40),used),s2=R.sheetName("A".repeat(40),used);assert.equal(s1.length,31);assert.ok(s2.length<=31&&s1!==s2);assert.equal(R.sheetName("A/B:C",{}),"A B C");
 // Menú
-["maq-core.js","maq-modulos-registry.js"].forEach(file=>{const s=read("Maqueta/"+file);assert.ok(s.includes("NotasReportes/modalidad.html")&&s.includes("NotasReportes/descargas.html"),file);});
+["maq-core.js","maq-modulos-registry.js","maq-menu.js","maq-config-service.js"].forEach(file=>{const s=read("Maqueta/"+file);assert.ok(!s.includes("notas_modalidad")&&!s.includes("modalidad.html"),"Sin pantalla Modalidad: "+file);});
+["maq-core.js","maq-modulos-registry.js"].forEach(file=>assert.ok(read("Maqueta/"+file).includes("NotasReportes/descargas.html"),file));
 assert.ok(read("Maqueta/maq-menu.js").includes('moduloId:"notas_descargas",etiqueta:"Descargas"'));
-assert.ok(read("Maqueta/maq-menu.js").includes('moduloId:"notas_modalidad",etiqueta:"Modalidad"'));
 assert.ok(!/writeChecked|\.update\(|batch\(/.test(read("NotasReportes/descargas.app.js")),"Descargas no escribe");
 // Al volver a mostrarse, las pantallas se refrescan (Maqueta avisa con maqueta:screen-shown).
 assert.ok(read("Maqueta/maq-core.js").includes('new w.CustomEvent("maqueta:screen-shown"'));
-["NotasReportes/descargas.app.js","NotasReportes/modalidad.app.js","NotasVisor/visor.app.js"].forEach(f=>assert.ok(read(f).includes('"maqueta:screen-shown"'),f));
-console.log("NOTAS · MODALIDAD Y DESCARGAS: OK — períodos regular/PVC, etapas, Presencial/Online, Trabajo y contenido de los Excels.");
+["NotasReportes/descargas.app.js","NotasVisor/visor.app.js"].forEach(f=>assert.ok(read(f).includes('"maqueta:screen-shown"'),f));
+console.log("NOTAS · DESCARGAS: OK — períodos regular/PVC, etapas, Presencial/Online, Trabajo y contenido de los Excels.");

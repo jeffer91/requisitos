@@ -162,7 +162,7 @@ function exportCsv(){
  function q(v){v=v===null||v===undefined?"":String(v);return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
  var head=["Cédula","Estudiante","Carrera","Grupo"].concat(T.columns).concat(["Estado"]);
  var lines=[head.join(";")].concat(list.map(function(r){
-  return [r.cedula,r.nombre,r.carrera,r.grupo].concat(r.cells.map(function(c){return c&&c.v!==null&&c.v!==undefined?Number(c.v).toFixed(2).replace(".",","):"";}))
+  return [r.cedula,r.nombre,r.carrera,r.grupo].concat(r.cells.map(function(c){return c&&c.t!==undefined?c.t:c&&c.v!==null&&c.v!==undefined?Number(c.v).toFixed(2).replace(".",","):"";}))
    .concat([r.state==="APROBADO"?"Aprobado":r.state==="NO_APROBADO"?"No aprobado":"Sin nota"]).map(q).join(";");}));
  var blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
  var a=d.createElement("a");a.href=URL.createObjectURL(blob);a.download="Notas_"+T.title.replace(/\s+/g,"_")+"_"+state.period+".csv";

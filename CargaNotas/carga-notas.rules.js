@@ -71,6 +71,16 @@ function solve(ctx,label,value,children,weights,tolerance){
  return value;
 }
 
+/* Artículo académico: la nota final es 70 % escrito + 30 % defensa oral, pero en
+   algunos PVC (p. ej. Ene–Sep 2025) el sistema usó 50/50 «(1. + 4.) / 2», como en el
+   acta de proyecto. Se detecta con qué fórmula cuadra la nota del sistema. */
+function articleWeight(escrito,oral,final){
+ if(!has(escrito)||!has(oral)||!has(final))return 0.7;
+ var fits=function(w){return Math.abs(round(escrito*w+oral*(1-w))-final)<=TOL;};
+ if(fits(0.7))return 0.7;
+ if(fits(0.5))return 0.5;
+ return 0.7;
+}
 function parse(raw){
  var r=asRow(raw),errors=[],warnings=[],ctx={calculados:[],noCuadra:[]};
  var cedula=cid(get(r,"identificacion_estudiante")),periodoId=period(get(r,"periodo_academico"));
@@ -80,7 +90,7 @@ function parse(raw){
  var a=modality(get(r,"trabajoTitulacion")),b=modality(get(r,"tipo_titulacion"));
  var tipo=a||b;
  if(!tipo)errors.push("Modalidad no identificada.");
- if(a&&b&&a!==b)warnings.push("El sistema dice «"+txt(get(r,"tipo_titulacion"))+"» en tipo_titulacion; se usa trabajoTitulacion («"+txt(get(r,"trabajoTitulacion"))+"»).");
+ // tipo_titulacion viene mal en el sistema (p. ej. «COMPLEXIVO» en artículos): no se avisa.
  var n1=grade(get(r,"nota1")),n2=grade(get(r,"nota2")),final=grade(get(r,"notaTrabajoTitulacion"));
  var sup=grade(get(r,"notaSupletorio")),teor=grade(get(r,"notaTeorico")),prac=grade(get(r,"notaPractico"));
  var nuclei=[1,2,3,4].map(function(i){return grade(get(r,"nota_nucleo"+i));});
@@ -136,7 +146,7 @@ function parse(raw){
   desglose=nuclei.map(function(v,i){return has(v)?{numero:i+1,evaluaciones:[v,v,v,v],casoEstudio:v,calculado:true}:null;});
   if(nuclei.some(has))ctx.calculados.push("Evaluaciones 1–4 y caso de estudio de los núcleos");
  }else if(tipo==="ARTICULO_ACADEMICO"||tipo==="TRABAJO_TITULACION"){
-  var w=tipo==="ARTICULO_ACADEMICO"?0.7:0.6;
+  var w=tipo==="ARTICULO_ACADEMICO"?articleWeight(n1,n2,final):0.6;
   var tl=[{label:"Calificación tutor",v:tutor},{label:"Calificación lector",v:lector}];
   n1=solve(ctx,"Trabajo escrito ((tutor + lector) / 2)",n1,tl,[.5,.5],TOL);
   var pr=vocalRaw.map(function(v){return {label:"Práctica vocal "+v.numero,v:v.practica};});
@@ -165,7 +175,8 @@ function parse(raw){
    promedioNucleos:n1!==null&&tipo==="EXAMEN_COMPLEXIVO"?n1:null,nucleos:nuclei,codigosNucleos:code,desgloseNucleos:desglose,
    ordinarioCalculado:ordinarioCalc,proyecto:proyecto,notaPromedioAcumulado:accumulated,
    antiplagio:antiplagio,codigoTitulacion:txt(get(r,"codigoTitulacion")),
+   formula:proyecto?Math.round(proyecto.pesoEscrito*100)+"/"+Math.round((1-proyecto.pesoEscrito)*100):"",
    calculado:computed,calculados:calculados,noCuadra:ctx.noCuadra,errors:errors,warnings:warnings,raw:raw};
 }
-root.CargaNotasRules=Object.freeze({version:"2.0.0",grade:grade,period:period,modality:modality,parse:parse,round:round,compare:compare,cid:cid});
+root.CargaNotasRules=Object.freeze({version:"2.1.0",articleWeight:articleWeight,grade:grade,period:period,modality:modality,parse:parse,round:round,compare:compare,cid:cid});
 })(typeof window!=="undefined"?window:globalThis);

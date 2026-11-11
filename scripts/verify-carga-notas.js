@@ -50,7 +50,7 @@ assert.equal(p.tipo,"TRABAJO_TITULACION");assert.equal(p.calculado,8.4);assert.e
 // tipo_titulacion contradictorio: manda trabajoTitulacion y solo se avisa.
 p=R.parse(row({tipo_titulacion:"Artículo académico"}));
 assert.equal(p.tipo,"EXAMEN_COMPLEXIVO");assert.equal(p.errors.length,0);
-assert.ok(p.warnings.some(x=>x.includes("se usa trabajoTitulacion")));
+assert.ok(!p.warnings.some(x=>x.includes("tipo_titulacion")),"tipo_titulacion viene mal en el sistema: no se avisa");
 // El sistema gana: lo que no cuadra se conserva y se avisa.
 p=R.parse(row({nota_nucleo2:"7.00"}));
 assert.equal(p.errors.length,0);assert.equal(p.nota1,9.53);
@@ -112,10 +112,11 @@ item=app.assess(R.parse(row()),[student],{"1725633638":{notaOficial:8.0}},
  Object.create(null),Object.create(null));
 assert.equal(item.status,"ready","El sistema gana sobre la nota de la app.");
 assert.ok(item.replaced.some(e=>e.includes("notaOficial")&&e.includes("se reemplaza")));
-// Período del sistema distinto al de la matrícula: aviso, no bloqueo.
+// La etiqueta de período del sistema no importa (el PVC Ene–Sep 2025 viene como
+// «ABRIL 2025 - SEPTIEMBRE 2025»): se carga sin avisos de período.
 item=app.assess(R.parse(row({periodo_academico:"OCTUBRE 2025 - MARZO 2026"})),
  [Object.assign({},student,{periodoId:"2025-11__2026-05"})],Object.create(null),Object.create(null),Object.create(null));
-assert.equal(item.status,"ready");assert.ok(item.warnings.some(e=>e.includes("período de su matrícula")));
+assert.equal(item.status,"ready");assert.ok(!item.warnings.some(e=>/per[ií]odo/i.test(e)));
 // Igual que Carga, sin restricciones: sin Aprobación final, sin grupo, matrícula
 // no activa o trabajo incompleto se cargan igual (solo aviso).
 item=app.assess(R.parse(row()),[Object.assign({},student,{aprobacionFinal:false})],
@@ -127,14 +128,25 @@ assert.equal(item.status,"ready",item.errors.join("|"));
 item=app.assess(R.parse(row({trabajoTitulacion:"Trabajo Titulación",nota1:"8.00",nota2:"",notaTrabajoTitulacion:"",notaTeorico:"",notaPractico:"",
  nota_nucleo1:"",nota_nucleo2:"",nota_nucleo3:"",nota_nucleo4:""})),[student],Object.create(null),Object.create(null),Object.create(null));
 assert.equal(item.status,"ready");
-// Sin período elegido: cada cédula va al período de su matrícula activa
-// (primero el que dice el sistema, luego con Aprobación final, luego el más reciente).
-let m=app.enrollment([{period:"2025-10__2026-03",st:student},{period:"2026-04__2026-09",st:Object.assign({},student,{aprobacionFinal:false})}],["2026-04__2026-09"]);
-assert.equal(m.period,"2026-04__2026-09");assert.equal(m.count,2);
-m=app.enrollment([{period:"2025-10__2026-03",st:student},{period:"2026-04__2026-09",st:Object.assign({},student,{aprobacionFinal:false})}],["2024-01__2024-06"]);
-assert.equal(m.period,"2025-10__2026-03");
-m=app.enrollment([{period:"2025-10__2026-03",st:Object.assign({},student,{estadoMatricula:"RETIRADO"})},{period:"2026-04__2026-09",st:student}],["2025-10__2026-03"]);
-assert.equal(m.period,"2026-04__2026-09","Se prefiere la matrícula ACTIVA.");
+// El período elegido manda: PVC solo Artículo; regular solo Complexivo y Trabajo.
+assert.equal(app.periodKind("2025-01__2025-09"),"PVC");assert.equal(app.periodKind("2025-04__2025-09"),"REGULAR");
+assert.equal(app.periodKind("2025-10__2026-03"),"REGULAR");assert.equal(app.periodKind("2025-11__2026-05"),"PVC");
+assert.ok(app.allowed("PVC","ARTICULO_ACADEMICO")&&!app.allowed("PVC","EXAMEN_COMPLEXIVO")&&!app.allowed("PVC","TRABAJO_TITULACION"));
+assert.ok(app.allowed("REGULAR","EXAMEN_COMPLEXIVO")&&app.allowed("REGULAR","TRABAJO_TITULACION")&&!app.allowed("REGULAR","ARTICULO_ACADEMICO"));
+// Artículo: se detecta la fórmula con la que el sistema calculó la nota final.
+const art50=R.parse(row({trabajoTitulacion:"Artículo académico",tipo_titulacion:"COMPLEXIVO",nota1:"8.50",nota2:"7.80",notaTrabajoTitulacion:"8.15",
+ notaTeorico:"",notaPractico:"",nota_nucleo1:"",nota_nucleo2:"",nota_nucleo3:"",nota_nucleo4:"",evaluacionTutor:"8.50",evaluacionLector:"8.50",
+ sumatoriaEvaluacionPractica_vocal1:"7.00",sumatoriaEvaluacionPractica_vocal2:"8.50",sumatoriaEvaluacionPractica_vocal3:"6.70",
+ sumatoriaEvaluacionDefensa_vocal1:"10.00",sumatoriaEvaluacionDefensa_vocal2:"8.00",sumatoriaEvaluacionDefensa_vocal3:"6.60"}));
+assert.equal(art50.formula,"50/50");assert.equal(art50.final,8.15);assert.equal(art50.noCuadra.length,0,art50.noCuadra.join("|"));
+assert.equal(art50.proyecto.promedioPractica,7.4);assert.equal(art50.proyecto.promedioDefensa,8.2);
+const art70=R.parse(row({trabajoTitulacion:"Artículo académico",nota1:"7.00",nota2:"8.00",notaTrabajoTitulacion:"7.30",notaTeorico:"",notaPractico:"",
+ nota_nucleo1:"",nota_nucleo2:"",nota_nucleo3:"",nota_nucleo4:""}));
+assert.equal(art70.formula,"70/30");assert.equal(art70.noCuadra.length,0);
+const artBad=R.parse(row({trabajoTitulacion:"Artículo académico",nota1:"7.00",nota2:"8.00",notaTrabajoTitulacion:"9.00",notaTeorico:"",notaPractico:"",
+ nota_nucleo1:"",nota_nucleo2:"",nota_nucleo3:"",nota_nucleo4:""}));
+assert.equal(artBad.final,9);assert.equal(artBad.noCuadra.length,1,"Solo si no cuadra con ninguna fórmula");
+assert.equal(fb.article(art50,student).formula,"50/50");assert.equal(fb.article(art50,student).pesoEscrito,0.5);
 // Código de carrera incompleto: Presencial por el nombre, con aviso; «… ONLINE» no se adivina.
 assert.equal(fb.group({CodigoCarrera:"550613A01",NombreCarrera:"DESARROLLO DE SOFTWARE"}),"PRESENCIAL");
 assert.equal(fb.group({CodigoCarrera:"550613A01",NombreCarrera:"DESARROLLO DE SOFTWARE ONLINE"}),"ONLINE");
