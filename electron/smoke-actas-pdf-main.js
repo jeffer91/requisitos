@@ -49,14 +49,17 @@ async function run(){
    NombreCarrera:"ADMINISTRACION",periodoId:period,estadoMatricula:"ACTIVO"
   };
   const mode="EXAMEN_COMPLEXIVO";
+  // Desde «folio oficial único» (3b0bbda) el PDF final exige expediente completo
+  // (9/9 requisitos y ambas aprobaciones) y número de acta del libro central.
+  const all="CUMPLE";
   const evidence=window.ActasEvidence.assess({student,mode,requirementValues:{
-   academico:"PENDIENTE",aprobaciontitulacion:"CUMPLE",
-   aprobacioncomplexivoproyecto:"CUMPLE"
+   academico:all,documentacion:all,financiero:all,practicas:all,vinculacion:all,
+   seguimientograduados:all,ingles:all,actualizaciondatos:all,titulacion:all,
+   aprobaciontitulacion:all,aprobacioncomplexivoproyecto:all
   }});
-  if(evidence.eligible||!evidence.draftEligible)
-    throw Error("Borrador sin requisitos debe estar permitido, pero no certificado");
+  if(!evidence.eligible)throw Error("Expediente completo debe quedar certificado: "+JSON.stringify(evidence).slice(0,300));
   const record={
-   codigo:"AT-ITSQMET-2026-11-01",periodId:period,numeroActa:"",status:"BORRADOR"
+   codigo:"AT-ITSQMET-2026-11-01",periodId:period,numeroActa:"CX-2025-2026-11-0001",status:"EMITIDA"
   };
   const document={
    student,mode,record,evidence,
@@ -84,7 +87,7 @@ async function run(){
  const pages=(body.match(/\/Type\s*\/Page(?=\s|\/)/g)||[]).length;
  if(pages<2)throw Error("La portada y el cuerpo documental requieren 2 páginas: "+pages);
  if(!body.includes("/Subtype /Image"))throw Error("No se incrustó el logotipo institucional");
- console.log("VERIFICACIÓN PDF ACTAS REAL: OK (borrador sin notas, "+pages+" páginas, "+size+" bytes)");
+ console.log("VERIFICACIÓN PDF ACTAS REAL: OK (acta final con folio, "+pages+" páginas, "+size+" bytes)");
  complete=true;cleanup();app.exit(0);
 }
 app.whenReady().then(run).catch(fail);

@@ -295,9 +295,13 @@ async function run(){
   const screens=[];
   let databaseSeed=null;
   for(const module of MODULES){
-    const screen=await inspectModule(module);
-    if(module.seedDatabase&&screen.ok){
+    let screen=await inspectModule(module);
+    if(module.seedDatabase){
+      // En un arranque en frío (CI) el Centro de datos puede tardar más que el límite.
+      // Se siembra igual si el iframe existe y luego se vuelve a inspeccionar; antes,
+      // un primer arranque lento dejaba toda la navegación sin datos.
       databaseSeed=await seedIndexedDb(fixture);
+      if(databaseSeed&&databaseSeed.ok===true&&!screen.ok){screen=await inspectModule(module);}
       screen.databaseSeed=databaseSeed;
       if(!databaseSeed||databaseSeed.ok!==true){screen.ok=false;screen.error=databaseSeed&&databaseSeed.error||"No se pudieron sembrar los datos de prueba en IndexedDB.";}
     }

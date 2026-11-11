@@ -20,8 +20,14 @@
  <div class="toolbar"><label>Filtrar carrera o cédula<input id="cn-search" type="search" placeholder="Buscar en la vista previa"></label>
  <label>Mostrar<select id="cn-filter"><option value="all">Todas</option><option value="ready">Listas</option><option value="blocked">Revisión</option><option value="saved">Guardadas</option></select></label></div>
  <div class="scroll"><table><thead><tr><th>Cédula / estudiante</th><th>Carrera / grupo</th><th>Modalidad</th><th>Núcleos</th><th>Examen / notas</th><th>Final</th><th>Estado / motivo</th></tr></thead><tbody id="cn-body"></tbody></table></div>
- <p class="hint">«Revisar» indica por qué no se carga (sin Aprobación final, sin examen, matrícula retirada…). Los avisos no impiden la carga.</p>
+ <p class="hint">Se sube todo lo que coincide con la base local, igual que Carga. Los avisos (sin Aprobación final, sin grupo, trabajo incompleto…) no impiden la carga; «Revisar» solo aparece si el sistema no trae ninguna nota.</p>
  <div class="actions"><button type="button" id="cn-save" class="primary" disabled>Guardar notas (base local + Firebase)</button><span id="cn-progress"></span></div>
+</section>
+<section class="panel" id="cn-unmatched" hidden>
+ <details><summary><strong>No están en la base local: <span id="cn-unmatched-count">0</span> cédulas</strong> · no se suben porque no hay estudiante con quien cotejarlas. Agrégalos en Carga y vuelve a subir el archivo.</summary>
+ <div class="actions"><button type="button" id="cn-unmatched-download">Descargar lista</button></div>
+ <div class="scroll"><table><thead><tr><th>Cédula</th><th>Modalidad</th><th>Período en el sistema</th><th>Nota final</th></tr></thead><tbody id="cn-unmatched-body"></tbody></table></div>
+ </details>
 </section>
 </main>
 <script src="../Carga/readers/carga.reader.html.js"></script>

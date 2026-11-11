@@ -168,6 +168,12 @@ client.RequisitosFirebaseRepository={
  // Núcleo: evaluaciones calculadas y marcadas; las reales de Moodle se respetan.
  const n1=fb.nucleus(parsed,student,1,null);
  assert.deepEqual(Array.from(n1.evaluaciones),[9.8,9.8,9.8,9.8]);assert.equal(n1.desgloseCalculado,true);
+ // Volver a subir no reescribe: no se arrastran campos internos de la base local.
+ const local=fb.nucleus(parsed,student,1,{estadoSync:"PENDIENTE",localId:"x",cursoMoodle:"CURSO",evaluaciones:[9.8,9.8,9.8,9.8],desgloseCalculado:true});
+ assert.equal(local.estadoSync,undefined);assert.equal(local.localId,undefined);assert.equal(local.cursoMoodle,"CURSO");
+ const n1doc=fb.nucleus(parsed,student,1,null);
+ await fb.publish("notas_nucleos",n1doc);
+ assert.equal((await fb.publish("notas_nucleos",fb.nucleus(parsed,student,1,null))).unchanged,true,"Segunda subida idéntica sin cambios");
  const moodle=fb.nucleus(parsed,student,1,{evaluaciones:[10,9,9.5,10],casoEstudio:10});
  assert.deepEqual(Array.from(moodle.evaluaciones),[10,9,9.5,10]);assert.equal(moodle.desgloseCalculado,false);
  const ps=R.parse(row({identificacion_estudiante:"0105266837",nota1:"8.24",nota2:"4.30",

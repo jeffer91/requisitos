@@ -99,7 +99,10 @@ function nucleus(row,st,number,existing){
  var previous=existing||{},computed=row.desgloseNucleos&&row.desgloseNucleos[number-1]||null;
  var realMoodle=previous.desgloseCalculado!==true&&Array.isArray(previous.evaluaciones)&&previous.evaluaciones.some(function(v){return v!==null&&v!==undefined;});
  var split=realMoodle?null:computed;
- var doc=Object.assign({},previous,core(row,st),{
+ // Del registro anterior solo se conservan datos propios del núcleo (no campos
+ // internos de la base local como estadoSync), así volver a subir no reescribe nada.
+ var kept={};["cursoMoodle","actividadesAdicionales"].forEach(function(k){if(previous[k]!==undefined&&previous[k]!==null)kept[k]=previous[k];});
+ var doc=Object.assign(kept,core(row,st),{
   id:identity(row)+"__N"+number,nucleo:number,tipoRegistro:"CONSOLIDADO_INSTITUCIONAL",
   nombreNucleo:previous.nombreNucleo||"Núcleo "+number,
   grupoInforme:group(st),

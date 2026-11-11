@@ -115,6 +115,23 @@ function render(){
   tr.appendChild(note);tbody.appendChild(tr);
  });
  $("cn-save").disabled=state.working||(ready+retry)===0;
+ renderUnmatched();
+}
+function tipoLabel(t){return t==="EXAMEN_COMPLEXIVO"?"Complexivo":t==="TRABAJO_TITULACION"?"Trabajo":t==="ARTICULO_ACADEMICO"?"Artículo":"Indefinida";}
+/* Cédulas del archivo que no existen en la base local: no se suben porque no hay
+   estudiante ni período de matrícula con qué cotejarlas. Se listan para agregarlas en Carga. */
+function renderUnmatched(){
+ var box=$("cn-unmatched"),list=state.unmatched||[];if(!box)return;
+ box.hidden=!list.length;if(!list.length)return;
+ $("cn-unmatched-count").textContent=list.length;
+ var tb=$("cn-unmatched-body");tb.textContent="";
+ list.forEach(function(p){var tr=el("tr");[p.cedula||"—",tipoLabel(p.tipo),p.periodoSistema||"—",p.final===null?"—":p.final.toFixed(2)].forEach(function(v){tr.appendChild(el("td",v));});tb.appendChild(tr);});
+}
+function downloadUnmatched(){
+ var list=state.unmatched||[];if(!list.length)return;
+ var lines=["Cédula;Modalidad;Período en el sistema;Nota final"].concat(list.map(function(p){return [p.cedula,tipoLabel(p.tipo),p.periodoSistema,p.final===null?"":p.final.toFixed(2).replace(".",",")].join(";");}));
+ var a=d.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}));
+ a.download="Cedulas_no_en_base_local.csv";d.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);
 }
 async function connect(){
  var c=w.ConNcomplex;
@@ -187,7 +204,7 @@ async function analyze(){
   var chosen=[],used=Object.create(null);
   order.forEach(function(ced){
    var rows=rowsByCed[ced],cands=ced&&byCed[ced]||[];
-   if(!cands.length){state.other++;state.unmatched.push(ced);return;}
+   if(!cands.length){state.other++;state.unmatched.push(pick(rows,"")[0]);return;}
    var m=enrollment(cands,rows.map(function(r){return r.periodoSistemaId;}));
    var row=pick(rows,m.period)[0];
    row.periodoId=m.period;
@@ -272,22 +289,23 @@ async function saveOne(item,c){
   await notes.save({periodoId:p.periodoId,cedula:p.cedula,Notart:p.nota1,Notdef:p.nota2,
    Notafinal:p.final,origen:"excel_institucional"});
  }
- for(var j=0;j<docs.length;j++){await fb.publish(docs[j].entity,docs[j].doc);}
- return docs.length;
+ var changed=0;
+ for(var j=0;j<docs.length;j++){var res=await fb.publish(docs[j].entity,docs[j].doc);if(!res||!res.unchanged)changed++;}
+ return {docs:docs.length,changed:changed};
 }
 async function save(){
  if(state.working||!state.items.length)return;
  var ready=state.items.filter(function(i){return i.status==="ready"||i.status==="error";});
  if(!ready.length)return;
  
- state.working=true;render();var ok=0,fail=0,c=null,done=0;
+ state.working=true;render();var ok=0,fail=0,c=null,done=0,same=0;
  try{
   c=await connect();await w.CargaNotasFirebase.ensure();
   var queue=ready.slice(),started=Date.now();
   async function worker(){
    while(queue.length){
     var item=queue.shift();item.status="uploading";
-    try{await saveOne(item,c);item.status="saved";item.detail="";ok++;}
+    try{var out=await saveOne(item,c);item.status="saved";item.detail=out&&out.changed===0?"Ya estaba igual en Firebase (sin cambios).":"";ok++;if(out&&out.changed===0)same++;}
     catch(err){item.status="error";item.detail=(err&&err.message)||String(err);fail++;}
     done++;
     if(done%10===0||done===ready.length){
@@ -299,17 +317,19 @@ async function save(){
   }
   // Cuatro estudiantes a la vez: cada uno escribe y verifica sus propios documentos.
   await Promise.all([worker(),worker(),worker(),worker()]);
-  message(fail?"Carga terminada: "+ok+" estudiantes guardados y verificados; "+fail+" con error (puedes pulsar Guardar otra vez para reintentar).":"Listo: "+ok+" estudiantes cargados y verificados en Firebase.",!!fail);
+  var tail=same?" ("+same+" ya estaban iguales y no se reescribieron)":"";
+  message(fail?"Carga terminada: "+ok+" estudiantes guardados y verificados"+tail+"; "+fail+" con error (pulsa «Guardar notas» otra vez para reintentar).":"Listo: "+ok+" estudiantes cargados y verificados en Firebase"+tail+".",!!fail);
  }catch(error){message("Se detuvo la carga: "+(error&&error.message||error),true);}
  finally{state.working=false;progress("");render();}
 }
-function clear(){if(state.working)return;$("cn-file").value="";$("cn-reasons").textContent="";state.items=[];state.other=0;message("Sube el archivo de notas del sistema; se analiza solo.");render();}
+function clear(){if(state.working)return;$("cn-file").value="";state.unmatched=[];$("cn-reasons").textContent="";state.items=[];state.other=0;message("Sube el archivo de notas del sistema; se analiza solo.");render();}
 function init(){
  $("cn-analyze").addEventListener("click",analyze);$("cn-save").addEventListener("click",save);
  $("cn-clear").addEventListener("click",clear);
  $("cn-period").addEventListener("change",function(){state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
  $("cn-file").addEventListener("change",function(){state.items=[];render();if($("cn-file").files&&$("cn-file").files[0])analyze();});
  $("cn-search").addEventListener("input",render);$("cn-filter").addEventListener("change",render);
+ $("cn-unmatched-download").addEventListener("click",downloadUnmatched);
  periods();
 }
 w.CargaNotasApp={version:"3.0.0",analyze:analyze,save:save,state:state,assess:assess,pick:pick,enrollment:enrollment};
