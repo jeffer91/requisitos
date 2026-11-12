@@ -217,6 +217,24 @@ Función o funciones:
     ensureXlsx().then(function(){
       var meta=metadata(rows);
       var dataset=data();
+      // Vista Todos/Con faltantes: generar un libro de seguimiento por requisito.
+      // Vista Req. completos y Núcleos: conservar el reporte de estudiantes habitual.
+      if(currentMode()!=="complete" && !dataset.nucleosMode){
+        return loadDependency("stats.students.workbook.js",function(){
+          return window.StatsStudentsWorkbook &&
+            typeof window.StatsStudentsWorkbook.createBook==="function";
+        },"Reporte de requisitos por hoja").then(function(){
+          var report=window.StatsStudentsWorkbook.createBook(window.XLSX,rows,{
+            rules:window.StatsRules,
+            helpers:{studentName:studentName,studentId:studentId,studentCareer:studentCareer},
+            meta:meta
+          });
+          window.XLSX.writeFile(report.book,"Seguimiento_"+fileBase(meta)+".xlsx");
+          notify("Excel generado: "+report.summary.total+" estudiantes, "+
+            report.summary.incidencias+" incidencias y "+
+            report.requirements.length+" hojas por requisito.","ok");
+        });
+      }
       var info=[
         ["REPORTE DE ESTUDIANTES - REQUISITOS"],
         ["Período",meta.periodo],["Sede",meta.sede],["División",meta.division],["Matrícula",meta.matricula],
