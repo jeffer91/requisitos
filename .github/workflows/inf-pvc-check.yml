@@ -1,0 +1,29 @@
+name: INF PVC Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Inf/**"
+      - ".github/workflows/inf-pvc-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify JavaScript syntax
+        run: |
+          node --check Inf/core/inf.pvc.js
+          node --check Inf/export/inf.pvc-export.js
+          node --check Inf/inf.app.js
+      - name: Verify PVC data consolidation
+        run: node Inf/tests/verify-pvc.js
