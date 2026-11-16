@@ -53,3 +53,13 @@ node Inf/tests/verify-inf.js
 ```
 
 El test simula la composición del PDF y valida cabeceras repetidas, paginación, texto disponible y coordenadas. No reemplaza la revisión visual final dentro de Electron, especialmente de tablas grandes o carreras cuyos nombres de núcleos sean extensos.
+
+## Informe PVC integrado en Inf
+
+La pantalla principal ahora ofrece "Informe final PVC por período" y conserva por separado el informe de avance de Complexivo. El nuevo flujo consulta BDLocal en modo lectura, cruza matrículas, requisitos y notas por período y cédula, incluye solo las carreras con estudiantes activos y omite los registros expresamente identificados como Complexivo. Utiliza una introducción común, las nueve secciones de base legal institucional ya existentes y una metodología PVC adaptada al período.
+
+El informe incluye un embudo verificable, tablas, doce gráficos, alertas de conciliación, conclusiones y recomendaciones calculadas. Los estados sin dato no se convierten en cero ni reprobación. Las notas oficiales prevalecen sobre las derivadas: 70/30 para Artículo Académico y 60/40 para Trabajo de Titulación, exclusivamente si la modalidad está identificada.
+
+Los archivos se exportan a PDF y Word editable compatible (.doc) con portada y firmas sin signar. Son borradores para revisión: deben confirmarse normas, código documental y notas antes de su emisión. Los cronogramas, notas de Complexivo y el sistema original continúan funcionando como módulos independientes.
+
+Pruebas del modelo con datos sintéticos: node Inf/tests/verify-pvc.js

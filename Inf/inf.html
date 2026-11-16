@@ -23,6 +23,9 @@
 <script defer src="core/inf.results.js"></script>
 <script defer src="core/inf.visuals.js"></script>
 <script defer src="export/inf.pdf.js"></script>
+<script defer src="../node_modules/html2pdf.js/dist/html2pdf.bundle.min.js"></script>
+<script defer src="core/inf.pvc.js"></script>
+<script defer src="export/inf.pvc-export.js"></script>
 <script defer src="inf.app.js"></script>
 </head>
 <body>
@@ -30,16 +33,26 @@
 <header class="inf-head">
 <div class="inf-kicker">UNIDAD DE TITULACIÓN Y EFICIENCIA TERMINAL · ITSQMET</div>
 <h1>Inf · Informe Final del Proceso de Titulación</h1>
-<p>Informe progresivo con texto institucional fijo, cronogramas por período y figuras académicas. Puedes descargar <strong>únicamente los capítulos desarrollados</strong> en un PDF de avance, sin esperar a completar el informe final.</p>
+<p>Selecciona el período académico para consultar requisitos y notas y generar el informe final PVC. El PDF de avance de Complexivo se mantiene en una función independiente.</p>
 <div class="inf-toolbar">
 <label for="inf-period">Período académico
 <input id="inf-period" list="inf-period-options" type="text" value="Octubre 2025 a Marzo 2026" maxlength="110" autocomplete="off" placeholder="Ej.: Octubre 2025 a Marzo 2026"></label>
 <datalist id="inf-period-options"></datalist>
 <button type="button" id="inf-period-load" class="inf-button">Cargar período</button>
-<button type="button" id="inf-pdf" class="inf-button inf-button-primary">Descargar PDF con lo avanzado</button>
+<button type="button" id="inf-pdf" class="inf-button inf-button-primary">PDF de Complexivo (avance)</button>
 </div>
 <p id="inf-status" class="inf-statusbar" role="status">Preparando informe…</p>
 </header>
+<section class="inf-panel" id="inf-pvc-panel" aria-labelledby="inf-pvc-title">
+<div class="inf-panel-head"><div><h2 id="inf-pvc-title">Informe final PVC por período</h2><p>Introducción, base legal, metodología adaptada a las carreras presentes, resultados, conciliación, gráficos y conclusiones.</p></div>
+<div class="inf-pvc-actions"><button type="button" id="inf-pvc-refresh" class="inf-button">Consultar período</button>
+<button type="button" id="inf-pvc-word" class="inf-button inf-button-primary" disabled>Word editable</button>
+<button type="button" id="inf-pvc-pdf" class="inf-button inf-button-primary" disabled>PDF institucional</button></div></div>
+<p class="inf-hint" id="inf-pvc-status">Selecciona un período registrado en BDLocal.</p>
+<div id="inf-pvc-summary" class="inf-pvc-summary" aria-live="polite"></div>
+<iframe id="inf-pvc-preview" class="inf-pvc-frame" title="Vista previa del informe PVC" loading="lazy"></iframe>
+<p class="inf-pvc-disclaimer">Documento en borrador: los datos, las normas, las firmas y el código documental requieren validación institucional antes de emitirlo.</p>
+</section>
 <section class="inf-panel" aria-labelledby="inf-cal-title">
 <div class="inf-panel-head"><div><h2 id="inf-cal-title">Cronogramas del período</h2><p>Modifica actividades y fechas del período seleccionado; las fechas no acreditan por sí solas ejecución.</p></div><button type="button" id="inf-schedule-save" class="inf-button inf-button-primary">Guardar cronogramas</button></div>
 <p id="inf-schedule-origin" class="inf-hint"></p>

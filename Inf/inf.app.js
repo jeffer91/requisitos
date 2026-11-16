@@ -1,7 +1,7 @@
 /* Módulo Inf: textos fijos, cronogramas editables y PDF de avance. */
 (function(window,document){
 "use strict";
-var state={schedule:null,dirty:false,careers:[],results:null,periods:[],loadingResults:false};
+var state={schedule:null,dirty:false,careers:[],results:null,periods:[],loadingResults:false,pvcReport:null,pvcError:"",pvcRequest:0};
 function el(id){return document.getElementById(id);}
 function text(s){return String(s==null?"":s).trim();}
 function make(tag,cls,content){
@@ -153,9 +153,40 @@ function showResults(){
  table.appendChild(body);
  var scroll=make("div","inf-table-scroll");scroll.appendChild(table);container.appendChild(scroll);
 }
+
+function showPVC(){
+ var status=el("inf-pvc-status"),summary=el("inf-pvc-summary"),preview=el("inf-pvc-preview"),r=state.pvcReport;
+ var ready=!!r&&r.ok;
+ el("inf-pvc-word").disabled=!ready;el("inf-pvc-pdf").disabled=!ready;
+ summary.textContent="";
+ if(!ready){
+  preview.removeAttribute("srcdoc");
+  status.textContent=state.pvcError||(r?"No hay estudiantes activos de este período.":"Selecciona un período académico.");
+  return;
+ }
+ status.textContent="Fuente: "+r.source+" · "+r.careers.length+" carreras · "+r.issues.length+" advertencias de conciliación.";
+ [
+ ["Matrículas",r.counts.total],["Con nota final",r.counts.evaluados],
+ ["Aprobados",r.counts.aprobados],["Sin nota",r.counts.sinNota],
+ ["Aprobación/cohorte",r.counts.tasaGlobal==null?"Sin dato":r.counts.tasaGlobal+" %"]
+ ].forEach(function(item){var cell=make("div","inf-pvc-stat");cell.appendChild(make("strong",null,item[1]));cell.appendChild(make("span",null,item[0]));summary.appendChild(cell);});
+ preview.srcdoc=window.InfPVCExport.documentHTML(r,new URL("../Global/assets/branding/logo-instituto.png",document.baseURI).href);
+}
+async function exportPVC(type){
+ var button=el(type==="pdf"?"inf-pvc-pdf":"inf-pvc-word"),r=state.pvcReport;
+ if(!r||!r.ok){message("No hay datos PVC del período para generar el archivo.",true);return;}
+ try{
+  button.disabled=true;message("Generando informe "+type.toUpperCase()+" para "+r.periodoLabel+"…");
+  var result=await window.InfPVCExport[type](r);
+  message("Archivo generado: "+result.name+". Pendiente de validación institucional.");
+ }catch(error){message("Error de exportación PVC: "+error.message,true);}
+ finally{button.disabled=false;}
+}
+
 async function loadResults(){
  if(!state.schedule)return;
- state.results=null;showResults();
+ state.results=null;showResults();state.pvcReport=null;state.pvcError="Consultando registros del período…";showPVC();
+ var ticket=++state.pvcRequest;
  if(!window.ConInf||typeof window.ConInf.read!=="function"){
   el("inf-results-summary").textContent="El conector ConInf no está disponible. Los cronogramas y el PDF parcial siguen habilitados.";return;
  }
@@ -165,15 +196,19 @@ async function loadResults(){
   if(!dbPeriod){
    el("inf-results-summary").textContent="El período "+state.schedule.period+
     " no coincide con un identificador de período de BDLocal. No se mezclarán datos de otros períodos.";
+   state.pvcError="Período no identificado en BDLocal.";showPVC();
    return;
   }
   var snapshot=await window.ConInf.read({periodoId:dbPeriod});
-  if(state.schedule.period!==text(el("inf-period").value))return;
-  state.results=window.InfResults.build(snapshot,state.careers);
-  showResults();
+  if(ticket!==state.pvcRequest||state.schedule.period!==text(el("inf-period").value))return;
+  try{state.results=window.InfResults.build(snapshot,state.careers);showResults();}
+  catch(nucleusError){el("inf-results-summary").textContent="No se pudo analizar núcleos: "+nucleusError.message;}
+  state.pvcReport=window.InfPVC.build(snapshot,{periodoId:dbPeriod,periodoLabel:state.schedule.period});
+  state.pvcError="";showPVC();
  }catch(error){
   el("inf-results-summary").textContent="No se pudieron consultar resultados de BDLocal: "+error.message+
    ". El PDF parcial de los capítulos anteriores permanece disponible.";
+  state.pvcReport=null;state.pvcError="No se pudieron consultar los datos PVC: "+error.message;showPVC();
  }finally{state.loadingResults=false;}
 }
 async function loadPeriodsFromBD(){
@@ -193,6 +228,7 @@ async function loadPeriodsFromBD(){
 function loadPeriod(){
  if(state.dirty&&!window.confirm("Hay cambios sin guardar. ¿Deseas cambiar de período?"))return;
  try {
+  state.pvcReport=null;state.pvcError="Consultando el período…";showPVC();
   state.schedule=window.InfSchedules.load(el("inf-period").value);
   state.dirty=false;showRows("complexivo");showRows("trabajo");renderGantts();
   el("inf-schedule-origin").textContent=state.schedule.source+". Estados inicialmente sin verificar; confirma el cumplimiento con evidencias.";
@@ -255,11 +291,15 @@ function boot(){
   el("inf-add-trabajo").addEventListener("click",function(){addRow("trabajo");});
   el("inf-schedule-save").addEventListener("click",savePeriod);
   el("inf-pdf").addEventListener("click",downloadPdf);
+  el("inf-pvc-refresh").addEventListener("click",loadResults);
+  el("inf-pvc-word").addEventListener("click",function(){exportPVC("word");});
+  el("inf-pvc-pdf").addEventListener("click",function(){exportPVC("pdf");});
   message("Inf preparado: "+r.coverage.completed+" apartados con texto; "+r.coverage.pending+" pendientes. Los resultados de estudiantes aún no están conectados.");
   window.InfApp=Object.freeze({getDraft:function(){return window.InfReport.build();},
     getSchedules:function(){return JSON.parse(JSON.stringify(state.schedule));},
     getResults:function(){return state.results;},
-    loadPeriod:loadPeriod,savePeriod:savePeriod,downloadPdf:downloadPdf});
+    loadPeriod:loadPeriod,savePeriod:savePeriod,downloadPdf:downloadPdf,
+    getPVCReport:function(){return state.pvcReport;},exportPVC:exportPVC});
  }catch(e){message("Error al iniciar Inf: "+e.message,true);}
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);
