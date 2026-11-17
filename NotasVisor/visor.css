@@ -44,3 +44,30 @@ tr.detail td{background:#fbfcfe;white-space:normal;padding:12px 16px}
 .sub th{background:#e8eef7;color:#142339;position:static}
 .empty{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:30px;text-align:center;color:var(--mute)}
 @media (max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}#nv-career{min-width:0}}
+
+/* Correcciones manuales — solo Artículo académico */
+.nv-edit-btn{padding:5px 10px;border-radius:7px;border:1px solid #b9cae9;background:#eef5ff;color:#144b83;font-size:12px;font-weight:700}
+.nv-edit-btn:hover{background:#dceaff}
+#nv-editor{border:1px solid #d6e0ec;border-radius:15px;padding:0;box-shadow:0 22px 70px rgba(7,24,48,.28);width:min(740px,calc(100vw - 32px));max-height:calc(100vh - 32px);color:#142339}
+#nv-editor::backdrop{background:rgba(10,24,43,.60)}
+#nv-edit-form{padding:22px;max-height:calc(100vh - 40px);overflow:auto}
+.nv-edit-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:7px}
+.nv-edit-heading h2{font-size:18px;line-height:1.25;margin:0 0 5px}
+.nv-edit-heading p{font-size:12.5px;color:#475569;margin:0}
+#nv-edit-cancel-top{padding:0 6px;border:0;background:transparent;font-size:25px;font-weight:400}
+.nv-edit-help{font-size:12px;color:#566579;line-height:1.5;margin:10px 0}
+.nv-edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px;margin:14px 0}
+.nv-edit-grid input{min-width:0;width:100%;padding:9px}
+.nv-edit-reason{margin-top:14px}
+.nv-edit-reason textarea{width:100%;resize:vertical;min-height:65px;font:inherit;font-size:13px;border:1px solid #cdd8e6;border-radius:8px;padding:9px}
+.nv-edit-preview{background:#f7fafe;border:1px solid #dce5f2;border-radius:9px;padding:10px 12px;font-size:12.5px;min-height:38px}
+.nv-edit-preview strong{display:block;margin-bottom:5px}
+.nv-edit-preview ul{margin:4px 0;padding-left:18px}
+.nv-edit-preview li{padding:2px 0}
+.nv-edit-warning{color:#9a3412;margin-top:8px}
+#nv-edit-error{font-size:12.5px;color:#b42318;min-height:16px}
+.nv-edit-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #e8edf5;padding-top:14px}
+.nv-edit-primary{background:#245bea;color:#fff;border-color:#245bea}
+.nv-edit-primary:hover{background:#1749ca;color:#fff}
+.nv-edit-primary:disabled{opacity:.6;cursor:wait}
+@media(max-width:560px){#nv-edit-form{padding:15px}.nv-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
