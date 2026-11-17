@@ -7,7 +7,10 @@
 <body><main class="nv">
 <header>
  <div><h1 id="nv-title">Notas</h1><p id="nv-sub">Solo lectura · las notas se suben en Notas → Cargado de notas</p></div>
- <button id="nv-refresh" type="button">Actualizar</button>
+ <div class="nv-header-actions">
+  <button id="nv-missing-open" class="nv-missing-button" type="button" hidden>Sin nota: <strong id="nv-missing-count">0</strong></button>
+  <button id="nv-refresh" type="button">Actualizar</button>
+ </div>
 </header>
 <section class="filters">
  <label>Período<select id="nv-period" data-periodo-global="true"><option value="">Cargando…</option></select></label>
@@ -26,13 +29,25 @@
 </section>
 <p class="legend" id="nv-legend" hidden><span class="g ok">7.00+</span><span class="g bad">menos de 7</span><span class="g calc">calculada por la app</span> · Haz clic en un estudiante para ver su detalle.</p>
 <div id="nv-body"></div>
+<dialog id="nv-missing" aria-labelledby="nv-missing-title">
+ <section class="nv-missing-panel">
+  <div class="nv-edit-heading"><div><h2 id="nv-missing-title">Estudiantes con notas pendientes</h2><p id="nv-missing-subtitle"></p></div>
+    <button id="nv-missing-close" type="button" aria-label="Cerrar">×</button></div>
+  <p class="nv-edit-help">Selecciona un estudiante para registrar sus calificaciones. “Sin registro” significa que todavía no existe un documento de artículo en Firebase.</p>
+  <label class="nv-missing-search">Buscar por nombre o cédula<input id="nv-missing-search" type="search" placeholder="Escribe para filtrar"></label>
+  <div id="nv-missing-list" class="nv-missing-list"></div>
+  <label class="nv-missing-extra"><input type="checkbox" id="nv-missing-others"> Buscar también entre matriculados sin modalidad de artículo identificada (verifica su modalidad antes de guardar).</label>
+  <div class="nv-edit-actions"><button id="nv-missing-done" type="button">Cerrar</button></div>
+ </section>
+</dialog>
 
 <dialog id="nv-editor" aria-labelledby="nv-editor-title">
  <form id="nv-edit-form">
   <div class="nv-edit-heading">
-   <div><h2 id="nv-editor-title">Corregir notas de artículo académico</h2><p id="nv-edit-student"></p></div>
+   <div><h2 id="nv-editor-title">Editar notas de artículo académico</h2><p id="nv-edit-student"></p></div>
    <button id="nv-edit-cancel-top" type="button" aria-label="Cerrar">×</button>
   </div>
+  <p id="nv-edit-missing" class="nv-edit-missing" hidden>Este estudiante todavía no tiene notas registradas. Ingresa una o varias calificaciones; los campos que falten quedarán pendientes.</p>
   <p class="nv-edit-help">Modifica únicamente las notas necesarias. Escrito = promedio de tutor y lector; Oral = promedio de práctica y defensa. Puedes corregir también los promedios directamente.</p>
   <div class="nv-edit-grid">
    <label>Tutor<input data-grade="calificacionTutor" inputmode="decimal" placeholder="Sin nota" /></label>
@@ -46,7 +61,7 @@
   <p class="nv-edit-help" id="nv-edit-formula"></p>
   <div id="nv-edit-preview" class="nv-edit-preview" aria-live="polite"></div>
   <label class="nv-edit-reason">Motivo de la corrección (obligatorio)
-   <textarea id="nv-edit-reason" rows="2" maxlength="500" placeholder="Ej.: Error de transcripción en la nota de defensa"></textarea>
+   <textarea id="nv-edit-reason" rows="2" maxlength="500" placeholder="Ej.: Registro manual de calificación faltante"></textarea>
   </label>
   <p class="nv-edit-help">La corrección no altera las notas individuales de los vocales. Se guarda un historial y se actualizan artículo y resumen en Firebase.</p>
   <p id="nv-edit-error" role="alert"></p>
