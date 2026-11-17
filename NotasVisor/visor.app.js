@@ -80,7 +80,7 @@ async function load(period,force){
      rows.push(extra);present[id]=true;
     }else if(!mode){state.unknown.push(st);}
    });
-   state.missing=rows.filter(function(r){return r.state==="PENDIENTE";});
+   state.missing=rows.filter(function(r){return r.missingDocument||api.missingKind(r.doc)!=="COMPLETO";});
   }
   rows.sort(function(a,b){return a.nombre.localeCompare(b.nombre,"es");});
   state.cache[key]=rows;state.rows=rows;state.loading=false;
@@ -109,7 +109,7 @@ function makeBlankArticle(st,cedula,period){
 function missingLabel(r){
  if(r.missingDocument)return "Sin registro";
  var kind=editorApi().missingKind(r.doc);
- return kind==="SIN_NOTAS"?"Sin calificaciones":"Nota final pendiente";
+ return kind==="SIN_NOTAS"?"Sin calificaciones":r.final===null?"Nota final pendiente":"Faltan componentes de evaluación";
 }
 function missingRows(){
  return state.missing.slice().sort(function(a,b){return a.nombre.localeCompare(b.nombre,"es");});
@@ -146,7 +146,7 @@ function renderMissingPanel(){
   item.appendChild(btn);body.appendChild(item);
  });
  if(list.length>160)body.appendChild(el("div","nv-missing-empty","Hay "+(list.length-160)+" coincidencias más; utiliza la búsqueda para encontrarlas."));
- $("nv-missing-subtitle").textContent=state.missing.length+" estudiante(s) con la nota final pendiente · "+periodLabel(state.period);
+ $("nv-missing-subtitle").textContent=state.missing.length+" estudiante(s) con calificaciones por completar · "+periodLabel(state.period);
 }
 function openMissingPanel(){
  if(TIPO!=="articulo"||state.saving||!state.period)return;
@@ -212,7 +212,7 @@ function openEditor(r){
    nombre:r.nombre,weight:api.formula(r.doc),values:api.valuesOf(r.doc)};
   $("nv-edit-student").textContent=r.nombre+" · "+r.cedula+" · "+periodLabel(state.period);
   $("nv-editor-title").textContent=r.missingDocument?"Registrar notas de artículo":"Editar notas de artículo";
-  $("nv-edit-missing").hidden=!!(!r.missingDocument&&api.missingKind(r.doc)==="COMPLETO");
+  $("nv-edit-missing").hidden=!r.missingDocument&&api.missingKind(r.doc)==="COMPLETO";
   $("nv-edit-missing").textContent=r.missingDocument?
    "Este estudiante no tiene registro de Artículo académico en Firebase. Se creará uno nuevo al guardar la primera nota.":
    "Este estudiante tiene calificaciones pendientes. Ingresa únicamente las que correspondan.";
@@ -253,7 +253,7 @@ function setupEditor(){
    var reason=txt($("nv-edit-reason").value);
    if(reason.length<5)throw Error("Escribe el motivo de la corrección (mínimo cinco caracteres).");
    if(current.period!==canonical($("nv-period").value))throw Error("Cambió el período seleccionado. Cierra el editor y vuelve a abrirlo.");
-   if(!w.confirm("¿Guardar "+diff.length+" corrección(es) de "+current.nombre+" en Firebase? Esta operación actualizará el resumen y conservará un historial."))return;
+   // La vista previa y el motivo obligatorio forman la confirmación dentro del modal.
    state.saving=true;editError("");$("nv-edit-save").disabled=true;$("nv-edit-save").textContent="Guardando…";
    await api.persist({base:current.base,create:current.create,period:current.period,cedula:current.cedula,values:current.values,reason:reason});
    $("nv-editor").close();state.editing=null;
@@ -334,7 +334,7 @@ function render(){
    var tr=el("tr","row");tr.appendChild(el("td","n",i+1));
    var who=el("td","name");who.appendChild(el("b",null,r.nombre));
    var personMeta=el("div","nv-person-meta");personMeta.appendChild(el("small",null,r.cedula));
-   if(TIPO==="articulo"){var editButton=el("button","nv-edit-btn",r.state==="PENDIENTE"?"Agregar":"Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});personMeta.appendChild(editButton);}
+   if(TIPO==="articulo"){var editButton=el("button","nv-edit-btn",r.missingDocument?"Agregar":editorApi().missingKind(r.doc)!=="COMPLETO"?"Completar":"Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});personMeta.appendChild(editButton);}
    who.appendChild(personMeta);tr.appendChild(who);
    r.cells.forEach(function(c){tr.appendChild(gradeCell(c));});
    var st=el("td");st.appendChild(stateBadge(r.state));tr.appendChild(st);
