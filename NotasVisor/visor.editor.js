@@ -76,7 +76,7 @@ function stampDoc(repo,mapper,entity,old,patch,id,stamp){
   version:Math.max(1,Number(old&&old.version||0)+1),
   eliminado:false,eliminadoEn:""
  });
- out.dataHash=mapper.dataHash(mapper.functionalContent(out));
+ out.dataHash=mapper.dataHash({entity:entity,data:mapper.functionalContent(out)});
  var check=repo.validateDocument(entity,out,id);
  if(!check||!check.ok)throw Error("Documento de "+entity+" inválido: "+(check&&check.errors||[]).join(" "));
  return out;
