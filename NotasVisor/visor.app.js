@@ -8,7 +8,7 @@
 "use strict";
 var C=w.NotasVisorConfig,TIPO=(new URLSearchParams(w.location.search).get("tipo")||"complexivo").toLowerCase();
 var T=C.types[TIPO]||C.types.complexivo;
-var state={period:"",rows:[],loading:false,cache:{},open:{},token:0};
+var state={period:"",rows:[],loading:false,cache:{},open:{},token:0,roster:[],missing:[],unknown:[],shown:{},editing:null,saving:false};
 function $(id){return d.getElementById(id);}
 function txt(v){return String(v==null?"":v).trim();}
 function norm(v){return txt(v).normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase();}
@@ -44,14 +44,15 @@ async function load(period,force){
  if(!period){state.rows=[];render();return;}
  var token=++state.token;state.period=period;state.loading=true;
  var key=period;
- if(!force&&state.cache[key]){state.rows=state.cache[key];state.loading=false;fillCareers();render();return;}
+ if(!force&&TIPO!=="articulo"&&state.cache[key]){state.rows=state.cache[key];state.loading=false;fillCareers();render();return;}
  msg("Leyendo notas de "+periodLabel(period)+"…");
  try{
   var fs=await firestore();
   var results=await Promise.all(T.collections.map(function(e){return readCollection(fs,e,period);}).concat([roster(period)]));
   if(token!==state.token)return;
   var data={};T.collections.forEach(function(e,i){data[e]=results[i];});
-  var people={};(results[results.length-1]||[]).forEach(function(st){var id=txt(st.cedula||st.Cedula).replace(/\D/g,"");if(id)people[id.padStart(10,"0")]=st;});
+  var students=results[results.length-1]||[],people={};
+  students.forEach(function(st){var id=txt(st.cedula||st.Cedula).replace(/\D/g,"");if(id)people[id.padStart(10,"0")]=st;});
   var rows=T.rows(data).map(function(r){
    var st=people[r.cedula]||{},doc=r.doc||{};
    r.nombre=txt(st.Nombres||st.nombres||st.nombreCompleto||doc.nombres)||"(sin nombre en la base local)";
@@ -61,16 +62,108 @@ async function load(period,force){
    r.search=norm(r.cedula+" "+r.nombre);
    return r;
   });
+  if(TIPO==="articulo"){
+   var api=editorApi(),present={};
+   rows.forEach(function(r){present[r.cedula]=true;});
+   state.roster=students;state.unknown=[];
+   Object.keys(people).forEach(function(id){
+    if(present[id])return;
+    var st=people[id],mode=api.declaredModality(st);
+    if(mode==="ARTICULO_ACADEMICO"){
+     var stub=makeBlankArticle(st,id,period),extra=T.rows({notas_articulo:[stub]})[0];
+     extra.doc=stub;extra.missingDocument=true;
+     extra.nombre=txt(st.Nombres||st.nombres||st.nombreCompleto)||"(sin nombre en la base local)";
+     extra.carrera=txt(st.NombreCarrera||st.nombreCarrera)||"Sin carrera";
+     extra.codigo=txt(st.CodigoCarrera||st.codigoCarrera);
+     extra.grupo=group(extra.codigo,extra.carrera,st);
+     extra.search=norm(id+" "+extra.nombre);
+     rows.push(extra);present[id]=true;
+    }else if(!mode){state.unknown.push(st);}
+   });
+   state.missing=rows.filter(function(r){return r.state==="PENDIENTE";});
+  }
   rows.sort(function(a,b){return a.nombre.localeCompare(b.nombre,"es");});
   state.cache[key]=rows;state.rows=rows;state.loading=false;
   fillCareers();render();
+  if(TIPO==="articulo"&&state.missing.length&&!state.shown[period]){
+   state.shown[period]=true;
+   openMissingPanel();
+  }
  }catch(error){
   if(token!==state.token)return;
-  state.rows=[];state.loading=false;render();
+  state.rows=[];state.loading=false;state.missing=[];state.unknown=[];render();
   msg("No se pudieron leer las notas de Firebase: "+(error&&error.message||error)+" Revisa la conexión a internet y pulsa Actualizar.",true);
  }finally{if(token===state.token)state.loading=false;ready();}
 }
 function periodLabel(id){var o=$("nv-period").querySelector('option[value="'+id+'"]');return o?o.textContent:id;}
+
+/* ---------- Artículo: candidatos sin calificaciones ---------- */
+function makeBlankArticle(st,cedula,period){
+ st=st||{};
+ return {periodoId:period,cedula:cedula,
+  codigoCarrera:txt(st.CodigoCarrera||st.codigoCarrera),
+  nombreCarrera:txt(st.NombreCarrera||st.nombreCarrera),
+  grupoInforme:group(st.CodigoCarrera||st.codigoCarrera,st.NombreCarrera||st.nombreCarrera,st),
+  formula:"70/30",modalidadTitulacion:"ARTICULO_ACADEMICO"};
+}
+function missingLabel(r){
+ if(r.missingDocument)return "Sin registro";
+ var kind=editorApi().missingKind(r.doc);
+ return kind==="SIN_NOTAS"?"Sin calificaciones":"Nota final pendiente";
+}
+function missingRows(){
+ return state.missing.slice().sort(function(a,b){return a.nombre.localeCompare(b.nombre,"es");});
+}
+function renderMissingPanel(){
+ if(TIPO!=="articulo")return;
+ var body=$("nv-missing-list"),search=norm($("nv-missing-search").value),all=$("nv-missing-others").checked,known=missingRows(),list=[];
+ known.forEach(function(r){if(!search||r.search.indexOf(search)>=0)list.push({row:r,mode:"known"});});
+ if(all){
+  state.unknown.forEach(function(st){
+   var cedula=txt(st.cedula||st.Cedula).replace(/\D/g,"").padStart(10,"0");
+   var nombre=txt(st.Nombres||st.nombres||st.nombreCompleto)||"(sin nombre)";
+   if(search&&norm(cedula+" "+nombre).indexOf(search)<0)return;
+   var stub=makeBlankArticle(st,cedula,state.period),r=T.rows({notas_articulo:[stub]})[0];
+   r.doc=stub;r.missingDocument=true;r.nombre=nombre;r.cedula=cedula;
+   r.carrera=txt(st.NombreCarrera||st.nombreCarrera)||"Sin carrera";r.codigo=txt(st.CodigoCarrera||st.codigoCarrera);
+   r.grupo=group(r.codigo,r.carrera,st);r.search=norm(r.cedula+" "+nombre);
+   list.push({row:r,mode:"unverified"});
+  });
+ }
+ body.textContent="";
+ if(!list.length)body.appendChild(el("div","nv-missing-empty",all?"No hay estudiantes coincidentes.":"No hay pendientes en este filtro. Puedes marcar la opción de búsqueda ampliada."));
+ list.slice(0,160).forEach(function(entry){
+  var r=entry.row,item=el("div","nv-missing-item"),description=el("div");
+  description.appendChild(el("strong",null,r.nombre));
+  description.appendChild(el("small",null,r.cedula+" · "+r.carrera));
+  description.appendChild(el("small",null,entry.mode==="unverified"?"Modalidad sin verificar":missingLabel(r)));
+  item.appendChild(description);
+  var btn=el("button",null,r.missingDocument?"Agregar notas":"Completar notas");btn.type="button";
+  btn.addEventListener("click",function(){
+   if(entry.mode==="unverified"&&!w.confirm("La matrícula de "+r.nombre+" no declara Artículo académico. ¿Confirmas que corresponde a esta modalidad antes de crear su registro?"))return;
+   openEditor(r);
+  });
+  item.appendChild(btn);body.appendChild(item);
+ });
+ if(list.length>160)body.appendChild(el("div","nv-missing-empty","Hay "+(list.length-160)+" coincidencias más; utiliza la búsqueda para encontrarlas."));
+ $("nv-missing-subtitle").textContent=state.missing.length+" estudiante(s) con la nota final pendiente · "+periodLabel(state.period);
+}
+function openMissingPanel(){
+ if(TIPO!=="articulo"||state.saving||!state.period)return;
+ var dialog=$("nv-missing");if(!dialog||dialog.open)return;
+ $("nv-missing-search").value="";$("nv-missing-others").checked=false;
+ renderMissingPanel();dialog.showModal();
+}
+function setupMissingPanel(){
+ if(TIPO!=="articulo")return;
+ $("nv-missing-open").hidden=false;
+ $("nv-missing-open").addEventListener("click",openMissingPanel);
+ function close(){if($("nv-missing").open)$("nv-missing").close();}
+ $("nv-missing-close").addEventListener("click",close);
+ $("nv-missing-done").addEventListener("click",close);
+ $("nv-missing-search").addEventListener("input",renderMissingPanel);
+ $("nv-missing-others").addEventListener("change",renderMissingPanel);
+}
 
 /* ---------- Filtros ---------- */
 function fillCareers(){
@@ -113,13 +206,19 @@ function renderEditForm(){
 }
 function openEditor(r){
  var api=editorApi();if(!api||state.saving)return;
+ if($("nv-missing")&&$("nv-missing").open)$("nv-missing").close();
  try{
-  state.editing={base:JSON.parse(JSON.stringify(r.doc||{})),period:state.period,cedula:r.cedula,
+  state.editing={base:JSON.parse(JSON.stringify(r.doc||{})),create:!!r.missingDocument,period:state.period,cedula:r.cedula,
    nombre:r.nombre,weight:api.formula(r.doc),values:api.valuesOf(r.doc)};
   $("nv-edit-student").textContent=r.nombre+" · "+r.cedula+" · "+periodLabel(state.period);
+  $("nv-editor-title").textContent=r.missingDocument?"Registrar notas de artículo":"Editar notas de artículo";
+  $("nv-edit-missing").hidden=!!(!r.missingDocument&&api.missingKind(r.doc)==="COMPLETO");
+  $("nv-edit-missing").textContent=r.missingDocument?
+   "Este estudiante no tiene registro de Artículo académico en Firebase. Se creará uno nuevo al guardar la primera nota.":
+   "Este estudiante tiene calificaciones pendientes. Ingresa únicamente las que correspondan.";
   $("nv-edit-formula").textContent="Fórmula del registro: "+Math.round(state.editing.weight*100)+
    " % escrito + "+Math.round((1-state.editing.weight)*100)+" % oral. Valores permitidos: 0,00 a 10,00.";
-  $("nv-edit-reason").value="";
+  $("nv-edit-reason").value=r.missingDocument?"Registro manual de notas faltantes":"";
   editError("");renderEditForm();$("nv-editor").showModal();
  }catch(error){msg("No se pudo abrir el editor: "+(error.message||error),true);}
 }
@@ -156,11 +255,11 @@ function setupEditor(){
    if(current.period!==canonical($("nv-period").value))throw Error("Cambió el período seleccionado. Cierra el editor y vuelve a abrirlo.");
    if(!w.confirm("¿Guardar "+diff.length+" corrección(es) de "+current.nombre+" en Firebase? Esta operación actualizará el resumen y conservará un historial."))return;
    state.saving=true;editError("");$("nv-edit-save").disabled=true;$("nv-edit-save").textContent="Guardando…";
-   await api.persist({base:current.base,period:current.period,cedula:current.cedula,values:current.values,reason:reason});
+   await api.persist({base:current.base,create:current.create,period:current.period,cedula:current.cedula,values:current.values,reason:reason});
    $("nv-editor").close();state.editing=null;
    delete state.cache[current.period];
    await load(current.period,true);
-   msg("Corrección guardada y verificada en Firebase para "+current.nombre+".");
+   msg((current.create?"Notas registradas":"Corrección guardada")+" y verificadas en Firebase para "+current.nombre+".");
   }catch(error){editError(error&&error.message||String(error));}
   finally{state.saving=false;$("nv-edit-save").disabled=false;$("nv-edit-save").textContent="Guardar corrección";}
  });
@@ -201,6 +300,11 @@ function summary(list){
 function render(){
  var body=$("nv-body");body.textContent="";
  var list=filtered(),s=summary(list);
+ if(TIPO==="articulo"){
+  $("nv-missing-open").hidden=false;
+  $("nv-missing-count").textContent=state.missing.length;
+  $("nv-missing-open").title="Consultar y agregar notas pendientes";
+ }
  $("nv-cards").hidden=!state.rows.length;$("nv-legend").hidden=!state.rows.length;
  $("nv-total").textContent=s.n;$("nv-ok").textContent=s.ok;$("nv-bad").textContent=s.bad;$("nv-pend").textContent=s.pend;$("nv-avg").textContent=fmt(s.avg);
  if(!state.period){msg("Elige un período.");return;}
@@ -230,7 +334,7 @@ function render(){
    var tr=el("tr","row");tr.appendChild(el("td","n",i+1));
    var who=el("td","name");who.appendChild(el("b",null,r.nombre));
    var personMeta=el("div","nv-person-meta");personMeta.appendChild(el("small",null,r.cedula));
-   if(TIPO==="articulo"){var editButton=el("button","nv-edit-btn","Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});personMeta.appendChild(editButton);}
+   if(TIPO==="articulo"){var editButton=el("button","nv-edit-btn",r.state==="PENDIENTE"?"Agregar":"Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});personMeta.appendChild(editButton);}
    who.appendChild(personMeta);tr.appendChild(who);
    r.cells.forEach(function(c){tr.appendChild(gradeCell(c));});
    var st=el("td");st.appendChild(stateBadge(r.state));tr.appendChild(st);
@@ -281,6 +385,7 @@ function watchVisible(reload){
  w.addEventListener("maqueta:screen-shown",function(){if(Date.now()-last<1500)return;last=Date.now();reload();});
 }
 function init(){
+ setupMissingPanel();
  setupEditor();
  d.title="Notas · "+T.title;$("nv-title").textContent="Notas · "+T.title;
  $("nv-period").addEventListener("change",function(){load(canonical($("nv-period").value));});
