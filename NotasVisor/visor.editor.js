@@ -63,6 +63,8 @@ function declaredModality(st){
  for(var i=0;i<names.length;i++){
   var value=norm(st[names[i]]);
   if(!value)continue;
+  // Ncomplex puede asignar EXAMEN_COMPLEXIVO por defecto aunque no exista evaluación oficial.
+  if(names[i]==="modalidadTitulacion"&&st._ncomplexHasSavedEvaluation===false&&value==="EXAMEN_COMPLEXIVO")continue;
   if(value==="ARTICULO_ACADEMICO"||value==="ARTICULO"||value==="ARTICULO_CIENTIFICO"||value==="ARTICULO_ACADEMICO_DE_TITULACION")return "ARTICULO_ACADEMICO";
   if(value==="EXAMEN_COMPLEXIVO"||value==="COMPLEXIVO"||value==="TRABAJO_TITULACION"||value==="TRABAJO_DE_TITULACION"||value==="PROYECTO_DE_TITULACION")return value;
  }
