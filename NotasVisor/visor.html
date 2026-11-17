@@ -1,7 +1,7 @@
 <!doctype html>
-<!-- visor.html — /NotasVisor. Visualizador de notas (solo lectura) por carrera.
+<!-- visor.html — /NotasVisor. Visualizador de notas por carrera (Artículo admite correcciones).
      Un mismo diseño para Núcleos, Complexivo, Trabajo y Artículo: ?tipo=nucleos|complexivo|trabajo|articulo
-     Las notas se suben únicamente desde Notas → Cargado de notas. -->
+     Artículo permite correcciones manuales y auditadas en Firebase. -->
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Notas</title><link rel="stylesheet" href="visor.css"></head>
 <body><main class="nv">
@@ -26,10 +26,42 @@
 </section>
 <p class="legend" id="nv-legend" hidden><span class="g ok">7.00+</span><span class="g bad">menos de 7</span><span class="g calc">calculada por la app</span> · Haz clic en un estudiante para ver su detalle.</p>
 <div id="nv-body"></div>
+
+<dialog id="nv-editor" aria-labelledby="nv-editor-title">
+ <form id="nv-edit-form">
+  <div class="nv-edit-heading">
+   <div><h2 id="nv-editor-title">Corregir notas de artículo académico</h2><p id="nv-edit-student"></p></div>
+   <button id="nv-edit-cancel-top" type="button" aria-label="Cerrar">×</button>
+  </div>
+  <p class="nv-edit-help">Modifica únicamente las notas necesarias. Escrito = promedio de tutor y lector; Oral = promedio de práctica y defensa. Puedes corregir también los promedios directamente.</p>
+  <div class="nv-edit-grid">
+   <label>Tutor<input data-grade="calificacionTutor" inputmode="decimal" placeholder="Sin nota" /></label>
+   <label>Lector<input data-grade="calificacionLector" inputmode="decimal" placeholder="Sin nota" /></label>
+   <label>Escrito<input data-grade="notaArticulo" inputmode="decimal" placeholder="Sin nota" /></label>
+   <label>Práctica<input data-grade="promedioEvaluacionPractica" inputmode="decimal" placeholder="Sin nota" /></label>
+   <label>Defensa<input data-grade="promedioEvaluacionDefensa" inputmode="decimal" placeholder="Sin nota" /></label>
+   <label>Oral<input data-grade="notaDefensa" inputmode="decimal" placeholder="Sin nota" /></label>
+   <label>Final<input data-grade="notaFinal" inputmode="decimal" placeholder="Sin nota" /></label>
+  </div>
+  <p class="nv-edit-help" id="nv-edit-formula"></p>
+  <div id="nv-edit-preview" class="nv-edit-preview" aria-live="polite"></div>
+  <label class="nv-edit-reason">Motivo de la corrección (obligatorio)
+   <textarea id="nv-edit-reason" rows="2" maxlength="500" placeholder="Ej.: Error de transcripción en la nota de defensa"></textarea>
+  </label>
+  <p class="nv-edit-help">La corrección no altera las notas individuales de los vocales. Se guarda un historial y se actualizan artículo y resumen en Firebase.</p>
+  <p id="nv-edit-error" role="alert"></p>
+  <div class="nv-edit-actions">
+   <button id="nv-edit-cancel" type="button">Cancelar</button>
+   <button id="nv-edit-save" class="nv-edit-primary" type="submit">Guardar corrección</button>
+  </div>
+ </form>
+</dialog>
 </main>
 <script src="../BDLocal/firebase/bdl.firebase.operation-center.js"></script>
 <script src="../BDLocal/conexiones/cone.ncomplex.js"></script>
 <script src="../BDLocal/shared/bdl.periodo-global.js"></script>
 <script src="visor.config.js"></script>
+<script src="../BDLocal/firebase/bdl.firebase.mapper.v2.js"></script>
+<script src="visor.editor.js"></script>
 <script src="visor.app.js"></script>
 </body></html>
