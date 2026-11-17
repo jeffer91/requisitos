@@ -56,6 +56,24 @@ function changes(before,after){
   return {campo:f.key,etiqueta:f.label,anterior:before[f.key],nuevo:after[f.key]};
  });
 }
+function norm(v){return text(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]+/g,"_");}
+function declaredModality(st){
+ st=st||{};
+ var names=["tipoTitulacion","Tipo de titulación","tipo_titulacion","trabajoTitulacion","modalidadTitulacion"];
+ for(var i=0;i<names.length;i++){
+  var value=norm(st[names[i]]);
+  if(!value)continue;
+  if(value==="ARTICULO_ACADEMICO"||value==="ARTICULO"||value==="ARTICULO_CIENTIFICO"||value==="ARTICULO_ACADEMICO_DE_TITULACION")return "ARTICULO_ACADEMICO";
+  if(value==="EXAMEN_COMPLEXIVO"||value==="COMPLEXIVO"||value==="TRABAJO_TITULACION"||value==="TRABAJO_DE_TITULACION"||value==="PROYECTO_DE_TITULACION")return value;
+ }
+ return "";
+}
+function missingKind(doc){
+ if(!doc)return "SIN_REGISTRO";
+ var v=valuesOf(doc);
+ if(FIELDS.every(function(field){return v[field.key]===null;}))return "SIN_NOTAS";
+ return v.notaFinal===null?"INCOMPLETO":"COMPLETO";
+}
 function expected(doc){
  return {exists:true,version:Number(doc&&doc.version||0),updatedAt:text(doc&&doc.updatedAt),hash:text(doc&&doc.dataHash)};
 }
@@ -88,6 +106,8 @@ async function persist(options){
   throw Error("Cédula o período inválidos. No se guardó ningún cambio.");
  if(text(base.periodoId)!==period||text(base.cedula)!==cedula)
   throw Error("El estudiante o el período no coinciden con el registro abierto.");
+ var creating=options.create===true;
+ if(creating&&base.id&&base.id!==period+"__"+cedula)throw Error("Identidad de artículo incorrecta.");
  var before=valuesOf(base),after=valuesOf(options.values);
  var edits=changes(before,after),reason=text(options.reason);
  if(!edits.length)throw Error("No has modificado ninguna calificación.");
@@ -105,23 +125,30 @@ async function persist(options){
   // Firestore requiere leer todos los documentos antes de efectuar escrituras.
   var articleSnap=await tx.get(articleRef);
   var summarySnap=await tx.get(summaryRef);
-  if(!articleSnap.exists)throw Error("El registro de artículo ya no existe en Firebase.");
-  var remote=articleSnap.data()||{};
-  if(remote.eliminado===true||!sameBaseline(base,remote))throw conflict();
-  if(text(remote.periodoId)!==period||text(remote.cedula)!==cedula)throw conflict();
+  if(creating&&articleSnap.exists)throw conflict();
+  if(!creating&&!articleSnap.exists)throw conflict();
+  var remote=articleSnap.exists?(articleSnap.data()||{}):null;
+  if(remote&&(remote.eliminado===true||!sameBaseline(base,remote)))throw conflict();
+  if(remote&&(text(remote.periodoId)!==period||text(remote.cedula)!==cedula))throw conflict();
   var summary=summarySnap.exists?(summarySnap.data()||{}):null;
   if(summary&&summary.eliminado===true)throw Error("El resumen está eliminado; se canceló la corrección.");
   if(summary&&text(summary.modalidadTitulacion)&&text(summary.modalidadTitulacion)!=="ARTICULO_ACADEMICO")
    throw Error("El resumen corresponde a otra modalidad; se canceló para no alterar otra titulación.");
   var now=new Date().toISOString();
-  var history=Array.isArray(remote.historialCorrecciones)?remote.historialCorrecciones.slice():[];
-  history.push({fecha:now,origen:"edicion_manual_notas_articulo",motivo:reason,cambios:edits});
-  var calculated=Array.isArray(remote.camposCalculados)?remote.camposCalculados.slice():[];
+  var history=Array.isArray(remote&&remote.historialCorrecciones)?remote.historialCorrecciones.slice():[];
+  history.push({fecha:now,origen:creating?"registro_manual_notas_articulo":"edicion_manual_notas_articulo",motivo:reason,cambios:edits});
+  var calculated=Array.isArray(remote&&remote.camposCalculados)?remote.camposCalculados.slice():[];
   edits.forEach(function(edit){
    var label=CALCULATED_LABELS[edit.campo];
    calculated=calculated.filter(function(item){return text(item).indexOf(label)!==0;});
   });
-  var patch=Object.assign({},after,{
+  var patch=Object.assign({},creating?{
+   periodoId:period,cedula:cedula,
+   codigoCarrera:text(base.codigoCarrera),nombreCarrera:text(base.nombreCarrera),
+   grupoInforme:text(base.grupoInforme),
+   modalidadTitulacion:"ARTICULO_ACADEMICO",tipoRegistro:"REGISTRO_MANUAL",
+   origen:"registro_manual_notas_articulo",formula:"70/30",pesoEscrito:0.7
+  }:{},after,{
    estadoEvaluacion:after.notaFinal===null?"INCOMPLETO":after.notaFinal>=7?"APROBADO":"NO_APROBADO",
    historialCorrecciones:history,ultimaCorreccionManual:now,camposCalculados:calculated
   });
@@ -144,6 +171,7 @@ async function persist(options){
 }
 w.NotasVisorEditor=Object.freeze({
  fields:FIELDS,number:number,valuesOf:valuesOf,formula:formula,
+ declaredModality:declaredModality,missingKind:missingKind,
  average:average,total:total,applyChange:applyChange,changes:changes,persist:persist
 });
 })(window);
