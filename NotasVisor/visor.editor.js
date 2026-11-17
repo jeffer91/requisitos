@@ -72,7 +72,7 @@ function missingKind(doc){
  if(!doc)return "SIN_REGISTRO";
  var v=valuesOf(doc);
  if(FIELDS.every(function(field){return v[field.key]===null;}))return "SIN_NOTAS";
- return v.notaFinal===null?"INCOMPLETO":"COMPLETO";
+ return FIELDS.some(function(field){return v[field.key]===null;})?"INCOMPLETO":"COMPLETO";
 }
 function expected(doc){
  return {exists:true,version:Number(doc&&doc.version||0),updatedAt:text(doc&&doc.updatedAt),hash:text(doc&&doc.dataHash)};
