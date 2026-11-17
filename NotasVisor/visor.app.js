@@ -85,6 +85,87 @@ function filtered(){
  return state.rows.filter(function(r){return (!c||r.carrera===c)&&(!s||r.state===s)&&(!q||r.search.indexOf(q)>=0);});
 }
 
+
+/* ---------- Corrección de Artículo académico ---------- */
+function editorApi(){return TIPO==="articulo"?w.NotasVisorEditor:null;}
+function editError(message){var node=$("nv-edit-error");if(node)node.textContent=message||"";}
+function editText(v){return v===null||v===undefined?"—":Number(v).toFixed(2);}
+function inputForGrade(key){return d.querySelector('#nv-edit-form [data-grade="'+key+'"]');}
+function renderEditForm(){
+ var e=state.editing,api=editorApi();if(!e||!api)return;
+ api.fields.forEach(function(field){
+  var input=inputForGrade(field.key),v=e.values[field.key];
+  if(input)input.value=v===null?"":Number(v).toFixed(2);
+ });
+ var preview=$("nv-edit-preview");preview.textContent="";
+ var diff=api.changes(api.valuesOf(e.base),e.values);
+ if(!diff.length){preview.appendChild(el("span",null,"No hay cambios todavía."));}
+ else{
+  preview.appendChild(el("strong",null,"Cambios que se guardarán ("+diff.length+")"));
+  var list=el("ul");
+  diff.forEach(function(change){list.appendChild(el("li",null,change.etiqueta+": "+editText(change.anterior)+" → "+editText(change.nuevo)));});
+  preview.appendChild(list);
+ }
+ var computed=api.total(e.values.notaArticulo,e.values.notaDefensa,e.weight);
+ if(computed!==null&&e.values.notaFinal!==null&&Math.abs(computed-e.values.notaFinal)>0.025){
+  preview.appendChild(el("p","nv-edit-warning","Atención: la nota final introducida ("+editText(e.values.notaFinal)+") no coincide con la fórmula ("+editText(computed)+"). Verifica antes de guardar."));
+ }
+}
+function openEditor(r){
+ var api=editorApi();if(!api||state.saving)return;
+ try{
+  state.editing={base:JSON.parse(JSON.stringify(r.doc||{})),period:state.period,cedula:r.cedula,
+   nombre:r.nombre,weight:api.formula(r.doc),values:api.valuesOf(r.doc)};
+  $("nv-edit-student").textContent=r.nombre+" · "+r.cedula+" · "+periodLabel(state.period);
+  $("nv-edit-formula").textContent="Fórmula del registro: "+Math.round(state.editing.weight*100)+
+   " % escrito + "+Math.round((1-state.editing.weight)*100)+" % oral. Valores permitidos: 0,00 a 10,00.";
+  $("nv-edit-reason").value="";
+  editError("");renderEditForm();$("nv-editor").showModal();
+ }catch(error){msg("No se pudo abrir el editor: "+(error.message||error),true);}
+}
+function setupEditor(){
+ if(!editorApi())return;
+ $("nv-sub").textContent="Consulta y corrige las notas de Artículo académico; se guardan en Firebase.";
+ d.querySelectorAll("#nv-edit-form [data-grade]").forEach(function(input){
+  input.addEventListener("change",function(){
+   if(!state.editing||state.saving)return;
+   try{
+    state.editing.values=editorApi().applyChange(state.editing.values,input.dataset.grade,input.value,state.editing.weight);
+    editError("");renderEditForm();
+   }catch(error){editError(error.message||String(error));}
+  });
+ });
+ function cancel(){
+  if(state.saving)return;
+  $("nv-editor").close();state.editing=null;editError("");
+ }
+ $("nv-edit-cancel").addEventListener("click",cancel);
+ $("nv-edit-cancel-top").addEventListener("click",cancel);
+ $("nv-editor").addEventListener("cancel",function(event){if(state.saving)event.preventDefault();else state.editing=null;});
+ $("nv-edit-form").addEventListener("submit",async function(event){
+  event.preventDefault();
+  if(!state.editing||state.saving)return;
+  var current=state.editing,api=editorApi();
+  try{
+   // Se vuelve a validar lo escrito, también si el usuario aún no perdió el foco.
+   api.fields.forEach(function(field){current.values[field.key]=api.number(inputForGrade(field.key).value);});
+   var diff=api.changes(api.valuesOf(current.base),current.values);
+   if(!diff.length)throw Error("No hay notas diferentes para guardar.");
+   var reason=txt($("nv-edit-reason").value);
+   if(reason.length<5)throw Error("Escribe el motivo de la corrección (mínimo cinco caracteres).");
+   if(current.period!==canonical($("nv-period").value))throw Error("Cambió el período seleccionado. Cierra el editor y vuelve a abrirlo.");
+   if(!w.confirm("¿Guardar "+diff.length+" corrección(es) de "+current.nombre+" en Firebase? Esta operación actualizará el resumen y conservará un historial."))return;
+   state.saving=true;editError("");$("nv-edit-save").disabled=true;$("nv-edit-save").textContent="Guardando…";
+   await api.persist({base:current.base,period:current.period,cedula:current.cedula,values:current.values,reason:reason});
+   $("nv-editor").close();state.editing=null;
+   delete state.cache[current.period];
+   await load(current.period,true);
+   msg("Corrección guardada y verificada en Firebase para "+current.nombre+".");
+  }catch(error){editError(error&&error.message||String(error));}
+  finally{state.saving=false;$("nv-edit-save").disabled=false;$("nv-edit-save").textContent="Guardar corrección";}
+ });
+}
+
 /* ---------- Pantalla ---------- */
 function gradeCell(c){
  var td=el("td","n");
@@ -128,7 +209,7 @@ function render(){
    msg("");body.appendChild(el("div","empty","No hay notas de "+T.title.toLowerCase()+" en "+periodLabel(state.period)+". Se cargan en Notas → Cargado de notas."));}
   return;
  }
- msg(list.length+" de "+state.rows.length+" estudiantes · "+periodLabel(state.period)+" · solo lectura");
+ msg(list.length+" de "+state.rows.length+" estudiantes · "+periodLabel(state.period)+(TIPO==="articulo"?" · pulsa Editar para corregir calificaciones":" · solo lectura"));
  var byCareer={},order=[];
  list.forEach(function(r){if(!byCareer[r.carrera]){byCareer[r.carrera]=[];order.push(r.carrera);}byCareer[r.carrera].push(r);});
  order.sort(function(a,b){return a.localeCompare(b,"es");});
@@ -142,14 +223,15 @@ function render(){
   [["Estudiantes",cs.n],["Aprobados",cs.ok],["No aprobados",cs.bad],["Promedio",fmt(cs.avg)]].forEach(function(p){var x=el("span",null,p[0]+" ");x.appendChild(el("b",null,p[1]));info.appendChild(x);});
   sm.appendChild(info);det.appendChild(sm);
   var wrap=el("div","scroll"),table=el("table"),thead=el("thead"),hr=el("tr");
-  ["#","Estudiante"].concat(T.columns).concat(["Estado"]).forEach(function(h,i){hr.appendChild(el("th",i>=2&&i<2+T.columns.length?"n":"",h));});
+  ["#","Estudiante"].concat(T.columns).concat(TIPO==="articulo"?["Estado","Acciones"]:["Estado"]).forEach(function(h,i){hr.appendChild(el("th",i>=2&&i<2+T.columns.length?"n":"",h));});
   thead.appendChild(hr);table.appendChild(thead);
-  var tbody=el("tbody"),span=T.columns.length+3;
+  var tbody=el("tbody"),span=T.columns.length+3+(TIPO==="articulo"?1:0);
   rows.forEach(function(r,i){
    var tr=el("tr","row");tr.appendChild(el("td","n",i+1));
    var who=el("td","name");who.appendChild(el("b",null,r.nombre));who.appendChild(el("small",null,r.cedula));tr.appendChild(who);
    r.cells.forEach(function(c){tr.appendChild(gradeCell(c));});
    var st=el("td");st.appendChild(stateBadge(r.state));tr.appendChild(st);
+   if(TIPO==="articulo"){var action=el("td"),editButton=el("button","nv-edit-btn","Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});action.appendChild(editButton);tr.appendChild(action);}
    var detail=null;
    tr.addEventListener("click",function(){if(detail){detail.remove();detail=null;return;}detail=detailRow(r,span);tr.after(detail);});
    tbody.appendChild(tr);
@@ -197,6 +279,7 @@ function watchVisible(reload){
  w.addEventListener("maqueta:screen-shown",function(){if(Date.now()-last<1500)return;last=Date.now();reload();});
 }
 function init(){
+ setupEditor();
  d.title="Notas · "+T.title;$("nv-title").textContent="Notas · "+T.title;
  $("nv-period").addEventListener("change",function(){load(canonical($("nv-period").value));});
  ["nv-career","nv-state"].forEach(function(id){$(id).addEventListener("change",render);});
