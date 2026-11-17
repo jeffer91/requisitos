@@ -223,15 +223,17 @@ function render(){
   [["Estudiantes",cs.n],["Aprobados",cs.ok],["No aprobados",cs.bad],["Promedio",fmt(cs.avg)]].forEach(function(p){var x=el("span",null,p[0]+" ");x.appendChild(el("b",null,p[1]));info.appendChild(x);});
   sm.appendChild(info);det.appendChild(sm);
   var wrap=el("div","scroll"),table=el("table"),thead=el("thead"),hr=el("tr");
-  ["#","Estudiante"].concat(T.columns).concat(TIPO==="articulo"?["Estado","Acciones"]:["Estado"]).forEach(function(h,i){hr.appendChild(el("th",i>=2&&i<2+T.columns.length?"n":"",h));});
+  ["#","Estudiante"].concat(T.columns).concat(["Estado"]).forEach(function(h,i){hr.appendChild(el("th",i>=2&&i<2+T.columns.length?"n":"",h));});
   thead.appendChild(hr);table.appendChild(thead);
-  var tbody=el("tbody"),span=T.columns.length+3+(TIPO==="articulo"?1:0);
+  var tbody=el("tbody"),span=T.columns.length+3;
   rows.forEach(function(r,i){
    var tr=el("tr","row");tr.appendChild(el("td","n",i+1));
-   var who=el("td","name");who.appendChild(el("b",null,r.nombre));who.appendChild(el("small",null,r.cedula));tr.appendChild(who);
+   var who=el("td","name");who.appendChild(el("b",null,r.nombre));
+   var personMeta=el("div","nv-person-meta");personMeta.appendChild(el("small",null,r.cedula));
+   if(TIPO==="articulo"){var editButton=el("button","nv-edit-btn","Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});personMeta.appendChild(editButton);}
+   who.appendChild(personMeta);tr.appendChild(who);
    r.cells.forEach(function(c){tr.appendChild(gradeCell(c));});
    var st=el("td");st.appendChild(stateBadge(r.state));tr.appendChild(st);
-   if(TIPO==="articulo"){var action=el("td"),editButton=el("button","nv-edit-btn","Editar");editButton.type="button";editButton.title="Corregir notas de "+r.nombre;editButton.addEventListener("click",function(event){event.stopPropagation();openEditor(r);});action.appendChild(editButton);tr.appendChild(action);}
    var detail=null;
    tr.addEventListener("click",function(){if(detail){detail.remove();detail=null;return;}detail=detailRow(r,span);tr.after(detail);});
    tbody.appendChild(tr);
