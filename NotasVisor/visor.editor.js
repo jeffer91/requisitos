@@ -43,11 +43,16 @@ function total(e,o,weight){return e===null||o===null?null:round(e*weight+o*(1-we
 function applyChange(values,key,value,weight){
  if(!FIELDS.some(function(f){return f.key===key;}))throw Error("Campo no editable.");
  var next=Object.assign({},values);next[key]=number(value);
- if(key==="calificacionTutor"||key==="calificacionLector")
+ // Nunca borrar un promedio oficial por introducir solo una de sus notas parciales.
+ if((key==="calificacionTutor"||key==="calificacionLector")
+     &&next.calificacionTutor!==null&&next.calificacionLector!==null)
   next.notaArticulo=average(next.calificacionTutor,next.calificacionLector);
- if(key==="promedioEvaluacionPractica"||key==="promedioEvaluacionDefensa")
+ if((key==="promedioEvaluacionPractica"||key==="promedioEvaluacionDefensa")
+     &&next.promedioEvaluacionPractica!==null&&next.promedioEvaluacionDefensa!==null)
   next.notaDefensa=average(next.promedioEvaluacionPractica,next.promedioEvaluacionDefensa);
- if(key!=="notaFinal")
+ // Recalcular la final solo cuando cambia Escrito u Oral, no al añadir un
+ // componente parcial que aún no permite establecer su promedio.
+ if(key!=="notaFinal"&&(next.notaArticulo!==values.notaArticulo||next.notaDefensa!==values.notaDefensa))
   next.notaFinal=total(next.notaArticulo,next.notaDefensa,weight);
  return next;
 }
