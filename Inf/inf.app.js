@@ -271,12 +271,7 @@ async function loadPeriodsFromBD(){
  try{
   var rows=await window.ConInf.listPeriods();
   state.periods=Array.isArray(rows)?rows:[];
-  var d=el("inf-period-options");
-  var existing=Array.from(d.children).map(function(o){return o.value;});
-  state.periods.forEach(function(p){
-   var name=text(p.label||p.nombre||p.periodoLabel||p.nombrePeriodo||p.id||p.periodoId);
-   if(name&&existing.indexOf(name)<0){var opt=make("option");opt.value=name;d.appendChild(opt);existing.push(name);}
-  });
+  fillPeriods();
   await loadResults();
  }catch(error){el("inf-results-summary").textContent="No fue posible listar los períodos de BDLocal: "+error.message;}
 }
@@ -289,7 +284,7 @@ function loadPeriod(){
   state.dirty=false;showRows("complexivo");showRows("trabajo");renderGantts();
   el("inf-schedule-origin").textContent=state.schedule.source+". Estados inicialmente sin verificar; confirma el cumplimiento con evidencias.";
   message("Período: "+state.schedule.period+". Revisa los cronogramas antes de generar el PDF.");
-  if(state.periods.length)loadResults();
+  loadResults();
  }catch(e){message(e.message,true);}
 }
 function savePeriod(){
@@ -301,10 +296,32 @@ function savePeriod(){
   message("Cronogramas guardados correctamente para "+state.schedule.period+".");
  }catch(e){message("No se guardó: "+e.message,true);}
 }
+function periodLabel(row){
+ return text(row&&(row.nombre||row.label||row.periodoLabel||row.nombrePeriodo||row.nombre_periodo||row.id||row.periodoId));
+}
+function globalPeriodOptions(){
+ var values=[],topDoc=null;
+ try{topDoc=window.top&&window.top.document;}catch(e){}
+ if(!topDoc||topDoc===document)return values;
+ Array.from(topDoc.querySelectorAll("select")).forEach(function(select){
+  var id=(select.id+" "+select.name+" "+(select.getAttribute("aria-label")||"")).toLowerCase();
+  var options=Array.from(select.options||[]).map(function(o){return text(o.textContent||o.label||o.value);});
+  if(!/period|períod/.test(id)&&!options.some(function(v){return /(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre).*20\\d{2}/i.test(v)}))return;
+  options.forEach(function(v){if(/20\\d{2}/.test(v))values.push(v);});
+ });
+ return values;
+}
 function fillPeriods(){
  var d=el("inf-period-options");d.textContent="";
- var periods=new Set([window.InfSchedules.examplePeriod].concat(window.InfSchedules.periods()));
- periods.forEach(function(p){var o=make("option");o.value=p;d.appendChild(o);});
+ var values=[window.InfSchedules.examplePeriod].concat(window.InfSchedules.periods());
+ state.periods.forEach(function(row){values.push(periodLabel(row));});
+ globalPeriodOptions().forEach(function(value){values.push(value);});
+ var seen=Object.create(null);
+ values.forEach(function(value){
+  var v=text(value),key=v.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();
+  if(!v||seen[key])return;
+  seen[key]=true;var option=make("option");option.value=v;d.appendChild(option);
+ });
 }
 function addRow(mode){
  state.schedule[mode].push({phase:mode==="trabajo"?phases[0]:"",
