@@ -3,6 +3,25 @@
 "use strict";
 var state={schedule:null,dirty:false,careers:[],results:null,periods:[],loadingResults:false,pvcReport:null,pvcError:"",pvcRequest:0};
 function el(id){return document.getElementById(id);}
+function periodType(label){
+ var normalized=text(label).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+ var months={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+ var found=[];
+ Object.keys(months).forEach(function(name){if(new RegExp("(^|[^a-z])"+name+"([^a-z]|$)").test(normalized))found.push(months[name]);});
+ var regular=(found.includes(10)&&found.includes(3))||(found.includes(4)&&found.includes(9));
+ return regular?"REGULAR":"PBC";
+}
+function applyPeriodType(){
+ var type=periodType(state.schedule&&state.schedule.period||"");
+ var regular=type==="REGULAR";
+ var title=el("inf-pvc-title"),panel=el("inf-pvc-panel");
+ if(title)title.textContent=regular?"Informe regular consolidado":"Informe PBC — Artículo Académico";
+ if(panel)panel.hidden=regular;
+ ["inf-pdf","inf-schedule-save","inf-add-complexivo","inf-add-trabajo"].forEach(function(id){var node=el(id);if(node)node.disabled=!regular;});
+ ["inf-regular-only","inf-cal-panel","inf-nuc-panel","inf-results-panel","inf-index-panel"].forEach(function(id){var node=el(id);if(node)node.hidden=!regular;});
+ var kind=el("inf-period-kind");if(kind)kind.textContent=regular?"Período regular: Examen Complexivo + Trabajo de Titulación (un informe).":"Período PBC: exclusivamente Artículo Académico.";
+}
+
 function text(s){return String(s==null?"":s).trim();}
 function make(tag,cls,content){
   var e=document.createElement(tag);
@@ -203,7 +222,7 @@ async function loadResults(){
   if(ticket!==state.pvcRequest||state.schedule.period!==text(el("inf-period").value))return;
   try{state.results=window.InfResults.build(snapshot,state.careers);showResults();}
   catch(nucleusError){el("inf-results-summary").textContent="No se pudo analizar núcleos: "+nucleusError.message;}
-  state.pvcReport=window.InfPVC.build(snapshot,{periodoId:dbPeriod,periodoLabel:state.schedule.period});
+  state.pvcReport=periodType(state.schedule.period)==="PBC"?window.InfPVC.build(snapshot,{periodoId:dbPeriod,periodoLabel:state.schedule.period}):null;
   state.pvcError="";showPVC();
  }catch(error){
   el("inf-results-summary").textContent="No se pudieron consultar resultados de BDLocal: "+error.message+
@@ -230,6 +249,7 @@ function loadPeriod(){
  try {
   state.pvcReport=null;state.pvcError="Consultando el período…";showPVC();
   state.schedule=window.InfSchedules.load(el("inf-period").value);
+  applyPeriodType();
   state.dirty=false;showRows("complexivo");showRows("trabajo");renderGantts();
   el("inf-schedule-origin").textContent=state.schedule.source+". Estados inicialmente sin verificar; confirma el cumplimiento con evidencias.";
   message("Período: "+state.schedule.period+". Revisa los cronogramas antes de generar el PDF.");
