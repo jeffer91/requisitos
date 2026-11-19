@@ -393,16 +393,23 @@ function init(){
  ["nv-career","nv-state"].forEach(function(id){$(id).addEventListener("change",render);});
  $("nv-search").addEventListener("input",render);
  $("nv-refresh").addEventListener("click",function(){load(canonical($("nv-period").value),true);});
- w.addEventListener("requisitos:notas-actualizadas",function(event){
-  var changed=canonical(event&&event.detail&&event.detail.periodoId);
-  if(changed)delete state.cache[changed];
-  if(changed&&changed===canonical($("nv-period").value)){
+ function onNotesUpdated(detail){
+  var changed=canonical(detail&&detail.periodoId);
+  if(!changed)return;
+  delete state.cache[changed];
+  if(changed===canonical($("nv-period").value)){
    if(state.saving)return;
    clearTimeout(state.notesRefreshTimer);
    state.notesRefreshTimer=setTimeout(function(){load(changed,true);},400);
   }
+ }
+ w.addEventListener("requisitos:notas-actualizadas",function(event){onNotesUpdated(event&&event.detail);});
+ // Las pantallas de Maqueta usan iframes: los eventos de window no cruzan iframes.
+ w.addEventListener("storage",function(event){
+  if(event.key!=="requisitos.notas.actualizadas"||!event.newValue)return;
+  try{onNotesUpdated(JSON.parse(event.newValue));}catch(error){}
  });
- $("nv-export").addEventListener("click",exportCsv);
+  $("nv-export").addEventListener("click",exportCsv);
  watchVisible(function(){var p=canonical($("nv-period").value);if(p&&!state.loading)load(p,true);});
  periods();
 }
