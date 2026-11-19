@@ -117,12 +117,27 @@
  }
  function periods(){
    return existingDB().then(function(db){
-     if(!db.objectStoreNames.contains("periodos")){db.close();return [];}
+     var names=["periodos","matriculas_periodo","estudiantes"].filter(function(n){return db.objectStoreNames.contains(n);});
+     if(!names.length){db.close();return [];}
      return new Promise(function(resolve,reject){
-       var tx=db.transaction(["periodos"],"readonly");
-       var request=tx.objectStore("periodos").getAll(),rows=[];
-       request.onsuccess=function(){rows=request.result||[];};
-       tx.oncomplete=function(){db.close();resolve(copy(rows));};
+       var tx=db.transaction(names,"readonly"),results={};
+       names.forEach(function(name){
+         var request=tx.objectStore(name).getAll();
+         request.onsuccess=function(){results[name]=request.result||[];};
+       });
+       tx.oncomplete=function(){
+         db.close();
+         var byId=Object.create(null);
+         (results.periodos||[]).forEach(function(row){
+           var id=canonical(row.id||row.periodoId);
+           if(id)byId[id]=Object.assign({},row,{id:id,periodoId:id});
+         });
+         (results.matriculas_periodo||[]).concat(results.estudiantes||[]).forEach(function(row){
+           var id=periodOf(row);
+           if(id&&!byId[id])byId[id]={id:id,periodoId:id,label:id,derived:true};
+         });
+         resolve(copy(Object.keys(byId).map(function(id){return byId[id];})));
+       };
        tx.onerror=function(){db.close();reject(tx.error||new Error("No se pudieron leer períodos."));};
        tx.onabort=function(){db.close();reject(tx.error||new Error("Lectura de períodos cancelada."));};
      });
@@ -132,6 +147,7 @@
      return u&&typeof u.readCache==="function"?copy((u.readCache()||{}).periods||[]):[];
    });
  }
+
  function status(){return {
    ok:!state.lastError,ready:state.ready,canRead:true,canWrite:false,
    source:state.source,screen:"inf",reads:state.reads,
