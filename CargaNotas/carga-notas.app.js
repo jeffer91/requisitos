@@ -311,7 +311,11 @@ async function save(){
   async function worker(){
    while(queue.length){
     var item=queue.shift();item.status="uploading";
-    try{var out=await saveOne(item,c);item.status="saved";try{w.dispatchEvent(new CustomEvent("requisitos:notas-actualizadas",{detail:{periodoId:item.parsed.periodoId,cedula:item.parsed.cedula,origen:"carga_notas",verificadoFirebase:true}}));}catch(notifyError){}item.detail=out&&out.changed===0?"Ya estaba igual en Firebase (sin cambios).":"";ok++;if(out&&out.changed===0)same++;}
+    try{var out=await saveOne(item,c);item.status="saved";try{
+      var notice={periodoId:item.parsed.periodoId,cedula:item.parsed.cedula,origen:"carga_notas",verificadoFirebase:true,at:Date.now()};
+      w.dispatchEvent(new CustomEvent("requisitos:notas-actualizadas",{detail:notice}));
+      try{w.localStorage.setItem("requisitos.notas.actualizadas",JSON.stringify(notice));}catch(storageError){}
+     }catch(notifyError){}item.detail=out&&out.changed===0?"Ya estaba igual en Firebase (sin cambios).":"";ok++;if(out&&out.changed===0)same++;}
     catch(err){item.status="error";item.detail=(err&&err.message)||String(err);fail++;}
     done++;
     if(done%10===0||done===ready.length){
