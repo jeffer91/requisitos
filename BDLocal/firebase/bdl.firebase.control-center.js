@@ -250,40 +250,47 @@ Función:
 
   function runAllPeriods(){
     if(running){return Promise.reject(new Error("Ya existe una operación Firebase en curso."));}
-    return listPeriods().then(function(periods){
-      periods=(periods||[]).filter(function(row){return text(row&&(row.id||row.periodoId));});
+    if(!window.confirm("Firebase V2\n\nSe recuperará el catálogo remoto y, después, todos los períodos encontrados. Los cambios locales pendientes deben conservarse.\n\n¿Continuar?")){
+      return Promise.resolve({ok:true,cancelled:true});
+    }
+    setBusy(true,"Recuperando catálogo de Firebase...");
+    progress(5,"Descargando catálogo remoto antes de seleccionar períodos...");
+    var summary={ok:true,operation:"pull:all-periods",global:null,periods:[],startedAt:now(),readBudget:ALL_PERIODS_READ_BUDGET};
+    return waitReady().then(function(){
+      return engine().pullAll({manual:true,entities:["periodos","carreras","estudiantes"],limit:PERIOD_PAGE_SIZE,maxPages:PERIOD_MAX_PAGES});
+    }).then(function(globalResult){
+      if(!globalResult||globalResult.ok===false){throw new Error(text(globalResult&&globalResult.message)||"No se pudo descargar el catálogo de Firebase.");}
+      summary.global=globalResult;
+      return listPeriods();
+    }).then(function(periods){
+      var seen=Object.create(null);
+      periods=(periods||[]).filter(function(row){
+        var id=text(row&&(row.id||row.periodoId));
+        if(!id||seen[id])return false;
+        seen[id]=true;return true;
+      });
+      if(!periods.length)throw new Error("Firebase no proporcionó períodos recuperables. No se declara completada la restauración.");
       if(periods.length>ALL_PERIODS_MAX){
-        throw new Error("La descarga global está bloqueada porque existen "+periods.length+" períodos. Procese un período por vez para proteger la cuota Firebase.");
+        throw new Error("Se recuperaron "+periods.length+" períodos, superior al límite de "+ALL_PERIODS_MAX+". La restauración está incompleta; no se marcará como finalizada.");
       }
-      if(!window.confirm("Firebase V2\n\nSe descargarán los datos globales y "+periods.length+" período(s).\nPresupuesto máximo: "+ALL_PERIODS_READ_BUDGET+" lecturas.\n\n¿Continuar?")){
-        return {ok:true,cancelled:true};
-      }
-      setBusy(true,"Descargando períodos con límite...");
-      progress(5,"Preparando descarga global limitada...");
-      var summary={ok:true,operation:"pull:all-periods",global:null,periods:[],startedAt:now(),readBudget:ALL_PERIODS_READ_BUDGET};
-      return waitReady().then(function(){
-        return engine().pullAll({manual:true,entities:["periodos","carreras","estudiantes"],limit:PERIOD_PAGE_SIZE,maxPages:PERIOD_MAX_PAGES});
-      }).then(function(globalResult){
-        if(!globalResult||globalResult.ok===false){throw new Error(text(globalResult&&globalResult.message)||"No se pudo descargar la base global.");}
-        summary.global=globalResult;
-        var chain=Promise.resolve();
-        periods.forEach(function(row,index){
-          chain=chain.then(function(){
-            var periodoId=text(row.id||row.periodoId);
-            progress(10+Math.round(((index+1)/Math.max(periods.length,1))*85),"Descargando "+text(row.label||row.periodoLabel||periodoId)+"...");
-            return engine().pullAll({manual:true,periodoId:periodoId,entities:["matriculas","requisitos","notas"],limit:PERIOD_PAGE_SIZE,maxPages:PERIOD_MAX_PAGES}).then(function(result){
-              if(!result||result.ok===false){throw new Error("No se pudo descargar el período "+periodoId+": "+text(result&&result.message));}
-              summary.periods.push(result);
-            });
+      summary.periodsDetected=periods.length;
+      var chain=Promise.resolve();
+      periods.forEach(function(row,index){
+        chain=chain.then(function(){
+          var periodoId=text(row.id||row.periodoId);
+          progress(10+Math.round(((index+1)/periods.length)*85),"Recuperando "+text(row.label||row.periodoLabel||periodoId)+"...");
+          return engine().pullAll({manual:true,periodoId:periodoId,entities:["matriculas","requisitos","notas"],limit:PERIOD_PAGE_SIZE,maxPages:PERIOD_MAX_PAGES}).then(function(result){
+            if(!result||result.ok===false)throw new Error("Falló el período "+periodoId+": "+text(result&&result.message));
+            summary.periods.push(result);
           });
         });
-        return chain;
-      }).then(function(){
-        summary.finishedAt=now();
-        progress(100,"Todos los períodos permitidos fueron procesados.");
-        return afterOperation(summary,"Descarga global limitada finalizada");
-      }).finally(function(){setBusy(false,"Actualizando estado...");});
-    });
+      });
+      return chain;
+    }).then(function(){
+      summary.finishedAt=now();
+      progress(100,"Recuperación de "+summary.periods.length+" períodos finalizada.");
+      return afterOperation(summary,"Descarga global finalizada");
+    }).finally(function(){setBusy(false,"Actualizando estado...");});
   }
 
   function renderConflicts(rows){
