@@ -33,27 +33,28 @@
 <header class="inf-head">
 <div class="inf-kicker">UNIDAD DE TITULACIÓN Y EFICIENCIA TERMINAL · ITSQMET</div>
 <h1>Inf · Informe Final del Proceso de Titulación</h1>
-<p>Selecciona el período académico para consultar requisitos y notas y generar el informe final PVC. El PDF de avance de Complexivo se mantiene en una función independiente.</p>
+<p>Selecciona el período académico. Los regulares consolidan Examen Complexivo y Trabajo de Titulación; los PBC incluyen únicamente Artículo Académico.</p>
 <div class="inf-toolbar">
 <label for="inf-period">Período académico
 <input id="inf-period" list="inf-period-options" type="text" value="Octubre 2025 a Marzo 2026" maxlength="110" autocomplete="off" placeholder="Ej.: Octubre 2025 a Marzo 2026"></label>
 <datalist id="inf-period-options"></datalist>
 <button type="button" id="inf-period-load" class="inf-button">Cargar período</button>
-<button type="button" id="inf-pdf" class="inf-button inf-button-primary">PDF de Complexivo (avance)</button>
+<button type="button" id="inf-pdf" class="inf-button inf-button-primary">PDF regular (avance)</button>
 </div>
+<p id="inf-period-kind" class="inf-hint" aria-live="polite"></p>
 <p id="inf-status" class="inf-statusbar" role="status">Preparando informe…</p>
 </header>
 <section class="inf-panel" id="inf-pvc-panel" aria-labelledby="inf-pvc-title">
-<div class="inf-panel-head"><div><h2 id="inf-pvc-title">Informe final PVC por período</h2><p>Introducción, base legal, metodología adaptada a las carreras presentes, resultados, conciliación, gráficos y conclusiones.</p></div>
+<div class="inf-panel-head"><div><h2 id="inf-pvc-title">Informe PBC — Artículo Académico</h2><p>Introducción, base legal, metodología adaptada a las carreras presentes, resultados, conciliación, gráficos y conclusiones.</p></div>
 <div class="inf-pvc-actions"><button type="button" id="inf-pvc-refresh" class="inf-button">Consultar período</button>
 <button type="button" id="inf-pvc-word" class="inf-button inf-button-primary" disabled>Word editable</button>
 <button type="button" id="inf-pvc-pdf" class="inf-button inf-button-primary" disabled>PDF institucional</button></div></div>
 <p class="inf-hint" id="inf-pvc-status">Selecciona un período registrado en BDLocal.</p>
 <div id="inf-pvc-summary" class="inf-pvc-summary" aria-live="polite"></div>
-<iframe id="inf-pvc-preview" class="inf-pvc-frame" title="Vista previa del informe PVC" loading="lazy"></iframe>
+<iframe id="inf-pvc-preview" class="inf-pvc-frame" title="Vista previa del informe PBC" loading="lazy"></iframe>
 <p class="inf-pvc-disclaimer">Documento en borrador: los datos, las normas, las firmas y el código documental requieren validación institucional antes de emitirlo.</p>
 </section>
-<section class="inf-panel" aria-labelledby="inf-cal-title">
+<section class="inf-panel" id="inf-cal-panel" aria-labelledby="inf-cal-title">
 <div class="inf-panel-head"><div><h2 id="inf-cal-title">Cronogramas del período</h2><p>Modifica actividades y fechas del período seleccionado; las fechas no acreditan por sí solas ejecución.</p></div><button type="button" id="inf-schedule-save" class="inf-button inf-button-primary">Guardar cronogramas</button></div>
 <p id="inf-schedule-origin" class="inf-hint"></p>
 <div class="inf-period-boards">
@@ -69,12 +70,12 @@
 </article>
 </div>
 </section>
-<section class="inf-panel" aria-labelledby="inf-nuc-title">
+<section class="inf-panel" id="inf-nuc-panel" aria-labelledby="inf-nuc-title">
 <div class="inf-panel-head"><div><h2 id="inf-nuc-title">Diagramas de núcleos estructurantes</h2><p>Un esquema de cuatro núcleos por carrera, construido a partir del apartado 3.4.4.</p></div><span class="inf-pill" id="inf-nuc-count">16 carreras</span></div>
 <div id="inf-diagrams" class="inf-diagram-grid"></div>
 </section>
-<section class="inf-panel" aria-labelledby="inf-results-title"><h2 id="inf-results-title">4.2. Resultados de Núcleos Estructurantes</h2><p id="inf-results-summary" class="inf-hint">Consultando BDLocal en modo de solo lectura…</p><div id="inf-results-table"></div></section>
-<section class="inf-panel" aria-labelledby="inf-index-title">
+<section class="inf-panel" id="inf-results-panel" aria-labelledby="inf-results-title"><h2 id="inf-results-title">4.2. Resultados de Núcleos Estructurantes</h2><p id="inf-results-summary" class="inf-hint">Consultando BDLocal en modo de solo lectura…</p><div id="inf-results-table"></div></section>
+<section class="inf-panel" id="inf-index-panel" aria-labelledby="inf-index-title">
 <div class="inf-panel-head"><div><h2 id="inf-index-title">Contenido del informe</h2><p>Los capítulos incompletos quedan marcados. Los datos académicos no se simulan.</p></div></div>
 <div class="inf-chapters" id="inf-chapters"></div>
 </section>
