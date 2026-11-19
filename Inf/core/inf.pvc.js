@@ -43,7 +43,7 @@ function reqKey(k){
  if(x==="TITULACION")return "Titulacion";
  return "";
 }
-function rowsFor(items,id){return (items||[]).filter(function(x){return !periodOf(x)||periodOf(x)===id;});}
+function rowsFor(items,id){return (items||[]).filter(function(x){return periodOf(x)===id;});}
 function modalityCompatible(student,note){
  var m=mode(note);return m==="SIN_MODALIDAD"||mode(student)==="SIN_MODALIDAD"||m===mode(student);
 }
@@ -56,7 +56,7 @@ function make(snapshot,meta){
  sources.forEach(function(r){
    var c=cid(r);if(!c){skipped++;return;}
    if(enrollmentStatus(r)==="RETIRADO"){return;}
-   if(mode(r)!=="ARTICULO"){excludedComplex++;return;}
+   if(mode(r)==="COMPLEXIVO"||mode(r)==="TRABAJO"){excludedComplex++;return;}
    if(byStudent[c]){duplicates++;if(text(byStudent[c].updatedAt)>text(r.updatedAt))return;}
    byStudent[c]=r;
  });
@@ -64,14 +64,14 @@ function make(snapshot,meta){
  rawNotes.forEach(function(r){
   var c=cid(r);if(!c||!byStudent[c]){if(hasPVCScore(r))unmatched++;return;}
   if(!modalityCompatible(byStudent[c],r))return;
-  if(mode(r)!=="ARTICULO")return;
+  if(mode(r)==="COMPLEXIVO"||mode(r)==="TRABAJO")return;
   if(!hasPVCScore(r))return;
   var scoreCount=["Notart","notaArticulo","Notdef","notaDefensa","Notafinal","notaFinal"].filter(function(k){return grade(r[k])!==null;}).length;
   var prev=noteIndex[c];
   if(!prev||scoreCount>prev.scoreCount||(scoreCount===prev.scoreCount&&text(r.updatedAt)>text(prev.row.updatedAt)))noteIndex[c]={row:r,scoreCount:scoreCount};
  });
- var reqIndex=Object.create(null),reqRows=rowsFor(snapshot.requirements||[],id),reqMatched=0;
- function putReq(c,key,value){if(!byStudent[c]||!key)return;var map=reqIndex[c]||(reqIndex[c]=Object.create(null));var s=state(value);if(s!=="SIN DATO"){map[key]=s;reqMatched++;}}
+ var reqIndex=Object.create(null),reqRows=rowsFor(snapshot.requirements||[],id),reqMatched=0,reqConflicts=0;
+ function putReq(c,key,value){if(!byStudent[c]||!key)return;var map=reqIndex[c]||(reqIndex[c]=Object.create(null));var s=state(value);if(s!=="SIN DATO"){if(map[key]&&map[key]!==s){reqConflicts++;map[key]="CONFLICTO";}else if(map[key]!=="CONFLICTO")map[key]=s;reqMatched++;}}
  reqRows.forEach(function(row){
   var c=cid(row);if(!byStudent[c])return;
   var key=reqKey(first(row,["requisitoKey","requisitoId","requisitoLabel","nombre","campo"])||"");
@@ -153,10 +153,14 @@ function make(snapshot,meta){
  check(careers.reduce(function(a,c){return a+c.aprobados;},0)===counts.aprobados,"Los aprobados por carrera no concilian.",true);
  reqStats.forEach(function(q){check(q.cumplen+q.pendientes+q.sinDato===counts.total,"No concilia el requisito "+q.label+".",true);});
  stages.forEach(function(x,i){if(i)check(x.count<=stages[i-1].count,"El embudo aumenta en "+x.label+".",true);});
+ check(counts.notasCalculadas===0,"Existen notas calculadas sin registro final oficial.",true);
  check(counts.inconsistencias===0,"Hay notas oficiales que difieren del cálculo 70/30.",true);
  check(!snapshot.limited,"La fuente de datos está limitada.",true);
  check(!skipped,"Existen matrículas sin identificación.",true);
+ check(!reqConflicts,"Existen estados de requisitos contradictorios.",true);
+ check(!duplicates,"Existen matrículas duplicadas que requieren conciliación.",true);
  var issues=[];
+ if(reqConflicts)issues.push(reqConflicts+" estados de requisitos contradictorios requieren revisión.");
  if(snapshot.limited)issues.push("La consulta utiliza caché limitada: no hay garantía de cobertura de calificaciones.");
  if(skipped)issues.push(skipped+" matrículas sin cédula válida quedaron fuera.");
  if(duplicates)issues.push(duplicates+" registros de matrícula duplicados se consolidaron por cédula.");
