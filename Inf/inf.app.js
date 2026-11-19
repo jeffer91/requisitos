@@ -171,6 +171,18 @@ function showResults(){
  });
  table.appendChild(body);
  var scroll=make("div","inf-table-scroll");scroll.appendChild(table);container.appendChild(scroll);
+ if(result.duplicateStudents||result.unidentifiedStudents||result.conflictingNuclei||result.gradeMismatches){
+  container.appendChild(make("p","inf-hint","Alertas de conciliación: matrículas duplicadas "+result.duplicateStudents+
+   " · sin identificación "+result.unidentifiedStudents+" · registros de núcleos contradictorios "+result.conflictingNuclei+
+   " · diferencias de cálculo "+result.gradeMismatches+". Revisar antes de emitir el informe definitivo."));
+ }
+ result.eligibility.forEach(function(g){
+  var habilitados=g.students.filter(function(x){return x.status==="HABILITABLE";}).length;
+  var noHabilitados=g.students.filter(function(x){return x.status==="NO_HABILITADO";}).length;
+  container.appendChild(make("p","inf-hint",g.career+" · requisito de titulación por núcleos: "+
+    habilitados+" habilitables, "+noHabilitados+" no habilitados, "+
+    (g.students.length-habilitados-noHabilitados)+" pendientes. La habilitación administrativa debe verificarse por separado."));
+ });
  result.careers.forEach(function(c){
   var heading=make("h3",null,c.career+" · detalle nominal de núcleos");container.appendChild(heading);
   c.nuclei.forEach(function(n){
