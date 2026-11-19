@@ -84,6 +84,19 @@ const first=valid.careers.find(c=>c.career==="Administración").nuclei[0];
 assert.equal(first.rows.length,1);
 assert.equal(first.rows[0].evaluations[0],0,"Conservar evaluación válida de cero.");
 assert.equal(first.average,8);
+assert.equal(first.rows[0].computedGrade,7.3,"Los controles y el caso se ponderan 10/10/10/10/60.");
+assert.equal(first.rows[0].gradeMismatch,true,"Una nota oficial distinta debe quedar señalada.");
+assert.equal(valid.eligibility[0].students[0].status,"PENDIENTE","Un núcleo aprobado no habilita por sí solo.");
+assert.equal(w.InfResults.weightedNucleus([7,7,7,7],7),7);
+assert.equal(w.InfResults.weightedNucleus([7,null,7,7],7),null,"Ausencia no equivale a cero.");
+const four=w.InfResults.build({
+ periodoId:"2025-10__2026-03",
+ students:[{cedula:"0100000001",NombreCarrera:"Administración",Nombres:"Prueba"}],
+ nuclei:[{cedula:"0100000001",periodoId:"2025-10__2026-03",nucleos:[1,2,3,4].map(n=>({
+ nucleo:n,evaluacion1:7,evaluacion2:7,evaluacion3:7,evaluacion4:7,casoEstudio:7,notaFinal:7
+ }))}]
+},w.InfNuclei.careers());
+assert.equal(four.eligibility[0].students[0].status,"HABILITABLE","Cuatro núcleos aprobados habilitan.");
 // Prueba estructural del PDF sin instalar paquetes ni emitir documentos oficiales.
 const linesRendered=[];
 const mockPDF={
