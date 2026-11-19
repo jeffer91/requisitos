@@ -56,7 +56,7 @@ function make(snapshot,meta){
  sources.forEach(function(r){
    var c=cid(r);if(!c){skipped++;return;}
    if(enrollmentStatus(r)==="RETIRADO"){return;}
-   if(mode(r)==="COMPLEXIVO"){excludedComplex++;return;}
+   if(mode(r)!=="ARTICULO"){excludedComplex++;return;}
    if(byStudent[c]){duplicates++;if(text(byStudent[c].updatedAt)>text(r.updatedAt))return;}
    byStudent[c]=r;
  });
@@ -64,7 +64,7 @@ function make(snapshot,meta){
  rawNotes.forEach(function(r){
   var c=cid(r);if(!c||!byStudent[c]){if(hasPVCScore(r))unmatched++;return;}
   if(!modalityCompatible(byStudent[c],r))return;
-  if(mode(r)==="COMPLEXIVO")return;
+  if(mode(r)!=="ARTICULO")return;
   if(!hasPVCScore(r))return;
   var scoreCount=["Notart","notaArticulo","Notdef","notaDefensa","Notafinal","notaFinal"].filter(function(k){return grade(r[k])!==null;}).length;
   var prev=noteIndex[c];
@@ -84,7 +84,7 @@ function make(snapshot,meta){
  });
  var students=enrolled.map(function(c){
    var raw=byStudent[c],person=persons[c]||{},note=noteIndex[c]&&noteIndex[c].row||{},rr=reqIndex[c]||{};
-   var m=mode(raw);if(m==="SIN_MODALIDAD")m=mode(note);
+   var m="ARTICULO";
    var art=grade(first(note,["Notart","Nart","notaArticulo","notaEscrito","promedioTrabajoEscrito"]));
    var def=grade(first(note,["Notdef","Ndef","notaDefensa","notaDefensaOral","promedioDefensaOral"]));
    var official=grade(first(note,["Notafinal","Nfinal","notaFinal","notaTrabajoTitulacion"]));
@@ -134,7 +134,7 @@ function make(snapshot,meta){
   var ok=known.filter(function(s){return s.req[item[0]]==="CUMPLE";}).length;
   return {key:item[0],label:item[1],cumplen:ok,pendientes:known.length-ok,sinDato:students.length-known.length,verificados:known.length,tasa:pct(ok,known.length)};
  });
- var modes=["ARTICULO","TRABAJO","SIN_MODALIDAD"].map(function(m){return {id:m,n:students.filter(function(s){return s.modalidad===m;}).length};});
+ var modes=["ARTICULO"].map(function(m){return {id:m,n:students.filter(function(s){return s.modalidad===m;}).length};});
  var bands=[{label:"0–6,99",low:0,high:7},{label:"7–7,99",low:7,high:8},{label:"8–8,99",low:8,high:9},{label:"9–10",low:9,high:10.001}].map(function(b){
   return {label:b.label,n:students.filter(function(s){return s.nota!==null&&s.nota>=b.low&&s.nota<b.high;}).length};
  });
@@ -149,7 +149,7 @@ function make(snapshot,meta){
  if(counts.inconsistencias)issues.push(counts.inconsistencias+" notas oficiales difieren más de 0,05 de la fórmula esperada; se conservan los valores oficiales.");
  if(counts.evaluados>counts.habilitados&&counts.conTitulacion)
   issues.push("Hay más evaluados que habilitados según los requisitos; no se puede interpretar el embudo como conciliación individual completa.");
- if(excludedComplex)issues.push(excludedComplex+" registros identificados como Complexivo se excluyeron de la cohorte PVC.");
+ if(excludedComplex)issues.push(excludedComplex+" registros sin modalidad Artículo Académico se excluyeron del informe PBC.");
  if(students.some(function(s){return s.modalidad==="SIN_MODALIDAD";}))
   issues.push("Hay estudiantes sin modalidad de titulación identificada: solo se usa su nota oficial, sin aplicar ponderaciones presumidas.");
  if(!reqRows.length)issues.push("No existen registros de requisitos asociados a este período en la fuente consultada.");
