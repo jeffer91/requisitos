@@ -105,10 +105,10 @@ function make(snapshot,meta){
   requisitosCompletos:students.filter(function(s){return s.requisitosCompletos;}).length,
   conTitulacion:students.filter(function(s){return s.titulacionConocida;}).length,
   habilitados:students.filter(function(s){return s.habilitado;}).length,
-  evaluados:students.filter(function(s){return s.nota!==null;}).length,
+  evaluados:students.filter(function(s){return s.articulo!==null&&s.defensa!==null;}).length,
   aprobados:students.filter(function(s){return s.estado==="APROBADO";}).length,
   reprobados:students.filter(function(s){return s.estado==="REPROBADO";}).length,
-  sinNota:students.filter(function(s){return s.nota===null;}).length,
+  sinNota:students.filter(function(s){return s.estado==="SIN_NOTA";}).length,
   notasOficiales:students.filter(function(s){return s.notaOrigen==="OFICIAL";}).length,
   notasCalculadas:students.filter(function(s){return s.notaOrigen==="CALCULADA";}).length,
   inconsistencias:students.filter(function(s){return s.inconsistencia;}).length,
@@ -120,12 +120,12 @@ function make(snapshot,meta){
  var groups=Object.create(null);
  students.forEach(function(s){(groups[s.carrera]||(groups[s.carrera]=[])).push(s);});
  var careers=Object.keys(groups).sort(function(a,b){return a.localeCompare(b,"es");}).map(function(c){
-   var rows=groups[c],e=rows.filter(function(x){return x.nota!==null;});
+   var rows=groups[c],e=rows.filter(function(x){return x.articulo!==null&&x.defensa!==null;});
    return {nombre:c,total:rows.length,reqOK:rows.filter(function(x){return x.requisitosCompletos;}).length,
      habilitados:rows.filter(function(x){return x.habilitado;}).length,evaluados:e.length,
      aprobados:rows.filter(function(x){return x.estado==="APROBADO";}).length,
      reprobados:rows.filter(function(x){return x.estado==="REPROBADO";}).length,
-     sinNota:rows.filter(function(x){return x.nota===null;}).length,
+     sinNota:rows.filter(function(x){return x.estado==="SIN_NOTA";}).length,
      tasa:pct(rows.filter(function(x){return x.estado==="APROBADO";}).length,e.length),
      promedio:avg(e,"nota")};
  });
@@ -138,6 +138,24 @@ function make(snapshot,meta){
  var bands=[{label:"0–6,99",low:0,high:7},{label:"7–7,99",low:7,high:8},{label:"8–8,99",low:8,high:9},{label:"9–10",low:9,high:10.001}].map(function(b){
   return {label:b.label,n:students.filter(function(s){return s.nota!==null&&s.nota>=b.low&&s.nota<b.high;}).length};
  });
+ var stages=[
+  {key:"matriculados",label:"Matrículas activas",count:students.length},
+  {key:"requisitos",label:"Ocho requisitos previos completos",count:students.filter(function(x){return x.requisitosCompletos;}).length},
+  {key:"escrito",label:"Escrito aprobado entre habilitados",count:students.filter(function(x){return x.requisitosCompletos&&x.articulo!==null&&x.articulo>=7;}).length},
+  {key:"defensa",label:"Defensa aprobada entre quienes aprobaron escrito",count:students.filter(function(x){return x.requisitosCompletos&&x.articulo!==null&&x.articulo>=7&&x.defensa!==null&&x.defensa>=7;}).length},
+  {key:"final",label:"Resultado académico final aprobado",count:students.filter(function(x){return x.requisitosCompletos&&x.estado==="APROBADO";}).length},
+  {key:"titulo",label:"Título registrado entre aprobados",count:students.filter(function(x){return x.requisitosCompletos&&x.estado==="APROBADO"&&x.req.Titulacion==="CUMPLE";}).length}
+ ];
+ var validation=[];
+ function check(ok,msg,critical){if(!ok)validation.push({critical:!!critical,message:msg});}
+ check(counts.total===counts.aprobados+counts.reprobados+counts.sinNota,"Los estados académicos no suman la cohorte.",true);
+ check(counts.total===careers.reduce(function(a,c){return a+c.total;},0),"Las carreras no suman la cohorte.",true);
+ check(careers.reduce(function(a,c){return a+c.aprobados;},0)===counts.aprobados,"Los aprobados por carrera no concilian.",true);
+ reqStats.forEach(function(q){check(q.cumplen+q.pendientes+q.sinDato===counts.total,"No concilia el requisito "+q.label+".",true);});
+ stages.forEach(function(x,i){if(i)check(x.count<=stages[i-1].count,"El embudo aumenta en "+x.label+".",true);});
+ check(counts.inconsistencias===0,"Hay notas oficiales que difieren del cálculo 70/30.",true);
+ check(!snapshot.limited,"La fuente de datos está limitada.",true);
+ check(!skipped,"Existen matrículas sin identificación.",true);
  var issues=[];
  if(snapshot.limited)issues.push("La consulta utiliza caché limitada: no hay garantía de cobertura de calificaciones.");
  if(skipped)issues.push(skipped+" matrículas sin cédula válida quedaron fuera.");
@@ -157,7 +175,7 @@ function make(snapshot,meta){
  return {ok:students.length>0,periodoId:id,periodoLabel:text(meta.periodoLabel)||id,
   fecha:text(meta.fecha)||new Date().toISOString().slice(0,10),code:text(meta.codigo)||"Pendiente de asignación",
   source:text(snapshot.source)||"BDLocal",generatedAt:new Date().toISOString(),students:students,
-  counts:counts,careers:careers,requirements:reqStats,modes:modes,bands:bands,
+  counts:counts,careers:careers,requirements:reqStats,modes:modes,bands:bands,stages:stages,validation:validation,canExportFinal:validation.every(function(v){return !v.critical;}),
   issues:issues,notasCoincidentes:Object.keys(noteIndex).length,reqMatched:reqMatched,
   statisticalBasis:"Los porcentajes de aprobación se distinguen entre cohorte total y estudiantes evaluados. Los requisitos sin registro se muestran como SIN DATO. Sin cruce individual validado no se interpreta una diferencia entre etapas como reprobación."
  };
