@@ -44,7 +44,7 @@ function cover(r,logo){
 }
 function contents(r){
  var s=r.counts,c=r.careers,q=r.requirements,hasReq=s.conDatosRequisitos>0,hasTit=s.conTitulacion>0;
- var funnel=[{label:"Matrículas activas",value:s.total},{label:"Ocho requisitos previos completos",value:hasReq?s.requisitosCompletos:null},{label:"Requisito Titulación y previos completos",value:hasReq&&hasTit?s.habilitados:null},{label:"Evaluados entre habilitados",value:hasReq&&hasTit?s.tituladoEvaluado:null},{label:"Aprobados entre habilitados",value:hasReq&&hasTit?s.tituladoAprobado:null}];
+ var funnel=(r.stages||[]).map(function(x){return {label:x.label,value:x.count};});
  var parts=[];
  parts.push(sect("Síntesis ejecutiva","<div class='infp-kpis'><div><b>"+s.total+"</b><span>Activos</span></div><div><b>"+s.evaluados+"</b><span>Con nota final</span></div><div><b>"+s.aprobados+"</b><span>Aprobados</span></div><div><b>"+pct(s.tasaGlobal)+"</b><span>Aprobación/cohorte</span></div></div>"+
  "<p>Para el período "+esc(r.periodoLabel)+" se identifican "+s.total+" matrículas activas; "+s.evaluados+" estudiantes tienen nota final, "+s.aprobados+" aprobaron, "+s.reprobados+" reprobaron y "+s.sinNota+" carecen de nota final válida. La tasa de aprobación entre evaluados es "+pct(s.tasaEvaluados)+", distinta de la tasa sobre toda la cohorte ("+pct(s.tasaGlobal)+").</p>"+
@@ -63,7 +63,7 @@ function contents(r){
  tbl("Tabla 1. Carreras participantes",["Carrera","Matrículas"],list)+
  "<h3>3.3. Requisitos</h3><p>Los ocho requisitos previos se verifican individualmente: académico, documentación, financiero, prácticas, vinculación, seguimiento a graduados, inglés y actualización de datos. El requisito Titulación se presenta aparte. Los estados sin registro quedan SIN DATO, nunca se transforman en incumplimiento.</p>"+
  "<h3>3.4. Etapas del proceso PVC</h3><p>El proceso comprende inducción, cronograma, orientación metodológica, propuesta y elaboración académica, tutorías, revisiones, evaluación y defensa, registro de notas y cierre documental. No se presupone ejecución de una actividad solo porque aparezca en el cronograma.</p>"+
- "<h3>3.5. Evaluación</h3><p>Si la modalidad es Artículo Académico, el resultado calculado utiliza 70 % de escrito y 30 % de defensa. Si es Trabajo de Titulación, utiliza 60 % de escrito y 40 % de defensa. Las notas oficiales prevalecen; las calculadas se identifican explícitamente y se exige una modalidad conocida. El umbral de aprobación es 7/10.</p>"+
+ "<h3>3.5. Evaluación</h3><p>En el PVC se evalúa el artículo académico: escrito (70 %) y defensa (30 %). Para aprobar se requiere un mínimo de 7,00/10 en cada componente, además del resultado ponderado. Las notas oficiales prevalecen; las diferencias con el cálculo se señalan para conciliación.</p>"+
  "<h3>3.6. Metodología específica por carrera</h3>"+
  c.map(function(x,i){return "<p><strong>3.6."+(i+1)+". "+esc(x.nombre)+".</strong> Registra "+x.total+" matrículas, "+x.habilitados+" habilitados y "+x.evaluados+" con nota final. Su participación y resultados se incluyen solo porque existen matrículas de esta carrera en el período.</p>";}).join("")+
  "<h3>3.7. Análisis estadístico</h3><p>Se calculan totales, proporciones por población definida, promedios con notas disponibles y comparaciones por carrera. Se conserva la identidad individual para conciliar las fuentes, pero los resultados públicos son agregados. No se incluyen núcleos estructurantes de Complexivo dentro de la metodología PVC.</p>";
@@ -77,7 +77,7 @@ function contents(r){
  tbl("Tabla 3. Consolidado por carrera",["Carrera","Activos","Requisitos previos","Habilitados","Evaluados","Aprobados","Reprobados","Sin nota","% entre evaluados"],
  c.map(function(x){return [x.nombre,x.total,x.reqOK,x.habilitados,x.evaluados,x.aprobados,x.reprobados,x.sinNota,pct(x.tasa)];}))+
  bars("Figura 5. Tamaño de cohorte por carrera",c.map(function(x){return {label:x.nombre,value:x.total};}))+
- bars("Figura 6. Habilitados por carrera",c.map(function(x){return {label:x.nombre,value:hasReq&&hasTit?x.habilitados:null};}),{note:"Solo cuando el requisito Titulación está registrado y los previos se han verificado."})+
+ bars("Figura 6. Habilitados por carrera",c.map(function(x){return {label:x.nombre,value:hasReq?x.habilitados:null};}),{note:"Titulación no condiciona los requisitos previos."})+
  bars("Figura 7. Aprobación entre evaluados por carrera",c.map(function(x){return {label:x.nombre,value:x.tasa};}),{percent:true,max:100,note:"Denominador: estudiantes con nota final por carrera."})+
  "<h3>4.4. Calificaciones</h3>"+
  tbl("Tabla 4. Indicadores generales",["Indicador","Valor"],[["Matrículas activas",s.total],["Con nota final",s.evaluados],["Aprobados",s.aprobados],["Reprobados",s.reprobados],["Sin nota final",s.sinNota],["Notas oficiales",s.notasOficiales],["Notas calculadas",s.notasCalculadas],["Tasa sobre cohorte",pct(s.tasaGlobal)],["Tasa entre evaluados",pct(s.tasaEvaluados)]])+
@@ -85,10 +85,51 @@ function contents(r){
  bars("Figura 9. Distribución de calificaciones",r.bands.map(function(x){return {label:x.label,value:x.n};}),{note:"Intervalos de notas de 0 a 10, solo sobre valores finales válidos."})+
  bars("Figura 10. Origen de calificaciones",[{label:"Oficial",value:s.notasOficiales},{label:"Calculada",value:s.notasCalculadas},{label:"Sin nota",value:s.sinNota}])+
  bars("Figura 11. Promedio final por carrera",c.map(function(x){return {label:x.nombre,value:x.promedio};}),{max:10,note:"Promedio sobre notas finales disponibles, no sobre estudiantes matriculados."})+
- bars("Figura 12. Habilitación y evaluación (fuentes a conciliar)",[{label:"Habilitados documentados",value:hasReq&&hasTit?s.habilitados:null},{label:"Evaluados",value:s.evaluados},{label:"Aprobados",value:s.aprobados}],{note:"Son universos que pueden diferir y no se deben restar como si fueran las mismas personas."})+
+ bars("Figura 12. Habilitación y evaluación (fuentes a conciliar)",[{label:"Habilitados documentados",value:hasReq?s.habilitados:null},{label:"Evaluados",value:s.evaluados},{label:"Aprobados",value:s.aprobados}],{note:"Son universos que pueden diferir y no se deben restar como si fueran las mismas personas."})+
  "<h3>4.5. Conciliación y calidad</h3>"+(r.issues.length?"<ul>"+r.issues.map(function(x){return "<li>"+esc(x)+"</li>";}).join("")+"</ul>":"<p>No se detectaron incidencias automáticas.</p>")+
  "<p class='infp-small'>"+esc(r.statisticalBasis)+" Fuente: "+esc(r.source)+". Fecha de consulta: "+esc(r.generatedAt)+".</p>";
  parts.push(sect("4. Resultados y análisis",result));
+ var phases=[
+  {title:"4.6. Fase I: requisitos previos",field:"req",grade:false},
+  {title:"4.7. Fase II: componente escrito",field:"articulo",grade:true},
+  {title:"4.8. Fase III: defensa",field:"defensa",grade:true},
+  {title:"4.9. Fase IV: registro final",field:"nota",grade:true}
+ ];
+ var details=phases.map(function(phase){
+  var out="<h3>"+phase.title+"</h3>";
+  if(!phase.grade){
+   q.forEach(function(req){
+    var known=req.cumplen+req.pendientes;
+    out+="<h4>"+esc(req.label)+"</h4><p>Se verifica el cumplimiento del requisito "+esc(req.label)+" para la cohorte de "+s.total+" estudiantes.</p>"+
+    tbl("Cumplimiento: "+req.label,["Cumplen","No cumplen o pendientes","Sin dato","Total"],[[req.cumplen,req.pendientes,req.sinDato,s.total]])+
+    "<p>Se registran "+req.cumplen+" cumplimientos, "+req.pendientes+" incumplimientos o pendientes y "+req.sinDato+" estados sin información. La cobertura verificable es "+known+" de "+s.total+".</p>"+
+    bars("Distribución: "+req.label,[{label:"Cumple",value:req.cumplen},{label:"No cumple / pendiente",value:req.pendientes},{label:"Sin dato",value:req.sinDato}],{max:Math.max(1,s.total)});
+   });
+  }else{
+   c.forEach(function(group){
+    var rows=r.students.filter(function(x){return x.carrera===group.nombre;});
+    var complete=rows.filter(function(x){return x[phase.field]!==null;}).length;
+    var passed=rows.filter(function(x){return phase.field==="nota"?x.estado==="APROBADO":x[phase.field]!==null&&x[phase.field]>=7;}).length;
+    out+="<h4>"+esc(group.nombre)+"</h4><p>Se presentan los resultados individuales de "+rows.length+" estudiantes de la carrera "+esc(group.nombre)+". Las calificaciones ausentes se identifican sin asignar cero.</p>"+
+    tbl("Resultados de "+group.nombre+" — "+phase.title,phase.field==="nota"?["Estudiante","Escrito","Defensa","Final","Estado"]:["Estudiante","Calificación","Estado"],rows.map(function(x){
+      return phase.field==="nota"?[x.nombre||x.cedula,num(x.articulo),num(x.defensa),num(x.nota),x.estado]:
+      [x.nombre||x.cedula,num(x[phase.field]),x[phase.field]===null?"Sin dato":x[phase.field]>=7?"Aprueba":"No aprueba"];
+    }))+
+    "<p>De "+rows.length+" estudiantes, "+complete+" tienen calificación registrada y "+passed+" cumplen el criterio de aprobación de esta fase.</p>"+
+    bars("Distribución de "+group.nombre,[{label:"Aprobados",value:passed},{label:"No aprobados",value:complete-passed},{label:"Sin calificación",value:rows.length-complete}],{max:Math.max(1,rows.length)});
+   });
+  }
+  return out;
+ }).join("");
+ details+="<h3>4.10. Fase V: registro del título</h3><p>El registro del título se presenta después de los resultados académicos y no equivale a la aprobación de la defensa.</p>"+
+ tbl("Registro de titulación",["Estado","Estudiantes"],[["Registrado",r.students.filter(function(x){return x.req.Titulacion==="CUMPLE";}).length],["Pendiente o no cumple",r.students.filter(function(x){return x.req.Titulacion==="PENDIENTE"||x.req.Titulacion==="NO CUMPLE";}).length],["Sin dato",r.students.filter(function(x){return !x.req.Titulacion;}).length]]);
+ parts.push(sect("Resultados detallados por fases",details));
+ var tree="<div class='infp-tree'><strong>Matrículas</strong>"+funnel.map(function(x){return "<div>↳ "+esc(x.label)+": <b>"+num(x.value)+"</b></div>";}).join("")+"</div>";
+ var critical=(r.validation||[]).filter(function(x){return x.critical;});
+ parts.push(sect("Árbol de seguimiento y conciliación",tree+"<p>Las ramas representan subconjuntos acumulativos de estudiantes identificados individualmente.</p>"+(critical.length?"<p><strong>Inconsistencias críticas:</strong> "+critical.map(function(x){return esc(x.message);}).join("; ")+"</p>":"<p>Los controles aritméticos no identificaron inconsistencias críticas.</p>")));
+ parts.push(sect("ICAWA — matriz de análisis","<p>La estructura institucional ICAWA debe validarse antes de automatizar sus categorías. Se muestran hallazgos verificables, sin atribuir causas no demostradas.</p>"+tbl("Hallazgos y acciones",["Indicador","Hallazgo"],[["Matrículas",s.total],["Requisitos completos",s.requisitosCompletos],["Aprobados",s.aprobados],["Incidencias",r.issues.length]])));
+ parts.push(sect("Ishikawa — análisis causal","<p>Problema central: casos sin cierre de titulación. Las ramas siguientes son líneas de investigación y no causas comprobadas.</p><div class='infp-tree'>Registro final pendiente<div>↳ Requisitos documentales: verificar expedientes</div><div>↳ Evaluación: verificar componentes sin nota</div><div>↳ Registro: verificar estados de titulación</div><div>↳ Datos: verificar fuentes incompletas</div></div>"));
+ parts.push(sect("FODA — análisis institucional",tbl("Matriz FODA",["Fortalezas","Oportunidades"],[["Trazabilidad por estudiante","Mejoras de seguimiento"],["Debilidades","Amenazas"],["Registros pendientes: "+s.sinNota,"Demoras externas: requieren verificación"]])));
  parts.push(sect("5. Resumen ejecutivo","<p>La cohorte tiene "+s.total+" matrículas y "+s.evaluados+" notas finales. Se identifican "+s.aprobados+" aprobados, "+s.reprobados+" reprobados y "+s.sinNota+" casos sin nota. La aprobación sobre toda la cohorte es "+pct(s.tasaGlobal)+", mientras que la aprobación entre evaluados es "+pct(s.tasaEvaluados)+". Se detectaron "+r.issues.length+" observaciones de conciliación.</p>"));
  parts.push(sect("6. Conclusiones","<ol>"+
  ["Participaron "+s.total+" matrículas activas de "+c.length+" carreras del período "+r.periodoLabel+".",
@@ -109,7 +150,7 @@ function contents(r){
 }
 function style(){
  return "<style>"+
- "@page{size:A4;margin:1.5cm}body{font:10pt Arial,sans-serif;color:#253849;background:#fff;margin:0}*{box-sizing:border-box}p{line-height:1.48;text-align:justify}h1{font-size:18pt}h2{font-size:15pt;color:#1c456f}h3{font-size:11pt;margin:14px 0 6px}h4{font-size:10pt}.infp-paper{max-width:18cm;margin:0 auto}.infp-cover{height:26.7cm;position:relative;page-break-after:always}.infp-head{border-collapse:collapse;table-layout:fixed;width:100%;font-size:8pt}.infp-head td{height:12mm;border:1px solid #111;text-align:center;padding:4px}.infp-logo{max-width:3.8cm;max-height:1.8cm;object-fit:contain}.infp-center{position:absolute;top:35%;left:0;right:0;text-align:center}.infp-sign{position:absolute;bottom:4mm;left:0;table-layout:fixed;border-collapse:collapse;width:100%;font-size:8pt}.infp-sign td,.infp-sign th{width:33.3%;border:1px solid #111;padding:4px;text-align:center}.infp-sign .blank td{height:2.4cm}.infp-section,.infp-index{page-break-before:always}.infp-kpis{display:table;width:100%;table-layout:fixed}.infp-kpis div{display:table-cell;border:1px solid #a4b5c8;text-align:center;padding:9px}.infp-kpis b,.infp-kpis span{display:block}.infp-kpis b{font-size:17pt}.infp-kpis span{font-size:8pt}.infp-table,.infp-bars{margin:16px 0;page-break-inside:avoid;break-inside:avoid}.infp-table figcaption,.infp-bars figcaption{font-weight:bold;margin-bottom:8px;font-size:9pt}.infp-table table{border-collapse:collapse;width:100%;font-size:7.5pt}.infp-table th,.infp-table td{border:1px solid #9bb0c1;padding:4px;overflow-wrap:anywhere}.infp-table th{background:#e4edf5}.infp-table tr{page-break-inside:avoid}.infp-bar{display:table;width:100%;margin:5px 0;table-layout:fixed}.infp-bar span,.infp-bar>div,.infp-bar b{display:table-cell;vertical-align:middle;font-size:8pt}.infp-bar span{width:40%}.infp-bar>div{width:45%;background:#eef3f8;height:12px}.infp-bar i{display:block;background:#326a93;height:12px}.infp-bar b{width:15%;text-align:right}.infp-small{font-size:8pt;color:#5b6a79}.infp-section li{margin:5px 0}"+
+ "@page{size:A4;margin:2.54cm}body{font:12pt Georgia,serif;color:#253849;background:#fff;margin:0}*{box-sizing:border-box}p{line-height:2;text-align:left;text-indent:1.27cm}h1{font-size:18pt}h2{font-size:15pt;color:#1c456f}h3{font-size:11pt;margin:14px 0 6px}h4{font-size:10pt}.infp-paper{max-width:18cm;margin:0 auto}.infp-cover{height:26.7cm;position:relative;page-break-after:always}.infp-head{border-collapse:collapse;table-layout:fixed;width:100%;font-size:8pt}.infp-head td{height:12mm;border:1px solid #111;text-align:center;padding:4px}.infp-logo{max-width:3.8cm;max-height:1.8cm;object-fit:contain}.infp-center{position:absolute;top:35%;left:0;right:0;text-align:center}.infp-sign{position:absolute;bottom:4mm;left:0;table-layout:fixed;border-collapse:collapse;width:100%;font-size:8pt}.infp-sign td,.infp-sign th{width:33.3%;border:1px solid #111;padding:4px;text-align:center}.infp-sign .blank td{height:2.4cm}.infp-section,.infp-index{page-break-before:always}.infp-kpis{display:table;width:100%;table-layout:fixed}.infp-kpis div{display:table-cell;border:1px solid #a4b5c8;text-align:center;padding:9px}.infp-kpis b,.infp-kpis span{display:block}.infp-kpis b{font-size:17pt}.infp-kpis span{font-size:8pt}.infp-table,.infp-bars{margin:16px 0;page-break-inside:avoid;break-inside:avoid}.infp-table figcaption,.infp-bars figcaption{font-weight:bold;margin-bottom:8px;font-size:9pt}.infp-table table{border-collapse:collapse;width:100%;font-size:7.5pt}.infp-table th,.infp-table td{border:1px solid #9bb0c1;padding:4px;overflow-wrap:anywhere}.infp-table th{background:#e4edf5}.infp-table tr{page-break-inside:avoid}.infp-bar{display:table;width:100%;margin:5px 0;table-layout:fixed}.infp-bar span,.infp-bar>div,.infp-bar b{display:table-cell;vertical-align:middle;font-size:8pt}.infp-bar span{width:40%}.infp-bar>div{width:45%;background:#eef3f8;height:12px}.infp-bar i{display:block;background:#326a93;height:12px}.infp-bar b{width:15%;text-align:right}.infp-small{font-size:8pt;color:#5b6a79}.infp-section li{margin:5px 0}.infp-tree{border-left:4px solid #326a93;padding:12px 18px;margin:16px 0;background:#eef3f8}.infp-tree div{padding:7px 0 7px 16px;border-bottom:1px solid #cbd9e3}"+
  "</style>";
 }
 function html(r,logo){return "<!doctype html><html lang='es'><head><meta charset='utf-8'>"+style()+"</head><body><div class='infp-paper'>"+cover(r,logo)+contents(r)+"</div></body></html>";}
