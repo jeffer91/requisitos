@@ -171,6 +171,29 @@ function showResults(){
  });
  table.appendChild(body);
  var scroll=make("div","inf-table-scroll");scroll.appendChild(table);container.appendChild(scroll);
+ result.careers.forEach(function(c){
+  var heading=make("h3",null,c.career+" · detalle nominal de núcleos");container.appendChild(heading);
+  c.nuclei.forEach(function(n){
+   container.appendChild(make("h4",null,"Núcleo "+n.number));
+   var t=make("table"),head=make("thead"),h=make("tr");
+   ["Estudiante","Evaluación 1","Evaluación 2","Evaluación 3","Evaluación 4","Caso","Final oficial","Estado","Verificación"].forEach(function(label){h.appendChild(make("th",null,label));});
+   head.appendChild(h);t.appendChild(head);
+   var b=make("tbody"),byId=Object.create(null);
+   n.rows.forEach(function(entry){byId[entry.cedula]=entry;});
+   c.students.forEach(function(student){
+    var entry=byId[student.cedula],line=make("tr");
+    function fmt(v){return v===null||v===undefined?"Sin dato":Number(v).toFixed(2);}
+    line.appendChild(make("td",null,student.name));
+    for(var j=0;j<4;j++)line.appendChild(make("td",null,entry?fmt(entry.evaluations[j]):"Sin dato"));
+    line.appendChild(make("td",null,entry?fmt(entry.caseGrade):"Sin dato"));
+    line.appendChild(make("td",null,entry?fmt(entry.finalGrade):"Sin dato"));
+    line.appendChild(make("td",null,entry?entry.status:"PENDIENTE"));
+    line.appendChild(make("td",null,!entry?"Sin registro":entry.gradeMismatch?"DIFERENCIA DE CÁLCULO":entry.reconstructed?"Desglose reconstruido":entry.computedGrade===null?"Desglose incompleto":"Conciliado"));
+    b.appendChild(line);
+   });
+   t.appendChild(b);var wrap=make("div","inf-table-scroll");wrap.appendChild(t);container.appendChild(wrap);
+  });
+ });
 }
 
 function showPVC(){
