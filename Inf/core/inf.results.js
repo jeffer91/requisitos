@@ -72,8 +72,14 @@
  function build(snapshot,knownCareers){
    snapshot=snapshot||{};var rows=Array.isArray(snapshot.students)?snapshot.students:[];
    var people=Object.create(null);(snapshot.persons||[]).forEach(function(r){if(id(r))people[id(r)]=r;});
-   var byIdentity=Object.create(null);
-   rows.forEach(function(r){var key=id(r);if(key&&!byIdentity[key])byIdentity[key]=r;});
+   var byIdentity=Object.create(null),duplicateStudents=0,unidentifiedStudents=0,selectedPeriod=period({periodoId:snapshot.periodoId});
+   rows.forEach(function(r){
+     var key=id(r),rowPeriod=period(r);
+     if(rowPeriod&&selectedPeriod&&rowPeriod!==selectedPeriod)return;
+     if(!key){unidentifiedStudents++;return;}
+     if(byIdentity[key]){duplicateStudents++;return;}
+     byIdentity[key]=r;
+   });
    var labels=Object.create(null);
    (knownCareers||[]).forEach(function(c){labels[normalized(c.career)]=c.career;});
    function label(name){return labels[normalized(name)]||text(name)||"Carrera no identificada";}
@@ -84,7 +90,7 @@
      group.students.push({cedula:key,name:name});
    });
    var entries=(snapshot.nuclei||[]).concat(snapshot.notes||[]);
-   var candidates=Object.create(null);
+   var candidates=Object.create(null),conflictingNuclei=0;
    entries.forEach(function(row){
      var key=id(row);if(!key||!byIdentity[key])return;
      var actualPeriod=period(row),selected=text(snapshot.periodoId).replace(/_+/g,"__");
@@ -94,6 +100,11 @@
        var candidate=key+"|"+n.number,score=(n.finalGrade!==null?10:0)+
         n.evaluations.filter(function(v){return v!==null;}).length+(n.caseGrade!==null?1:0);
        var current=candidates[candidate];
+       if(current){
+         var a=JSON.stringify([current.n.finalGrade,current.n.evaluations,current.n.caseGrade]);
+         var b=JSON.stringify([n.finalGrade,n.evaluations,n.caseGrade]);
+         if(a!==b)conflictingNuclei++;
+       }
        if(!current||score>current.score)candidates[candidate]={n:n,score:score,key:key};
      });
    });
@@ -118,7 +129,17 @@
    });
    var arr=Object.keys(groups).sort(function(a,b){return a.localeCompare(b,"es");}).map(function(k){return groups[k];});
    var withGrades=arr.reduce(function(sum,g){return sum+g.nuclei.reduce(function(s,n){return s+n.graded;},0);},0);
-   return {periodoId:text(snapshot.periodoId),source:snapshot.source||"",readOnly:true,
+   var eligibility=arr.map(function(g){
+     return {career:g.career,students:g.students.map(function(student){
+       var values=g.nuclei.map(function(n){return n.rows.find(function(r){return r.cedula===student.cedula;});});
+       var status=values.some(function(v){return v&&v.finalGrade!==null&&v.finalGrade<7})?"NO_HABILITADO":
+         values.every(function(v){return v&&v.finalGrade!==null&&v.finalGrade>=7})?"HABILITABLE":"PENDIENTE";
+       return {cedula:student.cedula,name:student.name,status:status};
+     })};
+   });
+   var gradeMismatches=arr.reduce(function(sum,g){return sum+g.nuclei.reduce(function(nsum,n){return nsum+n.rows.filter(function(r){return r.gradeMismatch;}).length;},0);},0);
+   return {periodoId:text(snapshot.periodoId),eligibility:eligibility,duplicateStudents:duplicateStudents,
+    unidentifiedStudents:unidentifiedStudents,conflictingNuclei:conflictingNuclei,gradeMismatches:gradeMismatches,source:snapshot.source||"",readOnly:true,
     dataAvailable:accepted>0,students: Object.keys(byIdentity).length,
     observations:accepted,gradedNucleusRecords:withGrades,unmatched:unknown,
     careers:arr,missingGradeSource:accepted===0,
