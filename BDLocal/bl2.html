@@ -40,10 +40,9 @@
 
           <div>
             <span class="bl2-eyebrow">Base principal de la aplicación</span>
-            <h1>Centro de Control BDLocal</h1>
+            <h1>Base Local</h1>
             <p class="bl2-subtitle">
-              Consulta, conexión, respaldo, sincronización,
-              mantenimiento y diagnóstico de la base local.
+              Consulta tus períodos, estudiantes y respaldos desde un solo lugar.
             </p>
           </div>
         </div>
@@ -131,9 +130,12 @@
               data-bl2-section-label="Resumen"
             >
               <span class="bdlc-nav-icon">R</span>
-              <span>Resumen</span>
+              <span>Inicio</span>
             </button>
 
+            <button type="button" class="bdlc-nav-button" data-bl2-section-target="estudiante" data-bl2-section-label="Estudiantes"><span class="bdlc-nav-icon">E</span><span>Estudiantes</span></button>
+            <button type="button" class="bdlc-nav-button" id="bl2-advanced-toggle" aria-expanded="false"><span class="bdlc-nav-icon">⚙</span><span>Herramientas avanzadas</span></button>
+            <div id="bl2-advanced-nav" hidden>
             <div class="bdlc-nav-group is-open" data-bl2-nav-group="conexiones">
               <button
                 type="button"
@@ -177,15 +179,7 @@
               <span>Tablas</span>
             </button>
 
-            <button
-              type="button"
-              class="bdlc-nav-button"
-              data-bl2-section-target="estudiante"
-              data-bl2-section-label="Consulta de estudiante"
-            >
-              <span class="bdlc-nav-icon">E</span>
-              <span>Consulta de estudiante</span>
-            </button>
+
 
             <button
               type="button"
@@ -226,6 +220,7 @@
               <span class="bdlc-nav-icon">D</span>
               <span>Diagnóstico y salud</span>
             </button>
+            </div>
           </nav>
 
           <div class="bdlc-sidebar-footer">
@@ -263,7 +258,7 @@
             <div class="bdlc-header">
               <div>
                 <span class="bdlc-overline">Vista general</span>
-                <h2 class="bdlc-title">Resumen</h2>
+                <h2 class="bdlc-title">Tu información</h2>
                 <p class="bdlc-description">
                   Estado general de la base, período activo,
                   estudiantes y cambios pendientes.
@@ -273,6 +268,12 @@
               <span class="bdlc-status pending">Preparando información</span>
             </div>
 
+            <article class="bdlc-card bl2-primary-action">
+              <h3>Recuperar información</h3>
+              <p>Descarga todos los períodos, estudiantes, requisitos y notas desde Firebase a este equipo.</p>
+              <button id="bl2-simple-recover" type="button" class="bl2-btn bl2-btn-primary">Recuperar toda la información</button>
+              <p id="bl2-simple-recover-hint" role="status">La recuperación requiere conexión con Firebase.</p>
+            </article>
             <div class="bdlc-card-grid bdlc-card-grid-kpis">
               <article class="bdlc-card bdlc-kpi-card">
                 <span>Período activo</span>
@@ -814,6 +815,18 @@
           if(event.key === "Escape"){ closeMenu(); }
         });
 
+        var advancedToggle=byId("bl2-advanced-toggle"),advancedNav=byId("bl2-advanced-nav");
+        if(advancedToggle&&advancedNav)advancedToggle.addEventListener("click",function(){
+          advancedNav.hidden=!advancedNav.hidden;
+          advancedToggle.setAttribute("aria-expanded",String(!advancedNav.hidden));
+        });
+        var recover=byId("bl2-simple-recover");
+        if(recover)recover.addEventListener("click",function(){
+          var target=byId("bl2-btn-pull-firebase-all");
+          if(target&&!target.disabled){target.click();return;}
+          var hint=byId("bl2-simple-recover-hint");
+          if(hint)hint.textContent="Firebase no está disponible. Revisa Herramientas avanzadas.";
+        });
         var initial = "resumen";
 
         try{
@@ -824,6 +837,10 @@
           '[data-bl2-section-target="' + initial + '"]'
         );
 
+        if(initial!=="resumen"&&initial!=="estudiante"&&advancedNav){
+          advancedNav.hidden=false;
+          if(advancedToggle)advancedToggle.setAttribute("aria-expanded","true");
+        }
         activate(
           initial,
           selectedButton
