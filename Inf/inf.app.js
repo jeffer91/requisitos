@@ -135,7 +135,7 @@ function renderGantts(){
  });
 }
 function periodIdFor(label){
- var clean=function(v){return text(v).normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();};
+ var clean=function(v){return text(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();};
  var wanted=clean(label);
  var found=state.periods.find(function(row){
   return wanted===clean(row.nombre||row.label||row.periodoLabel||row.nombrePeriodo||"")||
@@ -306,8 +306,8 @@ function globalPeriodOptions(){
  Array.from(topDoc.querySelectorAll("select")).forEach(function(select){
   var id=(select.id+" "+select.name+" "+(select.getAttribute("aria-label")||"")).toLowerCase();
   var options=Array.from(select.options||[]).map(function(o){return text(o.textContent||o.label||o.value);});
-  if(!/period|períod/.test(id)&&!options.some(function(v){return /(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre).*20\\d{2}/i.test(v)}))return;
-  options.forEach(function(v){if(/20\\d{2}/.test(v))values.push(v);});
+  if(!/period|períod/.test(id)&&!options.some(function(v){return /(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre).*20\d{2}/i.test(v)}))return;
+  options.forEach(function(v){if(/20\d{2}/.test(v))values.push(v);});
  });
  return values;
 }
@@ -318,7 +318,7 @@ function fillPeriods(){
  globalPeriodOptions().forEach(function(value){values.push(value);});
  var seen=Object.create(null);
  values.forEach(function(value){
-  var v=text(value),key=v.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();
+  var v=text(value),key=v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   if(!v||seen[key])return;
   seen[key]=true;var option=make("option");option.value=v;d.appendChild(option);
  });
