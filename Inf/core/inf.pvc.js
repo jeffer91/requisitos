@@ -95,11 +95,11 @@ function make(snapshot,meta){
    var prevKnown=R.every(function(item){return rr[item[0]]!==undefined;});
    var prevOK=R.every(function(item){return rr[item[0]]==="CUMPLE";});
    var titKnown=rr.Titulacion!==undefined;
-   var passed=final!==null&&final>=7;
+   var passed=art!==null&&def!==null&&art>=7&&def>=7&&final!==null&&final>=7;
    return {cedula:c,carrera:career(raw),nombre:name(raw)||name(person),modalidad:m,req:rr,
      requisitosConocidos:prevKnown,requisitosCompletos:prevOK,titulacionConocida:titKnown,
-     habilitado:prevOK&&rr.Titulacion==="CUMPLE",articulo:art,defensa:def,nota:final,
-     notaOrigen:origin,inconsistencia:misMatch,estado:final===null?"SIN_NOTA":passed?"APROBADO":"REPROBADO"};
+     habilitado:prevOK,articulo:art,defensa:def,nota:final,
+     notaOrigen:origin,inconsistencia:misMatch,estado:art===null||def===null?"SIN_NOTA":passed?"APROBADO":"REPROBADO"};
  }).sort(function(a,b){return a.carrera.localeCompare(b.carrera,"es")||a.cedula.localeCompare(b.cedula);});
  var counts={total:students.length,conDatosRequisitos:students.filter(function(s){return s.requisitosConocidos;}).length,
   requisitosCompletos:students.filter(function(s){return s.requisitosCompletos;}).length,
@@ -112,8 +112,8 @@ function make(snapshot,meta){
   notasOficiales:students.filter(function(s){return s.notaOrigen==="OFICIAL";}).length,
   notasCalculadas:students.filter(function(s){return s.notaOrigen==="CALCULADA";}).length,
   inconsistencias:students.filter(function(s){return s.inconsistencia;}).length,
-  tituladoEvaluado:students.filter(function(s){return s.habilitado&&s.nota!==null;}).length,
-  tituladoAprobado:students.filter(function(s){return s.habilitado&&s.estado==="APROBADO";}).length
+  tituladoEvaluado:students.filter(function(s){return s.req.Titulacion==="CUMPLE"&&s.nota!==null;}).length,
+  tituladoAprobado:students.filter(function(s){return s.req.Titulacion==="CUMPLE"&&s.estado==="APROBADO";}).length
  };
  counts.tasaGlobal=pct(counts.aprobados,counts.total);
  counts.tasaEvaluados=pct(counts.aprobados,counts.evaluados);
@@ -147,7 +147,7 @@ function make(snapshot,meta){
  if(counts.conTitulacion<counts.total)issues.push("El requisito Titulación solo consta en "+counts.conTitulacion+" de "+counts.total+" matrículas.");
  if(counts.notasCalculadas)issues.push(counts.notasCalculadas+" calificaciones finales se calcularon desde escrito y defensa; no se sustituyó ninguna nota oficial.");
  if(counts.inconsistencias)issues.push(counts.inconsistencias+" notas oficiales difieren más de 0,05 de la fórmula esperada; se conservan los valores oficiales.");
- if(counts.evaluados>counts.habilitados&&counts.conTitulacion)
+ if(counts.evaluados>counts.habilitados)
   issues.push("Hay más evaluados que habilitados según los requisitos; no se puede interpretar el embudo como conciliación individual completa.");
  if(excludedComplex)issues.push(excludedComplex+" registros sin modalidad Artículo Académico se excluyeron del informe PBC.");
  if(students.some(function(s){return s.modalidad==="SIN_MODALIDAD";}))
