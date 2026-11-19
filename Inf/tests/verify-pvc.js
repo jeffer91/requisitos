@@ -12,8 +12,8 @@ const snapshot={source:"Datos de prueba",students:[
  {cedula:"0000000005",periodoId:p,NombreCarrera:"Mecánica",estadoMatricula:"ACTIVO",modalidadTitulacion:"EXAMEN_COMPLEXIVO"}],
  requirements:Object.keys(all).map(key=>({cedula:"0000000001",periodoId:p,requisitoKey:key,estado:all[key]})),
  notes:[
- {cedula:"0000000001",periodoId:p,Notart:8,Notdef:9,Notafinal:8.3},
- {cedula:"0000000002",periodoId:p,Notart:9,Notdef:7},
+ {cedula:"0000000001",periodoId:p,modalidadTitulacion:"ARTICULO",Notart:8,Notdef:9,Notafinal:8.3},
+ {cedula:"0000000002",periodoId:p,modalidadTitulacion:"ARTICULO",Notart:9,Notdef:7},
  {cedula:"0000000003",periodoId:p,notaFinal:6.5},
  {cedula:"0000000008",periodoId:p,notaFinal:9},
  {cedula:"0000000002",periodoId:"2026-10__2027-03",notaFinal:10}]};
