@@ -20,6 +20,10 @@
    var n=Number(text(v).replace(",","."));
    return Number.isFinite(n)&&n>=0&&n<=10?Math.round(n*100)/100:null;
  }
+ function weightedNucleus(controls,caseGrade){
+   if(controls.length!==4||controls.some(function(v){return v===null;})||caseGrade===null)return null;
+   return Math.round((controls.reduce(function(a,b){return a+b;},0)*0.1+caseGrade*0.6)*100)/100;
+ }
  function nucleusEntries(row){
    var nested=row.nucleos||row.nucleosEstructurantes||row.calificacionesNucleos||
      row.notasNucleos||row.nuclei||null;
@@ -55,8 +59,13 @@
       var final=grade(value(source,["notaFinal","promedioFinal","promedioNucleo","calificacionFinal","notaNucleo"]));
       if(final===null && source.estadoCarga==="CONCILIADO" && source.habilitado===true)
         final=grade(source.totalMoodle);
+      var computed=weightedNucleus(controls,caseGrade);
+      var reconstructed=source.desgloseCalculado===true||source.camposCalculados===true||
+        (Array.isArray(source.camposCalculados)&&source.camposCalculados.length>0);
       if(final===null&&controls.every(function(v){return v===null;})&&caseGrade===null)return null;
       return {number:x.num,evaluations:controls,caseGrade:caseGrade,finalGrade:final,
+        computedGrade:computed,gradeMismatch:computed!==null&&final!==null&&Math.abs(computed-final)>0.01,
+        reconstructed:reconstructed,status:final===null?"PENDIENTE":final>=7?"APROBADO":"REPROBADO",
         source:text(source.fuente||source.origen||row.origen||"registro BDLocal")};
     }).filter(Boolean);
  }
@@ -93,7 +102,9 @@
      if(!g){unknown++;return;}
      var n=found.n,entry=g.nuclei[n.number-1];
      entry.rows.push({cedula:found.key,name:fullName(student)||fullName(people[found.key])||"Nombre no disponible",
-       evaluations:n.evaluations,caseGrade:n.caseGrade,finalGrade:n.finalGrade,source:n.source});
+       evaluations:n.evaluations,caseGrade:n.caseGrade,finalGrade:n.finalGrade,
+       computedGrade:n.computedGrade,gradeMismatch:n.gradeMismatch,reconstructed:n.reconstructed,
+       status:n.status,source:n.source});
      accepted++;
    });
    Object.keys(groups).forEach(function(c){
@@ -113,5 +124,5 @@
     careers:arr,missingGradeSource:accepted===0,
     note:"Los promedios se calculan solo con notas finales por núcleo registradas; no se deducen de controles parciales ni del examen complexivo."};
  }
- window.InfResults=Object.freeze({build:build,nucleusEntries:nucleusEntries});
+ window.InfResults=Object.freeze({build:build,nucleusEntries:nucleusEntries,weightedNucleus:weightedNucleus});
 })(window);
