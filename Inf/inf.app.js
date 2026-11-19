@@ -176,7 +176,7 @@ function showResults(){
 function showPVC(){
  var status=el("inf-pvc-status"),summary=el("inf-pvc-summary"),preview=el("inf-pvc-preview"),r=state.pvcReport;
  var ready=!!r&&r.ok;
- el("inf-pvc-word").disabled=!ready;el("inf-pvc-pdf").disabled=!ready;
+ el("inf-pvc-word").disabled=!ready||!r.canExportFinal;el("inf-pvc-pdf").disabled=!ready||!r.canExportFinal;
  summary.textContent="";
  if(!ready){
   preview.removeAttribute("srcdoc");
@@ -193,6 +193,7 @@ function showPVC(){
 }
 async function exportPVC(type){
  var button=el(type==="pdf"?"inf-pvc-pdf":"inf-pvc-word"),r=state.pvcReport;
+ if(!r||!r.ok||!r.canExportFinal){message("Exportación bloqueada: existen inconsistencias críticas o datos no conciliados.",true);return;}
  if(!r||!r.ok){message("No hay datos PVC del período para generar el archivo.",true);return;}
  try{
   button.disabled=true;message("Generando informe "+type.toUpperCase()+" para "+r.periodoLabel+"…");
