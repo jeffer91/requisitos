@@ -44,7 +44,8 @@ async function load(period,force){
  if(!period){state.rows=[];render();return;}
  var token=++state.token;state.period=period;state.loading=true;
  var key=period;
- if(!force&&TIPO!=="articulo"&&state.cache[key]){state.rows=state.cache[key];state.loading=false;fillCareers();render();return;}
+ // Siempre consultar la fuente oficial al cambiar de período; evita notas obsoletas.
+
  msg("Leyendo notas de "+periodLabel(period)+"…");
  try{
   var fs=await firestore();
@@ -392,6 +393,15 @@ function init(){
  ["nv-career","nv-state"].forEach(function(id){$(id).addEventListener("change",render);});
  $("nv-search").addEventListener("input",render);
  $("nv-refresh").addEventListener("click",function(){load(canonical($("nv-period").value),true);});
+ w.addEventListener("requisitos:notas-actualizadas",function(event){
+  var changed=canonical(event&&event.detail&&event.detail.periodoId);
+  if(changed)delete state.cache[changed];
+  if(changed&&changed===canonical($("nv-period").value)){
+   if(state.saving)return;
+   clearTimeout(state.notesRefreshTimer);
+   state.notesRefreshTimer=setTimeout(function(){load(changed,true);},400);
+  }
+ });
  $("nv-export").addEventListener("click",exportCsv);
  watchVisible(function(){var p=canonical($("nv-period").value);if(p&&!state.loading)load(p,true);});
  periods();
